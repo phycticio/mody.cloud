@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# Remaps client_id on subscriber_report_pageviews and subscriber_report_downloaded_docs,
+# mapping old per-site client CPT post IDs and old clientes taxonomy term IDs to their
+# canonical Hub client CPT post IDs.
+#
+# Three ID types are handled:
+#   hub_cpt_id      — already a valid Hub client CPT ID; skipped.
+#   old_site_cpt_id — old per-site client CPT ID; remapped via post_name slug join.
+#   old_term_id     — old clientes taxonomy term ID; remapped via old_term_id ACF field.
+#
+# Run per site: ./bin/migrate-remap-clients --url=<site-domain> [--force]
+# --force skips the unknown-ID abort threshold (use when unknown count < 5% is acceptable).
+
+set -euo pipefail
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+DB_CONFIG="${ROOT_DIR}/config/bin/db.config"
+
+URL=""
+FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    --url=*)  URL="${arg#--url=}" ;;
+    --force)  FORCE=1 ;;
+  esac
+done
+
+if [ -z "$URL" ]; then
+  ./bin/log "ERROR" "Usage: ./bin/migrate-remap-clients --url=<site-domain> [--force]"
+  exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  ./bin/log "ERROR" "No .env file found at ${ENV_FILE}"
+  exit 1
+fi
+
+if [ ! -f "$DB_CONFIG" ]; then
+  ./bin/log "ERROR" "DB config file not found: ${DB_CONFIG}"
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+# shellcheck disable=SC1090
+source "${DB_CONFIG}"
+
+SITE_ID=$(./bin/wp eval 'echo get_current_blog_id();' --url="$URL" 2>/dev/null | tr -d '[:space:]')
+
+if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "1" ]; then
+  ./bin/log "ERROR" "Could not resolve a valid subsite ID from --url=${URL} (got '${SITE_ID}'). Must be a product subsite, not the main site."
+  exit 1
+fi
+
+SITE_POSTS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_posts"
+HUB_POSTS_TABLE="${WORDPRESS_TABLE_PREFIX}posts"
+HUB_POSTMETA_TABLE="${WORDPRESS_TABLE_PREFIX}postmeta"
+SR_PAGEVIEWS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_subscriber_report_pageviews"
+SR_DOWNLOADS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_subscriber_report_downloaded_docs"
+
+./bin/log "INFO" "Site ID: ${SITE_ID} — auditing client_id column in report tables..."
+
+# ─── Phase 1: classify every distinct client_id value ───────────────────────
+
+AUDIT_SQL="
+SELECT
+  r.client_id,
+  CASE
+    WHEN hub_p.ID          IS NOT NULL THEN 'hub_cpt_id'
+    WHEN site_p.ID         IS NOT NULL THEN 'old_site_cpt_id'
+    WHEN term_pm.post_id   IS NOT NULL THEN 'old_term_id'
+    ELSE 'unknown'
+  END AS id_type,
+  COUNT(*) AS row_count
+FROM (
+  SELECT client_id FROM ${SR_PAGEVIEWS_TABLE}
+  UNION ALL
+  SELECT client_id FROM ${SR_DOWNLOADS_TABLE}
+) r
+LEFT JOIN ${HUB_POSTS_TABLE} hub_p
+  ON  hub_p.ID          = r.client_id
+  AND hub_p.post_type   = 'client'
+  AND hub_p.post_status = 'publish'
+LEFT JOIN ${SITE_POSTS_TABLE} site_p
+  ON  site_p.ID          = r.client_id
+  AND site_p.post_type   = 'client'
+  AND site_p.post_status = 'publish'
+LEFT JOIN ${HUB_POSTMETA_TABLE} term_pm
+  ON  term_pm.meta_key                     = 'old_term_id'
+  AND CAST(term_pm.meta_value AS UNSIGNED) = r.client_id
+GROUP BY r.client_id, id_type
+ORDER BY row_count DESC;"
+
+AUDIT=$(./bin/wp db query "$AUDIT_SQL" --url="$URL" --skip-column-names 2>/dev/null)
+
+HUB_IDS=0
+OLD_CPT_IDS=0
+TERM_IDS=0
+UNKNOWN_IDS=0
+TOTAL_IDS=0
+
+while IFS=$'\t' read -r CLIENT_ID ID_TYPE ROW_COUNT <&3; do
+  CLIENT_ID=$(echo "$CLIENT_ID" | tr -d '[:space:]')
+  ID_TYPE=$(echo "$ID_TYPE"    | tr -d '[:space:]')
+  [ -z "$CLIENT_ID" ] && continue
+  TOTAL_IDS=$(( TOTAL_IDS + 1 ))
+  case "$ID_TYPE" in
+    hub_cpt_id)      HUB_IDS=$(( HUB_IDS + 1 )) ;;
+    old_site_cpt_id) OLD_CPT_IDS=$(( OLD_CPT_IDS + 1 )) ;;
+    old_term_id)     TERM_IDS=$(( TERM_IDS + 1 )) ;;
+    *)
+      UNKNOWN_IDS=$(( UNKNOWN_IDS + 1 ))
+      ./bin/log "WARNING" "  Unknown client_id ${CLIENT_ID} — no matching Hub CPT or ACF mapping found"
+      ;;
+  esac
+done 3<<< "$AUDIT"
+
+./bin/log "INFO" "client_id audit for site ${SITE_ID}:"
+./bin/log "INFO" "  hub_cpt_id      : ${HUB_IDS} distinct IDs — already correct, will be skipped"
+./bin/log "INFO" "  old_site_cpt_id : ${OLD_CPT_IDS} distinct IDs — will remap via slug"
+./bin/log "INFO" "  old_term_id     : ${TERM_IDS} distinct IDs — will remap via old_term_id ACF field"
+./bin/log "INFO" "  unknown         : ${UNKNOWN_IDS} distinct IDs — cannot map"
+
+if [ "$(( OLD_CPT_IDS + TERM_IDS ))" -eq 0 ]; then
+  ./bin/log "INFO" "Nothing to remap for site ${SITE_ID}. All client_ids are already Hub CPT IDs."
+  exit 0
+fi
+
+if [ "$UNKNOWN_IDS" -gt 0 ] && [ "$FORCE" -eq 0 ]; then
+  UNKNOWN_PCT=$(( UNKNOWN_IDS * 100 / TOTAL_IDS ))
+  if [ "$UNKNOWN_PCT" -ge 5 ]; then
+    ./bin/log "ERROR" "Too many unknown client_ids (${UNKNOWN_IDS} of ${TOTAL_IDS}, ${UNKNOWN_PCT}%). Aborting. Use --force to override."
+    exit 1
+  fi
+fi
+
+# ─── Phase 2A: slug-based mapping for old_site_cpt_id values ────────────────
+# Only considers IDs that appear in the report tables AND are NOT already Hub CPT IDs.
+
+./bin/log "INFO" "Building slug-based mapping (old per-site CPT IDs -> Hub CPT IDs)..."
+
+REPORT_CLIENT_IDS_SQL="
+  SELECT DISTINCT client_id FROM ${SR_PAGEVIEWS_TABLE}
+  UNION
+  SELECT DISTINCT client_id FROM ${SR_DOWNLOADS_TABLE}"
+
+HUB_CLIENT_IDS_SQL="
+  SELECT ID FROM ${HUB_POSTS_TABLE}
+  WHERE post_type = 'client' AND post_status = 'publish'"
+
+SLUG_MAP_SQL="
+SELECT old_p.ID, hub_p.ID, old_p.post_name
+FROM ${SITE_POSTS_TABLE} old_p
+INNER JOIN ${HUB_POSTS_TABLE} hub_p
+  ON  hub_p.post_name   = old_p.post_name
+  AND hub_p.post_type   = 'client'
+  AND hub_p.post_status = 'publish'
+WHERE old_p.post_type   = 'client'
+  AND old_p.post_status = 'publish'
+  AND old_p.ID IN (${REPORT_CLIENT_IDS_SQL})
+  AND old_p.ID NOT IN (${HUB_CLIENT_IDS_SQL})
+UNION
+SELECT old_p.ID, hub_p.ID, old_p.post_name
+FROM ${SITE_POSTS_TABLE} old_p
+INNER JOIN ${HUB_POSTMETA_TABLE} pm
+  ON  pm.meta_key   = 'old_term_slug'
+  AND pm.meta_value = old_p.post_name
+INNER JOIN ${HUB_POSTS_TABLE} hub_p
+  ON  hub_p.ID          = pm.post_id
+  AND hub_p.post_type   = 'client'
+  AND hub_p.post_status = 'publish'
+WHERE old_p.post_type   = 'client'
+  AND old_p.post_status = 'publish'
+  AND old_p.ID IN (${REPORT_CLIENT_IDS_SQL})
+  AND old_p.ID NOT IN (${HUB_CLIENT_IDS_SQL})
+  AND old_p.ID NOT IN (
+    SELECT old_p2.ID
+    FROM ${SITE_POSTS_TABLE} old_p2
+    INNER JOIN ${HUB_POSTS_TABLE} hub_p2
+      ON  hub_p2.post_name   = old_p2.post_name
+      AND hub_p2.post_type   = 'client'
+      AND hub_p2.post_status = 'publish'
+    WHERE old_p2.post_type   = 'client'
+      AND old_p2.post_status = 'publish'
+  );"
+
+SLUG_MAPPINGS=$(./bin/wp db query "$SLUG_MAP_SQL" --url="$URL" --skip-column-names 2>/dev/null)
+SLUG_MATCHED=$(echo "$SLUG_MAPPINGS" | grep -c $'\t' || true)
+./bin/log "INFO" "  Slug-based mapping: ${SLUG_MATCHED} client(s) matched"
+
+# ─── Phase 2B: term-ID-based mapping for old_term_id values ─────────────────
+
+./bin/log "INFO" "Building term-ID-based mapping (old taxonomy term IDs -> Hub CPT IDs)..."
+
+TERM_MAP_SQL="
+SELECT CAST(pm_term.meta_value AS UNSIGNED), pm_term.post_id, p.post_name
+FROM ${HUB_POSTMETA_TABLE} pm_term
+INNER JOIN ${HUB_POSTMETA_TABLE} pm_site
+  ON  pm_site.post_id  = pm_term.post_id
+  AND REPLACE(pm_term.meta_key, '_old_term_id', '_site_id') = pm_site.meta_key
+  AND pm_site.meta_value = '${SITE_ID}'
+INNER JOIN ${HUB_POSTS_TABLE} p
+  ON  p.ID = pm_term.post_id
+WHERE pm_term.meta_key REGEXP '^client_site_mappings_[0-9]+_old_term_id\$'
+  AND pm_term.meta_value != '' AND pm_term.meta_value != '0'
+  AND CAST(pm_term.meta_value AS UNSIGNED) IN (${REPORT_CLIENT_IDS_SQL})
+  AND CAST(pm_term.meta_value AS UNSIGNED) NOT IN (${HUB_CLIENT_IDS_SQL})
+UNION
+SELECT CAST(pm.meta_value AS UNSIGNED), pm.post_id, p.post_name
+FROM ${HUB_POSTMETA_TABLE} pm
+INNER JOIN ${HUB_POSTS_TABLE} p
+  ON  p.ID          = pm.post_id
+  AND p.post_type   = 'client'
+  AND p.post_status = 'publish'
+WHERE pm.meta_key    = 'old_term_id'
+  AND pm.meta_value != '' AND pm.meta_value != '0'
+  AND CAST(pm.meta_value AS UNSIGNED) IN (${REPORT_CLIENT_IDS_SQL})
+  AND CAST(pm.meta_value AS UNSIGNED) NOT IN (${HUB_CLIENT_IDS_SQL})
+  AND pm.post_id NOT IN (
+    SELECT DISTINCT post_id FROM ${HUB_POSTMETA_TABLE}
+    WHERE meta_key REGEXP '^client_site_mappings_[0-9]+_site_id\$'
+      AND meta_value = '${SITE_ID}'
+  );"
+
+TERM_MAPPINGS=$(./bin/wp db query "$TERM_MAP_SQL" --url="$URL" --skip-column-names 2>/dev/null)
+TERM_MATCHED=$(echo "$TERM_MAPPINGS" | grep -c $'\t' || true)
+./bin/log "INFO" "  Term-ID-based mapping: ${TERM_MATCHED} client(s) matched"
+
+# ─── Phase 3: preview and apply slug-based remaps ───────────────────────────
+
+while IFS=$'\t' read -r OLD_ID NEW_ID SLUG <&3; do
+  OLD_ID=$(echo "$OLD_ID" | tr -d '[:space:]')
+  NEW_ID=$(echo "$NEW_ID" | tr -d '[:space:]')
+  SLUG=$(echo "$SLUG"     | tr -d '\r\n')
+  [ -z "$OLD_ID" ] || [ -z "$NEW_ID" ] && continue
+  [ "$OLD_ID" = "$NEW_ID" ] && continue
+
+  PV_COUNT=$(./bin/wp db query \
+    "SELECT COUNT(*) FROM ${SR_PAGEVIEWS_TABLE} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+  DL_COUNT=$(./bin/wp db query \
+    "SELECT COUNT(*) FROM ${SR_DOWNLOADS_TABLE} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+  echo "[slug remap]  slug=${SLUG}  old_id=${OLD_ID} -> new_id=${NEW_ID}  (pageviews=${PV_COUNT}, downloads=${DL_COUNT})"
+
+  ./bin/wp db query \
+    "UPDATE ${SR_PAGEVIEWS_TABLE} SET client_id = ${NEW_ID} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" 2>/dev/null
+
+  ./bin/wp db query \
+    "UPDATE ${SR_DOWNLOADS_TABLE} SET client_id = ${NEW_ID} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" 2>/dev/null
+done 3<<< "$SLUG_MAPPINGS"
+
+# ─── Phase 4: preview and apply term-ID-based remaps ────────────────────────
+
+while IFS=$'\t' read -r OLD_ID NEW_ID SLUG <&3; do
+  OLD_ID=$(echo "$OLD_ID" | tr -d '[:space:]')
+  NEW_ID=$(echo "$NEW_ID" | tr -d '[:space:]')
+  SLUG=$(echo "$SLUG"     | tr -d '\r\n')
+  [ -z "$OLD_ID" ] || [ -z "$NEW_ID" ] && continue
+  [ "$OLD_ID" = "$NEW_ID" ] && continue
+
+  PV_COUNT=$(./bin/wp db query \
+    "SELECT COUNT(*) FROM ${SR_PAGEVIEWS_TABLE} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+  DL_COUNT=$(./bin/wp db query \
+    "SELECT COUNT(*) FROM ${SR_DOWNLOADS_TABLE} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+  echo "[term remap]  slug=${SLUG}  old_id=${OLD_ID} -> new_id=${NEW_ID}  (pageviews=${PV_COUNT}, downloads=${DL_COUNT})"
+
+  ./bin/wp db query \
+    "UPDATE ${SR_PAGEVIEWS_TABLE} SET client_id = ${NEW_ID} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" 2>/dev/null
+
+  ./bin/wp db query \
+    "UPDATE ${SR_DOWNLOADS_TABLE} SET client_id = ${NEW_ID} WHERE client_id = ${OLD_ID};" \
+    --url="$URL" 2>/dev/null
+done 3<<< "$TERM_MAPPINGS"
+
+./bin/log "SUCCESS" "Client ID remap complete for site ${SITE_ID}."

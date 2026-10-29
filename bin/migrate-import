@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Imports a prefix-rewritten SQL dump into the matching multisite subsite.
+# Usage: ./bin/migrate-import <dump.sql>
+
+set -euo pipefail
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+SITE_ID="${1:-}"
+SQL_FILE="${2:-}"
+
+if [ -z "$SITE_ID" ] || [ -z "$SQL_FILE" ]; then
+  ./bin/log "ERROR" "Usage: ./bin/migrate-import <site-id> <dump.sql>"
+  ./bin/log "ERROR" "  Example: ./bin/migrate-import 2 app/dumps/newei.sql"
+  exit 1
+fi
+
+if [ ! -f "$SQL_FILE" ]; then
+  ./bin/log "ERROR" "SQL file not found: $SQL_FILE"
+  exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  ./bin/log "ERROR" "No .env file found"
+  exit 1
+fi
+
+DB_CONFIG="${ROOT_DIR}/config/bin/db.config"
+if [ ! -f "$DB_CONFIG" ]; then
+    ./bin/log "ERROR" "DB config file not found: $DB_CONFIG"
+    exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+# shellcheck disable=SC1090
+source "${DB_CONFIG}"
+
+./bin/log "INFO" "Detected site ID: ${SITE_ID} (prefix ${WORDPRESS_TABLE_PREFIX}${SITE_ID}_)"
+
+# Verify the site ID exists in the multisite network
+SITE_URL=$(./bin/wp site list --fields=blog_id,url --format=csv --url="${HOST_NAME}" 2>/dev/null \
+  | awk -F',' -v id="$SITE_ID" 'NR>1 && $1==id { gsub(/\r/, ""); print $2 }')
+
+if [ -z "$SITE_URL" ]; then
+  ./bin/log "ERROR" "Site ID ${SITE_ID} does not exist in the multisite network"
+  ./bin/log "INFO" "Available sites:"
+  ./bin/wp site list --fields=blog_id,url --format=table --url="${HOST_NAME}"
+  exit 1
+fi
+
+FILE_SIZE=$(du -sh "$SQL_FILE" | cut -f1)
+
+./bin/log "INFO" "SQL file: $SQL_FILE (${FILE_SIZE})"
+./bin/log "INFO" "Target:   Site ID ${SITE_ID} — ${SITE_URL}"
+./bin/log "WARNING" "This will overwrite all ${WORDPRESS_TABLE_PREFIX}${SITE_ID}_ tables in the database. This cannot be undone."
+printf "Type 'yes' to confirm: "
+read -r CONFIRM
+
+if [ "$CONFIRM" != "yes" ]; then
+  ./bin/log "INFO" "Aborted"
+  exit 0
+fi
+
+./bin/log "INFO" "Importing ${SQL_FILE}..."
+./bin/wp db query --url="${HOST_NAME}" < "$SQL_FILE"
+./bin/log "SUCCESS" "Import complete — Site ID ${SITE_ID} (${SITE_URL})"
+
+# Read the old domain from the just-imported options table before WP knows it moved
+OLD_URL=$(./bin/wp db query \
+  "SELECT option_value FROM ${WORDPRESS_TABLE_PREFIX}${SITE_ID}_options WHERE option_name = 'siteurl' LIMIT 1;" \
+  --url="${HOST_NAME}" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+if [ -z "$OLD_URL" ]; then
+  ./bin/log "WARNING" "Could not read siteurl from ${WORDPRESS_TABLE_PREFIX}${SITE_ID}_options — skipping search-replace"
+  exit 0
+fi
+
+# Strip trailing slash so the replace is consistent regardless of how values are stored
+OLD_URL="${OLD_URL%/}"
+NEW_URL="${SITE_URL%/}"
+
+if [ "$OLD_URL" = "$NEW_URL" ]; then
+  ./bin/log "INFO" "Old and new URLs are identical — skipping search-replace"
+  exit 0
+fi
+
+./bin/log "INFO" "Replacing '${OLD_URL}' -> '${NEW_URL}'..."
+./bin/wp search-replace "$OLD_URL" "$NEW_URL" \
+  --url="${SITE_URL}" \
+  --precise \
+  --report-changed-only
+./bin/log "SUCCESS" "Domain replacement complete"
+
+# Rewrite legacy single-site upload paths to the multisite directory structure.
+# Must run after the domain replace so we match the new local domain.
+UPLOAD_OLD="${NEW_URL}/wp-content/uploads"
+UPLOAD_NEW="${NEW_URL}/web/uploads/sites/${SITE_ID}"
+
+./bin/log "INFO" "Replacing upload paths '${UPLOAD_OLD}' -> '${UPLOAD_NEW}'..."
+./bin/wp search-replace "$UPLOAD_OLD" "$UPLOAD_NEW" \
+  --url="${SITE_URL}" \
+  --precise \
+  --report-changed-only
+./bin/log "SUCCESS" "Upload path replacement complete"
+
+./bin/log "INFO" "Remap steps skipped — run migrate-remap-users-email and migrate-remap-clients manually, or use ./bin/migrate-all for the full pipeline."
+
+LOCAL_SITE_PREFIX="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_"
+#./bin/log "INFO" "Removing users and usermeta tables from child site ${LOCAL_SITE_PREFIX}"
+#if ! bash ${ROOT_DIR}/bin/wp db query "DROP TABLE ${LOCAL_SITE_PREFIX}users, ${LOCAL_SITE_PREFIX}usermeta"; then
+#  ./bin/log "ERROR" "Failed to update capabilities, please try again later"
+#  exit 1;
+#fi
+
+if ! bash ${ROOT_DIR}/bin/wp db query "UPDATE ${LOCAL_SITE_PREFIX}options SET option_name = REPLACE(option_name, '${STAGE_DB_PREFIX}', '${LOCAL_SITE_PREFIX}') WHERE option_name LIKE '${STAGE_DB_PREFIX}%';"; then
+  ./bin/log "ERROR" "Failed to update roles, please try again later"
+  exit 1;
+fi
+
+./bin/wp theme activate theme --url="${SITE_URL}"
+
+declare -A THEME_MOD_MAP=([2]="01-ei" [3]="02-ti")
+THEME_MOD="${THEME_MOD_MAP[$SITE_ID]}"
+
+./bin/wp option update theme_mods_theme "{\"theme_variation\":\"${THEME_MOD}\"}" --format=json
+

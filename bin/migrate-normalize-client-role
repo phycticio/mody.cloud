@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Normalizes the legacy 'client' role to 'subscriber' in the Hub-target
+# capabilities usermeta row for a product site.
+#
+# 'client' was a legacy ECig/Tobacco single-site role created with the exact
+# same capabilities as 'subscriber' — see
+# tickets/normalize-client-role-to-subscriber.md. Because of the
+# wp_user_roles option-name gap described in that ticket, 'client' never
+# resolves via $user->roles on these sites, so every user still holding it
+# fails every current_user_can()/role-based check. Rewriting the stored
+# capability to 'subscriber' fixes that outright, since 'subscriber' is one
+# of the roles that still resolves.
+#
+# Only rewrites the exact single-role serialized value
+# 'a:1:{s:6:"client";b:1;}'. Rows combining 'client' with any other role (or
+# any other unexpected serialization containing "client") are left untouched
+# and logged as a WARNING for manual review, never guessed at.
+#
+# Matching on the exact serialized value (not a substring REPLACE) means this
+# can never corrupt a combo row, and is trivially idempotent — once no row
+# matches the WHERE, re-running is a genuine no-op. Safe to run every time as
+# a permanent step in bin/migrate-all.
+#
+# Must run against the same ${WORDPRESS_TABLE_PREFIX}${SITE_ID}_capabilities
+# rows that ./bin/migrate-remap-users-meta just finished writing/preserving,
+# so it should run immediately after that script for each site.
+# Run per site: ./bin/migrate-normalize-client-role --url=<site-domain>
+
+set -euo pipefail
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+DB_CONFIG="${ROOT_DIR}/config/bin/db.config"
+
+URL=""
+for arg in "$@"; do
+  case "$arg" in
+    --url=*) URL="${arg#--url=}" ;;
+  esac
+done
+
+if [ -z "$URL" ]; then
+  ./bin/log "ERROR" "Usage: ./bin/migrate-normalize-client-role --url=<site-domain>"
+  exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  ./bin/log "ERROR" "No .env file found at ${ENV_FILE}"
+  exit 1
+fi
+
+if [ ! -f "$DB_CONFIG" ]; then
+  ./bin/log "ERROR" "DB config file not found: ${DB_CONFIG}"
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+# shellcheck disable=SC1090
+source "${DB_CONFIG}"
+
+SITE_ID=$(./bin/wp eval 'echo get_current_blog_id();' --url="$URL" 2>/dev/null | tr -d '[:space:]')
+
+if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "1" ]; then
+  ./bin/log "ERROR" "Could not resolve a valid subsite ID from --url=${URL} (got '${SITE_ID}'). Must be a product subsite, not the main site."
+  exit 1
+fi
+
+TARGET_CAPS_KEY="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_capabilities"
+HUB_USERMETA_TABLE="${WORDPRESS_TABLE_PREFIX}usermeta"
+
+CLIENT_ONLY_VALUE='a:1:{s:6:"client";b:1;}'
+SUBSCRIBER_ONLY_VALUE='a:1:{s:10:"subscriber";b:1;}'
+
+./bin/log "INFO" "Site ID: ${SITE_ID}, target capability key: ${TARGET_CAPS_KEY}"
+
+BEFORE_EXACT_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(*) FROM ${HUB_USERMETA_TABLE} WHERE meta_key = '${TARGET_CAPS_KEY}' AND meta_value = '${CLIENT_ONLY_VALUE}';" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "INFO" "Rows with exact single-role 'client' capability (site ${SITE_ID}): ${BEFORE_EXACT_COUNT}"
+
+COMBO_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(*) FROM ${HUB_USERMETA_TABLE} WHERE meta_key = '${TARGET_CAPS_KEY}' AND meta_value LIKE '%\"client\"%' AND meta_value != '${CLIENT_ONLY_VALUE}';" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+if [ "$COMBO_COUNT" -gt 0 ]; then
+  ./bin/log "WARNING" "Found ${COMBO_COUNT} row(s) combining 'client' with another role or an unexpected serialization (site ${SITE_ID}) — left untouched, needs manual review."
+else
+  ./bin/log "INFO" "Combo/unexpected 'client' rows (site ${SITE_ID}): 0"
+fi
+
+./bin/log "INFO" "Normalizing exact-match 'client' rows to 'subscriber' (site ${SITE_ID})..."
+
+./bin/wp db query \
+  "UPDATE ${HUB_USERMETA_TABLE} SET meta_value = '${SUBSCRIBER_ONLY_VALUE}' WHERE meta_key = '${TARGET_CAPS_KEY}' AND meta_value = '${CLIENT_ONLY_VALUE}';" \
+  --url="$URL"
+
+AFTER_EXACT_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(*) FROM ${HUB_USERMETA_TABLE} WHERE meta_key = '${TARGET_CAPS_KEY}' AND meta_value = '${CLIENT_ONLY_VALUE}';" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "INFO" "Remaining exact-match 'client' rows after normalization (site ${SITE_ID}, should be 0): ${AFTER_EXACT_COUNT}"
+./bin/log "INFO" "Combo/unexpected 'client' rows still left untouched (site ${SITE_ID}): ${COMBO_COUNT}"
+
+./bin/log "SUCCESS" "Client role normalization complete for site ${SITE_ID}."

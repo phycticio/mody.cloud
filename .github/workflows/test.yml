@@ -1,0 +1,77 @@
+name: 🧪 PR Tests
+
+# Runs on PRs targeting develop, stage, or production.
+# Skipped when the PR source branch is itself one of those three
+# (i.e. promotion PRs like develop->stage, stage->production, etc.).
+# All jobs must pass before the PR can be merged
+# (enforce this via GitHub branch-protection rules →
+#  "Require status checks to pass before merging").
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - develop
+      - stage
+      - production
+
+env:
+  PNPM_VERSION: "10.15.1"
+
+jobs:
+  lint-js:
+    name: 🔍 Lint JavaScript
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false && !contains(fromJSON('["develop", "stage", "production"]'), github.head_ref)
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v6
+
+      - name: 📦 Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: ⚙️ Set up Node.js ${{ vars.NODE_VERSION }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: pnpm
+
+      - name: 📥 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🔍 Run ESLint
+        run: pnpm run lint:js
+
+  lint-scss:
+    name: 🎨 Lint SCSS
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false && !contains(fromJSON('["develop", "stage", "production"]'), github.head_ref)
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v6
+
+      - name: 📦 Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: ⚙️ Set up Node.js ${{ vars.NODE_VERSION }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: pnpm
+
+      - name: 📥 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Uses lint:scss:ci (no --fix) so violations are reported, not silently patched.
+      # Use `pnpm run lint:scss` locally to auto-fix before pushing.
+      - name: 🎨 Run Stylelint
+        run: pnpm run lint:scss:ci

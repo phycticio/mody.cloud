@@ -1,0 +1,38 @@
+/*
+Theme Name: Mody Cloud
+Theme URI: https://mody.cloud
+Author: Mody Cloud
+Author URI: https://mody.cloud
+Description: Mody Cloud base block theme (Full Site Editing). Templates, parts, palette and typography are edited with Gutenberg and theme.json.
+Version: 0.1.0
+Requires at least: 6.6
+Tested up to: 7.0
+Requires PHP: 8.1
+License: GNU General Public License v2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: mody_cloud
+Tags: full-site-editing, block-patterns, wide-blocks, custom-colors, accessibility-ready, translation-ready
+*/
+
+/*
+ * Minimal styles that theme.json cannot express.
+ * Palette, typography and spacing live in theme.json: do not duplicate them here.
+ */
+
+/* Visible, consistent focus ring using the brand accent. */
+:where(a, button, input, select, textarea):focus-visible {
+	outline: 2px solid var(--wp--preset--color--accent);
+	outline-offset: 2px;
+}
+
+/* Respect the system preference for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
+}

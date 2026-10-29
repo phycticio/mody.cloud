@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="${ROOT_DIR}/app/dumps/.migration-local.env"
+
+mkdir -p "${ROOT_DIR}/app/dumps"
+umask 077
+
+if [ ! -f "${ENV_FILE}" ]; then
+	{
+		printf "export TAMARIND_MIGRATION_IDENTITY_KEY='%s'\n" "$(openssl rand -hex 32)"
+		printf "export TAMARIND_MIGRATION_DATA_KEY='%s'\n" "$(openssl rand -hex 32)"
+	} > "${ENV_FILE}"
+	chmod 600 "${ENV_FILE}"
+	printf 'created %s\n' "${ENV_FILE}"
+else
+	chmod 600 "${ENV_FILE}"
+	printf 'using existing %s\n' "${ENV_FILE}"
+fi
+
+printf 'run: source app/dumps/.migration-local.env\n'

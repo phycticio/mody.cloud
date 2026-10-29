@@ -1,0 +1,7 @@
+{
+  "name": "mody_cloud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mody Cloud: sovereign WordPress site generator",
+  "packageManager": "pnpm@10.15.1"
+}

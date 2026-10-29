@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+NO_BUILD=false
+for ARG in "$@"; do
+  if [ "$ARG" == "--no-build" ]; then
+    NO_BUILD=true
+  fi
+done
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+./bin/log "INFO" "Checking .env file exists in ${ENV_FILE}"
+if [ ! -f "${ENV_FILE}" ]; then
+  ./bin/log "ERROR" "No .env file found"
+  exit 1;
+fi
+source "${ENV_FILE}";
+INSTALL_CONFIG="${ROOT_DIR}/config/bin/install.config"
+if [ ! -f "$INSTALL_CONFIG" ]; then
+  ./bin/log "ERROR" "Install config file not found: $INSTALL_CONFIG"
+  exit 1
+fi
+# shellcheck disable=SC1090
+source "${INSTALL_CONFIG}"
+
+if [ "${WORDPRESS_ENVIRONMENT:-local}" = "local" ]; then
+  ./bin/log "INFO" "WORDPRESS_ENVIRONMENT=local — generating locally-trusted TLS certificates with mkcert..."
+  ./bin/certs
+else
+  ./bin/log "INFO" "WORDPRESS_ENVIRONMENT=${WORDPRESS_ENVIRONMENT} — skipping ./bin/certs; mkcert is only required for local development."
+fi
+mkdir -p "${ROOT_DIR}/app/logs" && \
+  touch "${ROOT_DIR}/app/logs/debug.log" && \
+  chmod 666 "${ROOT_DIR}/app/logs/debug.log" && \
+  docker compose up -d --build --force-recreate --remove-orphans && \
+  ./bin/version "${WORDPRESS_VERSION}" --no-backup && \
+  ./bin/composer config http-basic.${PLUGIN_REPO_HOST:-plugins.mody.cloud} "${SATISPRESS_KEY}" "satispress" && \
+  ./bin/composer install && \
+  ./bin/wp core install --url="https://${HOST_NAME}" --title="${SITE_TITLE}" --admin_user="${SITE_ADMIN_USER}" --admin_email="${SITE_ADMIN_EMAIL}" --admin_password="${SITE_ADMIN_PASSWD}" --skip-email && \
+  ./bin/db import
+
+if [ "$NO_BUILD" = false ]; then
+  ./bin/log "INFO" "Building assets after importing the local database dump..."
+  ./bin/build
+fi
+
+./bin/log "SUCCESS" "Installation completed successfully"

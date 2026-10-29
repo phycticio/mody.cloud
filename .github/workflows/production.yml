@@ -1,0 +1,81 @@
+name: Deploy to Production
+
+on:
+  pull_request:
+    branches:
+      - production
+    types:
+      - closed
+
+env:
+  PNPM_VERSION: "10.15.1"
+
+jobs:
+  web-deploy:
+    name: 🚚 Deploy to Production server.
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: ⬇️ Get latest code
+        uses: actions/checkout@v3
+
+      - name: 🔐 Tamarind Repository Auth
+        run: |
+          composer config --global --unset http-basic.${{ vars.PLUGINS_URL }}
+          composer config --global http-basic.${{ vars.PLUGINS_URL }} ${{ secrets.PLUGINS_KEY }} ${{ vars.PLUGINS_PASSWORD }}
+          composer clear-cache
+
+      - name: 📦 Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: ⚙️ Use Node.js ${{ vars.NODE_VERSION }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 🛠 Build Plugin & Theme Dependencies (NPM & Composer)
+        run: |
+          chmod +x bin/build
+          ./bin/build prod
+
+      - name: ⚙️ Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+
+      - name: 🛠 Prepare deploy on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_PRODUCTION_USER_SERVER }} "mkdir -p ${{ vars.PRODUCTION_TARGET_DIR }}"
+
+      - name: 📂 Sync files to VPS using SSH
+        run: |
+          rsync -avz --no-times --update --delete \
+          --chmod=Dugo+rx,Fugo+r \
+          --exclude='**/node_modules' \
+          --exclude='.git*' \
+          --exclude='**/auth.json' \
+          --exclude='**/package.json' \
+          --exclude='pint.json' \
+          --exclude='sample*' \
+          --exclude='*.md' \
+          --exclude='**/tests' \
+          --exclude='**/documentation' \
+          --exclude='**/.eslint*' \
+          --exclude='**/.nvmrc*' \
+          --exclude='**/package*' \
+          --exclude='.env' \
+          --exclude='compose.*.yml' \
+          --exclude='app/web/uploads' \
+          --exclude='app/dumps' \
+          --exclude='app/wp/*' \
+          ./ ${{ secrets.SSH_PRODUCTION_USER_SERVER }}:${{ vars.PRODUCTION_TARGET_DIR }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+
+      - name: 🛠 Refresh styles
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_PRODUCTION_USER_SERVER }} "cd ${{ vars.PRODUCTION_TARGET_DIR }} && ./bin/wp tamarind styles refresh --network --yes"

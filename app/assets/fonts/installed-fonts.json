@@ -1,0 +1,119 @@
+{
+    "bitter": {
+        "italic": "\/var\/www\/html\/assets\/fonts\/bitter_italic_c21bb21e3347f2c933ea4e2125d917fe",
+        "bold_italic": "\/var\/www\/html\/assets\/fonts\/bitter_bold_italic_c3c7daa51017f73b857e81d6c1562068",
+        "100": "\/var\/www\/html\/assets\/fonts\/bitter_100_019c7fad38835c454b2267debe3db295",
+        "200": "\/var\/www\/html\/assets\/fonts\/bitter_200_a7426e4e066b1025dbfcb9ac086486bc",
+        "normal": "\/var\/www\/html\/assets\/fonts\/bitter_normal_3c608391925cb58055f58c83e97969b2",
+        "bold": "\/var\/www\/html\/assets\/fonts\/bitter_bold_242c777bc8019c71f0d330149de53fb8",
+        "900": "bitter_900_37beeedf706acb7f9fac1b97124f50a7"
+    },
+    "ibm plex sans arabic": {
+        "100": "\/var\/www\/html\/assets\/fonts\/ibm_plex_sans_arabic_100_f5d009456c9a449783aa8a5231439496",
+        "200": "\/var\/www\/html\/assets\/fonts\/ibm_plex_sans_arabic_200_f0ac5356cbb41bfd553d85d170e8c830",
+        "300": "\/var\/www\/html\/assets\/fonts\/ibm_plex_sans_arabic_300_3714946f02772b60e2d50f9cd37a696d",
+        "normal": "\/var\/www\/html\/assets\/fonts\/ibm_plex_sans_arabic_normal_17b1d07202c0352d9e464a2dc037951d",
+        "500": "\/var\/www\/html\/assets\/fonts\/ibm_plex_sans_arabic_500_7eb8f8e39ed53dec05cfc71c07f5bc09",
+        "600": "\/var\/www\/html\/assets\/fonts\/ibm_plex_sans_arabic_600_5a313541c3f9a5f7e3f08101472d26b1",
+        "bold": "ibm_plex_sans_arabic_bold_8756221481c4cd128129ea4c31d7e209"
+    },
+    "noto sans": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_100_b69ae44cd595c285e6372c7d7768d5de",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_200_9a44da72bf04833673b9263a02d682bf",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_300_82b35c4bb332d4998189847ebaf010e6",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_normal_1d3fa1de43813f2e3d43c049a3dc3027",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_500_93a0c99266b5038dea832e2e4a453c28",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_600_28250d88674528bd3123cc6a87717c32",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_bold_d14bb300c338842261b48b55ff65a0d0",
+        "800": "noto_sans_800_8d0004275b318fedf8c3734c04325c02",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_900_86a7f28bdf064d755038aea2bf9d083c"
+    },
+    "noto sans armenian": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_100_abb8eef5d48078ad9e77f4c7ef1f246f",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_200_c4092627833b162930fc614ae509c001",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_300_0a2317d72d52e809ae87d7494661a79d",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_normal_98ad032b1e6dce7e8b733625f5bbfcdb",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_500_d09e5c0566325a839ca437e03c4c15a8",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_600_847398e518c707411e3dac2ad2eee182",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_bold_6cee1ed800703d7f156097fd79c514e0",
+        "800": "noto_sans_armenian_800_a68582bfbaf82d83c3d6317ee4ef4dd3",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_armenian_900_48ae788be8d391b9a00b13d63b0697be"
+    },
+    "noto sans georgian": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_100_d1366fbbec42a1aad7bf235de847849c",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_200_6fbe47e3a443208aafea53fd040935c8",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_300_d9791bc163c27eaea08676933bd2b267",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_normal_82028b4683eb6f9ef0b1a58a4ba2d065",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_500_834a38c92607c4f9b46e85beed0983d4",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_600_f6bdffc94d4c96acf4bda3ac96c40e8c",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_bold_ebfc9a282a7fe860620b4a5247657a39",
+        "800": "noto_sans_georgian_800_1e8b09bb9d1235f38dcffdf5cff6034e",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_georgian_900_2da5464e116130cbe6d1ffdb9fb024b9"
+    },
+    "noto sans hebrew": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_100_e849f317ef1213a3782b7bb2722acf41",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_200_325a289aaae002780cb1538c435c660a",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_300_31a7298e260fa48caa7f07c19385f8c8",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_normal_783a3c00ec3a44b0ec6f52205544bd30",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_500_5d321094e7e51556e49d00cf66e6fa1e",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_600_25aa76327dd80025f63a6f60ead51b24",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_bold_748ff8bc6d5e35351f6d5f6f63b28c1f",
+        "800": "noto_sans_hebrew_800_85c0965c7546b05559a853778f92f151",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_hebrew_900_d2132c6794a89dc3c5759abfa4817e63"
+    },
+    "noto sans jp": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_100_83f1b84949662eec28453f783f49ff4f",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_200_7629f94f8a0630334506a83f8f94b3aa",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_300_c1c5c6fa5e5e8a50f1acb71dc451ce23",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_normal_dd3701a274fb76800707c9a8c7c6e747",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_500_d9e2ac9d00f86ec0ed140e3f321fde78",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_600_c4ce386d70ec51e8c33eb9fb52fc6bc4",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_bold_8e12b2ed4cf59ec70cd5efe7675e807f",
+        "800": "noto_sans_jp_800_362c7410f3a5cf59acfb96db3084775d",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_jp_900_9d8afaba72a8b109079e32b62317c9b4"
+    },
+    "noto sans kr": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_100_2361e3070e82fea98b0d738d0d3f7a00",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_200_6f1197d34996ecf54f1c9a2b3c6f0e4d",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_300_66e9e38b82b09b32d18591b15e59fdf7",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_normal_2e76dd47d8c5d73763569037ea11e57c",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_500_e2a83f50c62d213b2f590ccab32edf99",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_600_14b086a5b520bf24bb786be2bdc070e2",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_bold_28dbdb3088358beb56b3931f1fbf645d",
+        "800": "noto_sans_kr_800_0b911b3d714ffe18579d323c3ef8cc1c",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_kr_900_16098c73d8e21abd3fa796e1521f5184"
+    },
+    "noto sans sc": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_100_80467bc0403ca27de095a37306bfb2cf",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_200_6e6375901c427b7da343254cc4b0cee6",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_300_2a4f62a53e77bff34d0b224b01ca80ab",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_normal_bb392f6bdc54df99abdcfcc22bd7a51a",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_500_ef112f37fee1358342a73a440ca58d87",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_600_053b520c40f1b9757212798a4a0debc6",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_bold_76bfb338a08fe9ce88ca6ba6f2f057e3",
+        "800": "noto_sans_sc_800_fb36d645bdcfeb40955bec82123d791e",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_sc_900_c19d8fe4fb4a503fe9cf08e04207d748"
+    },
+    "noto sans tc": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_100_35e63c911979a70bcf1994356d98ac0b",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_200_69f5cba25baa0094b7963633f6066881",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_300_1b85008d1db512ce6233672a0027cc9c",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_normal_90731a4c7b0a9b3063d42223b2feba2d",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_500_5d508080e97878f96db1a656efe2a43f",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_600_c44638176d0d0b0fee872c6b03bfb03e",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_bold_05103e14ebe39a0d6f8a68aa730a28d7",
+        "800": "noto_sans_tc_800_c55cfab8250ef04ab37ef2c44e3e2b52",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_tc_900_466933ad562a5aa62e8a259341e90445"
+    },
+    "noto sans thai": {
+        "100": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_100_d487468d10e51c043873dce5de5c326a",
+        "200": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_200_9f829ec0badbf5f4f7d2ba97448140c7",
+        "300": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_300_efb8572021e685d984cb2f8fef61ef6d",
+        "normal": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_normal_68a4b32294e1f11656748a7f85d306de",
+        "500": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_500_fe46c3d7c0eaeff5b622259504a0c1d1",
+        "600": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_600_109b7a35e1cda0923c83f93b5a9c3a17",
+        "bold": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_bold_abac1caa932841dc79eb571c3539b0b9",
+        "800": "noto_sans_thai_800_0d1b70df1f9bc1ec880ea39aaa1678ee",
+        "900": "\/var\/www\/html\/assets\/fonts\/noto_sans_thai_900_9ccbedbca84040bb35cfb1231a9d8fbe"
+    }
+}

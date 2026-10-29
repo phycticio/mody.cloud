@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# Runs the complete ECig and Tobacco content and subscription migration pipeline.
+# Usage: ./bin/migrate-all [--ecig-db=<path>] [--tobacco-db=<path>]
+
+set -euo pipefail
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+DB_CONFIG="${ROOT_DIR}/config/bin/db.config"
+ECIG_DB="${ROOT_DIR}/app/dumps/ei_db.sql"
+TOBACCO_DB="${ROOT_DIR}/app/dumps/ti_db.sql"
+ECIG_TEMP="/tmp/ei_db_site2.sql"
+TOBACCO_TEMP="/tmp/ti_db_site3.sql"
+
+cleanup() {
+  rm -f "${ECIG_TEMP}" "${TOBACCO_TEMP}"
+  export TAMARIND_WP_CLI_ALLOW_YES=0
+}
+trap cleanup EXIT
+
+usage() {
+  printf '%s\n' "Usage: ./bin/migrate-all [--ecig-db=<path>] [--tobacco-db=<path>]"
+}
+
+for arg in "$@"; do
+  case "${arg}" in
+    --ecig-db=*) ECIG_DB="${arg#--ecig-db=}" ;;
+    --tobacco-db=*) TOBACCO_DB="${arg#--tobacco-db=}" ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      ./bin/log "ERROR" "Unknown argument: ${arg}"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ ! -f "${ENV_FILE}" ]; then
+  ./bin/log "ERROR" "No .env file found at ${ENV_FILE}"
+  exit 1
+fi
+
+if [ ! -f "${DB_CONFIG}" ]; then
+  ./bin/log "ERROR" "DB config file not found: ${DB_CONFIG}"
+  exit 1
+fi
+
+if [ ! -f "${ECIG_DB}" ]; then
+  ./bin/log "ERROR" "ECig SQL file not found: ${ECIG_DB}"
+  exit 1
+fi
+
+if [ ! -f "${TOBACCO_DB}" ]; then
+  ./bin/log "ERROR" "Tobacco SQL file not found: ${TOBACCO_DB}"
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+# shellcheck disable=SC1090
+source "${DB_CONFIG}"
+
+site_url() {
+  local site_id="$1"
+  local url
+
+  url=$(./bin/wp site list --fields=blog_id,url --format=csv --url="${HOST_NAME}" 2>/dev/null \
+    | awk -F',' -v id="${site_id}" 'NR>1 && $1==id { gsub(/\r|"/, "", $2); print $2 }')
+  if [ -z "${url}" ]; then
+    ./bin/log "ERROR" "Site ID ${site_id} does not exist in the multisite network"
+    return 1
+  fi
+
+  printf '%s' "${url}"
+}
+
+import_site() {
+  local site_id="$1"
+  local sql_file="$2"
+  local site_url="$3"
+  local local_prefix="${WORDPRESS_TABLE_PREFIX}${site_id}_"
+  local old_url
+  local new_url
+  local upload_old
+  local upload_new
+
+  ./bin/log "INFO" "Importing ${sql_file} into site ${site_id} (${site_url})"
+  ./bin/wp db query --url="${HUB_URL}" < "${sql_file}"
+
+  old_url=$(./bin/wp db query \
+    "SELECT option_value FROM ${local_prefix}options WHERE option_name = 'siteurl' LIMIT 1;" \
+    --url="${HUB_URL}" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+  if [ -z "${old_url}" ]; then
+    ./bin/log "ERROR" "Could not read siteurl from ${local_prefix}options"
+    return 1
+  fi
+
+  old_url="${old_url%/}"
+  new_url="${site_url%/}"
+  if [ "${old_url}" != "${new_url}" ]; then
+    ./bin/log "INFO" "Replacing '${old_url}' -> '${new_url}' for site ${site_id}"
+    ./bin/wp search-replace "${old_url}" "${new_url}" \
+      --url="${site_url}" \
+      --precise \
+      --report-changed-only
+  else
+    ./bin/log "INFO" "Domain already matches ${new_url} for site ${site_id}"
+  fi
+
+  upload_old="${new_url}/wp-content/uploads"
+  upload_new="${new_url}/web/uploads/sites/${site_id}"
+  ./bin/log "INFO" "Replacing upload paths '${upload_old}' -> '${upload_new}'"
+  ./bin/wp search-replace "${upload_old}" "${upload_new}" \
+    --url="${site_url}" \
+    --precise \
+    --report-changed-only
+  ./bin/log "SUCCESS" "Content import complete for site ${site_id}"
+}
+
+refresh_global_styles() {
+  local site_id="$1"
+  local site_url="$2"
+  local status
+
+  ./bin/log "INFO" "Refreshing Global Styles for site ${site_id} (${site_url})"
+  export TAMARIND_WP_CLI_ALLOW_YES=1
+  if ./bin/wp tamarind styles refresh --site="${site_id}" --yes --url="${site_url}"; then
+    status=0
+  else
+    status=$?
+  fi
+  export TAMARIND_WP_CLI_ALLOW_YES=0
+
+  return "${status}"
+}
+
+finalize_site() {
+  local site_id="$1"
+  local site_url="$2"
+  local theme_mod="$3"
+  local local_prefix="${WORDPRESS_TABLE_PREFIX}${site_id}_"
+
+  ./bin/log "INFO" "Renaming option prefixes for site ${site_id}"
+  ./bin/wp db query \
+    "UPDATE ${local_prefix}options SET option_name = REPLACE(option_name, '${STAGE_DB_PREFIX}', '${local_prefix}') WHERE option_name LIKE '${STAGE_DB_PREFIX}%';" \
+    --url="${HUB_URL}"
+
+  ./bin/log "INFO" "Updating roles for site ${site_id}"
+  ./bin/wp db query \
+    "UPDATE ${local_prefix}options SET option_name = '${local_prefix}user_roles' WHERE option_name = 'wp_user_roles';" \
+    --url="${HUB_URL}"
+
+  ./bin/log "INFO" "Activating theme and ${theme_mod} variation for site ${site_id}"
+  ./bin/wp theme activate theme --url="${site_url}"
+  ./bin/wp option update theme_mods_theme "{\"theme_variation\":\"${theme_mod}\"}" \
+    --format=json \
+    --url="${site_url}"
+  ./bin/wp plugin deactivate wordpress-seo w3-total-cache --url="${site_url}"
+  refresh_global_styles "${site_id}" "${site_url}"
+  ./bin/log "SUCCESS" "Site ${site_id} finalization complete"
+}
+
+HUB_URL=$(site_url 1)
+EI_URL=$(site_url 2)
+TI_URL=$(site_url 3)
+
+./bin/log "WARNING" "This will overwrite imported site tables for ECig (2) and Tobacco (3)."
+printf "Type 'yes' to confirm: "
+read -r CONFIRM
+if [ "${CONFIRM}" != "yes" ]; then
+  ./bin/log "INFO" "Aborted"
+  exit 0
+fi
+
+./bin/log "INFO" "Step 1/5: Rewriting database prefixes"
+./bin/migrate-prefix "${ECIG_DB}" 2 "${ECIG_TEMP}"
+./bin/migrate-prefix "${TOBACCO_DB}" 3 "${TOBACCO_TEMP}"
+
+./bin/log "INFO" "Step 2/5: Importing product-site content"
+import_site 2 "${ECIG_TEMP}" "${EI_URL}"
+import_site 3 "${TOBACCO_TEMP}" "${TI_URL}"
+
+./bin/log "INFO" "Step 3/5: Synchronizing canonical Hub subscriptions"
+./bin/wp tamarind subscriptions sync-from-imports --sites=2,3 --url="${HUB_URL}"
+
+./bin/log "INFO" "Step 4/5: Remapping report user/client IDs, preserving user metadata, and normalizing legacy roles"
+./bin/migrate-remap-users-email --url="${EI_URL}"
+./bin/migrate-remap-users-meta --url="${EI_URL}"
+./bin/migrate-normalize-client-role --url="${EI_URL}"
+./bin/migrate-remap-clients --url="${EI_URL}"
+./bin/migrate-remap-users-email --url="${TI_URL}"
+./bin/migrate-remap-users-meta --url="${TI_URL}"
+./bin/migrate-normalize-client-role --url="${TI_URL}"
+./bin/migrate-remap-clients --url="${TI_URL}"
+
+./bin/log "INFO" "Step 5/5: Finalizing product-site options and themes"
+finalize_site 2 "${EI_URL}" "E.I."
+finalize_site 3 "${TI_URL}" "T.I."
+
+./bin/log "SUCCESS" "Full ECig and Tobacco migration completed"

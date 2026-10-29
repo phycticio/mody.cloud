@@ -1,0 +1,41 @@
+{
+    "name": "mody_cloud/wp",
+    "version": "0.0.1",
+    "description": "Mody Cloud: sovereign WordPress site generator",
+    "authors": [
+        {
+            "name": "Mody Cloud"
+        }
+    ],
+    "repositories": {
+        "satispress": {
+            "type": "composer",
+            "url": "https://plugins.mody.cloud/satispress/",
+            "only": ["mody/*"]
+        },
+        "wpackagist": {
+            "type": "composer",
+            "url": "https://wpackagist.org",
+            "only": ["wpackagist-plugin/*", "wpackagist-theme/*"]
+        }
+    },
+    "require": {
+        "composer/installers": "^2.3"
+    },
+    "require-dev": {
+        "wpackagist-plugin/query-monitor": "3.20.2"
+    },
+    "extra": {
+        "installer-paths": {
+            "web/plugins/{$name}/": ["type:wordpress-plugin"],
+            "web/themes/{$name}/": ["type:wordpress-theme"]
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "allow-plugins": {
+            "composer/installers": true
+        }
+    }
+}

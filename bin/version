@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+APP_DIR="./app"
+WP_CORE_DIR="$APP_DIR/wp"
+TEMP_DIR="./wp_tmp"
+BACKUP="${1:-true}"
+BACKUP_PARENT_DIR="./backups"
+BACKUP_DIR="./backups/wp_core_backup_$(date +%Y%m%d_%H%M%S)"
+
+show_help() {
+    ./bin/log "ERROR" "Usage: ./wp-version [VERSION]"
+    ./bin/log "INFO" "Example: ./wp-version 6.2.2"
+    ./bin/log "INFO" "This will download WordPress [VERSION] and update the $WP_CORE_DIR folder while keeping your app/web content safe."
+}
+
+if [ -z "$1" ]; then
+    show_help
+    exit 1
+fi
+
+VERSION=$1
+URL="https://wordpress.org/wordpress-$VERSION.tar.gz"
+
+./bin/log "INFO" "--- Checking target directory ---"
+# Make sure the wp subdirectory exists
+if [ ! -d "$WP_CORE_DIR" ]; then
+    ./bin/log "INFO" "Directory $WP_CORE_DIR not found. Creating it now..."
+    mkdir -p "$WP_CORE_DIR"
+fi
+
+./bin/log "INFO" "--- Downloading WordPress $VERSION ---"
+mkdir -p "$TEMP_DIR"
+curl -L "$URL" | tar -xz -C "$TEMP_DIR"
+
+if [ $? -ne 0 ]; then
+    ./bin/log "ERROR" "Failed to download or extract WordPress $VERSION. Check the version number."
+    rm -rf "$TEMP_DIR"
+    exit 1
+fi
+
+if [ ! -d "$BACKUP_PARENT_DIR" ]; then
+    mkdir -p $BACKUP_PARENT_DIR
+fi
+
+if [ "$BACKUP" != "--no-backup" ]; then
+  ./bin/log "INFO" "--- Backing up current core files to $BACKUP_DIR ---"
+  mkdir -p "$BACKUP_DIR"
+  # Added 2>/dev/null to prevent errors if this is a fresh install and the directories don't exist yet
+  cp -r "$WP_CORE_DIR/wp-admin" "$WP_CORE_DIR/wp-includes" "$BACKUP_DIR/" 2>/dev/null || true
+  cp "$WP_CORE_DIR"/*.php "$BACKUP_DIR/" 2>/dev/null || true
+fi
+./bin/log "INFO" "--- Replacing core files in $WP_CORE_DIR (excluding wp-content) ---"
+
+rm -rf "$WP_CORE_DIR/wp-admin"
+rm -rf "$WP_CORE_DIR/wp-includes"
+
+mv "$TEMP_DIR/wordpress/wp-admin" "$WP_CORE_DIR/"
+mv "$TEMP_DIR/wordpress/wp-includes" "$WP_CORE_DIR/"
+
+# Move root php files (like wp-login.php, wp-settings.php, etc.) into the /wp directory
+cp "$TEMP_DIR/wordpress/"*.php "$WP_CORE_DIR/"
+
+./bin/log "INFO" "--- Cleaning up ---"
+rm -rf "$TEMP_DIR"
+
+./bin/log "SUCCESS" "Successfully switched to WordPress $VERSION"
+# Updated the upgrade path to reflect the new subdirectory
+./bin/log "WARNING" "Note: Visit your site's /wp/wp-admin/upgrade.php to update the database if prompted."

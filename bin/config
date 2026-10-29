@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+
+if [ "$#" -lt 2 ]; then
+    ./bin/log "ERROR" "Usage: $0 KEY VALUE"
+    exit 1
+fi
+
+KEY=$1
+VALUE=$2
+
+if [ ! -f "$ENV_FILE" ]; then
+    ./bin/log "INFO" ".env file not found, creating one at ${ENV_FILE}"
+    if [ -f "${ROOT_DIR}/sample.env" ]; then
+        ./bin/log "INFO" "Copying sample.env to .env"
+        cp "${ROOT_DIR}/sample.env" "$ENV_FILE"
+    else
+        ./bin/log "WARNING" "No sample.env found, creating empty .env"
+        touch "$ENV_FILE"
+    fi
+fi
+
+./bin/log "INFO" "Setting ${KEY} in ${ENV_FILE}"
+if grep -q "^${KEY}=" "$ENV_FILE"; then
+    ./bin/log "WARNING" "Key ${KEY} exists, updating value"
+    if sed --version >/dev/null 2>&1; then
+        sed -i "s|^${KEY}=.*|${KEY}=${VALUE}|" "$ENV_FILE"
+    else
+        sed -i '' "s|^${KEY}=.*|${KEY}=${VALUE}|" "$ENV_FILE"
+    fi
+    ./bin/log "SUCCESS" "Updated: ${KEY}"
+else
+    ./bin/log "INFO" "Key ${KEY} not found, adding to .env"
+    echo "${KEY}=${VALUE}" >> "$ENV_FILE"
+    ./bin/log "SUCCESS" "Added: ${KEY}"
+fi

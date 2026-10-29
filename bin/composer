@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+ROOT_DIR=$(pwd)
+
+if [ -z "${1:-}" ]; then
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "ERROR: You need to provide a command (e.g., composer install)" >&2
+  else
+    ./bin/log "ERROR" "You need to provide a command (e.g., ./bin/composer install)"
+  fi
+  exit 1;
+fi
+
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  if ! command -v composer >/dev/null 2>&1; then
+    echo "ERROR: Composer binary not found in GitHub Actions runner." >&2
+    exit 1
+  fi
+
+  echo "composer $* -d ${ROOT_DIR}/app"
+  composer "$@" -d "${ROOT_DIR}/app"
+  exit $?
+fi
+
+ENV_FILE="${ROOT_DIR}/.env"
+
+if [ ! -f "${ENV_FILE}" ]; then
+  ./bin/log "ERROR" "No .env file found."
+  exit 1;
+fi
+source "${ENV_FILE}";
+
+./bin/log "INFO" "composer $*"
+EXEC_FLAGS=()
+if [ -t 0 ] && [ -t 1 ]; then
+  EXEC_FLAGS=(-it)
+fi
+
+docker exec "${EXEC_FLAGS[@]}" "${CONTAINER_PREFIX}app" /usr/local/bin/composer "$@" -d /var/www/html

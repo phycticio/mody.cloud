@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Rewrites a mysqldump SQL file, replacing an old WordPress table prefix with a new one.
+# Usage: ./bin/prefix <input.sql> <old_prefix> <new_prefix> [output.sql]
+
+set -euo pipefail
+
+INPUT_FILE="${1:-}"
+OLD_PREFIX="${2:-}"
+NEW_PREFIX="${3:-}"
+OUTPUT_FILE="${4:-$INPUT_FILE}"
+
+if [ -z "$INPUT_FILE" ] || [ -z "$OLD_PREFIX" ] || [ -z "$NEW_PREFIX" ]; then
+  ./bin/log "ERROR" "Usage: ./bin/prefix <input.sql> <old_prefix> <new_prefix> [output.sql]"
+  ./bin/log "ERROR" "  Example: ./bin/prefix dump.sql tamarind_ wp_ dump.sql"
+  exit 1
+fi
+
+if [ ! -f "$INPUT_FILE" ]; then
+  ./bin/log "ERROR" "Input file not found: $INPUT_FILE"
+  exit 1
+fi
+
+if [ "$OLD_PREFIX" == "$NEW_PREFIX" ]; then
+  ./bin/log "INFO" "Prefixes are identical (${OLD_PREFIX}), skipping replacement"
+  exit 0
+fi
+
+./bin/log "INFO" "Rewriting prefixes: ${OLD_PREFIX} -> ${NEW_PREFIX}"
+./bin/log "INFO" "Input:  $INPUT_FILE"
+./bin/log "INFO" "Output: $OUTPUT_FILE"
+
+# LC_ALL=C forces byte-mode so sed doesn't choke on non-UTF-8 sequences
+# (common in mysqldumps with latin-1 stored content). Works on both
+# macOS (BSD sed) and Linux (GNU sed).
+TMP_FILE=$(mktemp)
+LC_ALL=C sed "s/\`${OLD_PREFIX}/\`${NEW_PREFIX}/g" "$INPUT_FILE" > "$TMP_FILE"
+mv "$TMP_FILE" "$OUTPUT_FILE"
+
+LINE_COUNT=$(wc -l < "$OUTPUT_FILE" | xargs)
+./bin/log "SUCCESS" "Done. Output has ${LINE_COUNT} lines: $OUTPUT_FILE"

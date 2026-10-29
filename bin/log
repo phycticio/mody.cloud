@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+TYPE=${1:-INFO}
+MESSAGE=${2:-''}
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+case "$TYPE" in
+"SUCCESS")
+  printf "${GREEN}[SUCCESS]${NC} %s\n" "$MESSAGE"
+  ;;
+"INFO")
+  printf "${BLUE}[INFO]${NC} %s\n" "$MESSAGE"
+  ;;
+"WARNING")
+  printf "${YELLOW}[WARNING]${NC} %s\n" "$MESSAGE"
+  ;;
+"ERROR")
+  printf "${RED}[ERROR]${NC} %s\n" "$MESSAGE"
+  ;;
+*)
+  printf "%s\n" "$MESSAGE"
+  ;;
+esac

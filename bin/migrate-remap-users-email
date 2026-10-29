@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Remaps user_id on subscriber_report_pageviews, subscriber_report_downloaded_docs,
+# and post_author on posts, using a single SQL JOIN on user_email to cross-reference
+# the per-site legacy users table (${WORDPRESS_TABLE_PREFIX}${SITE_ID}_users) against
+# the Hub main users table (${WORDPRESS_TABLE_PREFIX}users).
+# Must run BEFORE dropping the per-site users / usermeta tables.
+# Run per site: ./bin/migrate-remap-users-email --url=<site-domain>
+
+set -euo pipefail
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+DB_CONFIG="${ROOT_DIR}/config/bin/db.config"
+
+URL=""
+for arg in "$@"; do
+  case "$arg" in
+    --url=*) URL="${arg#--url=}" ;;
+  esac
+done
+
+if [ -z "$URL" ]; then
+  ./bin/log "ERROR" "Usage: ./bin/migrate-remap-users-email --url=<site-domain>"
+  exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  ./bin/log "ERROR" "No .env file found at ${ENV_FILE}"
+  exit 1
+fi
+
+if [ ! -f "$DB_CONFIG" ]; then
+  ./bin/log "ERROR" "DB config file not found: ${DB_CONFIG}"
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+# shellcheck disable=SC1090
+source "${DB_CONFIG}"
+
+SITE_ID=$(./bin/wp eval 'echo get_current_blog_id();' --url="$URL" 2>/dev/null | tr -d '[:space:]')
+
+if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "1" ]; then
+  ./bin/log "ERROR" "Could not resolve a valid subsite ID from --url=${URL} (got '${SITE_ID}'). Must be a product subsite, not the main site."
+  exit 1
+fi
+
+SITE_USERS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_users"
+HUB_USERS_TABLE="${WORDPRESS_TABLE_PREFIX}users"
+POSTS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_posts"
+SR_PAGEVIEWS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_subscriber_report_pageviews"
+SR_DOWNLOADS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_subscriber_report_downloaded_docs"
+
+./bin/log "INFO" "Site ID: ${SITE_ID}, site users: ${SITE_USERS_TABLE}, Hub users: ${HUB_USERS_TABLE}"
+
+USERS=$(./bin/wp db query \
+  "SELECT s.ID old_user_id, h.ID new_user_id, s.user_email
+   FROM ${SITE_USERS_TABLE} s
+   INNER JOIN ${HUB_USERS_TABLE} h ON h.user_email = s.user_email
+   WHERE s.user_email != ''
+   ORDER BY s.ID;" \
+  --url="$URL" --skip-column-names 2>/dev/null)
+
+SITE_TOTAL=$(./bin/wp db query \
+  "SELECT COUNT(*) FROM ${SITE_USERS_TABLE} WHERE user_email != '';" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+MATCHED=$(echo "$USERS" | grep -c $'\t' || true)
+
+./bin/log "INFO" "Users in ${SITE_USERS_TABLE}: ${SITE_TOTAL}. Matched via email in Hub: ${MATCHED}."
+
+if [ "$MATCHED" -eq 0 ] || [ "$MATCHED" -lt $(( SITE_TOTAL / 10 )) ]; then
+  ./bin/log "ERROR" "Too few matches (${MATCHED} of ${SITE_TOTAL}). Aborting."
+  exit 1
+fi
+
+echo "$USERS" | while IFS=$'\t' read -r OLD_ID NEW_ID EMAIL; do
+  [ -z "$OLD_ID" ] || [ -z "$NEW_ID" ] && continue
+  echo "Will remap ${EMAIL}: ${OLD_ID} -> ${NEW_ID}"
+done
+
+REMAP_SQL="
+UPDATE ${POSTS_TABLE} t
+INNER JOIN ${SITE_USERS_TABLE} s ON t.post_author = s.ID
+INNER JOIN ${HUB_USERS_TABLE}  h ON h.user_email  = s.user_email
+SET t.post_author = h.ID
+WHERE s.user_email <> '';
+
+UPDATE ${SR_PAGEVIEWS_TABLE} t
+INNER JOIN ${SITE_USERS_TABLE} s ON t.user_id    = s.ID
+INNER JOIN ${HUB_USERS_TABLE}  h ON h.user_email = s.user_email
+SET t.user_id = h.ID
+WHERE s.user_email <> '';
+
+UPDATE ${SR_DOWNLOADS_TABLE} t
+INNER JOIN ${SITE_USERS_TABLE} s ON t.user_id    = s.ID
+INNER JOIN ${HUB_USERS_TABLE}  h ON h.user_email = s.user_email
+SET t.user_id = h.ID
+WHERE s.user_email <> '';"
+
+./bin/log "INFO" "Applying set-based remap across posts / pageviews / downloads..."
+./bin/wp db query "$REMAP_SQL" --url="$URL"
+
+./bin/log "SUCCESS" "Remap complete for site ${SITE_ID}."

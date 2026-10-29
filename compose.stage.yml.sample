@@ -1,0 +1,20 @@
+# Requires Docker Compose v2.24+ (for the `!override`/`!reset` merge tags).
+# Enable with COMPOSE_FILE=compose.yml:compose.stage.yml in .env (or
+# `docker compose -f compose.yml -f compose.stage.yml ...`).
+#
+# Set NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null in .env
+# so the base compose.yml's SSL volume mounts don't require mkcert here — TLS
+# is terminated upstream (reverse proxy/load balancer) and
+# NGINX_APP_SSL_DIRECTIVES below is empty, so nginx never reads those files.
+services:
+  nginx:
+    # `!override` fully replaces the base list instead of appending to it —
+    # without it, compose.yml's 80/443 mappings would remain published
+    # alongside this one (ports merge by {ip, target, published, protocol},
+    # not by service).
+    ports: !override
+      - "${NGINX_HTTP_PORT:-80}:80"
+    environment:
+      NGINX_APP_LISTEN: "80"
+      NGINX_APP_SERVER_NAME: "stagehub.tamarindintelligence.com stageapp.ecigintelligence.com stageapp.tobaccointelligence.com stageapp.cannintelligence.com"
+      NGINX_APP_SSL_DIRECTIVES: ""

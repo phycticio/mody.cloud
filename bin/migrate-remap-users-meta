@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# Preserves Last Login usermeta and per-site role/capability usermeta for users
+# already matched by email between the per-site legacy users table
+# (${WORDPRESS_TABLE_PREFIX}${SITE_ID}_users) and the Hub main users table
+# (${WORDPRESS_TABLE_PREFIX}users).
+#
+# Never creates duplicate meta rows and never overwrites a Hub login-meta
+# value with an older legacy one: a target row is only inserted when the Hub
+# user does not already have that meta_key, and an existing login-meta row is
+# only updated when both the Hub and legacy values are numeric timestamps and
+# the legacy value is strictly newer. Non-numeric login-meta values are never
+# used to overwrite an existing Hub value of any kind.
+#
+# Must run BEFORE dropping the per-site users / usermeta tables, and after
+# ./bin/migrate-remap-users-email has established the email match for the site.
+# Run per site: ./bin/migrate-remap-users-meta --url=<site-domain>
+
+set -euo pipefail
+
+ROOT_DIR=$(pwd)
+ENV_FILE="${ROOT_DIR}/.env"
+DB_CONFIG="${ROOT_DIR}/config/bin/db.config"
+
+URL=""
+for arg in "$@"; do
+  case "$arg" in
+    --url=*) URL="${arg#--url=}" ;;
+  esac
+done
+
+if [ -z "$URL" ]; then
+  ./bin/log "ERROR" "Usage: ./bin/migrate-remap-users-meta --url=<site-domain>"
+  exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  ./bin/log "ERROR" "No .env file found at ${ENV_FILE}"
+  exit 1
+fi
+
+if [ ! -f "$DB_CONFIG" ]; then
+  ./bin/log "ERROR" "DB config file not found: ${DB_CONFIG}"
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+# shellcheck disable=SC1090
+source "${DB_CONFIG}"
+
+SITE_ID=$(./bin/wp eval 'echo get_current_blog_id();' --url="$URL" 2>/dev/null | tr -d '[:space:]')
+
+if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "1" ]; then
+  ./bin/log "ERROR" "Could not resolve a valid subsite ID from --url=${URL} (got '${SITE_ID}'). Must be a product subsite, not the main site."
+  exit 1
+fi
+
+SITE_USERS_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_users"
+SITE_USERMETA_TABLE="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_usermeta"
+HUB_USERS_TABLE="${WORDPRESS_TABLE_PREFIX}users"
+HUB_USERMETA_TABLE="${WORDPRESS_TABLE_PREFIX}usermeta"
+
+TARGET_CAPS_KEY="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_capabilities"
+TARGET_LEVEL_KEY="${WORDPRESS_TABLE_PREFIX}${SITE_ID}_user_level"
+
+sql_quote() {
+  local value
+  value=$(printf '%s' "$1" | sed "s/'/''/g")
+  printf "'%s'" "${value}"
+}
+
+add_unique() {
+  local key="$1"
+  shift
+  local existing
+  for existing in "$@"; do
+    [ "${existing}" = "${key}" ] && return 1
+  done
+  return 0
+}
+
+join_sql_list() {
+  local first=1
+  local value
+  for value in "$@"; do
+    if [ "${first}" -eq 0 ]; then
+      printf ', '
+    fi
+    sql_quote "${value}"
+    first=0
+  done
+}
+
+build_priority_case() {
+  local expression="$1"
+  shift
+  local priority=0
+  local value
+
+  printf 'CASE'
+  for value in "$@"; do
+    printf ' WHEN %s = %s THEN %d' "${expression}" "$(sql_quote "${value}")" "${priority}"
+    priority=$((priority + 1))
+  done
+  printf ' ELSE 999 END'
+}
+
+# Legacy sites were single-site WP installs, and ./bin/migrate-prefix only
+# rewrites backtick-quoted table identifiers in the dump — never stored
+# meta_key values. In production/stage the source and target prefixes may be
+# the same or different, so accept every plausible legacy key and copy into the
+# multisite target keys below.
+LEGACY_CAPS_KEYS=()
+LEGACY_LEVEL_KEYS=()
+for LEGACY_PREFIX in "${STAGE_DB_PREFIX:-}" "${WORDPRESS_TABLE_PREFIX:-}" "wp_" "${WORDPRESS_TABLE_PREFIX}${SITE_ID}_" ""; do
+  LEGACY_CAPS_CANDIDATE="${LEGACY_PREFIX}capabilities"
+  LEGACY_LEVEL_CANDIDATE="${LEGACY_PREFIX}user_level"
+  if add_unique "${LEGACY_CAPS_CANDIDATE}" "${LEGACY_CAPS_KEYS[@]}"; then
+    LEGACY_CAPS_KEYS+=("${LEGACY_CAPS_CANDIDATE}")
+  fi
+  if add_unique "${LEGACY_LEVEL_CANDIDATE}" "${LEGACY_LEVEL_KEYS[@]}"; then
+    LEGACY_LEVEL_KEYS+=("${LEGACY_LEVEL_CANDIDATE}")
+  fi
+done
+LEGACY_CAPS_KEYS_SQL=$(join_sql_list "${LEGACY_CAPS_KEYS[@]}")
+LEGACY_LEVEL_KEYS_SQL=$(join_sql_list "${LEGACY_LEVEL_KEYS[@]}")
+LEGACY_ROLE_KEYS_SQL=$(join_sql_list "${LEGACY_CAPS_KEYS[@]}" "${LEGACY_LEVEL_KEYS[@]}")
+LEGACY_ROLE_PRIORITY_SQL=$(build_priority_case "sm.meta_key" "${LEGACY_CAPS_KEYS[@]}" "${LEGACY_LEVEL_KEYS[@]}")
+LEGACY_ROLE_PRIORITY_SQL_SM2=$(build_priority_case "sm2.meta_key" "${LEGACY_CAPS_KEYS[@]}" "${LEGACY_LEVEL_KEYS[@]}")
+
+LOGIN_META_KEYS="'wp-last-login','upme_last_login_time','login_date','itsec_user_activity_last_seen'"
+
+./bin/log "INFO" "Site ID: ${SITE_ID}, legacy usermeta: ${SITE_USERMETA_TABLE}, Hub usermeta: ${HUB_USERMETA_TABLE}"
+./bin/log "INFO" "Target role keys for site ${SITE_ID}: ${TARGET_CAPS_KEY}, ${TARGET_LEVEL_KEY}"
+./bin/log "INFO" "Legacy capability keys considered: ${LEGACY_CAPS_KEYS[*]}"
+./bin/log "INFO" "Legacy user_level keys considered: ${LEGACY_LEVEL_KEYS[*]}"
+
+LEGACY_LOGIN_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(DISTINCT user_id) FROM ${SITE_USERMETA_TABLE} WHERE meta_key IN (${LOGIN_META_KEYS});" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "INFO" "Legacy users with login metadata (site ${SITE_ID}): ${LEGACY_LOGIN_COUNT}"
+
+LEGACY_CAPS_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(*) FROM ${SITE_USERMETA_TABLE} WHERE meta_key IN (${LEGACY_CAPS_KEYS_SQL});" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "INFO" "Legacy usermeta capability rows found for site ${SITE_ID}: ${LEGACY_CAPS_COUNT}"
+
+SKIPPED_ROLE_ROWS=$(./bin/wp db query \
+  "SELECT COUNT(*)
+   FROM ${SITE_USERMETA_TABLE} sm
+   INNER JOIN ${SITE_USERS_TABLE} s ON s.ID = sm.user_id
+   LEFT JOIN ${HUB_USERS_TABLE} h ON h.user_email = s.user_email AND s.user_email <> ''
+   WHERE sm.meta_key IN (${LEGACY_CAPS_KEYS_SQL})
+     AND h.ID IS NULL;" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "WARNING" "Skipped legacy role rows with no Hub email match (site ${SITE_ID}): ${SKIPPED_ROLE_ROWS}"
+
+./bin/log "INFO" "Copying Last Login metadata (insert-missing, then newer-numeric update)..."
+
+LOGIN_SQL="
+INSERT INTO ${HUB_USERMETA_TABLE} (user_id, meta_key, meta_value)
+SELECT h.ID, sm.meta_key, sm.meta_value
+FROM ${SITE_USERMETA_TABLE} sm
+INNER JOIN ${SITE_USERS_TABLE} s ON s.ID = sm.user_id
+INNER JOIN ${HUB_USERS_TABLE} h ON h.user_email = s.user_email
+WHERE s.user_email <> ''
+  AND sm.meta_key IN (${LOGIN_META_KEYS})
+  AND NOT EXISTS (
+    SELECT 1 FROM ${HUB_USERMETA_TABLE} hm
+    WHERE hm.user_id = h.ID AND hm.meta_key = sm.meta_key
+  );
+
+UPDATE ${HUB_USERMETA_TABLE} hm
+INNER JOIN ${HUB_USERS_TABLE} h ON h.ID = hm.user_id
+INNER JOIN ${SITE_USERS_TABLE} s ON s.user_email = h.user_email
+INNER JOIN ${SITE_USERMETA_TABLE} sm
+  ON sm.user_id = s.ID AND sm.meta_key = hm.meta_key
+SET hm.meta_value = sm.meta_value
+WHERE hm.meta_key IN (${LOGIN_META_KEYS})
+  AND s.user_email <> ''
+  AND hm.meta_value REGEXP '^[0-9]+\$'
+  AND sm.meta_value REGEXP '^[0-9]+\$'
+  AND CAST(sm.meta_value AS UNSIGNED) > CAST(hm.meta_value AS UNSIGNED);"
+
+./bin/wp db query "$LOGIN_SQL" --url="$URL"
+
+./bin/log "INFO" "Copying and rewriting role/capability metadata to ${TARGET_CAPS_KEY} / ${TARGET_LEVEL_KEY}..."
+
+ROLE_SQL="
+INSERT INTO ${HUB_USERMETA_TABLE} (user_id, meta_key, meta_value)
+SELECT h.ID,
+       CASE
+         WHEN sm.meta_key IN (${LEGACY_CAPS_KEYS_SQL})  THEN '${TARGET_CAPS_KEY}'
+         WHEN sm.meta_key IN (${LEGACY_LEVEL_KEYS_SQL}) THEN '${TARGET_LEVEL_KEY}'
+       END AS target_key,
+       sm.meta_value
+FROM ${SITE_USERMETA_TABLE} sm
+INNER JOIN ${SITE_USERS_TABLE} s ON s.ID = sm.user_id
+INNER JOIN ${HUB_USERS_TABLE} h ON h.user_email = s.user_email
+WHERE s.user_email <> ''
+  AND sm.meta_key IN (${LEGACY_ROLE_KEYS_SQL})
+  AND NOT EXISTS (
+    SELECT 1 FROM ${HUB_USERMETA_TABLE} hm
+    WHERE hm.user_id = h.ID
+      AND hm.meta_key = CASE
+                           WHEN sm.meta_key IN (${LEGACY_CAPS_KEYS_SQL})  THEN '${TARGET_CAPS_KEY}'
+                           WHEN sm.meta_key IN (${LEGACY_LEVEL_KEYS_SQL}) THEN '${TARGET_LEVEL_KEY}'
+                         END
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM ${SITE_USERMETA_TABLE} sm2
+    WHERE sm2.user_id = sm.user_id
+      AND (
+        (sm.meta_key IN (${LEGACY_CAPS_KEYS_SQL}) AND sm2.meta_key IN (${LEGACY_CAPS_KEYS_SQL}))
+        OR (sm.meta_key IN (${LEGACY_LEVEL_KEYS_SQL}) AND sm2.meta_key IN (${LEGACY_LEVEL_KEYS_SQL}))
+      )
+      AND (
+        (${LEGACY_ROLE_PRIORITY_SQL_SM2}) < (${LEGACY_ROLE_PRIORITY_SQL})
+        OR ((${LEGACY_ROLE_PRIORITY_SQL_SM2}) = (${LEGACY_ROLE_PRIORITY_SQL}) AND sm2.umeta_id < sm.umeta_id)
+      )
+  );"
+
+./bin/wp db query "$ROLE_SQL" --url="$URL"
+
+MIGRATED_LOGIN_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(DISTINCT hm.user_id)
+   FROM ${HUB_USERMETA_TABLE} hm
+   INNER JOIN ${HUB_USERS_TABLE} h ON h.ID = hm.user_id
+   INNER JOIN ${SITE_USERS_TABLE} s ON s.user_email = h.user_email
+   WHERE hm.meta_key IN (${LOGIN_META_KEYS}) AND s.user_email <> '';" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "INFO" "Migrated Hub users with login metadata (site ${SITE_ID}) after copy: ${MIGRATED_LOGIN_COUNT}"
+
+MIGRATED_CAPS_COUNT=$(./bin/wp db query \
+  "SELECT COUNT(*) FROM ${HUB_USERMETA_TABLE} WHERE meta_key = '${TARGET_CAPS_KEY}';" \
+  --url="$URL" --skip-column-names 2>/dev/null | tr -d '[:space:]')
+
+./bin/log "INFO" "Hub users with target capability key '${TARGET_CAPS_KEY}': ${MIGRATED_CAPS_COUNT}"
+
+./bin/log "SUCCESS" "Usermeta preservation complete for site ${SITE_ID}."

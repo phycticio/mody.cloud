@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+ENV_MODE=${1:-local}
+if [ "$ENV_MODE" == "prod" ] || [ "$ENV_MODE" == "stage" ]; then
+  echo "Running in ${ENV_MODE} mode"
+fi
+
+ROOT_DIR=$(pwd)
+BUILD_CONFIG="${ROOT_DIR}/config/bin/build.config"
+if [ ! -f "$BUILD_CONFIG" ]; then
+    ./bin/log "ERROR" "Build config file not found: $BUILD_CONFIG"
+    exit 1
+fi
+# shellcheck disable=SC1090
+source "${BUILD_CONFIG}"
+
+if [ "$ENV_MODE" == "prod" ]; then
+    COMPOSER_FLAGS="--no-dev --optimize-autoloader"
+else
+    COMPOSER_FLAGS="--optimize-autoloader"
+fi
+
+for DIR in "${GULP_PATHS[@]}"; do
+    ./bin/log "INFO" "Processing assets in $DIR using $ENV_MODE mode..."
+    cd "$DIR" || exit
+    rm -rf ./node_modules
+    npm install
+    if [ -f "./node_modules/.bin/gulp" ]; then
+        ./node_modules/.bin/gulp build
+    else
+        npx gulp build
+    fi
+    cd "$ROOT_DIR" || exit
+done
+
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    pnpm install --frozen-lockfile
+else
+    pnpm install
+fi
+pnpm build
+
+./bin/log "INFO" "Installing root Composer dependencies using $ENV_MODE..."
+
+./bin/log "INFO" "Installing specific plugin dependencies using $ENV_MODE..."
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  composer install --working-dir="./app"  $COMPOSER_FLAGS
+  composer install --working-dir="./app/web/plugins/omitsis-location-detector" $COMPOSER_FLAGS
+  composer install --working-dir="./app/web/plugins/omitsis-tableau" $COMPOSER_FLAGS
+  composer install --working-dir="./app/web/plugins/tamarind-pdfs" $COMPOSER_FLAGS
+else
+  ./bin/composer install -d /var/www/html $COMPOSER_FLAGS
+  ./bin/composer install --working-dir="/var/www/html/web/plugins/omitsis-location-detector" $COMPOSER_FLAGS
+  ./bin/composer install --working-dir="/var/www/html/web/plugins/omitsis-tableau" $COMPOSER_FLAGS
+  ./bin/composer install --working-dir="/var/www/html/web/plugins/tamarind-pdfs" $COMPOSER_FLAGS
+fi
+./bin/log "SUCCESS" "Build complete."

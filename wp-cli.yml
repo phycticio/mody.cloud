@@ -1,0 +1,4 @@
+path: /var/www/html
+
+@mody:
+  ssh: docker:www-data@mody_cloud_app

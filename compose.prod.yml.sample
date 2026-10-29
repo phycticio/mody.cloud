@@ -1,0 +1,35 @@
+# Requires Docker Compose v2.24+ (for the `!override`/`!reset` merge tags).
+# Copy to compose.prod.yml (untracked, like compose.yml itself is for other
+# environments) and enable with COMPOSE_FILE=compose.yml:compose.prod.yml in
+# .env (or `docker compose -f compose.yml -f compose.prod.yml ...`). Doing
+# this makes every "docker compose ..." invocation — including the ones
+# ./bin/install runs internally — pick up this override automatically.
+#
+# Set NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null in .env
+# so the base compose.yml's SSL volume mounts don't require mkcert here — the
+# Nginx Proxy Manager (or other reverse proxy) in front of this stack
+# terminates TLS, NGINX_APP_SSL_DIRECTIVES below is empty, and nginx never
+# reads those mounted files.
+#
+# Cann is intentionally not in NGINX_APP_SERVER_NAME — set CANN="" (or leave
+# it unset) in .env so ./bin/install's SITES loop (config/bin/install.config)
+# skips creating that subsite.
+services:
+  nginx:
+    # `!override` fully replaces the base ports list instead of appending to
+    # it — without it, compose.yml's 80/443 mappings would remain published
+    # alongside this one (ports merge by {ip, target, published, protocol}).
+    ports: !override
+      - "${NGINX_HTTP_PORT:-8004}:80"
+    environment:
+      NGINX_APP_LISTEN: "80"
+      NGINX_APP_SERVER_NAME: "hub.tamarindintelligence.com app.ecigintelligence.com app.tobaccointelligence.com"
+      NGINX_APP_SSL_DIRECTIVES: ""
+
+  wordpress:
+    # Don't publish Xdebug's port to the host in production.
+    ports: !reset []
+
+  wp_db:
+    # Don't publish MariaDB to the host in production.
+    ports: !reset []

@@ -1,0 +1,75 @@
+name: Deploy to Staging
+
+on:
+  pull_request:
+    branches:
+      - stage
+    types:
+      - closed
+
+env:
+  PNPM_VERSION: "10.15.1"
+
+jobs:
+  web-deploy:
+    name: 🚚 Deploy to Stage server.
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Get latest code
+        uses: actions/checkout@v3
+
+      - name: 🔐 Tamarind Repository Auth
+        run: |
+          composer config --global --unset http-basic.${{ vars.PLUGINS_URL }}
+          composer config --global http-basic.${{ vars.PLUGINS_URL }} ${{ secrets.PLUGINS_KEY }} ${{ vars.PLUGINS_PASSWORD }}
+          composer clear-cache
+
+      - name: 📦 Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: ⚙️ Use Node.js ${{ vars.NODE_VERSION }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ vars.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 🛠 Build Plugin & Theme Dependencies (NPM & Composer)
+        run: |
+          chmod +x bin/build
+          ./bin/build stage
+
+      - name: ⚙️ Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.STAGE_SSH_PRIVATE_KEY }}
+
+      - name: 🛠 Prepare deploy on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_SERVER }} "ls ${{ vars.STAGE_TARGET_DIR }}"
+
+      - name: 📂 Sync files to VPS using SSH
+        run: |
+          rsync -avz --no-times --update --delete \
+          --exclude='**/node_modules' \
+          --exclude='.git*' \
+          --exclude='**/auth.json' \
+          --exclude='**/package.json' \
+          --exclude='pint.json' \
+          --exclude='sample*' \
+          --exclude='*.md' \
+          --exclude='**/tests' \
+          --exclude='**/documentation' \
+          --exclude='**/.eslint*' \
+          --exclude='**/.nvmrc*' \
+          --exclude='**/package*' \
+          --exclude='app/wp/*' \
+          ./ ${{ secrets.SSH_USER_SERVER }}:${{ vars.STAGE_TARGET_DIR }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.STAGE_SSH_PRIVATE_KEY }}
+
+      - name: 🛠 Move files to final directory on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_SERVER }} "sudo /usr/local/bin/tmpd"
