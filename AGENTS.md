@@ -2,83 +2,93 @@
 
 ## Project summary
 
-Mody Cloud is a non-profit association for digital sovereignty. Members define their brand identity once (wizard, the "Expediente de Marca") and a sovereign AI agent generates every page of their WordPress site, faithful to that brand. The whole stack is European or Swiss. Fees cover real costs, with no profit margin.
+Mody Cloud is a non-profit association for digital sovereignty. Members define their brand identity once (a wizard that produces the **brand profile**) and a sovereign AI agent generates every page of their WordPress site, faithful to that brand. The whole stack is European or Swiss. Fees cover real costs, with no profit margin. Full context: [documentation/project-overview.md](documentation/project-overview.md).
 
-This repository is a clean base: a Dockerized WordPress stack (Nginx, PHP-FPM, MariaDB, Redis, Mailpit), a Full Site Editing theme scaffold at `app/web/themes/mody-cloud`, and no plugins except Query Monitor (dev). The product itself (AI agent, brand profile, membership gating) is not built yet. See `documentation/roadmap.md`.
+This repository is a clean base: a Dockerized WordPress stack (Nginx, PHP-FPM, MariaDB, Redis, Mailpit), a Full Site Editing theme scaffold at `app/web/themes/theme`, and no plugins except Query Monitor (dev). The product itself (AI agent, brand profile, membership gating) is not built yet. Status and next steps: [documentation/roadmap.md](documentation/roadmap.md).
 
-## Read first
+## Documentation map (read on demand)
 
-- `documentation/README.md` (index and precedence rules)
-- `documentation/constraints.md`
-- `documentation/architecture.md`
-- `documentation/theme-development.md`
-- `documentation/local-development.md`
-- `documentation/Mody_Cloud_Briefing_Agente_Codificacion_v4.pdf` (the original briefing, in Spanish)
+The project documentation lives in `documentation/`. **Before you start a task, find its row below and read that file.** Read another one when the work shifts to a different area. Do not preload all of them. If a document and the code disagree, say so and fix the document as part of the change. The same map, with more detail, is in [documentation/README.md](documentation/README.md).
+
+| When you are... | Read | It covers |
+| --- | --- | --- |
+| New to the project, or a term is unclear | [project-overview.md](documentation/project-overview.md) | Purpose, principles, visual identity, economics, glossary (Spanish briefing terms mapped to English) |
+| Making or reviewing any change | [constraints.md](documentation/constraints.md) | The eight non-negotiable rules and what they mean in this repository |
+| Touching Docker, Nginx, `wp-config.php`, Composer, the repo layout, or deciding anything about infrastructure | [architecture.md](documentation/architecture.md) | Current stack, layout, target system, briefing recommendations not adopted, invariants, open questions |
+| Running or debugging the stack, using `bin/` scripts, or a script looks broken | [local-development.md](documentation/local-development.md) | First run, commands, environment variables, known stale items |
+| Editing templates, parts, `theme.json`, palette, fonts or styles | [theme-development.md](documentation/theme-development.md) | The FSE theme structure, design tokens, rules, checks |
+| Building or changing the AI agent: model calls, prompts, block whitelist, validation | [ai-engine.md](documentation/ai-engine.md) | Model, provider, block format, master prompt rules, validation pipeline, first task |
+| Working on the wizard, the `mody_brand_profiles` table, prompt assembly or site creation | [brand-profile.md](documentation/brand-profile.md) | Wizard, schema, message to the model, site creation flow |
+| Working on quotas, roles, site limits or dedicated VPS thresholds | [membership-tiers.md](documentation/membership-tiers.md) | Tiers, gating logic, dedicated VPS rules |
+| Working on newsletter sending, sending caps or opt-in | [newsletter.md](documentation/newsletter.md) | Infomaniak Newsletter integration |
+| Choosing what to work on next, or checking milestone status | [roadmap.md](documentation/roadmap.md) | Milestones and the first concrete step |
+| A requirement is unclear or looks contradictory | `documentation/Mody_Cloud_Briefing_Agente_Codificacion_v4.pdf` | The original briefing (Spanish). The docs above are derived from it. |
 
 ## Non-negotiable rules
 
-From the briefing. Full text in `documentation/constraints.md`.
+Full text and consequences: [documentation/constraints.md](documentation/constraints.md).
 
 1. **Absolute sovereignty.** Nothing from Cloudflare, OpenAI, Google AI, AWS or Azure. Data and traffic stay in Europe or Switzerland. A US service makes a solution invalid.
-2. **Exact Gutenberg format.** Generated output is always serialized `<!-- wp:block -->` comments. Validate the inner JSON.
-3. **Only FSE, Gutenberg and Spectra.** No Astra, no Elementor, no builders with lock-in. Styles through `theme.json`.
-4. **Brand coherence.** Every generation injects the Expediente into the system prompt. Never generate without brand context.
+2. **Exact Gutenberg format.** Generated output is always serialized `<!-- wp:block -->` comments. Validate the inner JSON. See [ai-engine.md](documentation/ai-engine.md).
+3. **Only FSE, Gutenberg and Spectra.** No Astra, no Elementor, no builders with lock-in. Styles through `theme.json`. See [theme-development.md](documentation/theme-development.md).
+4. **Brand coherence.** Every generation injects the brand profile into the system prompt. Never generate without brand context. See [brand-profile.md](documentation/brand-profile.md).
 5. **Simplicity.** If something takes more than 2 hours, propose a simpler alternative. Finishing beats perfecting.
-6. **Security.** Never expose credentials or WordPress Application Passwords. Only the web tier is public. Sanitize wizard inputs.
-7. **Non-profit.** Fees equal real cost. Never write "unlimited". Limits come from VPS resources.
-8. **Language.** Code comments and agent replies are in Spanish, except technical names. Files under `documentation/` are in English.
+6. **Security.** Never expose credentials or WordPress Application Passwords. Only the web tier is public. Sanitize wizard inputs. See [architecture.md](documentation/architecture.md#invariants-that-carry-over-from-the-briefing).
+7. **Non-profit.** Fees equal real cost. Never write "unlimited". Limits come from VPS resources. See [membership-tiers.md](documentation/membership-tiers.md).
+8. **Language.** Everything is in English: code, comments, documentation, commit messages, prompts to the model and agent replies. This overrides the briefing's Spanish convention.
 
 ## Decisions already made
 
-- **Infrastructure is the current stack.** Do not adopt the briefing's Nginx Proxy Manager, its sample `docker-compose`, or Matomo. See "Briefing recommendations not adopted" in `documentation/architecture.md`.
-- **AI model:** `mistralai/Ministral-3-14B-Instruct-2512` through Infomaniak AI Services (OpenAI-compatible), escalating to `google/gemma-4-31B-it`. The briefing's base URL needs verification. See `documentation/ai-engine.md`.
-- **Dev requirements are intentionally only Query Monitor.** Do not add dependencies (Composer or npm) without asking.
-- **No JS toolchain at the moment.** `package.json` has no dependencies. Add one only when a feature needs it, and document it.
+- **Infrastructure is the current stack.** Do not adopt the briefing's Nginx Proxy Manager, its sample `docker-compose`, or Matomo. Why and what replaces them: [architecture.md](documentation/architecture.md#briefing-recommendations-not-adopted).
+- **AI model:** `mistralai/Ministral-3-14B-Instruct-2512` through Infomaniak AI Services (OpenAI-compatible), escalating to `google/gemma-4-31B-it`. The briefing's base URL needs verification. See [ai-engine.md](documentation/ai-engine.md).
+- **Dev requirements are intentionally only Query Monitor.** Do not add dependencies (Composer or npm) without asking. See [architecture.md](documentation/architecture.md#current-stack-unchanged).
+- **No JS toolchain at the moment.** `package.json` has no dependencies. Add one only when a feature needs it, and document it in [theme-development.md](documentation/theme-development.md#rules).
+- **Open questions are not decisions.** Check the "Open questions" sections ([architecture.md](documentation/architecture.md#open-questions), [brand-profile.md](documentation/brand-profile.md#open-questions), [membership-tiers.md](documentation/membership-tiers.md#open-questions), [newsletter.md](documentation/newsletter.md#open-questions), [ai-engine.md](documentation/ai-engine.md)) and ask instead of choosing for the team.
 
 ## Where to work
 
-| Area | Path |
-| --- | --- |
-| Theme (templates, parts, styles) | `app/web/themes/mody-cloud` |
-| Theme styles, palette, fonts | `app/web/themes/mody-cloud/theme.json` |
-| Composer dependencies | `app/composer.json` |
-| WordPress config (env-driven) | `app/wp-config.php` |
-| Docker, Nginx, PHP config | `compose.yml`, `config/` |
-| Helper scripts | `bin/` |
-| Documentation | `documentation/` |
-| Python AI agent | Not created yet. Proposed location: `agent/` at the repository root. |
+| Area | Path | Read |
+| --- | --- | --- |
+| Theme (templates, parts, styles) | `app/web/themes/theme` | [theme-development.md](documentation/theme-development.md) |
+| Palette, fonts, spacing | `app/web/themes/theme/theme.json` | [theme-development.md](documentation/theme-development.md#design-tokens) |
+| Composer dependencies | `app/composer.json` | [architecture.md](documentation/architecture.md) |
+| WordPress config (env-driven) | `app/wp-config.php` | [architecture.md](documentation/architecture.md) |
+| Docker, Nginx, PHP config | `compose.yml`, `config/` | [architecture.md](documentation/architecture.md), [local-development.md](documentation/local-development.md) |
+| Helper scripts | `bin/` | [local-development.md](documentation/local-development.md) |
+| Documentation | `documentation/` | [documentation/README.md](documentation/README.md) |
+| Python AI agent | Not created yet. Proposed: `agent/` at the repository root. | [ai-engine.md](documentation/ai-engine.md) |
 
 Do not edit WordPress core (`app/wp/`), anything installed by Composer (`app/web/plugins/`, `app/vendor/`), or put project behavior in plugin source.
 
 ## Layout and commands
 
-Core lives in `app/wp`, content in `app/web` (Bedrock-style). Plugins and themes install into `app/web/` through Composer.
+Core lives in `app/wp`, content in `app/web` (Bedrock-style). Plugins and themes install into `app/web/` through Composer. Layout details: [architecture.md](documentation/architecture.md#repository-layout).
 
 ```bash
 docker compose up -d                 # start the stack
 ./bin/wp <wp-cli args>               # WP-CLI in the app container
 ./bin/composer <args>                # Composer in the app container
-./bin/wp theme activate mody-cloud   # activate the theme
+./bin/wp theme activate theme        # activate the theme
 cd app && composer update --no-install   # regenerate composer.lock on the host
 ```
 
-`./bin/wp` needs `SITE_SLUG` in `.env` (the sample sets `mody`) and the matching alias in `wp-cli.yml`. First-run steps are in `documentation/local-development.md`.
+`./bin/wp` needs `SITE_SLUG` in `.env` (the sample sets `mody`) and the matching alias in `wp-cli.yml`. First-run steps, all commands and environment variables: [local-development.md](documentation/local-development.md).
 
 ## Development rules
 
-- Keep customizations in `app/web/themes/mody-cloud`. Keep `functions.php` minimal. Platform logic does not belong in the theme.
-- Use the theme's named palette colors (`primary`, `secondary`, `accent`, `base`, `contrast`). Never loose hex values in generated content or templates.
-- Load nothing from third-party CDNs or font services. Serve fonts and assets locally.
-- Theme text domain is `mody-cloud`. Wrap user-facing PHP strings with WordPress i18n functions.
-- Block markup in `templates/` and `parts/` must stay valid serialized blocks.
-- Never commit `.env`, `auth.json` or credentials. Production uses `compose.prod.yml.sample` so Xdebug (9003) and MariaDB (3306) are not published.
-- Use the smallest validation that covers the change: `php -l <file>`, a JSON parse of `theme.json`, `docker compose config` (needs a `.env`).
+- Keep customizations in `app/web/themes/theme`. Keep `functions.php` minimal. Platform logic does not belong in the theme. See [theme-development.md](documentation/theme-development.md#rules).
+- Use the theme's named palette colors (`primary`, `secondary`, `accent`, `base`, `contrast`). Never loose hex values in generated content or templates. See [theme-development.md](documentation/theme-development.md#design-tokens).
+- Load nothing from third-party CDNs or font services. Serve fonts and assets locally (rule 1).
+- Theme text domain is `mody_cloud`. Wrap user-facing PHP strings with WordPress i18n functions.
+- Block markup in `templates/` and `parts/` must stay valid serialized blocks. See [ai-engine.md](documentation/ai-engine.md#validation-pipeline).
+- Never commit `.env`, `auth.json` or credentials. Production uses `compose.prod.yml.sample` so Xdebug (9003) and MariaDB (3306) are not published. See [architecture.md](documentation/architecture.md#invariants-that-carry-over-from-the-briefing).
+- Use the smallest validation that covers the change: `php -l <file>`, a JSON parse of `theme.json`, `docker compose config` (needs a `.env`). See [theme-development.md](documentation/theme-development.md#working-with-the-theme).
 - Update the matching file in `documentation/` when behavior or decisions change. Mark guesses as **Open question** or **Inference**.
 
 ## Known stale items
 
-Parts of the stack scripts, compose samples and CI workflows still reference earlier projects (Tamarind Intelligence). They are listed in `documentation/local-development.md#known-stale-items`. Do not rely on `bin/build`, `bin/install`, `bin/migrate-*` or the GitHub workflows without checking them first.
+Parts of the stack scripts, compose samples and CI workflows still reference an earlier project (Tamarind Intelligence). Do not rely on `bin/build`, `bin/install`, `bin/migrate-*` or the GitHub workflows without checking them first. The list is in [local-development.md](documentation/local-development.md#known-stale-items).
 
 ## Current focus
 
-Milestone 1.1: `hello_ai.py` connects to Ministral through the Infomaniak API (token from an environment variable) and returns one valid Gutenberg paragraph block. Validate the serialized syntax before Milestone 1.2.
+Milestone 1.1: `hello_ai.py` connects to Ministral through the Infomaniak API (token from an environment variable) and returns one valid Gutenberg paragraph block. Validate the serialized syntax before Milestone 1.2. Details: [ai-engine.md](documentation/ai-engine.md#first-concrete-step-milestone-11) and [roadmap.md](documentation/roadmap.md#first-concrete-step-milestone-11).

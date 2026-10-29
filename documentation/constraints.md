@@ -21,4 +21,4 @@ These eight rules come from the briefing (§11) and apply to every change, human
 | 5 | Prefer the smallest change that works. Raise it if an estimate exceeds 2 hours. | [roadmap.md](roadmap.md) |
 | 6 | Secrets come from `.env` or environment variables. `.env` and `auth.json` stay out of version control. Use `compose.prod.yml.sample` in production so Xdebug and MariaDB ports are not published. | [architecture.md](architecture.md#invariants-that-carry-over-from-the-briefing), [local-development.md](local-development.md) |
 | 7 | Never write "unlimited" in the product or the docs. | [membership-tiers.md](membership-tiers.md) |
-| 8 | Do not write Spanish into code, comments, templates or docs. Spanish terms from the briefing are only kept in the glossary. | [project-overview.md](project-overview.md#glossary) |
+| 8 | Do not write Spanish into code, comments, templates or docs. Spanish terms from the briefing appear only where needed to trace back to it (the glossary and translation notes). | [project-overview.md](project-overview.md#glossary) |
