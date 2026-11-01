@@ -74,7 +74,7 @@ services:
     env_file:
       - .env
     environment:
-      WORDPRESS_DB_HOST: wp_db
+      WORDPRESS_DB_HOST: database
       WORDPRESS_DB_NAME: $DB_NAME
       WORDPRESS_DB_USER: $DB_USER
       WORDPRESS_DB_PASSWORD: $DB_PASSWORD
@@ -111,7 +111,7 @@ services:
       WORDPRESS_MULTISITE: ${WORDPRESS_MULTISITE:-false}
       WORDPRESS_SUBDOMAIN_INSTALL: ${WORDPRESS_SUBDOMAIN_INSTALL:-false}
     depends_on:
-      wp_db:
+      database:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -119,7 +119,7 @@ services:
     networks:
       - default
 
-  wp_db:
+  database:
     container_name: ${CONTAINER_PREFIX:-wp_}db
     image: mariadb:11.4.7
     restart: unless-stopped

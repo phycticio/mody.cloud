@@ -1,5 +1,5 @@
 map $host $site_proxy_host {
-    default ${PROXY_NAME:-mody.cloud};
+    default ${PROXY_NAME};
 }
 
 ${NGINX_HTTP_REDIRECT_SERVER}

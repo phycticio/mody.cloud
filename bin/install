@@ -36,12 +36,6 @@ mkdir -p "${ROOT_DIR}/app/logs" && \
   ./bin/version "${WORDPRESS_VERSION}" --no-backup && \
   ./bin/composer config http-basic.${PLUGIN_REPO_HOST:-plugins.mody.cloud} "${SATISPRESS_KEY}" "satispress" && \
   ./bin/composer install && \
-  ./bin/wp core install --url="https://${HOST_NAME}" --title="${SITE_TITLE}" --admin_user="${SITE_ADMIN_USER}" --admin_email="${SITE_ADMIN_EMAIL}" --admin_password="${SITE_ADMIN_PASSWD}" --skip-email && \
-  ./bin/db import
-
-if [ "$NO_BUILD" = false ]; then
-  ./bin/log "INFO" "Building assets after importing the local database dump..."
-  ./bin/build
-fi
+  ./bin/wp core install --url="https://${HOST_NAME}" --title="${SITE_TITLE}" --admin_user="${SITE_ADMIN_USER}" --admin_email="${SITE_ADMIN_EMAIL}" --admin_password="${SITE_ADMIN_PASSWD}" --skip-email
 
 ./bin/log "SUCCESS" "Installation completed successfully"

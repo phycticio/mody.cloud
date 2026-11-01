@@ -1,0 +1,55 @@
+# Local development overrides on top of compose.yml.
+#
+# Enabled through COMPOSE_FILE and COMPOSE_PATH_SEPARATOR in .env, so every
+# "docker compose ..." run from the repository root — including the calls
+# ./bin/install makes internally — loads it automatically. No -f flags needed.
+#
+# Unlike compose.stage.yml.sample and compose.prod.yml.sample this file is
+# tracked: it holds no credentials, only the wiring that the local Multisite
+# network and the debugger need. Machine-specific values (host ports, host
+# names) stay in .env.
+services:
+  nginx:
+    environment:
+      # Subdomain Multisite: a request for <subsite>.mody.cloud.local has to
+      # land in the same server block as the network's main site, so the
+      # wildcard is added next to the bare host name. config/ssl holds a
+      # certificate that covers it because APP_DOMAINS includes *.${HOST_NAME}.
+      #
+      # mailpit.conf.template keeps serving ${MAIL_HOST} even though the
+      # wildcard also matches it: nginx prefers an exact server_name over a
+      # leading-wildcard one.
+      NGINX_APP_SERVER_NAME: "${HOST_NAME:-mody.cloud.local} *.${HOST_NAME:-mody.cloud.local}"
+      NGINX_HTTP_REDIRECT_SERVER: |
+        server {
+            listen 80;
+            server_name ${HOST_NAME:-mody.local} *.${HOST_NAME:-mody.local};
+
+            return 301 https://$$host$$request_uri;
+        }
+
+  wordpress:
+    build:
+      args:
+        # compose.yml publishes 9003 and mounts config/php/xdebug.ini but never
+        # passes this build argument, so the image ships without the extension.
+        # Set INSTALL_XDEBUG=true in .env and rebuild to install it.
+        - INSTALL_XDEBUG=${INSTALL_XDEBUG:-false}
+    # Known limitation, confirmed in M0-01, not solved here.
+    #
+    # Docker's embedded DNS has no wildcard, so PHP cannot resolve subsite host
+    # names: loopback requests that go out over HTTP (WP Cron spawning
+    # wp-cron.php, Site Health, REST calls between sites) fail on every subsite.
+    # The subsites themselves answer fine - that path is browser -> nginx, which
+    # does have the wildcard server_name above.
+    #
+    # extra_hosts cannot fix it: Docker's --add-host takes an IP, not a service
+    # name, so "alpha.${HOST_NAME}:nginx" is rejected with "invalid IP address
+    # in add-host". Pinning nginx to a static IP would work but needs a declared
+    # subnet, and one line per site does not survive member-created sites.
+    #
+    # The agent service sidesteps this by design: it calls http://nginx and
+    # carries the target site's Host header (mvp-spec.md section 12). WP Cron on
+    # subsites needs its own answer - see the open question in
+    # documentation/architecture.md. Until then, run due jobs explicitly:
+    #   ./bin/wp --site=<slug> cron event run --due-now

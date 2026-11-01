@@ -21,7 +21,9 @@ The project documentation lives in `documentation/`. **Before you start a task, 
 | Working on the wizard, the `mody_brand_profiles` table, prompt assembly or site creation | [brand-profile.md](documentation/brand-profile.md) | Wizard, schema, message to the model, site creation flow |
 | Working on quotas, roles, site limits or dedicated VPS thresholds | [membership-tiers.md](documentation/membership-tiers.md) | Tiers, gating logic, dedicated VPS rules |
 | Working on newsletter sending, sending caps or opt-in | [newsletter.md](documentation/newsletter.md) | Infomaniak Newsletter integration |
+| Building or scoping the MVP, or needing an agreed product decision | [mvp-spec.md](documentation/mvp-spec.md) | The agreed MVP spec: tiers, billing, wizard, agent, dashboard, milestones |
 | Choosing what to work on next, or checking milestone status | [roadmap.md](documentation/roadmap.md) | Milestones and the first concrete step |
+| Creating, updating or picking up a ticket, or checking what the team is working on | [tickets.md](documentation/tickets.md) | Where tickets live, and how planning and in-progress work are tracked |
 | A requirement is unclear or looks contradictory | `documentation/Mody_Cloud_Briefing_Agente_Codificacion_v4.pdf` | The original briefing (Spanish). The docs above are derived from it. |
 
 ## Non-negotiable rules
@@ -40,7 +42,9 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 ## Decisions already made
 
 - **Infrastructure is the current stack.** Do not adopt the briefing's Nginx Proxy Manager, its sample `docker-compose`, or Matomo. Why and what replaces them: [architecture.md](documentation/architecture.md#briefing-recommendations-not-adopted).
-- **AI model:** `mistralai/Ministral-3-14B-Instruct-2512` through Infomaniak AI Services (OpenAI-compatible), escalating to `google/gemma-4-31B-it`. The briefing's base URL needs verification. See [ai-engine.md](documentation/ai-engine.md).
+- **AI model:** `Qwen/Qwen3.8-27B-FP8` (project-scoped build) through Infomaniak AI Services (OpenAI-compatible, base URL `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`). Decided 2026-11-01, superseding the briefing's Ministral choice. See [mvp-spec.md](documentation/mvp-spec.md) and [ai-engine.md](documentation/ai-engine.md).
+- **Payments:** Mollie (EU), decided 2026-11-01. Card at signup (0.01 EUR verification), then monthly tier billing; past-due sites read-only for 60 days before deletion. See [mvp-spec.md](documentation/mvp-spec.md#4-tiers-trial-and-billing).
+- **Platform logic lives in one MU plugin:** `app/web/mu-plugins/mody-platform/` (registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects, agent relay). The Python agent service lives in `agent/` as a private compose service. See [mvp-spec.md](documentation/mvp-spec.md#12-architecture-deltas).
 - **Dev requirements are intentionally only Query Monitor.** Do not add dependencies (Composer or npm) without asking. See [architecture.md](documentation/architecture.md#current-stack-unchanged).
 - **No JS toolchain at the moment.** `package.json` has no dependencies. Add one only when a feature needs it, and document it in [theme-development.md](documentation/theme-development.md#rules).
 - **Open questions are not decisions.** Check the "Open questions" sections ([architecture.md](documentation/architecture.md#open-questions), [brand-profile.md](documentation/brand-profile.md#open-questions), [membership-tiers.md](documentation/membership-tiers.md#open-questions), [newsletter.md](documentation/newsletter.md#open-questions), [ai-engine.md](documentation/ai-engine.md)) and ask instead of choosing for the team.
@@ -56,7 +60,9 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 | Docker, Nginx, PHP config | `compose.yml`, `config/` | [architecture.md](documentation/architecture.md), [local-development.md](documentation/local-development.md) |
 | Helper scripts | `bin/` | [local-development.md](documentation/local-development.md) |
 | Documentation | `documentation/` | [documentation/README.md](documentation/README.md) |
-| Python AI agent | Not created yet. Proposed: `agent/` at the repository root. | [ai-engine.md](documentation/ai-engine.md) |
+| Tickets | `tickets/` | [tickets.md](documentation/tickets.md) |
+| Platform logic (MU plugin) | `app/web/mu-plugins/mody-platform/` (not created yet) | [mvp-spec.md](documentation/mvp-spec.md) |
+| Python AI agent | `agent/` at the repository root (not created yet) | [ai-engine.md](documentation/ai-engine.md), [mvp-spec.md](documentation/mvp-spec.md) |
 
 Do not edit WordPress core (`app/wp/`), anything installed by Composer (`app/web/plugins/`, `app/vendor/`), or put project behavior in plugin source.
 
@@ -91,4 +97,8 @@ Parts of the stack scripts, compose samples and CI workflows still reference an 
 
 ## Current focus
 
-Milestone 1.1: `hello_ai.py` connects to Ministral through the Infomaniak API (token from an environment variable) and returns one valid Gutenberg paragraph block. Validate the serialized syntax before Milestone 1.2. Details: [ai-engine.md](documentation/ai-engine.md#first-concrete-step-milestone-11) and [roadmap.md](documentation/roadmap.md#first-concrete-step-milestone-11).
+MVP execution follows [mvp-spec.md](documentation/mvp-spec.md): milestones M0-M5, one ticket each in `tickets/` (M0-01 to M5-01).
+
+**M0-01 is done** (2026-11-01): subdomain Multisite is enabled locally with wildcard TLS, two subsites run the `theme` block theme, owned by one non-super-admin member. Per-site WP-CLI is `./bin/wp --site=<slug>`. See [local-development.md](documentation/local-development.md#multisite-subdomain-network).
+
+Next up: **M1-01** - registration, trial and Mollie billing. One open question from M0-01 blocks it: WP-Cron does not work on subsites, because Docker's DNS has no wildcard and loopback requests cannot resolve `<slug>.${HOST_NAME}`. M1's hourly billing and sweep jobs depend on it. Candidates and the workaround are in [architecture.md](documentation/architecture.md#open-questions).

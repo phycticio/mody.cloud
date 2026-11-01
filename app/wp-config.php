@@ -127,19 +127,34 @@ if ( $configExtra = getenv_docker( 'WORDPRESS_CONFIG_EXTRA', '' ) ) {
 }
 
 
-$protocol  = 'https://';
-$http_host = getenv_docker( 'HOST_NAME', 'mody.cloud.local' );
+/*
+ * The network domain. Never carries a port.
+ *
+ * Requests reach WordPress on standard ports: the stack's own Nginx owns 443
+ * directly, or a proxy in front of it does and forwards with the original Host
+ * header. The ports in NGINX_HTTP_PORT / NGINX_HTTPS_PORT are only where the
+ * container publishes itself to the host, and must not leak into site URLs.
+ *
+ * This matters more than it looks: WordPress strips only ":80" and ":443" from
+ * the request host before it looks a site up (wp-includes/ms-settings.php), so
+ * a port in the host never matches the stored wp_blogs.domain and every request
+ * ends on the "site not installed" signup redirect.
+ */
+$main_network_domain = getenv_docker( 'HOST_NAME', 'mody.cloud.local' );
+
+$protocol = 'https://';
 if ( php_sapi_name() !== 'cli' ) {
-	if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) &&
-		 strpos( $_SERVER['HTTP_X_FORWARDED_PROTO'], 'https' ) !== false ) {
-		$_SERVER['HTTPS'] = 'on';
-	}
-	$protocol  = $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
-	$http_host = $_SERVER['HTTP_HOST'] ?? getenv_docker( 'HOST_NAME', 'mody.cloud.local' );
+	$protocol = ( $_SERVER['HTTPS'] ?? '' ) === 'on' ? 'https://' : 'http://';
 }
 
-$base                = '/';
-$main_network_domain = getenv_docker( 'HOST_NAME', 'mody.cloud.local' );
+/*
+ * Under PHP-FPM this is the requested host, so a subsite gets its own
+ * subdomain. Under WP-CLI it is whatever --url set, and the network's own
+ * domain when --url was not passed.
+ */
+$http_host = ! empty( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : $main_network_domain;
+
+$base = '/';
 
 define( 'WP_HOME', $protocol . $http_host );
 define( 'WP_SITEURL', $protocol . $http_host . '/wp' );
@@ -157,11 +172,24 @@ define( 'MULTISITE', $is_ms );
 define( 'SUBDOMAIN_INSTALL', $subdomain_install );
 
 if ( MULTISITE ) {
+	/*
+	 * In a subdomain network the request host is the subsite's own subdomain
+	 * (e.g. alpha.mody.cloud.local). Using it as the cookie domain would break
+	 * the shared login the access model relies on (mvp-spec.md §3), so the
+	 * cookie is always scoped to the main network domain: a Domain attribute
+	 * without a leading dot still covers every subdomain (RFC 6265 §5.2.3).
+	 */
+	if ( $subdomain_install ) {
+		$cookie_domain = $main_network_domain;
+	} else {
+		$cookie_domain = $http_host;
+	}
+
 	define( 'DOMAIN_CURRENT_SITE', $main_network_domain );
 	define( 'PATH_CURRENT_SITE', '/' );
 	define( 'SITE_ID_CURRENT_SITE', 1 );
 	define( 'BLOG_ID_CURRENT_SITE', 1 );
-	define( 'COOKIE_DOMAIN', $http_host );
+	define( 'COOKIE_DOMAIN', $cookie_domain );
 	define( 'ADMIN_COOKIE_PATH', '/' );
 	define( 'COOKIEPATH', '/' );
 	define( 'SITECOOKIEPATH', '/' );

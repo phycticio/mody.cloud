@@ -14,6 +14,7 @@
 - AI agent work (prompts, model calls, validation): read [ai-engine.md](documentation/ai-engine.md) and [brand-profile.md](documentation/brand-profile.md) first.
 - Quotas, roles, newsletter caps: read [membership-tiers.md](documentation/membership-tiers.md) and [newsletter.md](documentation/newsletter.md).
 - Infrastructure or Composer changes: read [architecture.md](documentation/architecture.md) first. It also says which parts of the briefing were deliberately not adopted.
+- Tickets, planning or in-progress work: read [tickets.md](documentation/tickets.md). All tickets live in `tickets/`; the GitHub project board tracks planning and what is in progress, so you can see what everyone is working on.
 - Anything unclear or ambiguous: look for the matching **Open question** in the documents above and ask instead of choosing for the team. Start from [documentation/README.md](documentation/README.md) if you are unsure which document applies.
 
 ### Working agreements

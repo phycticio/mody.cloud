@@ -28,6 +28,7 @@ Coding agents and developers: read the document that matches the work **before**
 | [membership-tiers.md](membership-tiers.md) | Working on quotas, roles, site limits or dedicated VPS thresholds | Tiers, gating logic, dedicated VPS rules | 5 |
 | [newsletter.md](newsletter.md) | Working on newsletter sending, sending caps or opt-in | Infomaniak Newsletter integration | 9 |
 | [roadmap.md](roadmap.md) | Choosing what to work on next, or checking milestone status | Milestones and the first concrete step | 10, 12 |
+| [tickets.md](tickets.md) | Creating, updating or picking up a ticket, or checking what the team is working on | Where tickets live, and how planning and in-progress work are tracked | n/a |
 
 ## Keeping the docs current
 

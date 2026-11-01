@@ -78,6 +78,7 @@ Everything about the project is documented in `documentation/`. Open the file th
 | [Membership tiers](documentation/membership-tiers.md) | Quotas, roles, gating, dedicated VPS |
 | [Newsletter](documentation/newsletter.md) | Infomaniak integration and sending caps |
 | [Roadmap](documentation/roadmap.md) | Milestones and what to build next |
+| [Tickets](documentation/tickets.md) | Where tickets live, and how planning and in-progress work are tracked |
 
 ## Working with coding agents
 
