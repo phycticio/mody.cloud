@@ -48,8 +48,6 @@ app/web/plugins/tamarind*/.phpunit.result.cache
 
 config/ssl/*
 
-tickets
-
 node_modules
 dist
 package-lock.json

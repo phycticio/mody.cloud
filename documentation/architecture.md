@@ -8,7 +8,7 @@ The infrastructure is the Docker stack already in this repository. The briefing'
 | --- | --- | --- |
 | Web server | Nginx (alpine). Serves 80/443, proxies PHP to `wordpress:9000`. | `compose.yml`, `config/nginx/app.conf.template` |
 | Application | Image built from the official `wordpress:${WORDPRESS_IMAGE_VERSION}` (PHP-FPM alpine). Adds gd, mysqli, pdo_mysql, zip, bcmath, exif, redis, msmtp, WP-CLI and Composer. | `config/Dockerfile` |
-| Database | MariaDB 11.4.7 | `compose.yml`, `config/my.cnf` |
+| Database | MariaDB 11.4.7 (`database` service) | `compose.yml`, `config/my.cnf` |
 | Cache | Redis (alpine) container. No object-cache plugin is installed yet. | `compose.yml` |
 | Mail (local) | Mailpit captures all outgoing mail, served at `MAIL_HOST` through Nginx. PHP sends through msmtp. | `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
 | Dependencies | Composer. WordPress plugins and themes install into `app/web/`. | `app/composer.json` |
@@ -69,7 +69,7 @@ Member ──▶ WordPress (accounts, wizard, site panel)
 
 | Component | Role | Phase |
 | --- | --- | --- |
-| WordPress | Phase 1 single site. Phase 2 Multisite, one site per generated website. | 1, 2 |
+| WordPress | Subdomain Multisite, one site per generated website (enabled in M0-01). Site 1 is the association site. | 0 |
 | FSE block theme | Header, footer, templates and global styles are blocks and JSON editable with Gutenberg. | 0 |
 | Spectra | Extra block library alongside native Gutenberg. Not installed yet. | 0 |
 | Python agent | Bridge between the AI and WordPress. Python 3.9+, `requests` or LangChain. | 1 |
@@ -96,12 +96,20 @@ The briefing's stack section (§2) and Docker plus Nginx Proxy Manager section (
 - `compose.yml` publishes Xdebug (`9003`) and MariaDB (`3306`) to the host for local work. `compose.prod.yml.sample` resets both and must be used in production.
 - Credentials and Application Passwords never go into the repository, into logs or into prompts.
 
-### Multisite (Phase 2)
+### Multisite (enabled, M0-01)
 
-`wp-config.php` already supports Multisite through environment variables: `WORDPRESS_ALLOW_MULTISITE`, `WORDPRESS_MULTISITE` and `WORDPRESS_SUBDOMAIN_INSTALL`. `compose.yml` defaults all three to `false`, so Phase 1 runs as a single site. Subdomain sites need a wildcard `server_name` in Nginx and a wildcard certificate. The briefing proposes a DNS challenge against Infomaniak DNS for that.
+Subdomain Multisite is on. `wp-config.php` reads `WORDPRESS_ALLOW_MULTISITE`, `WORDPRESS_MULTISITE` and `WORDPRESS_SUBDOMAIN_INSTALL`; `compose.yml` still defaults all three to `false`, and `sample.env` sets them to `true`. The wildcard `server_name` comes from `compose.local.yml` locally, and the wildcard certificate from `APP_DOMAINS` (`*.${HOST_NAME}`) via `./bin/certs`. In production the wildcard certificate for `*.mody.cloud` is terminated upstream; the briefing proposes a DNS challenge against Infomaniak DNS for it.
+
+Two constants in `wp-config.php` deserve attention, because they are the pieces a subdomain network breaks on:
+
+- **`DOMAIN_CURRENT_SITE` is `HOST_NAME`, always without a port.** `wp-includes/ms-settings.php` strips only `:80` and `:443` from the request host before looking the site up, so a host carrying any other port never matches `wp_site.domain` or `wp_blogs.domain` and every request ends on the `wp-signup.php` "site not installed" redirect. Requests therefore have to arrive on a standard port: either the stack's Nginx owns 443, or a proxy in front of it does and forwards the original `Host` header. `NGINX_HTTP_PORT` and `NGINX_HTTPS_PORT` are only where the container publishes itself on the host and must never reach a site URL.
+- **`COOKIE_DOMAIN` is the main network domain**, which is what gives members the one shared login across all subdomains that the access model assumes ([mvp-spec.md](mvp-spec.md) §3). A `Domain` attribute covers subdomains even without a leading dot (RFC 6265 §5.2.3).
+
+Where a proxy fronts the stack, it needs a server name covering `*.${HOST_NAME}` as well as the bare host, or only the main site answers over HTTPS and the subsites fail TLS on an unrecognised SNI name. Details and the local check are in [local-development.md](local-development.md#site-urls-never-carry-a-port).
 
 ## Open questions
 
+- **WP-Cron on subsites.** Docker's embedded DNS has no wildcard, so PHP in the app container cannot resolve `<slug>.${HOST_NAME}` and every loopback request from a subsite fails — WP-Cron spawning `wp-cron.php`, Site Health, REST calls between sites. Browser traffic is unaffected, because that path ends at Nginx and Nginx does have the wildcard `server_name`. `extra_hosts` is not a way out: Docker's `--add-host` takes an IP, not a service name, and one entry per site does not survive member-created sites. [mvp-spec.md](mvp-spec.md) §12 assumes WP-Cron is enabled and carries the hourly billing and sweep jobs, so this needs an answer before M1. The candidates are a static IP for the Nginx container plus generated `extra_hosts`, a `cron_request` filter in the MU plugin that posts to `http://nginx` with the target `Host` header (the pattern the agent service already uses), or `DISABLE_WP_CRON` with an external scheduler running `wp cron event run --due-now` per site. Workaround meanwhile: `./bin/wp --site=<slug> cron event run --due-now`.
 - **Per-site `theme.json`.** The briefing says the agent writes the site's `theme.json`. In Multisite all sites share one theme directory, so a per-site file is not possible. Per-site identity has to go through Global Styles stored per site, or a generated child theme per site. Decide in Milestone 2.3.
 - **Payments provider.** The briefing prefers Mollie ("more European") over Stripe. Stripe sits uneasily with the sovereignty rule. Decide in Milestone 3.2.
 - **Where gating logic lives.** Likely a network-level plugin. Not specified.

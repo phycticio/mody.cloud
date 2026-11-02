@@ -30,6 +30,6 @@ services:
     # Don't publish Xdebug's port to the host in production.
     ports: !reset []
 
-  wp_db:
+  database:
     # Don't publish MariaDB to the host in production.
     ports: !reset []

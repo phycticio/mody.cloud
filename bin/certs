@@ -15,5 +15,12 @@ fi
 source "${ENV_FILE}";
 
 ./bin/log "INFO" "Running mkcert to generate certificates for local domains..."
+# APP_DOMAINS is a space-separated list and has to stay unquoted so it splits
+# into one argument per domain. It contains the Multisite wildcard
+# (*.${HOST_NAME}), so pathname expansion is disabled first: otherwise any file
+# in the repository root matching "*.mody.cloud.local" would silently replace
+# the wildcard and the issued certificate would not cover the subsites.
+set -o noglob
 mkcert -cert-file ./config/ssl/local-cert.pem -key-file ./config/ssl/local-key.pem $APP_DOMAINS 127.0.0.1
+set +o noglob
 sudo mkcert -install

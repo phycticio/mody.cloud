@@ -42,5 +42,43 @@ if [ -n "${TAMARIND_MIGRATION_DATA_KEY:-}" ]; then
     DOCKER_ENV_ARGS+=(-e TAMARIND_MIGRATION_DATA_KEY)
 fi
 
-./bin/log "INFO" "wp $* in container $CONTAINER_NAME" >&2
-docker exec $TTY_FLAG "${DOCKER_ENV_ARGS[@]}" -u www-data "$CONTAINER_NAME" wp "$@"
+# Per-site addressing for the subdomain Multisite network.
+#
+# WP-CLI needs --url=<host> to pick a subsite, so "--site=<slug>" builds it from
+# HOST_NAME instead of making every caller repeat it:
+#
+#   ./bin/wp --site=alpha plugin list      ->  --url=alpha.mody.local
+#   ./bin/wp --site=main option get home   ->  --url=mody.local
+#
+# No port is ever added. Site hosts are reached on standard ports, through the
+# proxy in front of the stack where there is one, and WordPress would not match
+# a host carrying a port against wp_blogs.domain anyway (app/wp-config.php).
+#
+# A literal --url=... is still passed through untouched, and commands with no
+# site argument run against the network's main site.
+WP_ARGS=()
+SUBSITE=""
+for arg in "$@"; do
+    case "$arg" in
+        --site=*) SUBSITE="${arg#--site=}" ;;
+        *) WP_ARGS+=("$arg") ;;
+    esac
+done
+
+if [ -n "$SUBSITE" ]; then
+    if [ -z "${HOST_NAME:-}" ]; then
+        ./bin/log "ERROR" "--site=$SUBSITE needs HOST_NAME in .env"
+        exit 1
+    fi
+
+    if [ "$SUBSITE" = "main" ]; then
+        SITE_HOST="${HOST_NAME}"
+    else
+        SITE_HOST="${SUBSITE}.${HOST_NAME}"
+    fi
+
+    WP_ARGS=("--url=${SITE_HOST}" "${WP_ARGS[@]}")
+fi
+
+./bin/log "INFO" "wp ${WP_ARGS[*]} in container $CONTAINER_NAME" >&2
+docker exec $TTY_FLAG "${DOCKER_ENV_ARGS[@]}" -u www-data "$CONTAINER_NAME" wp "${WP_ARGS[@]}"
