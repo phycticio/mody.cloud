@@ -32,6 +32,8 @@ WordPress (any site in the network)
 - **JSON output.** Core sends the schema itself as `response_format.json_schema`. Infomaniak validates the OpenAI shape and rejects a request without `json_schema.name` (HTTP 400), so the model class wraps the schema as `{ "name": "response", "schema": … }`.
 - Everything else (messages, tools, parsing) is core's OpenAI-compatible implementation.
 
+**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
+
 Local setup: put both variables in `.env`, then `docker compose up -d wordpress`. The container reads `env_file` only when it is created, and PHP-FPM passes the environment through (`clear_env = no`).
 
 ## Calling the model

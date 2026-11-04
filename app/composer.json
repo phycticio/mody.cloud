@@ -11,25 +11,37 @@
         "satispress": {
             "type": "composer",
             "url": "https://plugins.mody.cloud/satispress/",
-            "only": ["mody/*"]
+            "only": [
+                "mody/*"
+            ]
         },
         "wpackagist": {
             "type": "composer",
             "url": "https://wpackagist.org",
-            "only": ["wpackagist-plugin/*", "wpackagist-theme/*"]
+            "only": [
+                "wpackagist-plugin/*",
+                "wpackagist-theme/*"
+            ]
         }
     },
     "require": {
         "composer/installers": "^2.3",
-        "wpackagist-plugin/wordfence": "9.0.2"
+        "wpackagist-plugin/wordfence": "9.0.2",
+        "wpackagist-plugin/ai": "1.5.0",
+        "wpackagist-plugin/ai-provider-for-ollama": "1.4.0",
+        "wpackagist-plugin/mcp-adapter": "0.7.1"
     },
     "require-dev": {
         "wpackagist-plugin/query-monitor": "3.20.2"
     },
     "extra": {
         "installer-paths": {
-            "web/plugins/{$name}/": ["type:wordpress-plugin"],
-            "web/themes/{$name}/": ["type:wordpress-theme"]
+            "web/plugins/{$name}/": [
+                "type:wordpress-plugin"
+            ],
+            "web/themes/{$name}/": [
+                "type:wordpress-theme"
+            ]
         }
     },
     "config": {

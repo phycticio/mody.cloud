@@ -175,6 +175,20 @@ if [ -n "$(git status --porcelain)" ]; then
   die "The build changed files in the working tree (for example the lockfile). Commit the result and deploy again."
 fi
 
+# Code installed on the server outside Composer (for example from wp-admin)
+# is not in the build, so the sync would delete it. Refuse instead.
+for DIR in app/web/plugins app/web/mu-plugins app/web/themes; do
+  REMOTE_ENTRIES="$(remote "ls -1A '${REMOTE_DIR}/${DIR}' 2>/dev/null" || true)"
+  EXTRA=""
+  while IFS= read -r ENTRY; do
+    case "$ENTRY" in '' | .*) continue ;; esac
+    [ -e "${DIR}/${ENTRY}" ] || EXTRA="${EXTRA} ${ENTRY}"
+  done <<< "$REMOTE_ENTRIES"
+  if [ -n "$EXTRA" ]; then
+    die "${DIR} on the server has entries the build does not:${EXTRA}. They were installed outside Composer and the sync would delete them. Add them to app/composer.json (or remove them on the server), then deploy again."
+  fi
+done
+
 # --- 4. Preview --------------------------------------------------------------
 FILTER=(
   # Server-owned: never sent, and protected from --delete.
@@ -230,7 +244,8 @@ log "INFO" "Target ${ENV}: ${DESTINATION} (HOST_NAME=${REMOTE_HOST_NAME}), commi
 echo "  Files to add or update: ${N_UPDATE}"
 echo "  Paths to delete:        ${N_DELETE}"
 if [ "$N_DELETE" -gt 0 ]; then
-  printf '%s\n' "$DELETIONS" | head -n 50 | sed 's/^/    /'
+  # sed reads all of its input, unlike head, so the pipe never breaks under pipefail.
+  printf '%s\n' "$DELETIONS" | sed -n '1,50s/^/    /p'
   if [ "$N_DELETE" -gt 50 ]; then
     echo "    ... and $((N_DELETE - 50)) more (run with --dry-run for the full list)"
   fi
