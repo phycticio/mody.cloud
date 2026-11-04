@@ -1,0 +1,166 @@
+{
+  "extends": "stylelint-config-standard-scss",
+  "plugins": [
+    "stylelint-scss",
+    "stylelint-order",
+    "stylelint-selector-bem-pattern"
+  ],
+  "rules": {
+    "plugin/selector-bem-pattern": {
+      "componentName": "[a-z][a-z0-9]*(-[a-z0-9]+)*",
+      "componentSelectors": {
+        "initial": "^\\.{componentName}(--[a-z0-9]+(-[a-z0-9]+)*)?$",
+        "combined": "^\\.{componentName}(__[a-z0-9]+(-[a-z0-9]+)*)?(--[a-z0-9]+(-[a-z0-9]+)*)?$"
+      },
+      "ignoreSelectors": [
+        "^\\.l-",
+        "^\\.is-",
+        "^\\.has-",
+        "^\\.theme-",
+        "^\\.(m|p)(t|r|b|l|x|y)?-[0-4]$",
+        "^html",
+        "^body",
+        "^\\*"
+      ]
+    },
+    "custom-property-pattern": null,
+    "declaration-empty-line-before": null,
+    "no-descending-specificity": null,
+    "selector-class-pattern": null,
+    "order/order": [
+      "custom-properties",
+      "dollar-variables",
+      "at-variables",
+      "declarations",
+      "rules",
+      "at-rules"
+    ],
+    "order/properties-order": [
+      {
+        "groupName": "positioning",
+        "emptyLineBefore": "always",
+        "properties": [
+          "position",
+          "top",
+          "right",
+          "bottom",
+          "left",
+          "z-index"
+        ]
+      },
+      {
+        "groupName": "box-model",
+        "emptyLineBefore": "always",
+        "properties": [
+          "display",
+          "flex",
+          "flex-direction",
+          "flex-wrap",
+          "flex-flow",
+          "flex-grow",
+          "flex-shrink",
+          "flex-basis",
+          "justify-content",
+          "align-items",
+          "align-self",
+          "align-content",
+          "gap",
+          "grid",
+          "grid-template",
+          "grid-template-columns",
+          "grid-template-rows",
+          "grid-template-areas",
+          "grid-area",
+          "grid-column",
+          "grid-row",
+          "float",
+          "clear",
+          "overflow",
+          "overflow-x",
+          "overflow-y",
+          "box-sizing",
+          "width",
+          "min-width",
+          "max-width",
+          "height",
+          "min-height",
+          "max-height",
+          "margin",
+          "margin-block-start",
+          "margin-top",
+          "margin-right",
+          "margin-bottom",
+          "margin-left",
+          "padding",
+          "padding-top",
+          "padding-right",
+          "padding-bottom",
+          "padding-left"
+        ]
+      },
+      {
+        "groupName": "typography",
+        "emptyLineBefore": "always",
+        "properties": [
+          "font",
+          "font-family",
+          "font-size",
+          "font-weight",
+          "font-style",
+          "font-variant",
+          "font-stretch",
+          "line-height",
+          "letter-spacing",
+          "text-align",
+          "text-decoration",
+          "text-transform",
+          "text-overflow",
+          "text-shadow",
+          "white-space",
+          "word-break",
+          "word-wrap",
+          "color"
+        ]
+      },
+      {
+        "groupName": "visual",
+        "emptyLineBefore": "always",
+        "properties": [
+          "background",
+          "background-color",
+          "background-image",
+          "background-repeat",
+          "background-position",
+          "background-size",
+          "border",
+          "border-top",
+          "border-right",
+          "border-bottom",
+          "border-left",
+          "border-width",
+          "border-style",
+          "border-color",
+          "border-radius",
+          "outline",
+          "box-shadow",
+          "opacity",
+          "visibility",
+          "cursor",
+          "pointer-events",
+          "list-style",
+          "table-layout",
+          "content"
+        ]
+      },
+      {
+        "groupName": "animation",
+        "emptyLineBefore": "always",
+        "properties": [
+          "transition",
+          "animation",
+          "transform"
+        ]
+      }
+    ]
+  }
+}

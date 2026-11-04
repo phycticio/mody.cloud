@@ -12,8 +12,11 @@ The infrastructure is the Docker stack already in this repository. The briefing'
 | Cache | Redis (alpine) container. No object-cache plugin is installed yet. | `compose.yml` |
 | Mail (local) | Mailpit captures all outgoing mail, served at `MAIL_HOST` through Nginx. PHP sends through msmtp. | `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
 | Dependencies | Composer. WordPress plugins and themes install into `app/web/`. | `app/composer.json` |
+| Plugins | Wordfence 9.0.2 (security, the only production plugin, added 2026-11-04 to match production). | `app/composer.json` |
 | Dev tooling | Query Monitor (the only dev requirement) and its `db.php` drop-in symlink. | `app/composer.json`, `app/web/db.php` |
-| Environments | `compose.yml` (local, mkcert TLS). Stage and production are compose overrides where TLS ends at an upstream proxy. | `compose.stage.yml.sample`, `compose.prod.yml.sample` |
+| JS and CSS build | `@wordpress/scripts` through pnpm: `src/` compiles into `app/dist`. Only the libraries a feature needs ([theme-development.md](theme-development.md#rules)). | `package.json`, `config/webpack/config.js` |
+| Environments | `compose.yml` plus `compose.local.yml` (local, mkcert TLS). Stage and production are compose overrides where TLS ends at an upstream proxy. Production is described in [Production](#production). | `compose.local.yml`, `compose.stage.yml.sample`, `compose.prod.yml.sample` |
+| Deployment | `./bin/build` then an rsync allowlist over SSH, with checks and a confirmation. | `bin/build`, `bin/deploy` |
 
 ## Repository layout
 
@@ -31,15 +34,18 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 │   │   ├── plugins/             # Composer-managed, not tracked
 │   │   ├── uploads/             # media, not tracked
 │   │   └── db.php               # symlink to the Query Monitor drop-in
+│   ├── dist/                    # pnpm build output (not tracked)
 │   └── assets/                  # inherited from an earlier project, see local-development.md
-├── bin/                         # helper scripts (wp, composer, certs, version, db, ...)
-├── config/                      # Dockerfile, my.cnf, nginx/, php/, bin/*.config
+├── bin/                         # helper scripts (wp, composer, certs, version, db, build, deploy, ...)
+├── config/                      # Dockerfile, my.cnf, nginx/, php/, webpack/, bin/*.config
 ├── documentation/               # this documentation and the briefing PDF
-├── compose.yml                  # local stack
+├── src/                         # JS and SCSS sources for @wordpress/scripts
+├── compose.yml                  # base stack
+├── compose.local.yml            # local overrides (wildcard server_name, Xdebug build arg)
 ├── compose.*.yml.sample         # stage and production overrides
 ├── sample.env                   # copy to .env
 ├── wp-cli.yml                   # WP-CLI alias used by ./bin/wp
-├── package.json, pnpm-lock.yaml # no JS dependencies at the moment
+├── package.json, pnpm-lock.yaml # JS build with @wordpress/scripts
 ├── AGENTS.md, CLAUDE.md         # agent instructions
 └── readme.md
 ```
@@ -93,8 +99,9 @@ The briefing's stack section (§2) and Docker plus Nginx Proxy Manager section (
 ### Invariants that carry over from the briefing
 
 - Only the web tier is public. The PHP-FPM container and the database are never reachable from the internet. Any proxy admin UI must be IP-restricted.
-- `compose.yml` publishes Xdebug (`9003`) and MariaDB (`3306`) to the host for local work. `compose.prod.yml.sample` resets both and must be used in production.
+- `compose.yml` publishes Xdebug (`9003`) and MariaDB (`3306`) to the host for local work. `compose.prod.yml.sample` resets both and must be used in production. Production does not use it yet: see [Deviations to resolve](#deviations-to-resolve).
 - Credentials and Application Passwords never go into the repository, into logs or into prompts.
+- The Nginx document root is `app/`, which also holds `auth.json` (Composer credentials), `composer.json`, `composer.lock`, `vendor/`, `logs/` and `dumps/`. `config/nginx/app.conf.template` denies those paths, all dotfiles except `/.well-known/`, and PHP under `web/uploads/`. Keep these rules when the template changes, and add any new non-public directory under `app/` to them.
 
 ### Multisite (enabled, M0-01)
 
@@ -107,6 +114,67 @@ Two constants in `wp-config.php` deserve attention, because they are the pieces 
 
 Where a proxy fronts the stack, it needs a server name covering `*.${HOST_NAME}` as well as the bare host, or only the main site answers over HTTPS and the subsites fail TLS on an unrecognised SNI name. Details and the local check are in [local-development.md](local-development.md#site-urls-never-carry-a-port).
 
+## Production
+
+**Status, checked 2026-11-04.** `https://mody.cloud` is live. It serves the network's main site: WordPress 7.1.4, subdomain Multisite, theme `theme`, with public registration disabled. No member subsite is reachable from the internet yet. None of the platform features exist yet (registration, billing, wizard, agent). See [roadmap.md](roadmap.md).
+
+### Request path
+
+```text
+Visitor
+  └─▶ Cloudflare (proxied DNS record, terminates TLS)       ← conflicts with rule 1, see below
+        └─▶ home router, ports 80 and 443
+              └─▶ home.local: Nginx Proxy Manager (proxy_app), Let's Encrypt certificate for mody.cloud
+                    └─▶ https://host.docker.internal:4444
+                          └─▶ mody_cloud_server (Nginx) ─▶ mody_cloud_app (PHP-FPM)
+                                                             ├─▶ mody_cloud_db (MariaDB 11.4.7)
+                                                             └─▶ mody_cloud_redis
+```
+
+### Host
+
+| Item | Value |
+| --- | --- |
+| Machine | `home.local`, an SSH alias in the maintainer's `~/.ssh/config`. It is a MacBook Air M3 (macOS) on the home network. The same machine runs about a dozen other Compose projects, listed in `tickets/home-local-docker-to-colima-execution.md`. |
+| Docker | Colima, Docker context `colima`, `sshfs` mounts, `USER_ID=502`. Non-interactive SSH sessions do not have Homebrew in `PATH`, so prefix commands with `PATH=/opt/homebrew/bin:$PATH`. |
+| Project directory | `/Volumes/Toshiba/mody.cloud`, on an external USB disk. It is a plain copy of the deployable files, not a git checkout. `REVISION` records the deployed commit. |
+| Proxy | Nginx Proxy Manager, Compose project `proxy` (container `proxy_app`) in `~/web/npm`. Its data is in the named volumes `proxy_data` and `proxy_letsencrypt`. The proxy host for `mody.cloud` forwards to `https://host.docker.internal:4444`. NPM also serves `plugins.mody.cloud` (the SatisPress Composer repository, its own stack `mody_plugins_*`) and some unrelated hosts. |
+| Stack | Containers `mody_cloud_*`. The server `.env` sets `HOST_NAME` and `PROXY_NAME` to `mody.cloud`, `WORDPRESS_ENVIRONMENT=production` and the three Multisite switches to `true`. Nginx publishes 8195 (HTTP) and 4444 (HTTPS, with the stack's own mkcert certificate). |
+| Server-owned files | `.env` (and its `.env.*` backups), `compose.prod.yml`, `app/auth.json`, `app/web/uploads/`, `app/logs/`, `config/ssl/`, `REVISION`, and the files Wordfence writes (`app/web/wflogs/`, `app/wp/wordfence-waf.php`, `.user.ini`). Deploys never send or delete them. |
+
+### Deploying
+
+```bash
+git push origin main                   # production deploys only pushed commits from main
+./bin/deploy --env=prod --dry-run      # build, run every check, list what would change
+./bin/deploy --env=prod                # the same, then type "prod" to sync
+```
+
+`bin/deploy` stops before it changes anything when one of these checks fails:
+
+- The working tree has changes, the branch is not `main`, or `main` is not pushed. Only committed, shared code reaches production.
+- SSH needs a prompt. Key authentication and a host key already in `known_hosts` are required (`BatchMode`, `StrictHostKeyChecking=yes`).
+- The target is not the production stack. The script checks for `compose.yml` and `.env` in the directory, which also catches an unmounted disk, and for `HOST_NAME=mody.cloud`.
+- The server's `app/composer.json` or `app/composer.lock` differs from the repository. A package installed by hand on the server would otherwise be deleted by the sync.
+- The build fails, or it changes tracked files (for example the lockfile).
+
+Then it syncs an allowlist with `rsync --delete-after`: `app/`, `bin/`, `config/`, `compose.yml`, `compose.local.yml`, the two compose samples and `wp-cli.yml`. Server-owned files are excluded, so they are never sent and never deleted. Everything else stays on the developer machine: documentation, tickets, `src/`, `node_modules/`, `.git` and `backups/`. Older deploys copied some of those to the server. They are inert there and can be removed by hand.
+
+The build runs `composer install --no-dev` in the local app container, so the local stack must be running. The script restores the local dev requirements when it ends. It does not restart containers. When `config/` or a compose file changes, it prints the command to run on the server: `docker compose up -d --build && docker compose restart nginx`. Nginx renders its templates only when it starts.
+
+### Deviations to resolve
+
+These are differences between production and the rules or invariants above. Each one needs a decision or a planned change, and none of them is fixed by a deploy.
+
+1. **Cloudflare is in front of `mody.cloud`.** The DNS record is proxied, so Cloudflare terminates TLS and sees every request. Rule 1 names Cloudflare explicitly. See the open question below.
+2. **The server runs the local override.** Its `.env` has `COMPOSE_FILE="compose.yml;compose.local.yml"`, so MariaDB (3306) and Xdebug (9003) are published on the Mac's network interfaces, and `compose.prod.yml` is not used. `bin/deploy` warns about this on every run. To switch, in one maintenance window:
+   1. On the server, `cp compose.prod.yml.sample compose.prod.yml`.
+   2. In the server `.env`, set `COMPOSE_FILE="compose.yml;compose.prod.yml"`, `NGINX_HTTP_PORT=8195`, `NGINX_SSL_CERT_FILE=/dev/null` and `NGINX_SSL_KEY_FILE=/dev/null`.
+   3. Run `docker compose up -d`.
+   4. Change the NPM proxy host for `mody.cloud` to `http://host.docker.internal:8195`. The site is down between step 3 and this step.
+3. **Wordfence is a US vendor.** It was first installed by hand on the server. Since 2026-11-04 the repository requires it (`wpackagist-plugin/wordfence` 9.0.2), so production and the repository agree again. The plugin talks to Wordfence's servers, which sits uneasily with rule 1. See the open question below.
+4. **Subsites cannot be reached.** There is no wildcard DNS record, and the NPM certificate and proxy host cover only `mody.cloud`. M2 needs `*.mody.cloud` (DNS, certificate and proxy host, as in [Multisite](#multisite-enabled-m0-01)). `www.mody.cloud` returns a Cloudflare 525 error, because the origin has no certificate for it.
+
 ## Open questions
 
 - **WP-Cron on subsites.** Docker's embedded DNS has no wildcard, so PHP in the app container cannot resolve `<slug>.${HOST_NAME}` and every loopback request from a subsite fails — WP-Cron spawning `wp-cron.php`, Site Health, REST calls between sites. Browser traffic is unaffected, because that path ends at Nginx and Nginx does have the wildcard `server_name`. `extra_hosts` is not a way out: Docker's `--add-host` takes an IP, not a service name, and one entry per site does not survive member-created sites. [mvp-spec.md](mvp-spec.md) §12 assumes WP-Cron is enabled and carries the hourly billing and sweep jobs, so this needs an answer before M1. The candidates are a static IP for the Nginx container plus generated `extra_hosts`, a `cron_request` filter in the MU plugin that posts to `http://nginx` with the target `Host` header (the pattern the agent service already uses), or `DISABLE_WP_CRON` with an external scheduler running `wp cron event run --due-now` per site. Workaround meanwhile: `./bin/wp --site=<slug> cron event run --due-now`.
@@ -114,3 +182,6 @@ Where a proxy fronts the stack, it needs a server name covering `*.${HOST_NAME}`
 - **Payments provider.** The briefing prefers Mollie ("more European") over Stripe. Stripe sits uneasily with the sovereignty rule. Decide in Milestone 3.2.
 - **Where gating logic lives.** Likely a network-level plugin. Not specified.
 - **Analytics.** Replacement for Matomo, if any.
+- **Cloudflare in production.** It conflicts with rule 1. The obvious replacement is DNS at Infomaniak with plain records to the origin, and TLS at the proxy. But Cloudflare currently hides the home connection's IP address, so this depends on the hosting question below.
+- **Production host.** Production runs on a laptop with a USB disk, on a home connection shared with other projects. That is in Europe, so rule 1's location requirement holds, but it is not the European VPS the briefing assumes, and M5 needs a backup and restore drill. Decide whether to move to a VPS (Hetzner, Infomaniak) before launch. Separately, the SSH alias `mody.cloud` in the maintainer's config points at a different Linux server, which does not serve the site (it answers 404 for `mody.cloud`). Its role is not documented.
+- **Wordfence.** It is kept for now: the maintainer added it to `app/composer.json` on 2026-11-04 to match production. Wordfence is a US vendor, and the plugin talks to Wordfence's servers for rules, signatures and scans, which sits uneasily with rule 1. Decide before launch whether to keep it or replace it with an EU or self-contained hardening approach.

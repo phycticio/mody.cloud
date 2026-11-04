@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+
+# Deploy the project to production or stage over SSH with rsync.
+#
+# Usage:
+#   ./bin/deploy --env=prod             preview, confirm, deploy
+#   ./bin/deploy --env=prod --dry-run   build and preview only, the server is not changed
+#   ./bin/deploy --env=prod --yes       skip the confirmation prompt
+#
+# Steps:
+#   1. Local checks. The working tree must be clean, because only committed code
+#      is deployed. Production deploys run from main, pushed to its upstream.
+#   2. Server checks over SSH. Key authentication and a known host key are
+#      required, and there are no prompts. The target directory must hold a
+#      Mody Cloud stack (compose.yml and .env, HOST_NAME=mody.cloud for prod).
+#      Its app/composer.json and app/composer.lock must match the repository,
+#      so a hand edit on the server is never overwritten silently.
+#   3. Build with ./bin/build <env>: no dev requirements, frozen lockfile.
+#   4. Preview the files to update and delete, then confirm by typing the
+#      environment name.
+#   5. Sync an allowlist (app/, bin/, config/, the tracked compose files,
+#      wp-cli.yml), then write REVISION (the commit and the time) on the server.
+#   6. Restore the local dev Composer requirements.
+#
+# Server-owned, never sent and never deleted: .env and .env.*, compose.prod.yml,
+# compose.stage.yml, app/auth.json, uploads, logs, dumps, caches and
+# config/ssl. Everything outside the allowlist stays local: documentation,
+# tickets, node_modules, backups, .git and so on.
+#
+# Containers are not restarted. When config/ or a compose file changes, the
+# script prints the command to apply it on the server.
+#
+# Targets: prod is home.local:/Volumes/Toshiba/mody.cloud. Override it with
+# DEPLOY_PROD_HOST and DEPLOY_PROD_DIR. Stage has no server yet: set
+# DEPLOY_STAGE_HOST and DEPLOY_STAGE_DIR. Hosts are SSH aliases from
+# ~/.ssh/config.
+#
+# See documentation/architecture.md#production.
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+USAGE="Usage: ./bin/deploy --env=prod|stage [--dry-run] [--yes]"
+
+log() { ./bin/log "$1" "$2"; }
+die() {
+  log "ERROR" "$1"
+  exit 1
+}
+
+# --- Arguments ---------------------------------------------------------------
+ENV=""
+DRY_RUN=false
+ASSUME_YES=false
+for ARG in "$@"; do
+  case "$ARG" in
+    --env=*) ENV="${ARG#--env=}" ;;
+    --dry-run) DRY_RUN=true ;;
+    --yes) ASSUME_YES=true ;;
+    -h | --help)
+      awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "$0"
+      exit 0
+      ;;
+    *) die "Unknown argument: ${ARG}. ${USAGE}" ;;
+  esac
+done
+
+# --- Target ------------------------------------------------------------------
+EXPECTED_HOST_NAME=""
+case "$ENV" in
+  prod)
+    SSH_HOST="${DEPLOY_PROD_HOST:-home.local}"
+    REMOTE_DIR="${DEPLOY_PROD_DIR:-/Volumes/Toshiba/mody.cloud}"
+    EXPECTED_HOST_NAME="mody.cloud"
+    ;;
+  stage)
+    SSH_HOST="${DEPLOY_STAGE_HOST:-}"
+    REMOTE_DIR="${DEPLOY_STAGE_DIR:-}"
+    if [ -z "$SSH_HOST" ] || [ -z "$REMOTE_DIR" ]; then
+      die "No stage server is configured. Set DEPLOY_STAGE_HOST and DEPLOY_STAGE_DIR."
+    fi
+    ;;
+  *) die "Missing or invalid --env. ${USAGE}" ;;
+esac
+
+# Both values end up inside remote shell commands, so only plain characters
+# are accepted.
+[[ "$SSH_HOST" =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid SSH host: ${SSH_HOST}"
+[[ "$REMOTE_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "Invalid remote directory: ${REMOTE_DIR}"
+case "/${REMOTE_DIR}/" in
+  */./* | */../*) die "The remote directory must not contain . or .. segments: ${REMOTE_DIR}" ;;
+esac
+
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
+remote() { ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$1"; }
+
+file_hash() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
+}
+remote_file_hash() {
+  remote "f='${REMOTE_DIR}/$1'; if [ -f \"\$f\" ]; then if command -v sha256sum >/dev/null 2>&1; then sha256sum \"\$f\"; else shasum -a 256 \"\$f\"; fi | cut -d' ' -f1; fi"
+}
+remote_env_value() {
+  local LINE
+  LINE="$(remote "grep -E '^$1=' '${REMOTE_DIR}/.env' | tail -n 1" || true)"
+  LINE="${LINE#"$1"=}"
+  LINE="${LINE//\"/}"
+  printf '%s' "${LINE//\'/}"
+}
+
+# --- 1. Local checks ---------------------------------------------------------
+for CMD in git rsync ssh pnpm docker; do
+  command -v "$CMD" >/dev/null 2>&1 || die "Required command not found: ${CMD}"
+done
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not a git repository: ${ROOT_DIR}"
+if [ -n "$(git status --porcelain)" ]; then
+  git status --short
+  die "The working tree has uncommitted or untracked changes. Only committed code is deployed: commit or stash them first."
+fi
+
+COMMIT="$(git rev-parse HEAD)"
+BRANCH="$(git rev-parse --abbrev-ref HEAD | tr -cd 'A-Za-z0-9._/-')"
+if [ "$ENV" = "prod" ]; then
+  [ "$BRANCH" = "main" ] || die "Production deploys run from main (current branch: ${BRANCH})."
+  git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 \
+    || die "main has no upstream branch. Push it first."
+  AHEAD="$(git rev-list --count '@{u}..HEAD')"
+  [ "$AHEAD" = "0" ] || die "main has ${AHEAD} unpushed commit(s). Push first, so production matches the shared history."
+fi
+
+# --- 2. Server checks --------------------------------------------------------
+log "INFO" "Checking ${SSH_HOST}:${REMOTE_DIR}..."
+remote true \
+  || die "Cannot connect to ${SSH_HOST}. Key authentication and a known host key (~/.ssh/known_hosts) are required."
+remote "test -d '${REMOTE_DIR}' && test -f '${REMOTE_DIR}/compose.yml' && test -f '${REMOTE_DIR}/.env'" \
+  || die "${SSH_HOST}:${REMOTE_DIR} is not a Mody Cloud stack (compose.yml and .env are required). Is the volume mounted?"
+
+REMOTE_HOST_NAME="$(remote_env_value HOST_NAME)"
+if [ -n "$EXPECTED_HOST_NAME" ] && [ "$REMOTE_HOST_NAME" != "$EXPECTED_HOST_NAME" ]; then
+  die "The server's .env has HOST_NAME='${REMOTE_HOST_NAME}', expected ${EXPECTED_HOST_NAME}. Wrong directory?"
+fi
+
+REMOTE_COMPOSE_FILE="$(remote_env_value COMPOSE_FILE)"
+case "$REMOTE_COMPOSE_FILE" in
+  *"compose.${ENV}.yml"*) ;;
+  *) log "WARNING" "The server's .env does not load compose.${ENV}.yml (COMPOSE_FILE='${REMOTE_COMPOSE_FILE}'). The MariaDB and Xdebug ports may be published on the host. See documentation/architecture.md#production." ;;
+esac
+
+for FILE in app/composer.json app/composer.lock; do
+  REMOTE_HASH="$(remote_file_hash "$FILE")"
+  if [ -n "$REMOTE_HASH" ] && [ "$REMOTE_HASH" != "$(file_hash "$FILE")" ]; then
+    die "${FILE} on the server differs from the repository, so it was changed on the server. Deploying would replace it and remove the packages it added. Bring the change into the repository, or restore the repository's version on the server, then deploy again."
+  fi
+done
+
+# --- 3. Build ----------------------------------------------------------------
+RESTORE_DEV=false
+restore_dev() {
+  if [ "$RESTORE_DEV" = true ]; then
+    log "INFO" "Restoring the local dev Composer requirements..."
+    ./bin/composer install --optimize-autoloader >/dev/null 2>&1 \
+      || log "WARNING" "Could not restore them. Run ./bin/composer install."
+  fi
+}
+trap restore_dev EXIT
+
+RESTORE_DEV=true
+./bin/build "$ENV"
+
+if [ -n "$(git status --porcelain)" ]; then
+  git status --short
+  die "The build changed files in the working tree (for example the lockfile). Commit the result and deploy again."
+fi
+
+# --- 4. Preview --------------------------------------------------------------
+FILTER=(
+  # Server-owned: never sent, and protected from --delete.
+  --exclude='.env'
+  --exclude='.env.*'
+  --exclude='/compose.prod.yml'
+  --exclude='/compose.stage.yml'
+  --exclude='/REVISION'
+  --exclude='/app/auth.json'
+  --exclude='/app/dumps/'
+  --exclude='/app/logs/'
+  --exclude='/app/web/uploads/'
+  --exclude='/app/web/cache/'
+  --exclude='/app/web/upgrade/'
+  --exclude='/app/web/wflogs/'
+  --exclude='/app/web/advanced-cache.php'
+  --exclude='/app/web/object-cache.php'
+  --exclude='/app/wp/wordfence-waf.php'
+  --exclude='.user.ini'
+  --exclude='/config/ssl/'
+  # Never shipped from anywhere in the tree.
+  --exclude='.git/'
+  --exclude='.DS_Store'
+  --exclude='node_modules/'
+  # The allowlist.
+  --include='/app/'
+  --include='/bin/'
+  --include='/config/'
+  --include='/compose.yml'
+  --include='/compose.local.yml'
+  --include='/compose.prod.yml.sample'
+  --include='/compose.stage.yml.sample'
+  --include='/wp-cli.yml'
+  # Everything else at the top level stays local.
+  --exclude='/*'
+)
+RSYNC_OPTS=(-az --delete --delete-after -e "ssh ${SSH_OPTS[*]}")
+DESTINATION="${SSH_HOST}:${REMOTE_DIR}/"
+
+log "INFO" "Computing changes..."
+PREVIEW="$(rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" --dry-run -v ./ "$DESTINATION")"
+# GNU rsync and a local openrsync print "deleting <path>"; openrsync with a
+# remote receiver prints "<path>: deleting". Normalize to the first form.
+DELETIONS="$(printf '%s\n' "$PREVIEW" | sed -n -e 's/^deleting //p' -e 's/: deleting$//p')"
+UPDATES="$(printf '%s\n' "$PREVIEW" \
+  | grep -v -E '^(deleting |Transfer starting|sending incremental|building file list|sent |total size|created directory|$)' \
+  | grep -v -E '(: deleting|/)$' || true)"
+N_DELETE="$(printf '%s' "$DELETIONS" | grep -c . || true)"
+N_UPDATE="$(printf '%s' "$UPDATES" | grep -c . || true)"
+
+echo ""
+log "INFO" "Target ${ENV}: ${DESTINATION} (HOST_NAME=${REMOTE_HOST_NAME}), commit ${COMMIT:0:12} on ${BRANCH}"
+echo "  Files to add or update: ${N_UPDATE}"
+echo "  Paths to delete:        ${N_DELETE}"
+if [ "$N_DELETE" -gt 0 ]; then
+  printf '%s\n' "$DELETIONS" | head -n 50 | sed 's/^/    /'
+  if [ "$N_DELETE" -gt 50 ]; then
+    echo "    ... and $((N_DELETE - 50)) more (run with --dry-run for the full list)"
+  fi
+fi
+echo ""
+
+if [ "$DRY_RUN" = true ]; then
+  if [ "$N_UPDATE" -gt 0 ]; then
+    echo "Files to add or update:"
+    printf '%s\n' "$UPDATES" | sed 's/^/    /'
+  fi
+  log "INFO" "Dry run: the server was not changed."
+  exit 0
+fi
+
+# --- 5. Deploy ---------------------------------------------------------------
+if [ "$N_UPDATE" -gt 0 ] || [ "$N_DELETE" -gt 0 ]; then
+  if [ "$ASSUME_YES" != true ]; then
+    [ -t 0 ] || die "No terminal to confirm on. Re-run with --yes to deploy without a prompt."
+    printf 'Type "%s" to deploy to %s: ' "$ENV" "$SSH_HOST"
+    read -r ANSWER
+    [ "$ANSWER" = "$ENV" ] || die "Not confirmed. The server was not changed."
+  fi
+
+  log "INFO" "Syncing to ${DESTINATION}..."
+  rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" ./ "$DESTINATION"
+else
+  log "INFO" "No file changes: the server already matches this commit."
+fi
+
+DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+remote "printf 'commit=%s\nbranch=%s\ndeployed_at=%s\n' '${COMMIT}' '${BRANCH}' '${DEPLOYED_AT}' > '${REMOTE_DIR}/REVISION'"
+
+if printf '%s\n%s\n' "$UPDATES" "$DELETIONS" | grep -q -E '^(config/|compose\.)'; then
+  log "WARNING" "config/ or a compose file changed. Apply it on the server (Nginx renders its templates only at start):"
+  echo "    cd ${REMOTE_DIR} && docker compose up -d --build && docker compose restart nginx"
+fi
+
+log "SUCCESS" "Deployed ${COMMIT:0:12} to ${ENV} (${SSH_HOST})."

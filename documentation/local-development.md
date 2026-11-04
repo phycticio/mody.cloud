@@ -2,9 +2,10 @@
 
 ## Prerequisites
 
-- Docker with Compose v2 (v2.24 or newer if you use the stage or production override samples).
+- Docker with Compose v2 (v2.24 or newer if you use the stage or production override samples). On macOS the engine is Colima, not Docker Desktop: see [Colima on macOS](#colima-on-macos).
 - `mkcert` for locally trusted TLS (`sudo apt install mkcert` or `brew install mkcert`).
 - Composer on the host is optional. It is useful to regenerate `app/composer.lock`. Everything else runs in the containers.
+- Node (the version in `.nvmrc`) and pnpm, for the JS and CSS build (`pnpm build`, `./bin/build`, `./bin/deploy`). `package.json` pins the pnpm version in `packageManager`.
 - `/etc/hosts` entries for the local domains. The network is a **subdomain** Multisite and `/etc/hosts` has no wildcard, so every subsite needs its own line:
 
   ```text
@@ -115,6 +116,51 @@ Separately, `wp site create` writes each new site's `siteurl` and `home` with an
 ./bin/wp --site=alpha option update siteurl "https://alpha.mody.cloud.local/wp"
 ```
 
+## Colima on macOS
+
+This Mac runs Colima (Docker Engine inside a small Apple Virtualization VM) instead of Docker Desktop. The Compose files do not change. Verified with Colima 0.10.3 on Apple Silicon, macOS 26.
+
+**Install.** Use Homebrew's Docker CLI and plugins, not Docker Desktop's:
+
+```bash
+brew install colima docker docker-compose docker-buildx docker-credential-helper
+```
+
+In `~/.docker/config.json`, point the CLI at Homebrew's plugins. Set `credsStore` to `osxkeychain` if you had `desktop` there:
+
+```json
+"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]
+```
+
+**VM template.** The mount type and the home mount are fixed when the VM is created, and the `--mount-type` flag was ignored in our tests. Put the settings in Colima's template first (`colima template` opens `~/.colima/_templates/default.yaml`, or edit it directly):
+
+```yaml
+cpu: 6
+memory: 10
+disk: 100
+arch: aarch64
+runtime: docker
+vmType: vz
+mountType: sshfs
+mounts:
+  - location: "~"
+    writable: true
+```
+
+Then `colima start`. To start at login: `brew services start colima`. Colima reads the template only when it creates the VM. To change the mount type or the mounts later, `colima delete` and start again, and the VM's data goes with it.
+
+**Use `sshfs`, not `virtiofs`.** Under `virtiofs` every repo file appears inside the containers as `root:root`, so `www-data` cannot write to `app/` (uploads, `logs/`). Under `sshfs` the files keep your Mac ownership. Set `USER_ID` in `.env` to your UID (`id -u`, usually `501`) so `www-data` owns the same UID. Trade-offs: `sshfs` is slower and less reliable under heavy parallel I/O, and file-change events do not reach the VM, so hot-reload tools need polling.
+
+**Ports and hostnames.** Ports 80 and 443 publish on `localhost` without extra setup. Inside containers, `host.docker.internal` resolves to `192.168.5.2`, which is your Mac, with or without `extra_hosts: host.docker.internal:host-gateway` (as checked with Colima 0.10.3). Containers reach services bound to `127.0.0.1` on the Mac through that name.
+
+**Nginx Proxy Manager.** NPM is not part of this repository. On this Mac it lives in `~/web/npm` as the Compose project `proxy` (container `proxy_app`). Its data is in the named volumes `proxy_data` and `proxy_letsencrypt` on the VM disk, not in bind mounts. NPM's init script `chown`s its data, and `sshfs` refuses that. Back up with:
+
+```bash
+docker run --rm -v proxy_data:/from -v "$PWD:/to" alpine tar czf /to/proxy_data.tar.gz -C /from .
+```
+
+**Routine.** `colima status` shows the VM, `docker context show` should print `colima`, and `colima stop` stops everything. Containers with `restart: unless-stopped` come back when Colima starts again.
+
 ## Commands
 
 | Command | What it does |
@@ -127,6 +173,9 @@ Separately, `wp site create` writes each new site's `siteurl` and `home` with an
 | `./bin/version <wp-version>` | Replace WordPress core in `app/wp` without touching `app/web`. |
 | `./bin/db import` | Import `app/dumps/<DB_NAME>.sql` and rewrite the domain. Needs a dump. |
 | `cd app && composer update --no-install` | Regenerate `composer.lock` on the host. |
+| `pnpm build` / `pnpm start` | Lint `src/` and compile it into `app/dist` with `@wordpress/scripts` / the same in watch mode. `pnpm lint:js:fix` and `pnpm lint:scss:fix` apply fixes. |
+| `./bin/build [prod\|stage]` | `pnpm build`, then `composer install` in the app container. Without an argument it includes dev requirements. `prod` and `stage` leave them out and use the frozen lockfile. |
+| `./bin/deploy --env=prod [--dry-run]` | Deploy committed `main` to production after checks, a preview and a typed confirmation. See [architecture.md](architecture.md#production). |
 | `docker exec mody_cloud_server nginx -s reload` | Reload Nginx after editing its config. |
 
 Container, volume and network names are prefixed with `CONTAINER_PREFIX` (`mody_cloud_` in `sample.env`).
@@ -147,6 +196,7 @@ Container, volume and network names are prefixed with `CONTAINER_PREFIX` (`mody_
 | `COMPOSE_FILE`, `COMPOSE_PATH_SEPARATOR` | Make every `docker compose` call load `compose.local.yml`, which is where Nginx gets the wildcard `server_name`. Without them the subsites do not resolve. |
 | `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT` | Where the stack's Nginx publishes itself on the host. A local detail: these never appear in a site URL. If something else owns 443, put a proxy in front rather than exposing the port — see [Site URLs never carry a port](#site-urls-never-carry-a-port). |
 | `NGINX_SSL_CERT_FILE`, `NGINX_SSL_KEY_FILE` | Override certificate paths (stage and production use `/dev/null`). |
+| `USER_ID` | UID that `www-data` runs as in the containers. Default 1000. On Colima with sshfs mounts, set it to your Mac UID (`id -u`, usually 501). See [Colima on macOS](#colima-on-macos). |
 
 ## File permissions on Linux
 
@@ -158,18 +208,16 @@ sudo chown -R $USER:$USER app/
 
 ## Known stale items
 
-The stack scripts came from an earlier project (Tamarind Intelligence). The previous themes and the JS build toolchain were removed. These leftovers are still present and **do not work for this project as they are**:
+The stack scripts came from an earlier project (Tamarind Intelligence). The previous themes were removed. `bin/build`, `bin/deploy` and the compose samples were rewritten for this project (2026-11-04). These leftovers are still present and **do not work for this project as they are**:
 
 | Item | Problem |
 | --- | --- |
-| `bin/build`, `config/bin/build.config`, `config/bin/install.config` | Build and install Tamarind and Omitsis plugins that do not exist here, and run `pnpm build`, which no longer exists. |
-| `bin/install` | Calls `./bin/build` and `./bin/db import` (needs a database dump). Use the first-run steps above, or `--no-build` and expect the import to fail. |
-| `bin/migrate-*`, `bin/subscription-migration-local-env`, `config/bin/db.config` | Tamarind data-migration tooling. `bin/wp` also forwards `TAMARIND_MIGRATION_*` variables. |
+| `config/bin/install.config`, `config/bin/build.config` | `install.config` lists plugins (`redirection`, `ultimate-addons-for-gutenberg`) that `app/composer.json` does not require. `build.config` is an empty placeholder that `bin/build` still sources. |
+| `bin/install` | Calls `./bin/db import` (needs a database dump). Use the first-run steps above, or `--no-build` and expect the import to fail. |
+| `bin/migrate-*`, `bin/subscription-migration-local-env`, `config/bin/db.config` | Tamarind data-migration tooling. `db.config` now maps only `mody.cloud` to `mody.local`. `bin/wp` also forwards `TAMARIND_MIGRATION_*` variables. |
 | `compose.yml` | Ofelia labels for `wp tamarind newsletters run-due`. No Ofelia service is defined, so they do nothing. |
-| `compose.stage.yml.sample`, `compose.prod.yml.sample` | Server names are Tamarind domains. |
-| `.github/workflows/*` | Deployment and CI for the previous project (`tamarind styles refresh`, `lint:js`, `lint:scss`, `./bin/build`). |
+| `.github/workflows/*` | Deployment and CI for the previous project (`tamarind styles refresh`, `./bin/build`). Production is deployed with `./bin/deploy`, not from CI. |
 | `app/assets/` | About 295 MB of font files (`.ttf`, `.ufm`) and one image. Nothing in this repository references it. |
 | `test.md` | QA notes for a Tamarind search refactor. |
-| `.vscode/settings.json` | Enables ESLint and Stylelint auto-fix. Their configuration was removed. |
 
 Clean these up as the real deployment and CI for Mody Cloud get defined.

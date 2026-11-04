@@ -19,6 +19,24 @@ server {
     rewrite ^/(wp-[^/]+\.php|xmlrpc\.php)$ /wp/$1 last;
     rewrite ^/wp-admin$ $scheme://$host$uri/ permanent;
 
+    # The document root is app/, which also holds files that must never be
+    # served: Composer credentials (auth.json) and metadata, the vendor
+    # directory, logs and database dumps. Regex locations match in order, so
+    # these come before the PHP handler below.
+    location ~ ^/(auth\.json|composer\.(json|lock)|vendor/|logs/|dumps/) {
+        deny all;
+    }
+
+    # Hidden files (.git, .env copies, editor files), except ACME challenges.
+    location ~ /\.(?!well-known/) {
+        deny all;
+    }
+
+    # Never execute PHP from the uploads directory.
+    location ~* ^/web/uploads/.*\.php {
+        deny all;
+    }
+
     location / {
         try_files $uri $uri/ /index.php?$args;
     }

@@ -51,3 +51,8 @@ config/ssl/*
 node_modules
 dist
 package-lock.json
+
+# Server-owned compose overrides, copied from the tracked .sample files on each
+# server. bin/deploy never ships them.
+/compose.prod.yml
+/compose.stage.yml

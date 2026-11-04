@@ -20,7 +20,8 @@
         }
     },
     "require": {
-        "composer/installers": "^2.3"
+        "composer/installers": "^2.3",
+        "wpackagist-plugin/wordfence": "9.0.2"
     },
     "require-dev": {
         "wpackagist-plugin/query-monitor": "3.20.2"

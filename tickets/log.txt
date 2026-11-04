@@ -1,0 +1,59 @@
+▶ bash scripts/validate-m0-01.sh
+
+=== 1. Multisite constants (expect MULTISITE=true SUBDOMAIN_INSTALL=true, port-free domains) ===
+[INFO] wp eval printf("MULTISITE=%s SUBDOMAIN_INSTALL=%s DOMAIN_CURRENT_SITE=%s COOKIE_DOMAIN=%s\n", var_export(MULTISITE,true), var_export(SUBDOMAIN_INSTALL,true), DOMAIN_CURRENT_SITE, COOKIE_DOMAIN); in container mody_cloud_app
+MULTISITE=true SUBDOMAIN_INSTALL=true DOMAIN_CURRENT_SITE=mody.local COOKIE_DOMAIN=mody.local
+
+=== 2. Network sites (expect blogs 1/2/3: mody.local, alpha, beta) ===
+[INFO] wp site list --fields=blog_id,url,domain in container mody_cloud_app
++---------+---------------------------+------------------+
+| blog_id | url                       | domain           |
++---------+---------------------------+------------------+
+| 1       | https://mody.local/       | mody.local       |
+| 2       | https://alpha.mody.local/ | alpha.mody.local |
+| 3       | https://beta.mody.local/  | beta.mody.local  |
++---------+---------------------------+------------------+
+
+=== 3. Super admins (must list only the admin account) ===
+[INFO] wp super-admin list in container mody_cloud_app
+admin@mody.local
+
+=== 4. Site owners (member must be administrator on both subsites) ===
+[INFO] wp --url=alpha.mody.local user list --fields=ID,user_login,roles in container mody_cloud_app
++----+------------+---------------+
+| ID | user_login | roles         |
++----+------------+---------------+
+| 2  | member     | administrator |
++----+------------+---------------+
+[INFO] wp --url=beta.mody.local user list --fields=ID,user_login,roles in container mody_cloud_app
++----+------------+---------------+
+| ID | user_login | roles         |
++----+------------+---------------+
+| 2  | member     | administrator |
++----+------------+---------------+
+
+=== 5. Stored URLs (must be https, port-free; siteurl carries the /wp suffix) ===
+[INFO] wp --url=alpha.mody.local option get home in container mody_cloud_app
+https://alpha.mody.local
+[INFO] wp --url=alpha.mody.local option get siteurl in container mody_cloud_app
+https://alpha.mody.local/wp
+[INFO] wp --url=beta.mody.local option get home in container mody_cloud_app
+https://beta.mody.local
+[INFO] wp --url=beta.mody.local option get siteurl in container mody_cloud_app
+https://beta.mody.local/wp
+
+=== 6. Active theme (must be 'theme' on both) ===
+[INFO] wp --url=alpha.mody.local theme list --status=active --field=name in container mody_cloud_app
+theme
+[INFO] wp --url=beta.mody.local theme list --status=active --field=name in container mody_cloud_app
+theme
+
+=== 7. Certificate SANs (must include *.mody.local) ===
+X509v3 Subject Alternative Name: 
+    DNS:mody.local, DNS:*.mody.local, DNS:mail.mody.local, IP Address:127.0.0.1
+
+=== 8. Live HTTPS with the port-free Host the proxy forwards (expect <title>Alpha</title> and <title>Beta</title>) ===
+<title>Alpha</title>
+<title>Beta</title>
+
+=== Done. Paste everything above back to the agent. ===

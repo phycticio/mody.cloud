@@ -1,0 +1,8 @@
+node_modules/
+app/dist/
+app/wp/
+app/vendor/
+app/web/plugins/*/dist/
+app/web/plugins/*/vendor/
+dist/
+

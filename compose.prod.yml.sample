@@ -1,19 +1,22 @@
-# Requires Docker Compose v2.24+ (for the `!override`/`!reset` merge tags).
-# Copy to compose.prod.yml (untracked, like compose.yml itself is for other
-# environments) and enable with COMPOSE_FILE=compose.yml:compose.prod.yml in
-# .env (or `docker compose -f compose.yml -f compose.prod.yml ...`). Doing
-# this makes every "docker compose ..." invocation — including the ones
-# ./bin/install runs internally — pick up this override automatically.
+# Production override for mody.cloud. Requires Docker Compose v2.24+ (for the
+# `!override`/`!reset` merge tags).
 #
-# Set NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null in .env
-# so the base compose.yml's SSL volume mounts don't require mkcert here — the
-# Nginx Proxy Manager (or other reverse proxy) in front of this stack
-# terminates TLS, NGINX_APP_SSL_DIRECTIVES below is empty, and nginx never
-# reads those mounted files.
+# On the server, copy this file to compose.prod.yml and enable it in the
+# server's .env:
 #
-# Cann is intentionally not in NGINX_APP_SERVER_NAME — set CANN="" (or leave
-# it unset) in .env so ./bin/install's SITES loop (config/bin/install.config)
-# skips creating that subsite.
+#   COMPOSE_FILE="compose.yml;compose.prod.yml"
+#   COMPOSE_PATH_SEPARATOR=";"
+#
+# compose.prod.yml is server-owned, like .env: ./bin/deploy ships this sample
+# but never sends or deletes compose.prod.yml itself.
+#
+# TLS ends at the reverse proxy in front of the stack (Nginx Proxy Manager on
+# the production host), so this Nginx listens on plain HTTP. Set
+# NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null in .env so the
+# base compose.yml's certificate mounts need no mkcert files; with the SSL
+# directives emptied below, Nginx never reads them.
+#
+# See documentation/architecture.md#production.
 services:
   nginx:
     # `!override` fully replaces the base ports list instead of appending to
@@ -23,8 +26,13 @@ services:
       - "${NGINX_HTTP_PORT:-8004}:80"
     environment:
       NGINX_APP_LISTEN: "80"
-      NGINX_APP_SERVER_NAME: "hub.tamarindintelligence.com app.ecigintelligence.com app.tobaccointelligence.com"
+      # Subdomain Multisite: the main site and every member subsite.
+      NGINX_APP_SERVER_NAME: "${HOST_NAME:-mody.cloud} *.${HOST_NAME:-mody.cloud}"
       NGINX_APP_SSL_DIRECTIVES: ""
+      # The base file adds a port-80 server that redirects to HTTPS. Here the
+      # app itself listens on 80 behind a TLS-terminating proxy, so that
+      # redirect would answer first and loop. Drop it.
+      NGINX_HTTP_REDIRECT_SERVER: ""
 
   wordpress:
     # Don't publish Xdebug's port to the host in production.

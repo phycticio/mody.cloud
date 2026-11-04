@@ -4,7 +4,7 @@
 
 Mody Cloud is a non-profit association for digital sovereignty. Members define their brand identity once (a wizard that produces the **brand profile**) and a sovereign AI agent generates every page of their WordPress site, faithful to that brand. The whole stack is European or Swiss. Fees cover real costs, with no profit margin. Full context: [documentation/project-overview.md](documentation/project-overview.md).
 
-This repository is a clean base: a Dockerized WordPress stack (Nginx, PHP-FPM, MariaDB, Redis, Mailpit), a Full Site Editing theme scaffold at `app/web/themes/theme`, and no plugins except Query Monitor (dev). The product itself (AI agent, brand profile, membership gating) is not built yet. Status and next steps: [documentation/roadmap.md](documentation/roadmap.md).
+This repository is a clean base: a Dockerized WordPress stack (Nginx, PHP-FPM, MariaDB, Redis, Mailpit), a Full Site Editing theme scaffold at `app/web/themes/theme`, and two plugins: Wordfence (security, installed in production) and Query Monitor (dev only). The product itself (AI agent, brand profile, membership gating) is not built yet. Status and next steps: [documentation/roadmap.md](documentation/roadmap.md).
 
 ## Documentation map (read on demand)
 
@@ -14,7 +14,7 @@ The project documentation lives in `documentation/`. **Before you start a task, 
 | --- | --- | --- |
 | New to the project, or a term is unclear | [project-overview.md](documentation/project-overview.md) | Purpose, principles, visual identity, economics, glossary (Spanish briefing terms mapped to English) |
 | Making or reviewing any change | [constraints.md](documentation/constraints.md) | The eight non-negotiable rules and what they mean in this repository |
-| Touching Docker, Nginx, `wp-config.php`, Composer, the repo layout, or deciding anything about infrastructure | [architecture.md](documentation/architecture.md) | Current stack, layout, target system, briefing recommendations not adopted, invariants, open questions |
+| Touching Docker, Nginx, `wp-config.php`, Composer, the repo layout, production or deploys, or deciding anything about infrastructure | [architecture.md](documentation/architecture.md) | Current stack, layout, target system, briefing recommendations not adopted, invariants, production host and deploy, open questions |
 | Running or debugging the stack, using `bin/` scripts, or a script looks broken | [local-development.md](documentation/local-development.md) | First run, commands, environment variables, known stale items |
 | Editing templates, parts, `theme.json`, palette, fonts or styles | [theme-development.md](documentation/theme-development.md) | The FSE theme structure, design tokens, rules, checks |
 | Building or changing the AI agent: model calls, prompts, block whitelist, validation | [ai-engine.md](documentation/ai-engine.md) | Model, provider, block format, master prompt rules, validation pipeline, first task |
@@ -45,8 +45,9 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 - **AI model:** `Qwen/Qwen3.8-27B-FP8` (project-scoped build) through Infomaniak AI Services (OpenAI-compatible, base URL `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`). Decided 2026-11-01, superseding the briefing's Ministral choice. See [mvp-spec.md](documentation/mvp-spec.md) and [ai-engine.md](documentation/ai-engine.md).
 - **Payments:** Mollie (EU), decided 2026-11-01. Card at signup (0.01 EUR verification), then monthly tier billing; past-due sites read-only for 60 days before deletion. See [mvp-spec.md](documentation/mvp-spec.md#4-tiers-trial-and-billing).
 - **Platform logic lives in one MU plugin:** `app/web/mu-plugins/mody-platform/` (registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects, agent relay). The Python agent service lives in `agent/` as a private compose service. See [mvp-spec.md](documentation/mvp-spec.md#12-architecture-deltas).
-- **Dev requirements are intentionally only Query Monitor.** Do not add dependencies (Composer or npm) without asking. See [architecture.md](documentation/architecture.md#current-stack-unchanged).
-- **No JS toolchain at the moment.** `package.json` has no dependencies. Add one only when a feature needs it, and document it in [theme-development.md](documentation/theme-development.md#rules).
+- **Composer dev requirements are intentionally only Query Monitor.** Do not add dependencies (Composer or npm) without asking. See [architecture.md](documentation/architecture.md#current-stack-unchanged).
+- **JS is built with `@wordpress/scripts`, and gets only the libraries it needs.** Sources live in `src/`, and `pnpm build` compiles them into `app/dist`. Use WordPress packages and the tooling wp-scripts already ships first. Add another library or framework only when a feature needs it and no WordPress package covers it, and record why in [theme-development.md](documentation/theme-development.md#rules). Bundle everything. Nothing loads from a CDN (rule 1).
+- **Production is `mody.cloud` on `home.local`, deployed with `./bin/deploy --env=prod`.** Never copy files to the server by hand, and never edit `.env` or `compose.prod.yml` from the repository. See [architecture.md](documentation/architecture.md#production).
 - **Open questions are not decisions.** Check the "Open questions" sections ([architecture.md](documentation/architecture.md#open-questions), [brand-profile.md](documentation/brand-profile.md#open-questions), [membership-tiers.md](documentation/membership-tiers.md#open-questions), [newsletter.md](documentation/newsletter.md#open-questions), [ai-engine.md](documentation/ai-engine.md)) and ask instead of choosing for the team.
 
 ## Where to work
@@ -93,7 +94,7 @@ cd app && composer update --no-install   # regenerate composer.lock on the host
 
 ## Known stale items
 
-Parts of the stack scripts, compose samples and CI workflows still reference an earlier project (Tamarind Intelligence). Do not rely on `bin/build`, `bin/install`, `bin/migrate-*` or the GitHub workflows without checking them first. The list is in [local-development.md](documentation/local-development.md#known-stale-items).
+Parts of the stack scripts and CI workflows still reference an earlier project (Tamarind Intelligence). Do not rely on `bin/install`, `bin/migrate-*` or the GitHub workflows without checking them first. `bin/build` and `bin/deploy` are current. The list is in [local-development.md](documentation/local-development.md#known-stale-items).
 
 ## Current focus
 

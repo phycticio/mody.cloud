@@ -1,11 +1,17 @@
-# Requires Docker Compose v2.24+ (for the `!override`/`!reset` merge tags).
-# Enable with COMPOSE_FILE=compose.yml:compose.stage.yml in .env (or
-# `docker compose -f compose.yml -f compose.stage.yml ...`).
+# Stage override. Requires Docker Compose v2.24+ (for the `!override` merge
+# tag). There is no stage server yet; this is the template for one.
 #
-# Set NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null in .env
-# so the base compose.yml's SSL volume mounts don't require mkcert here — TLS
-# is terminated upstream (reverse proxy/load balancer) and
-# NGINX_APP_SSL_DIRECTIVES below is empty, so nginx never reads those files.
+# On the server, copy this file to compose.stage.yml and enable it in the
+# server's .env:
+#
+#   COMPOSE_FILE="compose.yml;compose.stage.yml"
+#   COMPOSE_PATH_SEPARATOR=";"
+#
+# Set HOST_NAME to the stage domain (for example stage.mody.cloud), and
+# NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null so the base
+# compose.yml's certificate mounts need no mkcert files. TLS is terminated
+# upstream and NGINX_APP_SSL_DIRECTIVES below is empty, so Nginx never reads
+# those files.
 services:
   nginx:
     # `!override` fully replaces the base list instead of appending to it —
@@ -16,5 +22,15 @@ services:
       - "${NGINX_HTTP_PORT:-80}:80"
     environment:
       NGINX_APP_LISTEN: "80"
-      NGINX_APP_SERVER_NAME: "stagehub.tamarindintelligence.com stageapp.ecigintelligence.com stageapp.tobaccointelligence.com stageapp.cannintelligence.com"
+      NGINX_APP_SERVER_NAME: "${HOST_NAME:-stage.mody.cloud} *.${HOST_NAME:-stage.mody.cloud}"
       NGINX_APP_SSL_DIRECTIVES: ""
+      # See compose.prod.yml.sample: the base HTTPS redirect would loop here.
+      NGINX_HTTP_REDIRECT_SERVER: ""
+
+  wordpress:
+    # Don't publish Xdebug's port to the host on stage.
+    ports: !reset []
+
+  database:
+    # Don't publish MariaDB to the host on stage.
+    ports: !reset []

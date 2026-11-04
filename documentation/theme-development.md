@@ -56,7 +56,12 @@ When a member's brand profile is applied, `color_primary`, `color_secondary` and
 - Keep `functions.php` small. Platform logic (tiers, brand profile, agent) does not belong in the theme.
 - Text domain is `mody_cloud`. It differs from the directory name (`theme`), so `functions.php` loads translations explicitly. Wrap user-facing PHP strings with WordPress i18n functions. Text in HTML templates is plain and editable in the Site Editor.
 - Code comments, documentation and commit messages are written in English (rule 8 in [constraints.md](constraints.md)). Do not write Spanish into code or templates.
-- If custom blocks are added later (`block.json` plus `render.php`, as the briefing suggests), PHP-only blocks need no build. Add a JS toolchain only when a block really needs it, and document it.
+- **JavaScript and CSS go through `@wordpress/scripts`.**
+  - Sources live in `src/`. `pnpm build` lints them and compiles them into `app/dist`, and `pnpm start` watches. `config/webpack/config.js` extends the wp-scripts defaults.
+  - Each entry gets an `*.asset.php` file with its dependencies and version. Enqueue with it, so WordPress packages load as script dependencies instead of being bundled.
+  - Nothing enqueues `app/dist` yet.
+- **Only the libraries a feature needs.** Prefer WordPress packages (`@wordpress/element`, `@wordpress/components`, `@wordpress/i18n`, `@wordpress/api-fetch`, and so on) and the webpack, Babel, Sass, ESLint and Stylelint setup that wp-scripts already ships. Add a third-party library or framework only when no WordPress package covers the need. Ask first (see `AGENTS.md`), and record it here with the reason. Everything is bundled locally. No script or style loads from a CDN.
+- PHP-only custom blocks (`block.json` plus `render.php`, as the briefing suggests) need no build step.
 
 ## Working with the theme
 

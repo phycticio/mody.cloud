@@ -20,7 +20,7 @@ Coding agents and developers: read the document that matches the work **before**
 | --- | --- | --- | --- |
 | [project-overview.md](project-overview.md) | New to the project, or unsure what the product is or what a term means | What Mody Cloud is, principles, visual identity, economics, glossary | Intro, 1, 12 |
 | [constraints.md](constraints.md) | Making or reviewing any change | The eight non-negotiable rules and their consequences in the repository | 11 |
-| [architecture.md](architecture.md) | Touching Docker, Nginx, `wp-config.php`, Composer or the repository layout, or making an infrastructure decision | Current stack, layout, target system, what was not adopted, open questions | 2, 8 |
+| [architecture.md](architecture.md) | Touching Docker, Nginx, `wp-config.php`, Composer or the repository layout, production or deploys, or making an infrastructure decision | Current stack, layout, target system, what was not adopted, production host and deploy, open questions | 2, 8 |
 | [local-development.md](local-development.md) | Running or debugging the stack, using `bin/` scripts, or hitting a script that looks broken | First run, commands, environment variables, known stale items | n/a |
 | [theme-development.md](theme-development.md) | Editing templates, parts, `theme.json`, palette, fonts or styles | The FSE theme scaffold and how to extend it | 1, 2, 4 |
 | [ai-engine.md](ai-engine.md) | Building or changing the AI agent: model calls, prompts, block whitelist, validation | Model, provider, block serialization, master prompt rules, first task | 3, 4, 12 |
