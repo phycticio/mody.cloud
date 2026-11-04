@@ -45,7 +45,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | **Prospect** | Public pages on the main site (association site, site 1): landing, register. |
 | **Member** | One network-wide WordPress account (shared login, cookies cover all subdomains via `COOKIE_DOMAIN`). Is `administrator` of each own subdomain site. Sees the custom **Mody** menu in the Network Admin: dashboard, new site, billing. |
 | **Platform admin** | Super admin of the network, plus the Mody market management page and exception handling. |
-| **Agent** | A server-side tool loop running in the Python agent service. Acts through internal, secret-protected endpoints; never exposed to the internet. |
+| **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are PHP functions with capability checks; nothing is exposed to the internet. |
 
 Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. All data shown is scoped to `get_current_user_id()`.
 
@@ -154,7 +154,7 @@ Runs **in-process** in the MU plugin (no REST, no Application Passwords — that
 | 3 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. |
 | 4 `theme` | Activate theme `theme` and the market plugins (Spectra, …) on the new site. |
 | 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. |
-| 6 `page` | Call the agent service: SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. |
+| 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. |
 | 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). |
 
 Newsletter domain registration (old step 8) is **post-MVP**.
@@ -172,9 +172,9 @@ The agent is the encouraged control channel: *"Change this color. Install this p
 ### Components
 
 - **UI:** a `Mody Agent` menu item in each member site's wp-admin: a simple chat page (plain HTML + fetch, no JS build toolchain) with action chips for common intents.
-- **Relay:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce). The plugin relays to the Python agent service over the internal network.
-- **Python agent service** (`agent/` at the repo root, new compose service, **no published ports**): assembles the system prompt from the site's brand profile, calls the model, executes tool calls through the internal tool endpoint, and returns the final message plus any actions.
-- **Model:** `Qwen/Qwen3.8-27B-FP8` via Infomaniak AI Services (`https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, all identifiers from environment variables). Native function calling if the model supports it; otherwise a strict JSON action protocol — same server-side guard either way. Low temperature (0.1).
+- **Endpoint:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce).
+- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()`, executes tool calls in PHP, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
+- **Model:** `Qwen/Qwen3.8-27B-FP8` via Infomaniak AI Services (`https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, all identifiers from environment variables). Native function calling (verified on Infomaniak 2026-11-04). Low temperature (0.1).
 
 ### Tools (all executed server-side, all guarded)
 
@@ -194,7 +194,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 - Every request logs the site's brand profile as system prompt (constraint 4) — there is no code path that calls the model without it.
 - Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration).
 - A past-due account gets no tool execution (read-only, section 4).
-- The internal tool endpoint authenticates with `MODY_INTERNAL_SECRET` (shared, from env, `hash_equals`) and lives on the non-public compose network only (constraint 6).
+- Tools run in-process with the member's capabilities checked on every call. There is no internal endpoint or shared secret (constraint 6).
 
 **Acceptance criteria**
 
@@ -307,10 +307,10 @@ Everything else in the current stack is unchanged ([architecture.md](architectur
 | --- | --- |
 | Multisite on | `WORDPRESS_ALLOW_MULTISITE` / `WORDPRESS_MULTISITE` / `WORDPRESS_SUBDOMAIN_INSTALL` = `true` (subdomain mode). `wp-config.php` already handles the constants. |
 | Wildcard TLS | `APP_DOMAINS` gains `*.${HOST_NAME}` (local: mkcert wildcard; production: upstream wildcard cert for `*.mody.cloud`). `compose.local.yml` already wires the wildcard `server_name`. |
-| MU plugin | Project-owned `app/web/mu-plugins/mody-platform/` (tracked, always active, **not** Composer-managed). Holds: registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects, chat relay. Resolves the "where gating lives" open question. |
-| Agent service | New compose service built from `agent/Dockerfile` (Python 3.11-slim, `requests` only). No published ports. Env: `MODY_AI_BASE_URL`, `MODY_AI_MODEL`, `MODY_AI_TOKEN`, `MODY_INTERNAL_SECRET`, `WORDPRESS_INTERNAL_URL=http://nginx` (requests carry the target site's `Host` header). |
+| MU plugin | Project-owned `app/web/mu-plugins/mody-platform/` (tracked, always active, **not** Composer-managed), loaded by `app/web/mu-plugins/mody-platform.php`. Holds: the AI provider and agent, registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects. Resolves the "where gating lives" open question. |
+| AI | WordPress AI Client (core) with the Infomaniak provider in the MU plugin. No extra service. Env: `INFOMANIAK_API_KEY`, `INFOMANIAK_AI_BASE_URL`, optional `INFOMANIAK_AI_MODEL`. Decided 2026-11-04, replacing the Python agent service. |
 | Cron | WP-Cron (already enabled): hourly jobs — due billing, past-due sweep (banner, day-53 warning, day-60 deletion), job retry, expired-signup cleanup. |
-| Env additions | `MOLLIE_API_KEY`, `MOLLIE_WEBHOOK_KEY`, `MODY_*` as above. Nothing committed; `.env` stays untracked (constraint 6). |
+| Env additions | `MOLLIE_API_KEY`, `MOLLIE_WEBHOOK_KEY`, `INFOMANIAK_*` as above. Nothing committed; `.env` stays untracked (constraint 6). |
 | Nginx | No change beyond the existing wildcard block; custom-domain `server_name` generation is next iteration. |
 
 ## 13. Milestones
@@ -350,6 +350,6 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 1. **Mollie account** — test-mode keys available? (Needed at M1 start.)
 2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5.
 3. **Upstream wildcard TLS** — confirm the production front end can terminate a wildcard cert for `*.mody.cloud` (infra task, M5).
-4. **Infomaniak AI** — exact model slug + product ID + function-calling support (verify with `GET /1/ai/models` at M2 start).
+4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
 5. **Final market membership** — beyond Spectra + Redirection (TBD, user-confirmed).
 6. **Fee confirmation** — 5/15/50 EUR unchanged for 3/10/50 sites (assumed).

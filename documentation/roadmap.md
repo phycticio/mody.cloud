@@ -20,6 +20,6 @@ Milestones from the briefing (v4, October 2026). Status is as the briefing repor
 
 ## First concrete step (superseded)
 
-The MVP spec replaced the Milestone 1.1 `hello_ai.py` task. **M0-01 (subdomain Multisite locally with wildcard TLS) is done** as of 2026-11-01; it left one open question that blocks M1, WP-Cron on subsites ([architecture.md](architecture.md#open-questions)). Next up is **M1-01**. AI integration starts at M2-02 with the Qwen agent service (`tickets/M2-02-ai-agent-qwen-validator.md`).
+The MVP spec replaced the Milestone 1.1 `hello_ai.py` task. **M0-01 (subdomain Multisite locally with wildcard TLS) is done** as of 2026-11-01; it left one open question that blocks M1, WP-Cron on subsites ([architecture.md](architecture.md#open-questions)). Next up is **M1-01**. AI integration starts at M2-02 (`tickets/M2-02-ai-agent-qwen-validator.md`). The Infomaniak provider for the WordPress AI Client already exists and is verified (2026-11-04, [ai-engine.md](ai-engine.md)).
 
 Sections 5, 6, 7 and 9 of the briefing (tiers, brand profile, coherent generation, Newsletter) define the target data architecture for Phases 2 and 3. Details are in [ai-engine.md](ai-engine.md) and the documents linked from the table above.

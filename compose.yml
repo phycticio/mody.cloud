@@ -9,9 +9,9 @@ services:
       - ./app:/var/www/html
       - ./config/nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
       - ./config/nginx/mailpit.conf.template:/etc/nginx/templates/mailpit.conf.template:ro
-      # mkcert-generated files in config/ssl, for local development. The stage
-      # and production overrides replace this volume list: TLS ends upstream,
-      # and they mount neither the certificate nor the Mailpit template.
+      # mkcert-generated files in config/ssl. Stage and production mount them
+      # too, for an internal-only 443 listener that carries WordPress's own
+      # loopback requests, but they do not mount the Mailpit template.
       - ${NGINX_SSL_CERT_FILE:-./config/ssl/local-cert.pem}:/etc/nginx/ssl/cert.pem:ro
       - ${NGINX_SSL_KEY_FILE:-./config/ssl/local-key.pem}:/etc/nginx/ssl/key.pem:ro
     depends_on:

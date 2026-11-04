@@ -75,7 +75,7 @@ The master prompt rules, whitelist and validation are in [ai-engine.md](ai-engin
 2. If they have quota, the brand profile wizard runs (saved in `mody_brand_profiles`).
 3. A script creates the user and the site in Multisite through the REST API (Application Password).
 4. It writes the site's styles with the profile's palette and fonts.
-5. It builds SYSTEM (profile) plus USER (home prompt) and calls Ministral.
+5. It builds SYSTEM (profile) plus USER (home prompt) and calls the model through the WordPress AI Client ([ai-engine.md](ai-engine.md)).
 6. The validator checks the block syntax and retries if the JSON is broken ([ai-engine.md](ai-engine.md#validation-pipeline)).
 7. It inserts the content into the new site's home page.
 8. It registers the Newsletter domain and sets the role's monthly sending cap ([newsletter.md](newsletter.md)).

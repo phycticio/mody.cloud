@@ -43,8 +43,9 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 
 - **Infrastructure is the current stack.** Do not adopt the briefing's Nginx Proxy Manager, its sample `docker-compose`, or Matomo. Why and what replaces them: [architecture.md](documentation/architecture.md#briefing-recommendations-not-adopted).
 - **AI model:** `Qwen/Qwen3.8-27B-FP8` (project-scoped build) through Infomaniak AI Services (OpenAI-compatible, base URL `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`). Decided 2026-11-01, superseding the briefing's Ministral choice. See [mvp-spec.md](documentation/mvp-spec.md) and [ai-engine.md](documentation/ai-engine.md).
+- **AI integration: the WordPress AI Client, no Python service** (decided 2026-11-04). Models are called with core's `wp_ai_client_prompt()`. The Infomaniak provider lives in the MU plugin, and its configuration comes only from the environment (`INFOMANIAK_API_KEY`, `INFOMANIAK_AI_BASE_URL`). The agent's tool loop and validator run in PHP in the MU plugin. See [ai-engine.md](documentation/ai-engine.md).
 - **Payments:** Mollie (EU), decided 2026-11-01. Card at signup (0.01 EUR verification), then monthly tier billing; past-due sites read-only for 60 days before deletion. See [mvp-spec.md](documentation/mvp-spec.md#4-tiers-trial-and-billing).
-- **Platform logic lives in one MU plugin:** `app/web/mu-plugins/mody-platform/` (registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects, agent relay). The Python agent service lives in `agent/` as a private compose service. See [mvp-spec.md](documentation/mvp-spec.md#12-architecture-deltas).
+- **Platform logic lives in one MU plugin:** `app/web/mu-plugins/mody-platform/` (AI provider and agent, registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects). See [mvp-spec.md](documentation/mvp-spec.md#12-architecture-deltas).
 - **Composer dev requirements are intentionally only Query Monitor.** Do not add dependencies (Composer or npm) without asking. See [architecture.md](documentation/architecture.md#current-stack-unchanged).
 - **JS is built with `@wordpress/scripts`, and gets only the libraries it needs.** Sources live in `src/`, and `pnpm build` compiles them into `app/dist`. Use WordPress packages and the tooling wp-scripts already ships first. Add another library or framework only when a feature needs it and no WordPress package covers it, and record why in [theme-development.md](documentation/theme-development.md#rules). Bundle everything. Nothing loads from a CDN (rule 1).
 - **Temporary exceptions to rule 1: Cloudflare and Wordfence.** Both stay in production until the association can afford to replace them (decided 2026-11-04). Do not add other US services, and do not use these two for anything new. See [architecture.md](documentation/architecture.md#temporary-exceptions-to-rule-1).
@@ -63,8 +64,8 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 | Helper scripts | `bin/` | [local-development.md](documentation/local-development.md) |
 | Documentation | `documentation/` | [documentation/README.md](documentation/README.md) |
 | Tickets | `tickets/` | [tickets.md](documentation/tickets.md) |
-| Platform logic (MU plugin) | `app/web/mu-plugins/mody-platform/` (not created yet) | [mvp-spec.md](documentation/mvp-spec.md) |
-| Python AI agent | `agent/` at the repository root (not created yet) | [ai-engine.md](documentation/ai-engine.md), [mvp-spec.md](documentation/mvp-spec.md) |
+| Platform logic (MU plugin) | `app/web/mu-plugins/mody-platform/`, loaded by `app/web/mu-plugins/mody-platform.php` | [mvp-spec.md](documentation/mvp-spec.md) |
+| AI provider, agent and validator | `app/web/mu-plugins/mody-platform/src/AI/` (Infomaniak provider exists, the rest not yet) | [ai-engine.md](documentation/ai-engine.md), [mvp-spec.md](documentation/mvp-spec.md) |
 
 Do not edit WordPress core (`app/wp/`), anything installed by Composer (`app/web/plugins/`, `app/vendor/`), or put project behavior in plugin source.
 

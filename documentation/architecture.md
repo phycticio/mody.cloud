@@ -61,8 +61,8 @@ Member ──▶ WordPress (accounts, wizard, site panel)
               │                └──────────┬───────────┘
               │ site creation / "add page"│
               ▼                           ▼
-        Python agent ─── SYSTEM(brand profile) + USER(prompt) ───▶ Infomaniak AI (Switzerland)
-              │                                                  Ministral-3-14B-Instruct-2512
+        Agent (MU plugin, WP AI Client) ─ SYSTEM(brand profile) + USER ─▶ Infomaniak AI (Switzerland)
+              │                                                  Qwen/Qwen3.8-27B-FP8
               │ ◀──────────── serialized Gutenberg blocks ───────┘
               ▼
         Block validator (syntax, JSON, whitelist)
@@ -78,7 +78,7 @@ Member ──▶ WordPress (accounts, wizard, site panel)
 | WordPress | Subdomain Multisite, one site per generated website (enabled in M0-01). Site 1 is the association site. | 0 |
 | FSE block theme | Header, footer, templates and global styles are blocks and JSON editable with Gutenberg. | 0 |
 | Spectra | Extra block library alongside native Gutenberg. Not installed yet. | 0 |
-| Python agent | Bridge between the AI and WordPress. Python 3.9+, `requests` or LangChain. | 1 |
+| Agent | Tool loop and block validator in the MU plugin, calling models through the WordPress AI Client with the Infomaniak provider. See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak AI Services | Model inference in Switzerland. See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak Newsletter | Per-domain sending with monthly caps. See [newsletter.md](newsletter.md). | 3 |
 | Infomaniak DNS | Domain DNS, included with the domain. | 0 |
@@ -139,7 +139,7 @@ Visitor
 | Docker | Colima, Docker context `colima`, `sshfs` mounts, `USER_ID=502`. Non-interactive SSH sessions do not have Homebrew in `PATH`, so prefix commands with `PATH=/opt/homebrew/bin:$PATH`. Nothing starts Colima at login (no `brew services` entry, no LaunchAgent), so after a reboot every site on the host stays down until someone runs `colima start`. |
 | Project directory | `/Volumes/Toshiba/mody.cloud`, on an external USB disk. It is a plain copy of the deployable files, not a git checkout. `REVISION` records the deployed commit. |
 | Proxy | Nginx Proxy Manager, Compose project `proxy` (container `proxy_app`) in `~/web/npm`. Its data is in the named volumes `proxy_data` and `proxy_letsencrypt`. The proxy host for `mody.cloud` (id 18) forwards to `http://host.docker.internal:8195`, and NPM sends `X-Forwarded-Proto`, which `wp-config.php` trusts. Change proxy hosts in the NPM admin UI. If that is not possible, update both the `proxy_host` row in `/data/database.sqlite` and the generated `/data/nginx/proxy_host/<id>.conf`, then run `nginx -s reload` in `proxy_app`. NPM also serves `plugins.mody.cloud` (the SatisPress Composer repository, its own stack `mody_plugins_*`) and some unrelated hosts. |
-| Stack | Containers `mody_cloud_*`. The server `.env` sets `HOST_NAME` and `PROXY_NAME` to `mody.cloud`, `WORDPRESS_ENVIRONMENT=production` and the three Multisite switches to `true`. Since 2026-11-04 it loads `COMPOSE_FILE="compose.yml;compose.prod.yml"`, so Nginx publishes only 8195 (HTTP), and MariaDB, PHP-FPM and Xdebug publish nothing. Nginx mounts only the app template: no certificate and no Mailpit server block. Mailpit is never started. |
+| Stack | Containers `mody_cloud_*`. The server `.env` sets `HOST_NAME` and `PROXY_NAME` to `mody.cloud`, `WORDPRESS_ENVIRONMENT=production` and the three Multisite switches to `true`. Since 2026-11-04 it loads `COMPOSE_FILE="compose.yml;compose.prod.yml"`, so Nginx publishes only 8195 (HTTP), and MariaDB, PHP-FPM and Xdebug publish nothing. Nginx mounts only the app template (no Mailpit server block) and the mkcert certificate from `config/ssl`, which serves an internal-only 443 listener. WordPress calls its own `https://mody.cloud` for WP-Cron and Site Health, and the Docker network alias points those calls at this container. Without the listener they fail, as they did briefly on 2026-11-04. Port 443 is never published. Mailpit is never started. |
 | Server-owned files | `.env` (and its `.env.*` backups), `compose.prod.yml`, `app/auth.json`, `app/web/uploads/`, `app/logs/`, `config/ssl/`, `REVISION`, and the files Wordfence writes (`app/web/wflogs/`, `app/wp/wordfence-waf.php`, `.user.ini`). Deploys never send or delete them. |
 
 ### Deploying

@@ -7,9 +7,10 @@
 #   COMPOSE_FILE="compose.yml;compose.stage.yml"
 #   COMPOSE_PATH_SEPARATOR=";"
 #
-# Set HOST_NAME to the stage domain (for example stage.mody.cloud). TLS is
-# terminated upstream, so Nginx listens on plain HTTP and mounts no
-# certificate. Mailpit never runs here either (see compose.prod.yml.sample).
+# Set HOST_NAME to the stage domain (for example stage.mody.cloud). TLS for
+# visitors is terminated upstream. Nginx also listens on 443 inside the Docker
+# network only, for WordPress's loopback requests, and Mailpit never runs (see
+# compose.prod.yml.sample for both).
 services:
   nginx:
     # `!override` fully replaces the base list instead of appending to it —
@@ -21,10 +22,15 @@ services:
     volumes: !override
       - ./app:/var/www/html
       - ./config/nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
+      - ${NGINX_SSL_CERT_FILE:-./config/ssl/local-cert.pem}:/etc/nginx/ssl/cert.pem:ro
+      - ${NGINX_SSL_KEY_FILE:-./config/ssl/local-key.pem}:/etc/nginx/ssl/key.pem:ro
     environment:
       NGINX_APP_LISTEN: "80"
       NGINX_APP_SERVER_NAME: "${HOST_NAME:-stage.mody.cloud} *.${HOST_NAME:-stage.mody.cloud}"
-      NGINX_APP_SSL_DIRECTIVES: ""
+      NGINX_APP_SSL_DIRECTIVES: |
+        listen 443 ssl;
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
       # See compose.prod.yml.sample: the base HTTPS redirect would loop here.
       NGINX_HTTP_REDIRECT_SERVER: ""
 

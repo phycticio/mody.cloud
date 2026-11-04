@@ -13,7 +13,7 @@ The platform is launch-ready for 100 founding members: production-safe compose, 
 - **Security pass** over M1–M4 code:
   - All endpoints: nonce + capability checks; all inputs sanitized (wizard fields, chat relay, market toggles).
   - Mollie webhook signature verification + idempotency replay test.
-  - Internal agent endpoint: `hash_equals` on `MODY_INTERNAL_SECRET`, unreachable from outside the compose network.
+  - Agent tools: capability checks on every call; `INFOMANIAK_API_KEY` only in the server `.env`, never in the database, logs or prompts.
   - No secrets in repo/logs/prompts (constraint 6); `.env` untracked.
 - **Monitoring:** Query Monitor (existing) wired for the main site; error log at `app/logs/debug.log`; a simple "system health" dashboard page for platform admins (site count, past-due count, failed jobs).
 - **Stale cleanup** (after launch is stable): remove/replace the Tamarind leftovers listed in `local-development.md` "Known stale items" (`bin/migrate-*`, `bin/build`, ofelia labels, `.github/workflows/*`, `app/assets/`, `test.md`).

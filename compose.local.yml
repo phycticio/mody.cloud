@@ -48,8 +48,6 @@ services:
     # in add-host". Pinning nginx to a static IP would work but needs a declared
     # subnet, and one line per site does not survive member-created sites.
     #
-    # The agent service sidesteps this by design: it calls http://nginx and
-    # carries the target site's Host header (mvp-spec.md section 12). WP Cron on
-    # subsites needs its own answer - see the open question in
+    # WP Cron on subsites needs its own answer - see the open question in
     # documentation/architecture.md. Until then, run due jobs explicitly:
     #   ./bin/wp --site=<slug> cron event run --due-now

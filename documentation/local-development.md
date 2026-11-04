@@ -195,7 +195,8 @@ Container, volume and network names are prefixed with `CONTAINER_PREFIX` (`mody_
 | `APP_DOMAINS` | Domains `./bin/certs` issues the local certificate for. Must include `*.${HOST_NAME}` for the subdomain network. |
 | `COMPOSE_FILE`, `COMPOSE_PATH_SEPARATOR` | Make every `docker compose` call load `compose.local.yml`, which is where Nginx gets the wildcard `server_name`. Without them the subsites do not resolve. |
 | `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT` | Where the stack's Nginx publishes itself on the host. A local detail: these never appear in a site URL. If something else owns 443, put a proxy in front rather than exposing the port — see [Site URLs never carry a port](#site-urls-never-carry-a-port). |
-| `NGINX_SSL_CERT_FILE`, `NGINX_SSL_KEY_FILE` | Override the local certificate paths (default: the mkcert files in `config/ssl`). Stage and production ignore them: their overrides mount no certificate and no Mailpit template. |
+| `NGINX_SSL_CERT_FILE`, `NGINX_SSL_KEY_FILE` | Override the local certificate paths (default: the mkcert files in `config/ssl`). Stage and production mount the same files for an internal-only 443 listener, which carries WordPress's own loopback requests (WP-Cron, Site Health). They do not mount the Mailpit template. |
+| `INFOMANIAK_API_KEY`, `INFOMANIAK_AI_BASE_URL`, `INFOMANIAK_AI_MODEL` | Infomaniak AI Services for the WordPress AI Client: the token (read by core), `https://api.infomaniak.com/2/ai/<PRODUCT_ID>/openai/v1`, and an optional default model. Without the base URL the provider is not registered. After editing them, run `docker compose up -d wordpress`. See [ai-engine.md](ai-engine.md). |
 | `USER_ID` | UID that `www-data` runs as in the containers. Default 1000. On Colima with sshfs mounts, set it to your Mac UID (`id -u`, usually 501). See [Colima on macOS](#colima-on-macos). |
 
 ## File permissions on Linux

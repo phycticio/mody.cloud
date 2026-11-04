@@ -10,11 +10,17 @@
 # compose.prod.yml is server-owned, like .env: ./bin/deploy ships this sample
 # but never sends or deletes compose.prod.yml itself.
 #
-# TLS ends at the reverse proxy in front of the stack (Nginx Proxy Manager on
-# the production host), so Nginx listens on plain HTTP only and mounts no
-# certificate. Mailpit never runs in production: its service is disabled with
-# the never-start profile, and Nginx does not load mailpit.conf.template
-# (whose proxy_pass to mailpit:8025 would stop Nginx from starting without it).
+# TLS for visitors ends at the reverse proxy in front of the stack (Nginx Proxy
+# Manager on the production host), which forwards plain HTTP to the published
+# port. Nginx also listens on 443 inside the Docker network only, with the
+# mkcert certificate from config/ssl: WordPress calls its own https:// URL for
+# WP-Cron and Site Health, the network alias ${HOST_NAME} points those calls at
+# this container, and without the listener they are refused. 443 is never
+# published.
+#
+# Mailpit never runs in production: its service is disabled with the
+# never-start profile, and Nginx does not load mailpit.conf.template (whose
+# proxy_pass to mailpit:8025 would stop Nginx from starting without it).
 #
 # See documentation/architecture.md#production.
 services:
@@ -24,15 +30,22 @@ services:
     # alongside this one (ports merge by {ip, target, published, protocol}).
     ports: !override
       - "${NGINX_HTTP_PORT:-8004}:80"
-    # Only the app server block: no Mailpit template and no certificate files.
+    # Only the app server block (no Mailpit template), plus the certificate
+    # for the internal-only 443 listener.
     volumes: !override
       - ./app:/var/www/html
       - ./config/nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
+      - ${NGINX_SSL_CERT_FILE:-./config/ssl/local-cert.pem}:/etc/nginx/ssl/cert.pem:ro
+      - ${NGINX_SSL_KEY_FILE:-./config/ssl/local-key.pem}:/etc/nginx/ssl/key.pem:ro
     environment:
       NGINX_APP_LISTEN: "80"
       # Subdomain Multisite: the main site and every member subsite.
       NGINX_APP_SERVER_NAME: "${HOST_NAME:-mody.cloud} *.${HOST_NAME:-mody.cloud}"
-      NGINX_APP_SSL_DIRECTIVES: ""
+      # Internal-only HTTPS for WordPress's loopback requests (see above).
+      NGINX_APP_SSL_DIRECTIVES: |
+        listen 443 ssl;
+        ssl_certificate /etc/nginx/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx/ssl/key.pem;
       # The base file adds a port-80 server that redirects to HTTPS. Here the
       # app itself listens on 80 behind a TLS-terminating proxy, so that
       # redirect would answer first and loop. Drop it.
