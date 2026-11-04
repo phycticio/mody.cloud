@@ -15,7 +15,7 @@ These eight rules come from the briefing (§11) and apply to every change, human
 
 | Rule | Practical consequence | Read |
 | --- | --- | --- |
-| 1 | No third-party CDNs or fonts in the theme. EU or Swiss providers only (Infomaniak, Hetzner). Review any new plugin or service for US data flows before adding it. | [architecture.md](architecture.md) |
+| 1 | No third-party CDNs or fonts in the theme. EU or Swiss providers only (Infomaniak, Hetzner). Review any new plugin or service for US data flows before adding it. Two temporary, cost-driven exceptions are in production: Cloudflare and Wordfence. | [architecture.md](architecture.md#temporary-exceptions-to-rule-1) |
 | 2, 3 | Theme templates and agent output use the same serialized format. Validate with a parser, never by eye. | [ai-engine.md](ai-engine.md), [theme-development.md](theme-development.md) |
 | 4 | The agent code has no path that calls the model without a brand profile. | [brand-profile.md](brand-profile.md) |
 | 5 | Prefer the smallest change that works. Raise it if an estimate exceeds 2 hours. | [roadmap.md](roadmap.md) |

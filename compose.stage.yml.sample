@@ -7,11 +7,9 @@
 #   COMPOSE_FILE="compose.yml;compose.stage.yml"
 #   COMPOSE_PATH_SEPARATOR=";"
 #
-# Set HOST_NAME to the stage domain (for example stage.mody.cloud), and
-# NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null so the base
-# compose.yml's certificate mounts need no mkcert files. TLS is terminated
-# upstream and NGINX_APP_SSL_DIRECTIVES below is empty, so Nginx never reads
-# those files.
+# Set HOST_NAME to the stage domain (for example stage.mody.cloud). TLS is
+# terminated upstream, so Nginx listens on plain HTTP and mounts no
+# certificate. Mailpit never runs here either (see compose.prod.yml.sample).
 services:
   nginx:
     # `!override` fully replaces the base list instead of appending to it —
@@ -20,6 +18,9 @@ services:
     # not by service).
     ports: !override
       - "${NGINX_HTTP_PORT:-80}:80"
+    volumes: !override
+      - ./app:/var/www/html
+      - ./config/nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
     environment:
       NGINX_APP_LISTEN: "80"
       NGINX_APP_SERVER_NAME: "${HOST_NAME:-stage.mody.cloud} *.${HOST_NAME:-stage.mody.cloud}"
@@ -34,3 +35,7 @@ services:
   database:
     # Don't publish MariaDB to the host on stage.
     ports: !reset []
+
+  mailpit:
+    # Never start Mailpit on stage.
+    profiles: ["never-start"]

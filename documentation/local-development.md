@@ -195,7 +195,7 @@ Container, volume and network names are prefixed with `CONTAINER_PREFIX` (`mody_
 | `APP_DOMAINS` | Domains `./bin/certs` issues the local certificate for. Must include `*.${HOST_NAME}` for the subdomain network. |
 | `COMPOSE_FILE`, `COMPOSE_PATH_SEPARATOR` | Make every `docker compose` call load `compose.local.yml`, which is where Nginx gets the wildcard `server_name`. Without them the subsites do not resolve. |
 | `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT` | Where the stack's Nginx publishes itself on the host. A local detail: these never appear in a site URL. If something else owns 443, put a proxy in front rather than exposing the port — see [Site URLs never carry a port](#site-urls-never-carry-a-port). |
-| `NGINX_SSL_CERT_FILE`, `NGINX_SSL_KEY_FILE` | Override certificate paths (stage and production use `/dev/null`). |
+| `NGINX_SSL_CERT_FILE`, `NGINX_SSL_KEY_FILE` | Override the local certificate paths (default: the mkcert files in `config/ssl`). Stage and production ignore them: their overrides mount no certificate and no Mailpit template. |
 | `USER_ID` | UID that `www-data` runs as in the containers. Default 1000. On Colima with sshfs mounts, set it to your Mac UID (`id -u`, usually 501). See [Colima on macOS](#colima-on-macos). |
 
 ## File permissions on Linux

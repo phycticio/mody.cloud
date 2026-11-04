@@ -11,10 +11,10 @@
 # but never sends or deletes compose.prod.yml itself.
 #
 # TLS ends at the reverse proxy in front of the stack (Nginx Proxy Manager on
-# the production host), so this Nginx listens on plain HTTP. Set
-# NGINX_SSL_CERT_FILE=/dev/null and NGINX_SSL_KEY_FILE=/dev/null in .env so the
-# base compose.yml's certificate mounts need no mkcert files; with the SSL
-# directives emptied below, Nginx never reads them.
+# the production host), so Nginx listens on plain HTTP only and mounts no
+# certificate. Mailpit never runs in production: its service is disabled with
+# the never-start profile, and Nginx does not load mailpit.conf.template
+# (whose proxy_pass to mailpit:8025 would stop Nginx from starting without it).
 #
 # See documentation/architecture.md#production.
 services:
@@ -24,6 +24,10 @@ services:
     # alongside this one (ports merge by {ip, target, published, protocol}).
     ports: !override
       - "${NGINX_HTTP_PORT:-8004}:80"
+    # Only the app server block: no Mailpit template and no certificate files.
+    volumes: !override
+      - ./app:/var/www/html
+      - ./config/nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
     environment:
       NGINX_APP_LISTEN: "80"
       # Subdomain Multisite: the main site and every member subsite.
@@ -41,3 +45,8 @@ services:
   database:
     # Don't publish MariaDB to the host in production.
     ports: !reset []
+
+  mailpit:
+    # Never start Mailpit in production. No profile named never-start is ever
+    # enabled, so `docker compose up` skips this service.
+    profiles: ["never-start"]

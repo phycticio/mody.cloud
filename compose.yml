@@ -9,12 +9,9 @@ services:
       - ./app:/var/www/html
       - ./config/nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
       - ./config/nginx/mailpit.conf.template:/etc/nginx/templates/mailpit.conf.template:ro
-      # Sourced from mkcert-generated files by default (local dev only).
-      # Stage/production set NGINX_SSL_CERT_FILE/NGINX_SSL_KEY_FILE to a
-      # harmless existing file (e.g. /dev/null) in their .env — TLS is
-      # terminated upstream (NPM/load balancer) there, NGINX_APP_SSL_DIRECTIVES
-      # is emptied via a compose override, and nginx never reads these paths,
-      # so no real certificate content — and no mkcert — is required.
+      # mkcert-generated files in config/ssl, for local development. The stage
+      # and production overrides replace this volume list: TLS ends upstream,
+      # and they mount neither the certificate nor the Mailpit template.
       - ${NGINX_SSL_CERT_FILE:-./config/ssl/local-cert.pem}:/etc/nginx/ssl/cert.pem:ro
       - ${NGINX_SSL_KEY_FILE:-./config/ssl/local-key.pem}:/etc/nginx/ssl/key.pem:ro
     depends_on:

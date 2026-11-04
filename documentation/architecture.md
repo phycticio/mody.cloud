@@ -10,7 +10,7 @@ The infrastructure is the Docker stack already in this repository. The briefing'
 | Application | Image built from the official `wordpress:${WORDPRESS_IMAGE_VERSION}` (PHP-FPM alpine). Adds gd, mysqli, pdo_mysql, zip, bcmath, exif, redis, msmtp, WP-CLI and Composer. | `config/Dockerfile` |
 | Database | MariaDB 11.4.7 (`database` service) | `compose.yml`, `config/my.cnf` |
 | Cache | Redis (alpine) container. No object-cache plugin is installed yet. | `compose.yml` |
-| Mail (local) | Mailpit captures all outgoing mail, served at `MAIL_HOST` through Nginx. PHP sends through msmtp. | `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
+| Mail (local) | Mailpit captures all outgoing mail, served at `MAIL_HOST` through Nginx. PHP sends through msmtp. Local only: stage and production disable the service (profile `never-start`) and do not load its Nginx template. | `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
 | Dependencies | Composer. WordPress plugins and themes install into `app/web/`. | `app/composer.json` |
 | Plugins | Wordfence 9.0.2 (security, the only production plugin, added 2026-11-04 to match production). | `app/composer.json` |
 | Dev tooling | Query Monitor (the only dev requirement) and its `db.php` drop-in symlink. | `app/composer.json`, `app/web/db.php` |
@@ -99,7 +99,7 @@ The briefing's stack section (§2) and Docker plus Nginx Proxy Manager section (
 ### Invariants that carry over from the briefing
 
 - Only the web tier is public. The PHP-FPM container and the database are never reachable from the internet. Any proxy admin UI must be IP-restricted.
-- `compose.yml` publishes Xdebug (`9003`) and MariaDB (`3306`) to the host for local work. `compose.prod.yml.sample` resets both and must be used in production. Production does not use it yet: see [Deviations to resolve](#deviations-to-resolve).
+- `compose.yml` publishes Xdebug (`9003`) and MariaDB (`3306`) to the host for local work. `compose.prod.yml.sample` resets both and must be used in production. Production has used it since 2026-11-04.
 - Credentials and Application Passwords never go into the repository, into logs or into prompts.
 - The Nginx document root is `app/`, which also holds `auth.json` (Composer credentials), `composer.json`, `composer.lock`, `vendor/`, `logs/` and `dumps/`. `config/nginx/app.conf.template` denies those paths, all dotfiles except `/.well-known/`, and PHP under `web/uploads/`. Keep these rules when the template changes, and add any new non-public directory under `app/` to them.
 
@@ -122,10 +122,10 @@ Where a proxy fronts the stack, it needs a server name covering `*.${HOST_NAME}`
 
 ```text
 Visitor
-  └─▶ Cloudflare (proxied DNS record, terminates TLS)       ← conflicts with rule 1, see below
+  └─▶ Cloudflare (proxied DNS record, terminates TLS)       ← temporary exception to rule 1, see below
         └─▶ home router, ports 80 and 443
               └─▶ home.local: Nginx Proxy Manager (proxy_app), Let's Encrypt certificate for mody.cloud
-                    └─▶ https://host.docker.internal:4444
+                    └─▶ http://host.docker.internal:8195  (plain HTTP on the same machine)
                           └─▶ mody_cloud_server (Nginx) ─▶ mody_cloud_app (PHP-FPM)
                                                              ├─▶ mody_cloud_db (MariaDB 11.4.7)
                                                              └─▶ mody_cloud_redis
@@ -135,11 +135,11 @@ Visitor
 
 | Item | Value |
 | --- | --- |
-| Machine | `home.local`, an SSH alias in the maintainer's `~/.ssh/config`. It is a MacBook Air M3 (macOS) on the home network. The same machine runs about a dozen other Compose projects, listed in `tickets/home-local-docker-to-colima-execution.md`. |
-| Docker | Colima, Docker context `colima`, `sshfs` mounts, `USER_ID=502`. Non-interactive SSH sessions do not have Homebrew in `PATH`, so prefix commands with `PATH=/opt/homebrew/bin:$PATH`. |
+| Machine | `home.local`, an SSH alias in the maintainer's `~/.ssh/config`. It is a MacBook Air M3 (macOS) on the home network. The same machine runs about a dozen other Compose projects. Eight of them are WordPress stacks built from the same template, and since 2026-11-04 all of them disable Mailpit in their `compose.prod.yml` the same way. |
+| Docker | Colima, Docker context `colima`, `sshfs` mounts, `USER_ID=502`. Non-interactive SSH sessions do not have Homebrew in `PATH`, so prefix commands with `PATH=/opt/homebrew/bin:$PATH`. Nothing starts Colima at login (no `brew services` entry, no LaunchAgent), so after a reboot every site on the host stays down until someone runs `colima start`. |
 | Project directory | `/Volumes/Toshiba/mody.cloud`, on an external USB disk. It is a plain copy of the deployable files, not a git checkout. `REVISION` records the deployed commit. |
-| Proxy | Nginx Proxy Manager, Compose project `proxy` (container `proxy_app`) in `~/web/npm`. Its data is in the named volumes `proxy_data` and `proxy_letsencrypt`. The proxy host for `mody.cloud` forwards to `https://host.docker.internal:4444`. NPM also serves `plugins.mody.cloud` (the SatisPress Composer repository, its own stack `mody_plugins_*`) and some unrelated hosts. |
-| Stack | Containers `mody_cloud_*`. The server `.env` sets `HOST_NAME` and `PROXY_NAME` to `mody.cloud`, `WORDPRESS_ENVIRONMENT=production` and the three Multisite switches to `true`. Nginx publishes 8195 (HTTP) and 4444 (HTTPS, with the stack's own mkcert certificate). |
+| Proxy | Nginx Proxy Manager, Compose project `proxy` (container `proxy_app`) in `~/web/npm`. Its data is in the named volumes `proxy_data` and `proxy_letsencrypt`. The proxy host for `mody.cloud` (id 18) forwards to `http://host.docker.internal:8195`, and NPM sends `X-Forwarded-Proto`, which `wp-config.php` trusts. Change proxy hosts in the NPM admin UI. If that is not possible, update both the `proxy_host` row in `/data/database.sqlite` and the generated `/data/nginx/proxy_host/<id>.conf`, then run `nginx -s reload` in `proxy_app`. NPM also serves `plugins.mody.cloud` (the SatisPress Composer repository, its own stack `mody_plugins_*`) and some unrelated hosts. |
+| Stack | Containers `mody_cloud_*`. The server `.env` sets `HOST_NAME` and `PROXY_NAME` to `mody.cloud`, `WORDPRESS_ENVIRONMENT=production` and the three Multisite switches to `true`. Since 2026-11-04 it loads `COMPOSE_FILE="compose.yml;compose.prod.yml"`, so Nginx publishes only 8195 (HTTP), and MariaDB, PHP-FPM and Xdebug publish nothing. Nginx mounts only the app template: no certificate and no Mailpit server block. Mailpit is never started. |
 | Server-owned files | `.env` (and its `.env.*` backups), `compose.prod.yml`, `app/auth.json`, `app/web/uploads/`, `app/logs/`, `config/ssl/`, `REVISION`, and the files Wordfence writes (`app/web/wflogs/`, `app/wp/wordfence-waf.php`, `.user.ini`). Deploys never send or delete them. |
 
 ### Deploying
@@ -162,18 +162,22 @@ Then it syncs an allowlist with `rsync --delete-after`: `app/`, `bin/`, `config/
 
 The build runs `composer install --no-dev` in the local app container, so the local stack must be running. The script restores the local dev requirements when it ends. It does not restart containers. When `config/` or a compose file changes, it prints the command to run on the server: `docker compose up -d --build && docker compose restart nginx`. Nginx renders its templates only when it starts.
 
+### Temporary exceptions to rule 1
+
+Decided by the maintainer on 2026-11-04: two US services stay in production until the association can afford to replace them. This is a cost decision, not a change to rule 1. Do not add other US services, and do not use these two for anything new.
+
+| Service | What it does here | Direction for replacing it |
+| --- | --- | --- |
+| Cloudflare | Proxied DNS record for `mody.cloud`. It terminates TLS, sees every request and hides the home connection's IP address. | DNS at Infomaniak with plain records and TLS at the proxy. This goes together with moving off the home connection (see the open question on the production host). |
+| Wordfence 9.0.2 | Security plugin, network-active, required in `app/composer.json`. It contacts Wordfence's servers for firewall rules, malware signatures and scans. | A European or self-contained security plugin. |
+
 ### Deviations to resolve
 
-These are differences between production and the rules or invariants above. Each one needs a decision or a planned change, and none of them is fixed by a deploy.
+These are differences between production and the conventions above. None of them is fixed by a deploy.
 
-1. **Cloudflare is in front of `mody.cloud`.** The DNS record is proxied, so Cloudflare terminates TLS and sees every request. Rule 1 names Cloudflare explicitly. See the open question below.
-2. **The server runs the local override.** Its `.env` has `COMPOSE_FILE="compose.yml;compose.local.yml"`, so MariaDB (3306) and Xdebug (9003) are published on the Mac's network interfaces, and `compose.prod.yml` is not used. `bin/deploy` warns about this on every run. To switch, in one maintenance window:
-   1. On the server, `cp compose.prod.yml.sample compose.prod.yml`.
-   2. In the server `.env`, set `COMPOSE_FILE="compose.yml;compose.prod.yml"`, `NGINX_HTTP_PORT=8195`, `NGINX_SSL_CERT_FILE=/dev/null` and `NGINX_SSL_KEY_FILE=/dev/null`.
-   3. Run `docker compose up -d`.
-   4. Change the NPM proxy host for `mody.cloud` to `http://host.docker.internal:8195`. The site is down between step 3 and this step.
-3. **Wordfence is a US vendor.** It was first installed by hand on the server. Since 2026-11-04 the repository requires it (`wpackagist-plugin/wordfence` 9.0.2), so production and the repository agree again. The plugin talks to Wordfence's servers, which sits uneasily with rule 1. See the open question below.
-4. **Subsites cannot be reached.** There is no wildcard DNS record, and the NPM certificate and proxy host cover only `mody.cloud`. M2 needs `*.mody.cloud` (DNS, certificate and proxy host, as in [Multisite](#multisite-enabled-m0-01)). `www.mody.cloud` returns a Cloudflare 525 error, because the origin has no certificate for it.
+1. **Subsites cannot be reached.** There is no wildcard DNS record, and the NPM certificate and proxy host cover only `mody.cloud`. M2 needs `*.mody.cloud` (DNS, certificate and proxy host, as in [Multisite](#multisite-enabled-m0-01)). `www.mody.cloud` returns a Cloudflare 525 error, because the origin has no certificate for it.
+2. **No outgoing mail.** PHP's `sendmail_path` (`config/php/sendmail.ini`) sends through msmtp to `mailpit:1025`. Mailpit never runs in production, so `wp_mail()` fails, and password resets and notifications are not delivered. Before 2026-11-04, Mailpit captured that mail and discarded it, which was also a loss, only a silent one. M1 needs real delivery for registration and billing emails. That means an EU SMTP relay (for example Infomaniak) configured in the production `.env` and PHP mail settings. Which relay to use is not decided.
+3. **`home` carries `/wp`.** Both `home` and `siteurl` are `https://mody.cloud/wp`, so generated links read `https://mody.cloud/wp/sample-page/`. Both forms resolve, but the convention from M0-01 is `home` without `/wp`. Fix it with `wp option update home https://mody.cloud` after a database backup, then check the links stored in content.
 
 ## Open questions
 
@@ -182,6 +186,4 @@ These are differences between production and the rules or invariants above. Each
 - **Payments provider.** The briefing prefers Mollie ("more European") over Stripe. Stripe sits uneasily with the sovereignty rule. Decide in Milestone 3.2.
 - **Where gating logic lives.** Likely a network-level plugin. Not specified.
 - **Analytics.** Replacement for Matomo, if any.
-- **Cloudflare in production.** It conflicts with rule 1. The obvious replacement is DNS at Infomaniak with plain records to the origin, and TLS at the proxy. But Cloudflare currently hides the home connection's IP address, so this depends on the hosting question below.
-- **Production host.** Production runs on a laptop with a USB disk, on a home connection shared with other projects. That is in Europe, so rule 1's location requirement holds, but it is not the European VPS the briefing assumes, and M5 needs a backup and restore drill. Decide whether to move to a VPS (Hetzner, Infomaniak) before launch. Separately, the SSH alias `mody.cloud` in the maintainer's config points at a different Linux server, which does not serve the site (it answers 404 for `mody.cloud`). Its role is not documented.
-- **Wordfence.** It is kept for now: the maintainer added it to `app/composer.json` on 2026-11-04 to match production. Wordfence is a US vendor, and the plugin talks to Wordfence's servers for rules, signatures and scans, which sits uneasily with rule 1. Decide before launch whether to keep it or replace it with an EU or self-contained hardening approach.
+- **Production host.** Production runs on a laptop with a USB disk, on a home connection shared with other projects. That is in Europe, so rule 1's location requirement holds, but it is not the European VPS the briefing assumes, and M5 needs a backup and restore drill. Decide whether to move to a VPS (Hetzner, Infomaniak) before launch. Replacing Cloudflare depends on this (see [Temporary exceptions to rule 1](#temporary-exceptions-to-rule-1)). Separately, the SSH alias `mody.cloud` in the maintainer's config points at a different Linux server, which does not serve the site (it answers 404 for `mody.cloud`). Its role is not documented.
