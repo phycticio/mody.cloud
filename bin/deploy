@@ -99,6 +99,9 @@ remote() { ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$1"; }
 file_hash() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
 }
+stdin_hash() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -d' ' -f1
+}
 remote_file_hash() {
   remote "f='${REMOTE_DIR}/$1'; if [ -f \"\$f\" ]; then if command -v sha256sum >/dev/null 2>&1; then sha256sum \"\$f\"; else shasum -a 256 \"\$f\"; fi | cut -d' ' -f1; fi"
 }
@@ -149,11 +152,21 @@ case "$REMOTE_COMPOSE_FILE" in
   *) log "WARNING" "The server's .env does not load compose.${ENV}.yml (COMPOSE_FILE='${REMOTE_COMPOSE_FILE}'). The MariaDB and Xdebug ports may be published on the host. See documentation/architecture.md#production." ;;
 esac
 
+# The composer files on the server must be the ones from the last deployed
+# commit (REVISION). If they are, a difference from HEAD is a change made in
+# the repository, and deploying it is the point. If they match neither, they
+# were edited on the server, and the sync would remove what that edit added.
+DEPLOYED_COMMIT="$(remote "sed -n 's/^commit=//p' '${REMOTE_DIR}/REVISION' 2>/dev/null" || true)"
+[[ "$DEPLOYED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || DEPLOYED_COMMIT=""
 for FILE in app/composer.json app/composer.lock; do
   REMOTE_HASH="$(remote_file_hash "$FILE")"
-  if [ -n "$REMOTE_HASH" ] && [ "$REMOTE_HASH" != "$(file_hash "$FILE")" ]; then
-    die "${FILE} on the server differs from the repository, so it was changed on the server. Deploying would replace it and remove the packages it added. Bring the change into the repository, or restore the repository's version on the server, then deploy again."
+  [ -n "$REMOTE_HASH" ] || continue
+  [ "$REMOTE_HASH" != "$(file_hash "$FILE")" ] || continue
+  if [ -n "$DEPLOYED_COMMIT" ] && git cat-file -e "${DEPLOYED_COMMIT}:${FILE}" 2>/dev/null \
+    && [ "$REMOTE_HASH" = "$(git show "${DEPLOYED_COMMIT}:${FILE}" | stdin_hash)" ]; then
+    continue
   fi
+  die "${FILE} on the server matches neither this commit nor the last deployed one (${DEPLOYED_COMMIT:0:12}${DEPLOYED_COMMIT:+, from REVISION}${DEPLOYED_COMMIT:-no REVISION}), so it was changed on the server. Deploying would replace it and remove the packages it added. Bring the change into the repository, or restore the deployed version on the server, then deploy again."
 done
 
 # --- 3. Build ----------------------------------------------------------------

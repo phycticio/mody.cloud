@@ -155,7 +155,7 @@ git push origin main                   # production deploys only pushed commits 
 - The working tree has changes, the branch is not `main`, or `main` is not pushed. Only committed, shared code reaches production.
 - SSH needs a prompt. Key authentication and a host key already in `known_hosts` are required (`BatchMode`, `StrictHostKeyChecking=yes`).
 - The target is not the production stack. The script checks for `compose.yml` and `.env` in the directory, which also catches an unmounted disk, and for `HOST_NAME=mody.cloud`.
-- The server's `app/composer.json` or `app/composer.lock` differs from the repository. A package installed by hand on the server would otherwise be deleted by the sync.
+- The server's `app/composer.json` or `app/composer.lock` matches neither the commit being deployed nor the last deployed one (from `REVISION`). Then it was edited on the server, and the sync would delete what that edit added. A change made in the repository passes.
 - The build fails, or it changes tracked files (for example the lockfile).
 - The server's `app/web/plugins`, `app/web/mu-plugins` or `app/web/themes` has an entry the build does not, for example a plugin installed from wp-admin. Added after five wp-admin installs nearly got deleted on 2026-11-04.
 
