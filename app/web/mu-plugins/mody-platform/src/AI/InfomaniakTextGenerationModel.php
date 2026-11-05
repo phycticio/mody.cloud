@@ -31,6 +31,26 @@ class InfomaniakTextGenerationModel extends AbstractOpenAiCompatibleTextGenerati
 	}
 
 	/**
+	 * Turns Qwen's thinking mode off unless the caller asks for it.
+	 *
+	 * With thinking on, Qwen spends hundreds of reasoning tokens before
+	 * answering: about 5x the tokens for the same block markup, and plugin
+	 * features such as excerpt generation ran past the AI Client's 30-second
+	 * timeout (checked 2026-11-06). Pass the custom option
+	 * `chat_template_kwargs` => array( 'enable_thinking' => true ) to turn it on.
+	 *
+	 * @param list<\WordPress\AiClient\Messages\DTO\Message> $prompt The prompt messages.
+	 * @return array<string, mixed> The request parameters.
+	 */
+	protected function prepareGenerateTextParams( array $prompt ): array {
+		$params = parent::prepareGenerateTextParams( $prompt );
+		if ( str_starts_with( $this->metadata()->getId(), 'Qwen/' ) && ! isset( $params['chat_template_kwargs'] ) ) {
+			$params['chat_template_kwargs'] = array( 'enable_thinking' => false );
+		}
+		return $params;
+	}
+
+	/**
 	 * Wraps the JSON schema the way the OpenAI API expects it.
 	 *
 	 * Core sends the schema itself as `response_format.json_schema`. Infomaniak

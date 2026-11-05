@@ -44,7 +44,6 @@ class InfomaniakModelMetadataDirectory extends AbstractOpenAiCompatibleModelMeta
 		$models = is_array( $body ) && isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
 
 		$capabilities = array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() );
-		$options      = self::text_options();
 
 		$default = InfomaniakProvider::default_model();
 		$list    = array();
@@ -53,6 +52,7 @@ class InfomaniakModelMetadataDirectory extends AbstractOpenAiCompatibleModelMeta
 				continue;
 			}
 			$id       = (string) $model['name'];
+			$options  = self::text_options( in_array( $id, self::VISION_MODELS, true ) );
 			$metadata = new ModelMetadata( $id, $id, $capabilities, $options );
 			// The AI Client uses the first suitable model when a prompt names
 			// none, so the default model goes first.
@@ -66,14 +66,41 @@ class InfomaniakModelMetadataDirectory extends AbstractOpenAiCompatibleModelMeta
 	}
 
 	/**
+	 * Models verified to accept an image next to the text (2026-11-06).
+	 *
+	 * Infomaniak's listing has no field for image support, so it is declared
+	 * only for models that were tested: each one described a test PNG sent as
+	 * an inline `image_url` data URI. New models stay text-only until tested
+	 * (documentation/ai-engine.md).
+	 */
+	private const VISION_MODELS = array(
+		'Qwen/Qwen3.8-27B-FP8',
+		'mistralai/Ministral-3-14B-Instruct-2512',
+		'google/gemma-4-31B-it',
+		'mistralai/Mistral-Small-4-119B-2603',
+		'Qwen/Qwen3.5-397B-A17B-FP8',
+		'moonshotai/Kimi-K2.6',
+		'swiss-ai/Apertus-v1.5-70B',
+	);
+
+	/**
 	 * Options the OpenAI-compatible chat endpoint accepts for these models.
 	 *
 	 * Function calling and JSON-schema output were verified against
-	 * Infomaniak on 2026-11-04 (see documentation/ai-engine.md).
+	 * Infomaniak on 2026-11-04, image input on 2026-11-06 (see
+	 * documentation/ai-engine.md).
 	 *
+	 * @param bool $vision Whether the model also accepts images.
 	 * @return list<SupportedOption> Supported options.
 	 */
-	private static function text_options(): array {
+	private static function text_options( bool $vision ): array {
+		$input_modalities = array( array( ModalityEnum::text() ) );
+		if ( $vision ) {
+			// An image with or without text: the AI Client compares these as sets.
+			$input_modalities[] = array( ModalityEnum::text(), ModalityEnum::image() );
+			$input_modalities[] = array( ModalityEnum::image() );
+		}
+
 		return array(
 			new SupportedOption( OptionEnum::systemInstruction() ),
 			new SupportedOption( OptionEnum::maxTokens() ),
@@ -86,7 +113,7 @@ class InfomaniakModelMetadataDirectory extends AbstractOpenAiCompatibleModelMeta
 			new SupportedOption( OptionEnum::outputMimeType(), array( 'text/plain', 'application/json' ) ),
 			new SupportedOption( OptionEnum::outputSchema() ),
 			new SupportedOption( OptionEnum::customOptions() ),
-			new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
+			new SupportedOption( OptionEnum::inputModalities(), $input_modalities ),
 			new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::text() ) ) ),
 		);
 	}

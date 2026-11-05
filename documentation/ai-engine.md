@@ -11,7 +11,7 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 | Model | `Qwen/Qwen3.8-27B-FP8` (default). Override with `INFOMANIAK_AI_MODEL`. |
 | Base URL | `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, from `INFOMANIAK_AI_BASE_URL`. |
 | Authentication | `Authorization: Bearer <token>`. The token is `INFOMANIAK_API_KEY`, which the AI Client reads from the environment by itself. |
-| Thinking mode | Off for generation: pass `chat_template_kwargs.enable_thinking = false` as a custom option. Same output, about a fifth of the tokens. |
+| Thinking mode | Off by default for Qwen models: the provider sends `chat_template_kwargs.enable_thinking = false` unless the caller sets that option. Same output, about a fifth of the tokens, and plugin features stay under the AI Client's 30-second timeout. To turn it on for one call, pass the custom option `chat_template_kwargs` => `array( 'enable_thinking' => true )`. |
 | Price | Not verified for Qwen. The briefing's figures (0.003 / 0.004 EUR per 10K input / output tokens) were for Ministral. Check Infomaniak's pricing before launch. |
 
 ## How it is wired
@@ -29,22 +29,18 @@ WordPress (any site in the network)
 - **Network-wide.** Every site in the Multisite network uses the same provider and token, with no per-site setup (checked on the `alpha` subsite).
 - **Settings → Connectors** shows "Infomaniak AI" with the key source `env`. The token is never stored in the database (rule 6).
 - **Model list.** The OpenAI-compatible `/models` endpoint works but lists every model without a type, embeddings included. The directory uses Infomaniak's native listing instead and keeps `type = llm`. The default model is listed first, because the AI Client uses the first suitable model when a prompt names none. The list is cached for a day.
+- **Image input.** Infomaniak's listing has no field for image support, so the directory declares text-plus-image input only for the models in `VISION_MODELS`. Each was tested on 2026-11-06 with a PNG sent as an inline `image_url` data URI, the way core sends attachments. New models stay text-only until they are tested and added to that list.
 - **JSON output.** Core sends the schema itself as `response_format.json_schema`. Infomaniak validates the OpenAI shape and rejects a request without `json_schema.name` (HTTP 400), so the model class wraps the schema as `{ "name": "response", "schema": … }`.
 - Everything else (messages, tools, parsing) is core's OpenAI-compatible implementation.
 
-**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
+**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
 
 Local setup: put both variables in `.env`, then `docker compose up -d wordpress`. The container reads `env_file` only when it is created, and PHP-FPM passes the environment through (`clear_env = no`).
 
 ## Calling the model
 
 ```php
-use WordPress\AiClient\Providers\Models\DTO\ModelConfig;
-
 $blocks = wp_ai_client_prompt( $user_prompt )
-	->using_model_config( ModelConfig::fromArray( array(
-		'customOptions' => array( 'chat_template_kwargs' => array( 'enable_thinking' => false ) ),
-	) ) )
 	->using_system_instruction( $system_prompt ) // Always built from the brand profile (rule 4).
 	->using_temperature( 0.1 )
 	->using_max_tokens( 800 )
@@ -53,8 +49,27 @@ $blocks = wp_ai_client_prompt( $user_prompt )
 
 - **Tools:** `using_function_declarations( new FunctionDeclaration( $name, $description, $json_schema ) )`, or `using_abilities( … )` to offer registered WordPress abilities (Abilities API) as tools. Read the calls from `generate_text_result()->toMessage()->getParts()`.
 - **JSON:** `as_json_response( $json_schema )`.
-- Call `using_model_config()` first: the other `using_*` calls add to the configuration it sets.
+- If you use `using_model_config()` (for custom options), call it first: the other `using_*` calls add to the configuration it sets.
 - The builder returns `WP_Error` instead of throwing.
+
+## Testing locally
+
+1. Put `INFOMANIAK_API_KEY` and `INFOMANIAK_AI_BASE_URL` in `.env` and run `docker compose up -d wordpress`.
+2. Run the smoke test from the repository root. It checks the provider, plain text, Gutenberg blocks, function calling, JSON output and, if the `ai` plugin is active, its title feature:
+
+   ```bash
+   docker exec -i -u www-data mody_cloud_app \
+     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-smoke-test.php
+   ```
+
+3. In wp-admin (`https://mody.local/wp/wp-admin/`):
+   - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.
+   - **Settings → AI** turns the `ai` plugin's features on and off. Network-activate the plugin first: `./bin/wp plugin activate ai --network`.
+   - **Settings → Connector Approvals** must approve `ai/ai.php` for `infomaniak` while the Connector Approval experiment is on.
+   - In the block editor, the enabled features (title, excerpt and so on) appear as buttons and call Infomaniak.
+   - **Alt text** (`ai/alt-text-generation`): select an Image block and use **Generate Alt Text**, then **Apply**. In the Media Library, open an image and use **Generate**. The ability returns a suggestion (`alt_text`, `is_decorative`) and saves nothing until you apply it. Local images are sent to Infomaniak inline (base64), so the model never needs to reach `mody.local`.
+
+On 2026-11-06 the local site had all 27 `ai` experiments enabled, including the ones that run automatically (Comment Moderation, Type-ahead Text, Content Verification). `ai/ai.php` was approved for `infomaniak` there. Title, excerpt, summary and slug generation answered in about one second each.
 
 ## Verification (2026-11-04)
 
@@ -65,6 +80,7 @@ Run through `wp_ai_client_prompt()` on the local stack, and directly against the
 | Plain completion | Pass, about 0.5 s | Pass |
 | Function calling (`tools`) | Pass: `update_design {"slug":"primary","color":"#FF7F50"}` | Pass |
 | JSON-schema output | Pass | Pass |
+| Image input (2026-11-06) | Pass: described the test image correctly in 0.4 s. `ai/alt-text-generation` on a Media Library image took 1.1 s. | Pass. Gemma 4, Mistral Small 4, Qwen 3.5, Kimi K2.6 and Apertus also pass. |
 | Gutenberg blocks | Pass: valid `core/heading` and `core/paragraph`, palette slugs, no hex, identical after `parse_blocks()` and `serialize_blocks()`. 0.7 s and 95 tokens with thinking off. 1.6 s and 461 tokens (374 of them reasoning) with it on. | **Fail:** Markdown fences, invented syntax, Spanish text |
 
 Infomaniak's native listing marks Qwen 3.8 and most other LLMs as `coming_soon`, and only Ministral as `ready`. Qwen answered every test anyway. The MVP spec calls it a project-scoped build, which may explain the label. **Open question:** confirm with Infomaniak that this model is supported for production use.
