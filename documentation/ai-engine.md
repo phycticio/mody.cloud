@@ -90,6 +90,7 @@ Built 2026-11-06 for M2-02, following "Option C" ([mvp-spec.md](mvp-spec.md#2-de
 | --- | --- |
 | `Mody\Platform\AI\PageGenerator::generate_page( $site_id, $prompt )` | Returns validated block markup, or `WP_Error`. Saves nothing. For provisioning (M2-01) and other PHP callers. |
 | `PageGenerator::create_draft( $prompt, $title = '' )` | Generates for the current site and saves the result as a **draft page**. Returns `page_id`, `title`, `status` and `edit_url` (the Site Editor). Without a title, the generated level-1 heading becomes the title. |
+| `PageGenerator::insert_page( $markup, $args = array() )` | Saves already validated markup as a page (a draft by default). Used by `create_draft()` and by provisioning (M2-01), which publishes the front page. Since 2026-11-06 the page uses the theme's untitled template, `page-blank`: generated pages start with their own level-1 heading, and the default `page.html` printed the title a second time above it. |
 | Ability `mody/generate-page` (category `mody`) | Wraps `create_draft()`. Input `prompt` (3 to 2,000 characters) and optional `title`. Needs a logged-in user with `edit_pages`. Public: REST (`/wp-abilities/v1/abilities/mody/generate-page/run`), MCP (through mcp-adapter) and the agent chat. Unauthenticated calls get 401 before any model request. |
 
 How a call runs:
@@ -147,7 +148,7 @@ Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "u
 4. With `brand` true, `BrandProfile::update_colors()` writes the same colors to the site's row in `mody_brand_profiles`. The profile's colors never reach a prompt: prompts name palette slugs only (rule 2).
 5. The result carries the old and new colors (logged in `mody_agent_events`) and a **See the new colors** button to the Site Editor's styles.
 
-**The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-01) reuses it, and calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
+**The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-03) offers it, and provisioning (M2-01) calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
 
 ### Publishing and site settings
 
@@ -429,7 +430,15 @@ Runs in PHP, in the MU plugin, before anything is saved. Implemented in `Mody\Pl
    - color properties in inline styles that do not use `var(--wp--preset--color--<slug>)`;
    - `*Color` attributes, `var:preset|color|…` references and `has-<slug>-color` classes that name an unknown slug.
 5. Reject media from outside the network: `src`, `srcset` and CSS `url()` in the HTML, and the `url` attribute of image and cover blocks, must point to this site or a subdomain of the network (rule 1). Links (`href`) may point anywhere.
-6. On failure, retry: 3 attempts in all (the first plus 2 retries, mvp-spec §7). After that, report the failure. Never insert unvalidated output.
+6. On failure, retry: 3 attempts in all (the first plus 2 retries, mvp-spec §7). The retries run at temperature 0.4 (`PageGenerator::RETRY_TEMPERATURE`), the first attempt at 0.1. After that, report the failure. Never insert unvalidated output.
+
+**One repair before validating** (decided 2026-11-06, M2-01). `PageGenerator::repair()` fixes a single model typo: a paragraph block whose HTML starts with `<` and a capital letter (`<Packed with seeds…</p>`) gets the `p>` it lost (`<p>Packed with seeds…</p>`). No HTML tag starts that way in generated markup, and nothing else is touched. The result goes through the validator like any other answer, and each repair is logged (`repaired N paragraph opening tag(s)`).
+
+Why, measured on 2026-11-06 with the home page prompt "A home page for our bakery: what we bake, how delivery works, and how to order.":
+
+- The typo was in 4 of 5 raw first answers ("Packed with sunflower, pumpkin, and flax seeds").
+- At temperature 0.1 the retries repeated it word for word, so 1 of 6 generations failed all three attempts, and so did 1 of 2 real provisioning runs.
+- With the repair and the retries at 0.4: 6 of 6 valid. Two needed one retry, for a rarer glitch (`<>` inside a paragraph) that the 0.4 retry fixed both times.
 
 Steps 3 to 6 are an interpretation of the briefing's "use the theme's named colors" and "retry if broken" rules.
 

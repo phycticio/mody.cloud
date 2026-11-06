@@ -115,7 +115,7 @@ Two consequences worth knowing when a proxy is in front:
 - **Reaching `https://<host>:4435` directly no longer works.** The `Host` header then carries `:4435` and you get the signup redirect. Use the proxied host name. To check the stack itself without going through the proxy, override the header: `curl -k --resolve alpha.mody.cloud.local:4435:127.0.0.1 -H "Host: alpha.mody.cloud.local" https://alpha.mody.cloud.local:4435/`.
 - **The proxy needs the wildcard too**, or only the main site answers over HTTPS. One proxy host for `mody.cloud.local` leaves `alpha.*` failing TLS with `tlsv1 unrecognized name`, because no configured server name matches the SNI. Add a proxy host covering `*.mody.cloud.local` with a certificate that covers it, pointing at the stack's HTTPS port.
 
-Separately, `wp site create` writes each new site's `siteurl` and `home` with an `http://` scheme and without the Bedrock `/wp` suffix, so fix both after creating a site (`siteurl` carries `/wp` because core lives in `app/wp`, `home` does not — see [architecture.md](architecture.md)):
+Separately, `wp site create` writes each new site's `siteurl` and `home` with an `http://` scheme and without the Bedrock `/wp` suffix, so fix both after creating a site by hand. Sites created by the provisioning pipeline (M2-01) get both right: it copies the main site's scheme and suffix (`Pipeline::urls()`) (`siteurl` carries `/wp` because core lives in `app/wp`, `home` does not — see [architecture.md](architecture.md)):
 
 ```bash
 ./bin/wp --site=alpha option update home    "https://alpha.mody.cloud.local"

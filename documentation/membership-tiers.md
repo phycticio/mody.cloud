@@ -44,4 +44,4 @@ This is pseudocode and not a language decision. The code that enforces it has no
 
 - How disk quotas are measured and enforced is not specified. In Multisite there is a per-site upload quota that could be a starting point (**inference**).
 - Sending caps are enforced on the Infomaniak side. See [newsletter.md](newsletter.md).
-- The `can_create_site` check is the first step of the site creation flow in [brand-profile.md](brand-profile.md#site-creation-flow).
+- The `can_create_site` check is the first step of the site creation flow in [brand-profile.md](brand-profile.md#site-creation-flow). Built 2026-11-06 as `Provisioning\Quota::can_create_site()` (M2-01) with a stub until M1 adds `mody_members`: every user may have 3 sites (the trial and Collaborator limit). A user's sites are the network sites they administer (not the main site), plus site creations still on the way. M1 replaces the limit with the plan's (3, 10 or 50) through the `mody_site_limit` filter. The refusal never says "unlimited" (rule 7).

@@ -197,6 +197,18 @@ $check( 'broken, then valid: accepted', SystemPrompt::EXAMPLE === $result, $mess
 $check( '...after one retry', 2 === count( $requests ), count( $requests ) . ' request(s)' );
 $check( '...retry tells the model why', str_contains( $last_user_text(), 'previous answer was rejected' ) );
 $check( '...request settings', 0.1 === (float) ( $requests[0]['temperature'] ?? 0 ) && false === ( $requests[0]['chat_template_kwargs']['enable_thinking'] ?? null ), 'temperature ' . ( $requests[0]['temperature'] ?? '?' ) . ', thinking ' . wp_json_encode( $requests[0]['chat_template_kwargs'] ?? null ) );
+$check( '...the retry at a higher temperature', PageGenerator::RETRY_TEMPERATURE === (float) ( $requests[1]['temperature'] ?? 0 ), 'temperature ' . ( $requests[1]['temperature'] ?? '?' ) );
+
+// The `<Packed` typo: a paragraph that lost the `p>` of its opening tag is repaired, then validated.
+$typo     = str_replace( '<p>Drop your bike', '<Drop your bike', SystemPrompt::EXAMPLE );
+$fakes    = array( $typo );
+$requests = array();
+$result   = PageGenerator::generate_page( $site_id, 'A page for a bike repair shop.' );
+$check( 'typo "<Drop your bike": repaired', SystemPrompt::EXAMPLE === $result, $message( $result ) );
+$check( '...with no retry', 1 === count( $requests ), count( $requests ) . ' request(s)' );
+$attrs = "<!-- wp:paragraph {\"textColor\":\"primary\"} -->\n<Packed with seeds.</p>\n<!-- /wp:paragraph -->";
+$check( '...also with block attributes', str_contains( PageGenerator::repair( $attrs ), "-->\n<p>Packed with seeds.</p>" ) );
+$check( '...other tags left alone', $typo !== PageGenerator::repair( $typo ) && SystemPrompt::EXAMPLE === PageGenerator::repair( SystemPrompt::EXAMPLE ) && "<!-- wp:heading -->\n<Packed</h2>" === PageGenerator::repair( "<!-- wp:heading -->\n<Packed</h2>" ) );
 
 $pages_before = (int) wp_count_posts( 'page' )->draft;
 $fakes        = array_fill( 0, PageGenerator::MAX_ATTEMPTS, $broken_answer );

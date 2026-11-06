@@ -26,7 +26,13 @@ final class PageGenerator {
 	public const MAX_ATTEMPTS = 3;
 
 	/** Low temperature for valid syntax (ai-engine.md, "Master prompt rules"). */
-	private const TEMPERATURE = 0.1;
+	public const TEMPERATURE = 0.1;
+
+	/**
+	 * Temperature of the retries. At TEMPERATURE the model repeats the same
+	 * text, mistakes included, so a retry rarely fixed anything (2026-11-06).
+	 */
+	public const RETRY_TEMPERATURE = 0.4;
 
 	/** Room for a full page. A typical page is 1,000 to 3,000 tokens. */
 	private const MAX_TOKENS = 4000;
@@ -36,6 +42,9 @@ final class PageGenerator {
 
 	/** Longest accepted member prompt, in characters. */
 	public const MAX_PROMPT_LENGTH = 2000;
+
+	/** The theme's page template without a title (theme.json customTemplates). */
+	public const TEMPLATE = 'page-blank';
 
 	/**
 	 * Generates the block markup of a page for a site.
@@ -68,7 +77,7 @@ final class PageGenerator {
 			$output = wp_ai_client_prompt( $prompt . $feedback )
 				->using_system_instruction( $system )
 				->using_provider( 'infomaniak' )
-				->using_temperature( self::TEMPERATURE )
+				->using_temperature( 1 === $attempt ? self::TEMPERATURE : self::RETRY_TEMPERATURE )
 				->using_max_tokens( self::MAX_TOKENS )
 				->using_request_options( RequestOptions::fromArray( array( RequestOptions::KEY_TIMEOUT => self::TIMEOUT ) ) )
 				->generate_text();
@@ -79,7 +88,7 @@ final class PageGenerator {
 				return $output;
 			}
 
-			$markup = trim( $output );
+			$markup = self::repair( trim( $output ), $site_id, $attempt );
 			$valid  = BlockValidator::validate( $markup );
 			if ( true === $valid ) {
 				return $markup;
@@ -105,8 +114,7 @@ final class PageGenerator {
 	 * Generates a page on the current site and saves it as a draft.
 	 *
 	 * The validated markup goes straight into the post; it never passes back
-	 * through the model. Publishing and the front page are left to the caller
-	 * (provisioning in M2-01, the agent in M3-01).
+	 * through the model. Publishing is left to the member (mody/publish-page).
 	 *
 	 * @param string $prompt The member's description of the page.
 	 * @param string $title  Page title. Defaults to the generated level-1 heading.
@@ -118,21 +126,7 @@ final class PageGenerator {
 			return $markup;
 		}
 
-		$title = sanitize_text_field( $title );
-		if ( '' === $title ) {
-			$title = self::first_heading( $markup );
-		}
-
-		$page_id = wp_insert_post(
-			array(
-				'post_type'    => 'page',
-				'post_status'  => 'draft',
-				'post_title'   => '' !== $title ? $title : __( 'New page', 'mody_cloud' ),
-				'post_content' => wp_slash( $markup ),
-				'post_author'  => get_current_user_id(),
-			),
-			true
-		);
+		$page_id = self::insert_page( $markup, array( 'post_title' => $title ) );
 		if ( is_wp_error( $page_id ) ) {
 			return $page_id;
 		}
@@ -143,6 +137,65 @@ final class PageGenerator {
 			'status'   => 'draft',
 			'edit_url' => self::site_editor_url( $page_id ),
 		);
+	}
+
+	/**
+	 * Repairs the one model typo seen often enough to need it, before validation.
+	 *
+	 * Qwen sometimes drops the `p>` of a paragraph's opening tag: `<p>Packed
+	 * with seeds…</p>` comes back as `<Packed with seeds…</p>`, and the
+	 * retries repeated it (ai-engine.md, "Validation pipeline"). Only a
+	 * paragraph block whose HTML starts with `<` and a capital letter is
+	 * touched: no HTML tag starts that way in generated markup. The result is
+	 * validated like any other answer.
+	 *
+	 * @param string $markup  The model's answer, trimmed.
+	 * @param int    $site_id Site ID, for the log.
+	 * @param int    $attempt Attempt number, for the log.
+	 */
+	public static function repair( string $markup, int $site_id = 0, int $attempt = 0 ): string {
+		$repaired = preg_replace( '/(<!-- wp:paragraph(?: \{[^\n]*?\})? -->\s*)<(?=[A-Z])/', '$1<p>', $markup, -1, $count );
+		if ( ! is_string( $repaired ) ) {
+			return $markup;
+		}
+		if ( $count && $site_id ) {
+			self::log( $site_id, $attempt, "repaired $count paragraph opening tag(s)" );
+		}
+		return $repaired;
+	}
+
+	/**
+	 * Saves block markup as a page on the current site.
+	 *
+	 * The page uses the theme's template without a title (TEMPLATE) when the
+	 * theme has it: generated pages start with their own level-1 heading, and
+	 * the default page template would show the title a second time.
+	 *
+	 * @param string               $markup Block markup, already validated.
+	 * @param array<string, mixed> $args   wp_insert_post() arguments that replace the defaults:
+	 *                                     a draft by the current user, titled with the first
+	 *                                     level-1 heading (an empty post_title means the same).
+	 * @return int|WP_Error The page ID.
+	 */
+	public static function insert_page( string $markup, array $args = array() ): int|WP_Error {
+		$title = sanitize_text_field( (string) ( $args['post_title'] ?? '' ) );
+		if ( '' === $title ) {
+			$title = self::first_heading( $markup );
+		}
+
+		$defaults = array(
+			'post_type'    => 'page',
+			'post_status'  => 'draft',
+			'post_content' => $markup,
+			'post_author'  => get_current_user_id(),
+		);
+		if ( isset( wp_get_theme()->get_page_templates( null, 'page' )[ self::TEMPLATE ] ) ) {
+			$defaults['page_template'] = self::TEMPLATE;
+		}
+
+		$args['post_title'] = '' !== $title ? $title : __( 'New page', 'mody_cloud' );
+
+		return wp_insert_post( wp_slash( array_merge( $defaults, $args ) ), true );
 	}
 
 	/**
@@ -159,9 +212,10 @@ final class PageGenerator {
 	 *
 	 * @param string $markup Validated block markup.
 	 */
-	private static function first_heading( string $markup ): string {
+	public static function first_heading( string $markup ): string {
+		// Decoded: the title is stored as text ("I'm", not "I&#039;m").
 		return preg_match( '/<h1\b[^>]*>(.*?)<\/h1>/is', $markup, $match )
-			? trim( wp_strip_all_tags( $match[1] ) )
+			? trim( html_entity_decode( wp_strip_all_tags( $match[1] ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) )
 			: '';
 	}
 

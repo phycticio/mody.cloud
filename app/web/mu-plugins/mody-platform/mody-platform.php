@@ -40,6 +40,7 @@ Spectra\SpectraGuard::boot();
  */
 add_action( 'init', array( Brand\BrandProfile::class, 'install' ), 1 );
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
+add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 
 /*
  * Agent settings (Network Admin > Settings > Mody Agent): event retention.

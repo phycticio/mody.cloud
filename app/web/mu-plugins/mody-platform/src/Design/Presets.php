@@ -12,7 +12,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * The curated color presets of documentation/mvp-spec.md section 6.
  *
- * The single source for the brand wizard (M2-01) and the agent's
+ * The single source for the brand wizard (M2-03), provisioning (M2-01) and the agent's
  * `mody/update-design` (M3-02). Each preset sets the three brand palette
  * slugs; `base` and `contrast` stay the theme's. The values are the spec's
  * candidate table, still to be curated by the maintainer before M2 ships.

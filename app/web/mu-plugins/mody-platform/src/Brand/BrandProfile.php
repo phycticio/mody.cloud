@@ -158,6 +158,47 @@ final class BrandProfile {
 	}
 
 	/**
+	 * Saves a site's brand profile (provisioning, M2-01).
+	 *
+	 * The values are cleaned like from_row() cleans what it reads.
+	 *
+	 * @param int                   $user_id The member who owns the site.
+	 * @param int                   $site_id Site (blog) ID.
+	 * @param array<string, string> $fields  brand_name, mission, tone_of_voice, and optionally
+	 *                                       logo_url, color_primary, color_secondary, color_accent.
+	 * @return self|\WP_Error The saved profile.
+	 */
+	public static function insert( int $user_id, int $site_id, array $fields ): self|\WP_Error {
+		$profile = self::from_row( array_merge( $fields, array( 'site_id' => $site_id ) ) );
+		if ( null === $profile || $user_id < 1 || $site_id < 1 ) {
+			return new \WP_Error( 'mody_invalid_brand_profile', __( 'The brand profile needs a brand name, a member and a site.', 'mody_cloud' ) );
+		}
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom table; one row.
+		$inserted = $wpdb->insert(
+			self::table(),
+			array(
+				'user_id'         => $user_id,
+				'site_id'         => $site_id,
+				'brand_name'      => $profile->brand_name,
+				'mission'         => $profile->mission,
+				'tone_of_voice'   => $profile->tone,
+				'logo_url'        => $profile->logo_url,
+				'color_primary'   => $profile->colors['primary'],
+				'color_secondary' => $profile->colors['secondary'],
+				'color_accent'    => $profile->colors['accent'],
+			),
+			array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+		);
+		if ( false === $inserted ) {
+			return new \WP_Error( 'mody_brand_profile_not_saved', __( 'The brand profile could not be saved.', 'mody_cloud' ) );
+		}
+
+		return self::for_site( $site_id ) ?? new \WP_Error( 'mody_brand_profile_not_saved', __( 'The brand profile could not be saved.', 'mody_cloud' ) );
+	}
+
+	/**
 	 * Changes the brand colors of a profile row (mody/update-design with `brand` true).
 	 *
 	 * @param int                   $profile_id Row ID (BrandProfile::$id).

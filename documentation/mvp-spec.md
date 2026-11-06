@@ -62,7 +62,7 @@ Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard:
 | Tier 2 · Member | `member` | 15 EUR | 10 |
 | Tier 3 · Patron | `patron` | 50 EUR | 50 |
 
-Fees as documented in [membership-tiers.md](membership-tiers.md); confirm before launch. Resource quotas (storage, upload size) arrive in a later iteration — MVP tiers differ **only** in site count.
+Fees as documented in [membership-tiers.md](membership-tiers.md); confirm before launch. Until M1 adds `mody_members`, `Provisioning\Quota::can_create_site()` allows every user the trial's 3 sites (decided 2026-11-06, M2-01); M1 swaps in the plan's limit. Resource quotas (storage, upload size) arrive in a later iteration — MVP tiers differ **only** in site count.
 
 ### Signup flow (card required)
 
@@ -99,7 +99,7 @@ The dashboard is the only place where cross-site actions (create/delete site, bi
 
 **Design principle: the member never types raw values** — no hex codes, no font names, no CSS. Every step is a **choice** from a small number of beautiful, prefilled options, with a live preview. The whole wizard can be completed in three clicks.
 
-Entry: **+ New site** on the dashboard.
+Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizard lives under Network Admin → **Mody**, for super admins (decided 2026-11-06, [M2-03](../tickets/M2-03-brand-wizard.md)). Its server side is built: `Provisioning\Pipeline::validate()` and `start()` ([M2-01](../tickets/M2-01-site-provisioning.md)).
 
 ### Step 1 — Your brand (identity)
 
@@ -117,7 +117,7 @@ Entry: **+ New site** on the dashboard.
 - Fonts are **Inter, fixed, for the MVP** (the picker appears in a later iteration).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
 
-Candidate presets (data-driven in the MU plugin, to be curated before M2 ships). Since 2026-11-06 (M3-02) they live in `src/Design/Presets.php`, the single source for the wizard and the agent's `mody/update-design`, with the slugs `mody-teal`, `forest`, `ocean`, `plum`, `graphite` and `sand`:
+The presets (data-driven in the MU plugin; kept as they are for M2, decided 2026-11-06). Since 2026-11-06 (M3-02) they live in `src/Design/Presets.php`, the single source for the wizard and the agent's `mody/update-design`, with the slugs `mody-teal`, `forest`, `ocean`, `plum`, `graphite` and `sand`:
 
 | Preset | Primary | Secondary | Accent |
 | --- | --- | --- | --- |
@@ -149,15 +149,17 @@ Candidate presets (data-driven in the MU plugin, to be curated before M2 ships).
 
 Runs **in-process** in the MU plugin (no REST, no Application Passwords — that simplifies the old flow in [brand-profile.md](brand-profile.md#site-creation-flow)). Each step writes to a `mody_provisioning_jobs` row, is idempotent, and is resumable; a site is never left unthemed.
 
+**Built 2026-11-06** ([M2-01](../tickets/M2-01-site-provisioning.md)): `Provisioning\Pipeline` in the MU plugin, tested by `scripts/provisioning-test.php`. How it works: [brand-profile.md](brand-profile.md#site-creation-flow). The profile row needs the new site's ID, so `profile` runs after `site`. The table below is in the order the steps run.
+
 | Step | Action |
 | --- | --- |
 | 1 `quota` | `can_create_site()` (section 4) and slug uniqueness (network-wide). |
-| 2 `profile` | Save the brand profile row (network-wide table, `base_prefix`). |
-| 3 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. |
-| 4 `theme` | Activate theme `theme` and the market plugins on the new site. Spectra is network-active already (section 10). |
-| 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. |
-| 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. |
-| 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). |
+| 2 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. Built: created public, with the theme, the tagline and `https://` addresses already set; WordPress's sample post and page removed. |
+| 3 `profile` | Save the brand profile row (network-wide table, `base_prefix`), with the preset's colors as the brand colors. |
+| 4 `theme` | Activate theme `theme` and the market plugins on the new site. Spectra is network-active already (section 10). Built: the theme is set in step 2 and checked here; the market plugins come with M4-02. |
+| 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. Built: the palette (`SiteDesign::apply()`); Inter is the theme's default. |
+| 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. Built: `PageGenerator::generate_page()` in the new site's context; the page uses the theme's untitled template (`page-blank`); `Pipeline::retry_generation()` is the retry. |
+| 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). Built: sent at most once; a failed email does not fail the job. |
 
 Newsletter domain registration (old step 8) is **post-MVP**.
 
@@ -351,6 +353,7 @@ mody_agent_events (
 **Built so far:**
 
 - `mody_brand_profiles` (2026-11-06, M2-02). `Brand\BrandProfile::install()` creates it on `init`, through `dbDelta` and a network option holding the schema version (`mody_brand_profiles_db_version`). It matches the definition above, with two additions: IDs are `bigint(20) unsigned` like WordPress's own, and there is an index on `site_id` for the per-site lookup. A site's profile is its newest row.
+- `mody_provisioning_jobs` (2026-11-06, M2-01). `Provisioning\Jobs::install()` creates it the same way (`mody_provisioning_jobs_db_version`). It matches the definition above, with these additions: unsigned `bigint(20)` IDs; a `queued` status (a job not run yet); `input`, the validated wizard answers, and `result`, what the steps produced (`profile_id`, `page_id`, `fallback`, `generation_error`, `email`), both JSON in `LONGTEXT`; indexes on `user_id` and `status`. The `step` enum lists the steps in the order they run (`profile` after `site`).
 - `mody_agent_events` (2026-11-06, M3-01). `Agent\AgentEvents::install()` creates it the same way (`mody_agent_events_db_version`). It matches the definition above, with these additions:
   - `duration_ms` (section 8 asks for the duration);
   - unsigned `bigint(20)` IDs;
@@ -381,7 +384,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 | --- | --- | --- | --- |
 | **M0** | Multisite foundation | 3, 12 | Flip the multisite env switches, add the wildcard to `APP_DOMAINS`, document the network activation step; two subdomain sites reachable over HTTPS locally, both running theme `theme`, owned by one non-super-admin user. |
 | **M1** | Accounts, trial and billing | 4, 5 | Register → Mollie 0.01 checkout → webhook → active trial with dashboard (My sites, Plan & billing). Simulated failed charge → read-only + banner + 60-day deletion job verified. |
-| **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). |
+| **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **In progress:** M2-02 (AI engine) and M2-01 (the provisioning pipeline) done 2026-11-06; M2-03 (the wizard) and M2-04 (its live preview) to do. |
 | **M3** | Agent | 8 | Chat in wp-admin; all six tools work end-to-end; injection attempts refused and logged; every event in `mody_agent_events`. **Done 2026-11-06** (M3-01 to M3-04), except three items moved on: the plugin toggle tools to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the agent menu to member sites to M4-01. |
 | **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; market page activates listed plugins; every editing entry point lands in the Site Editor. |
 | **M5** | Hardening and launch | all | Production compose (no Xdebug/DB ports), wildcard cert at the upstream, backup/restore drill, security pass (nonces, sanitization, webhook signatures), monitoring via Query Monitor, launch checklist green for 100 founding members. |

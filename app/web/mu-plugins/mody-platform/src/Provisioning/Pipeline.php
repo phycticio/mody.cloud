@@ -1,0 +1,543 @@
+<?php
+/**
+ * The site provisioning pipeline (mvp-spec section 7, ticket M2-01).
+ *
+ * @package Mody\Platform
+ */
+
+namespace Mody\Platform\Provisioning;
+
+use Mody\Platform\AI\PageGenerator;
+use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Design\Presets;
+use Mody\Platform\Design\SiteDesign;
+use Mody\Platform\SiteEditor;
+use WP_Error;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Creates a member's site from the wizard's answers, in-process.
+ *
+ * start() validates the answers and queues a job; run() runs its steps in
+ * order (Jobs::STEPS): quota, site, profile, theme, styles, page, email.
+ * Each step's outcome and the next step are written in one update, after
+ * the step's side effects, so a killed run resumes at the step it was in.
+ * Every step can run again without doing its work twice: the site records
+ * its job (option `mody_provisioning_job`), and so does its front page (post
+ * meta), the profile is looked up by site, and the welcome email is marked
+ * before it is sent. The site gets its theme as it is created, so it is
+ * never unthemed.
+ *
+ * Callers check permissions: the wizard (M2-03) for its user.
+ */
+final class Pipeline {
+
+	/** The block theme every member site runs. */
+	public const THEME = 'theme';
+
+	/** Steps that run in the new site's context. */
+	private const SITE_STEPS = array( 'theme', 'styles', 'page', 'email' );
+
+	/** Longest "what do you do?" sentence: it becomes the tagline (mody/update-site-settings caps it at 200). */
+	public const MAX_MISSION_LENGTH = 200;
+
+	/** Longest site title and brand name (the profile table's column). */
+	public const MAX_NAME_LENGTH = 120;
+
+	/**
+	 * Validates the wizard's answers and queues a job.
+	 *
+	 * @param int                  $user_id The member the site is for.
+	 * @param array<string, mixed> $input   slug, title, mission, prompt, and optionally
+	 *                                      brand_name (default: title), tone (default:
+	 *                                      friendly), preset (default: Presets::DEFAULT).
+	 * @return int|WP_Error The job ID, or `mody_invalid_input` (data: `fields`, field => message),
+	 *                      `mody_site_limit_reached`, `mody_invalid_user`.
+	 */
+	public static function start( int $user_id, array $input ): int|WP_Error {
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return new WP_Error( 'mody_invalid_user', __( 'Unknown member.', 'mody_cloud' ) );
+		}
+
+		$clean = self::validate( $input, $user );
+		if ( is_wp_error( $clean ) ) {
+			return $clean;
+		}
+
+		$quota = Quota::can_create_site( $user_id );
+		if ( is_wp_error( $quota ) ) {
+			return $quota;
+		}
+
+		$job_id = Jobs::create( $user_id, $clean );
+		return $job_id ? $job_id : new WP_Error( 'mody_job_not_saved', __( 'The site could not be queued. Please try again.', 'mody_cloud' ) );
+	}
+
+	/**
+	 * Validates and cleans the wizard's answers (mvp-spec section 6).
+	 *
+	 * @param array<string, mixed> $input The answers.
+	 * @param \WP_User             $user  The member.
+	 * @return array<string, string>|WP_Error
+	 */
+	public static function validate( array $input, \WP_User $user ): array|WP_Error {
+		$text   = static fn( string $key ): string => is_scalar( $input[ $key ] ?? null ) ? trim( (string) $input[ $key ] ) : '';
+		$errors = array();
+
+		$slug  = strtolower( $text( 'slug' ) );
+		$title = sanitize_text_field( $text( 'title' ) );
+		$check = wpmu_validate_blog_signup( $slug, $title, $user );
+		foreach ( array( 'blogname' => 'slug', 'blog_title' => 'title' ) as $code => $field ) {
+			if ( $check['errors']->get_error_message( $code ) ) {
+				$errors[ $field ] = $check['errors']->get_error_message( $code );
+			}
+		}
+		// The check above builds the domain from the current request: check the network's too.
+		if ( ! isset( $errors['slug'] ) && '' !== $slug && domain_exists( self::domain( $slug ), get_network()->path, get_current_network_id() ) ) {
+			$errors['slug'] = __( 'Sorry, that site already exists!' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string.
+		}
+		if ( mb_strlen( $title ) > self::MAX_NAME_LENGTH ) {
+			/* translators: %d: maximum number of characters. */
+			$errors['title'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_NAME_LENGTH );
+		}
+
+		$brand = sanitize_text_field( $text( 'brand_name' ) );
+		$brand = '' !== $brand ? $brand : $title;
+		if ( mb_strlen( $brand ) > self::MAX_NAME_LENGTH ) {
+			/* translators: %d: maximum number of characters. */
+			$errors['brand_name'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_NAME_LENGTH );
+		}
+
+		$mission = sanitize_text_field( $text( 'mission' ) );
+		if ( '' === $mission ) {
+			$errors['mission'] = __( 'Say in one sentence what you do.', 'mody_cloud' );
+		} elseif ( mb_strlen( $mission ) > self::MAX_MISSION_LENGTH ) {
+			/* translators: %d: maximum number of characters. */
+			$errors['mission'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_MISSION_LENGTH );
+		}
+
+		$tone = '' !== $text( 'tone' ) ? $text( 'tone' ) : 'friendly';
+		if ( ! in_array( $tone, BrandProfile::TONES, true ) ) {
+			$errors['tone'] = __( 'Choose one of the three tones.', 'mody_cloud' );
+		}
+
+		$preset = '' !== $text( 'preset' ) ? $text( 'preset' ) : Presets::DEFAULT;
+		if ( null === Presets::colors( $preset ) ) {
+			$errors['preset'] = __( 'Choose one of the design presets.', 'mody_cloud' );
+		}
+
+		$prompt = trim( sanitize_textarea_field( $text( 'prompt' ) ) );
+		if ( '' === $prompt ) {
+			$errors['prompt'] = __( 'Describe the first page of your site.', 'mody_cloud' );
+		} elseif ( mb_strlen( $prompt ) > PageGenerator::MAX_PROMPT_LENGTH ) {
+			/* translators: %d: maximum number of characters. */
+			$errors['prompt'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), PageGenerator::MAX_PROMPT_LENGTH );
+		}
+
+		if ( $errors ) {
+			return new WP_Error( 'mody_invalid_input', reset( $errors ), array( 'fields' => $errors ) );
+		}
+
+		return array(
+			'slug'       => $slug,
+			'title'      => $title,
+			'brand_name' => $brand,
+			'mission'    => $mission,
+			'tone'       => $tone,
+			'preset'     => $preset,
+			'prompt'     => $prompt,
+		);
+	}
+
+	/**
+	 * Runs a job from the step it is at, until it is done or a step fails.
+	 *
+	 * A queued or failed job runs; so does a running one that stopped being
+	 * updated (Jobs::STALE_AFTER), which means its run was killed.
+	 *
+	 * @param int $job_id Job ID.
+	 * @return array<string, mixed>|WP_Error The job as it ends (status `done` or `failed`), or
+	 *                                       `mody_job_not_found`, `mody_job_busy` (another request runs it).
+	 */
+	public static function run( int $job_id ): array|WP_Error {
+		if ( ! Jobs::claim( $job_id ) ) {
+			$job = Jobs::get( $job_id );
+			if ( null === $job ) {
+				return new WP_Error( 'mody_job_not_found', __( 'Unknown site creation.', 'mody_cloud' ) );
+			}
+			return 'done' === $job['status'] ? $job : new WP_Error( 'mody_job_busy', __( 'This site is being created already.', 'mody_cloud' ) );
+		}
+
+		for ( $job = Jobs::get( $job_id ); 'done' !== $job['step']; $job = Jobs::get( $job_id ) ) {
+			$step     = $job['step'];
+			$method   = 'step_' . $step;
+			$in_site  = in_array( $step, self::SITE_STEPS, true );
+			$switched = $in_site && get_site( $job['site_id'] ) && switch_to_blog( $job['site_id'] );
+			try {
+				$outcome = $in_site && ! $switched
+					? new WP_Error( 'mody_site_missing', __( 'The new site no longer exists.', 'mody_cloud' ) )
+					: self::$method( $job );
+			} catch ( \Exception $e ) {
+				$outcome = new WP_Error( 'mody_step_exception', $e->getMessage() );
+			} finally {
+				if ( $switched ) {
+					restore_current_blog();
+				}
+			}
+
+			if ( is_wp_error( $outcome ) ) {
+				Jobs::update(
+					$job_id,
+					array(
+						'status'     => 'failed',
+						'last_error' => $step . ': ' . $outcome->get_error_code() . ': ' . $outcome->get_error_message(),
+					)
+				);
+				return Jobs::get( $job_id );
+			}
+
+			/**
+			 * Fires after a provisioning step did its work, before the job moves on.
+			 *
+			 * The tests throw here to simulate a run killed at the worst moment.
+			 *
+			 * @param string $step   The step that ran.
+			 * @param int    $job_id Job ID.
+			 */
+			do_action( 'mody_provisioning_step_done', $step, $job_id );
+
+			$outcome['step'] = Jobs::STEPS[ array_search( $step, Jobs::STEPS, true ) + 1 ];
+			Jobs::update( $job_id, $outcome );
+		}
+
+		Jobs::update( $job_id, array( 'status' => 'done' ) );
+		return Jobs::get( $job_id );
+	}
+
+	/**
+	 * Generates the front page again, for a site that got the fallback page
+	 * ("Retry generation", M2-03).
+	 *
+	 * @param int $job_id A done job whose page is the fallback.
+	 * @return array<string, mixed>|WP_Error The job, or `mody_nothing_to_retry`, or the generation error
+	 *                                       (the fallback page stays).
+	 */
+	public static function retry_generation( int $job_id ): array|WP_Error {
+		$job = Jobs::get( $job_id );
+		if ( null === $job || 'done' !== $job['status'] || empty( $job['result']['fallback'] ) || ! get_site( $job['site_id'] ) ) {
+			return new WP_Error( 'mody_nothing_to_retry', __( 'This site\'s first page was generated already.', 'mody_cloud' ) );
+		}
+
+		switch_to_blog( $job['site_id'] );
+		$page_id = (int) $job['result']['page_id'];
+		$markup  = PageGenerator::generate_page( $job['site_id'], (string) $job['input']['prompt'] );
+		if ( ! is_wp_error( $markup ) ) {
+			$saved = wp_update_post(
+				wp_slash(
+					array(
+						'ID'           => $page_id,
+						'post_title'   => PageGenerator::first_heading( $markup ),
+						'post_content' => $markup,
+					)
+				),
+				true
+			);
+			$markup = is_wp_error( $saved ) ? $saved : $markup;
+			if ( ! is_wp_error( $markup ) ) {
+				delete_post_meta( $page_id, '_mody_fallback' );
+			}
+		}
+		restore_current_blog();
+
+		if ( is_wp_error( $markup ) ) {
+			Jobs::update( $job_id, array( 'result' => array( 'generation_error' => $markup->get_error_code() . ': ' . $markup->get_error_message() ) ) );
+			return $markup;
+		}
+		Jobs::update(
+			$job_id,
+			array(
+				'result' => array(
+					'fallback'         => false,
+					'generation_error' => '',
+				),
+			)
+		);
+		return Jobs::get( $job_id );
+	}
+
+	/**
+	 * The page published when generation fails: "Hello, I'm {brand}" and the mission.
+	 *
+	 * @param string $brand   Brand name.
+	 * @param string $mission What the brand does.
+	 */
+	public static function fallback_markup( string $brand, string $mission ): string {
+		/* translators: %s: the brand name. */
+		$heading = sprintf( __( 'Hello, I\'m %s', 'mody_cloud' ), $brand );
+		return "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $heading ) . "</h1>\n<!-- /wp:heading -->\n\n"
+			. "<!-- wp:paragraph -->\n<p>" . esc_html( $mission ) . "</p>\n<!-- /wp:paragraph -->";
+	}
+
+	/**
+	 * A site's domain on this network: `slug.mody.cloud`.
+	 *
+	 * @param string $slug The site's subdomain.
+	 */
+	public static function domain( string $slug ): string {
+		return $slug . '.' . preg_replace( '|^www\.|', '', get_network()->domain );
+	}
+
+	/**
+	 * A new site's `home` and `siteurl`, shaped like the main site's.
+	 *
+	 * In a subdomain network WordPress gives new sites `http://` addresses,
+	 * and a `siteurl` without Bedrock's `/wp` (core lives in app/wp). The
+	 * main site has both right, so its scheme and suffix are copied.
+	 *
+	 * @param string $domain The new site's domain.
+	 * @param string $path   The new site's path.
+	 * @return array{home: string, siteurl: string}
+	 */
+	public static function urls( string $domain, string $path ): array {
+		$main_home    = untrailingslashit( get_home_url( get_main_site_id() ) );
+		$main_siteurl = untrailingslashit( get_site_url( get_main_site_id() ) );
+		$scheme       = (string) wp_parse_url( $main_home, PHP_URL_SCHEME );
+		$suffix       = str_starts_with( $main_siteurl, $main_home ) ? substr( $main_siteurl, strlen( $main_home ) ) : '';
+		$home         = untrailingslashit( ( '' !== $scheme ? $scheme : 'https' ) . '://' . $domain . $path );
+		return array(
+			'home'    => $home,
+			'siteurl' => $home . $suffix,
+		);
+	}
+
+	/**
+	 * Step 1: the quota, and that the address is still free.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_quota( array $job ): array|WP_Error {
+		$quota = Quota::can_create_site( $job['user_id'], $job['id'] );
+		if ( is_wp_error( $quota ) ) {
+			return $quota;
+		}
+		if ( domain_exists( self::domain( $job['input']['slug'] ), get_network()->path, get_current_network_id() ) ) {
+			return new WP_Error( 'mody_site_exists', __( 'Sorry, that site already exists!' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string.
+		}
+		return array();
+	}
+
+	/**
+	 * Step 2: the site, with the member as its administrator and the theme
+	 * already active. A site this job created before it was killed is reused.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_site( array $job ): array|WP_Error {
+		$input   = $job['input'];
+		$domain = self::domain( $input['slug'] );
+		$path   = get_network()->path;
+		// get_sites(), not get_blog_id_from_url(), which may cache "not found" in the object cache.
+		$found   = get_sites(
+			array(
+				'domain'     => $domain,
+				'path'       => $path,
+				'network_id' => get_current_network_id(),
+				'fields'     => 'ids',
+				'number'     => 1,
+			)
+		);
+		$site_id = (int) ( $found[0] ?? 0 );
+
+		if ( $site_id ) {
+			if ( (int) get_blog_option( $site_id, 'mody_provisioning_job' ) !== $job['id'] ) {
+				return new WP_Error( 'mody_site_exists', __( 'Sorry, that site already exists!' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string.
+			}
+		} else {
+			// wpmu_create_blog() turns wp_installing() on and leaves it on.
+			$installing = wp_installing();
+			$site_id    = wpmu_create_blog(
+				$domain,
+				$path,
+				$input['title'],
+				$job['user_id'],
+				array_merge(
+					self::urls( $domain, $path ),
+					array(
+						'public'                => 1,
+						'template'              => self::THEME,
+						'stylesheet'            => self::THEME,
+						'blogdescription'       => $input['mission'],
+						'mody_provisioning_job' => $job['id'],
+					)
+				),
+				get_current_network_id()
+			);
+			wp_installing( $installing );
+			if ( is_wp_error( $site_id ) ) {
+				return $site_id;
+			}
+		}
+
+		// WordPress's sample post and page: the generated front page replaces them.
+		switch_to_blog( $site_id );
+		$samples = array( get_page_by_path( 'hello-world', OBJECT, 'post' ), get_page_by_path( 'sample-page', OBJECT, 'page' ) );
+		foreach ( array_filter( $samples ) as $sample ) {
+			wp_delete_post( $sample->ID, true );
+		}
+		restore_current_blog();
+
+		return array( 'site_id' => $site_id );
+	}
+
+	/**
+	 * Step 3: the brand profile, with the preset's colors as the brand colors.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_profile( array $job ): array|WP_Error {
+		$existing = BrandProfile::for_site( $job['site_id'] );
+		if ( null !== $existing ) {
+			return array( 'result' => array( 'profile_id' => $existing->id ) );
+		}
+
+		$input   = $job['input'];
+		$colors  = (array) Presets::colors( $input['preset'] );
+		$profile = BrandProfile::insert(
+			$job['user_id'],
+			$job['site_id'],
+			array(
+				'brand_name'      => $input['brand_name'],
+				'mission'         => $input['mission'],
+				'tone_of_voice'   => $input['tone'],
+				'color_primary'   => $colors['primary'] ?? '',
+				'color_secondary' => $colors['secondary'] ?? '',
+				'color_accent'    => $colors['accent'] ?? '',
+			)
+		);
+		return is_wp_error( $profile ) ? $profile : array( 'result' => array( 'profile_id' => $profile->id ) );
+	}
+
+	/**
+	 * Step 4: the theme (already set when the site was created; checked
+	 * here). The market plugins join this step with M4-02.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_theme( array $job ): array|WP_Error {
+		unset( $job );
+		if ( self::THEME !== get_stylesheet() ) {
+			switch_theme( self::THEME );
+		}
+		return self::THEME === get_stylesheet()
+			? array()
+			: new WP_Error( 'mody_theme_not_active', __( 'The site\'s theme could not be activated.', 'mody_cloud' ) );
+	}
+
+	/**
+	 * Step 5: the preset's colors in the site's Global Styles.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_styles( array $job ): array|WP_Error {
+		$colors = (array) Presets::colors( $job['input']['preset'] );
+		wp_clean_theme_json_cache();
+		if ( array_intersect_key( SiteDesign::colors(), $colors ) == $colors ) { // phpcs:ignore Universal.Operators.StrictComparisons -- Key order differs.
+			return array();
+		}
+		$applied = SiteDesign::apply( $colors );
+		return is_wp_error( $applied ) ? $applied : array();
+	}
+
+	/**
+	 * Step 6: the generated front page, or the fallback page when generation
+	 * fails. Either way the site gets a published front page.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_page( array $job ): array|WP_Error {
+		$result = array();
+		$found  = get_posts(
+			array(
+				'post_type'   => 'page',
+				'post_status' => 'any',
+				'meta_key'    => '_mody_provisioning_job', // phpcs:ignore WordPress.DB.SlowDBQuery -- One lookup on a new site.
+				'meta_value'  => $job['id'], // phpcs:ignore WordPress.DB.SlowDBQuery
+				'fields'      => 'ids',
+				'numberposts' => 1,
+			)
+		);
+
+		if ( $found ) {
+			$page_id = (int) $found[0];
+		} else {
+			$markup   = PageGenerator::generate_page( $job['site_id'], $job['input']['prompt'] );
+			$fallback = is_wp_error( $markup );
+			if ( $fallback ) {
+				$result['generation_error'] = $markup->get_error_code() . ': ' . $markup->get_error_message();
+				$markup                     = self::fallback_markup( $job['input']['brand_name'], $job['input']['mission'] );
+			}
+			$meta = array( '_mody_provisioning_job' => $job['id'] );
+			if ( $fallback ) {
+				$meta['_mody_fallback'] = 1;
+			}
+			$page_id = PageGenerator::insert_page(
+				$markup,
+				array(
+					'post_status' => 'publish',
+					'post_author' => $job['user_id'],
+					'meta_input'  => $meta,
+				)
+			);
+			if ( is_wp_error( $page_id ) ) {
+				return $page_id;
+			}
+		}
+
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $page_id );
+
+		$result['page_id']  = $page_id;
+		$result['fallback'] = (bool) get_post_meta( $page_id, '_mody_fallback', true );
+		return array( 'result' => $result );
+	}
+
+	/**
+	 * Step 7: the welcome email, at most once. A failed email does not fail
+	 * the job: the site is ready either way.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	private static function step_email( array $job ): array|WP_Error {
+		if ( ! empty( $job['result']['email'] ) ) {
+			return array();
+		}
+		// Marked before sending: a run killed while sending does not send it twice.
+		Jobs::update( $job['id'], array( 'result' => array( 'email' => 'sending' ) ) );
+
+		$user = get_userdata( $job['user_id'] );
+		if ( ! $user ) {
+			return array( 'result' => array( 'email' => 'failed' ) );
+		}
+		$title = $job['input']['title'];
+		$body  = sprintf(
+			/* translators: 1: the member's name, 2: the site title, 3: the site's address, 4: the Site Editor link. */
+			__( "Hello %1\$s,\n\nYour new site %2\$s is ready:\n%3\$s\n\nOpen it in the editor:\n%4\$s\n\nLog in with your Mody Cloud account, as always.\n\nMody Cloud", 'mody_cloud' ),
+			$user->display_name,
+			$title,
+			home_url( '/' ),
+			SiteEditor::page_url( (int) ( $job['result']['page_id'] ?? 0 ) )
+		);
+		/* translators: %s: the site title. */
+		$sent = wp_mail( $user->user_email, sprintf( __( 'Your site %s is ready', 'mody_cloud' ), $title ), $body );
+		return array( 'result' => array( 'email' => $sent ? 'sent' : 'failed' ) );
+	}
+}
