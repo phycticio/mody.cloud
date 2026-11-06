@@ -63,7 +63,7 @@ Details: documentation/ai-engine.md, "The agent".
   - The chat page polls the checker, `GET mody-platform/v1/chat/jobs/<id>`, and resumes polling after a reload.
   - One job at a time per user and site (409 otherwise). A job still running after 5 minutes is reported as failed and logged.
   - Abilities are unchanged for MCP and REST. Once a scheduler is decided, a cron sweep can retry stuck jobs.
-- **Tests:** `scripts/ai-agent-chat-test.php` now has 55 offline checks plus 10 real ones, including a page generation over HTTP: the answer arrived 10.5 s before the job ended.
+- **Tests:** `scripts/ai-agent-chat-test.php` now has 55 offline checks plus 10 real ones, including a page generation over HTTP: the answer arrived 10.5 s before the job ended locally. All pass in production (deployed 2026-11-06, commit `4093e8e`), where the POST answered in 0.2 s and the job ended 6.6 s later.
 
 ## Open
 - Per-member limits on agent use (cost): none yet. The `ai` plugin's request log is the planned basis for cost tracking (decision 13).

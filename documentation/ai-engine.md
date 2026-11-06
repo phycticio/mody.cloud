@@ -144,7 +144,10 @@ Decided by the maintainer on 2026-11-06, so that a slow page generation never me
 
 Each running turn holds one PHP-FPM worker until it ends, as it did when the turn ran inside the request. `pm.max_children` is 5, so five page generations at once would leave no worker for other requests. **Inference:** fine for the MVP; watch it before launch (M5).
 
-Verified locally on 2026-11-06 over HTTP (`scripts/ai-agent-chat-test.php`): the POST answered `202`, and the page generation ended 10.5 s later. The checker then returned the result.
+Verified on 2026-11-06 over HTTP (`scripts/ai-agent-chat-test.php`), then the checker returned the result:
+
+- locally, the POST answered `202`, and the page generation ended 10.5 s later;
+- in production (commit `4093e8e`), the POST answered in 0.2 s, and the generation ended 6.6 s later.
 
 **The conversation** is stored on the server, in a transient per user and site: the last 20 messages, kept for 2 hours after the last one. The client sends only the new message, so it cannot put words in the agent's mouth. Failed turns (no brand profile, model error, timeout) are not stored. Reloading the page shows the conversation; **New conversation** deletes it.
 
