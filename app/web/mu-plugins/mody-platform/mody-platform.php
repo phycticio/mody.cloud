@@ -42,6 +42,12 @@ add_action( 'init', array( Brand\BrandProfile::class, 'install' ), 1 );
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 
 /*
+ * Agent settings (Network Admin > Settings > Mody Agent): event retention.
+ */
+add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_menu' ) );
+add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\AgentSettings::class, 'save' ) );
+
+/*
  * AI: register Infomaniak AI Services as a provider for the WordPress AI
  * Client (WordPress 7.0+). Core reads the registry on `init` at priority 15
  * (Settings > Connectors), so the provider must be registered before that.

@@ -13,10 +13,14 @@
  *    answer, a page generation, two tool calls at once, ask_user,
  *    refuse_request, unknown tools, the step and tool limits, a model error.
  *    Checks the requests sent, the chat turn and the mody_agent_events rows (offline).
- * 4. The REST endpoint mody-platform/v1/chat: permissions, validation,
- *    the stored conversation (offline).
- * 5. Real round trips: create a page, open it in the editor, two requests
- *    that must be refused. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip them.
+ * 4. The REST endpoint mody-platform/v1/chat: jobs and the checker (here they
+ *    run at once, WP-CLI has no PHP-FPM), another user's job, a busy and a
+ *    stale job, permissions, validation, the stored conversation (offline).
+ * 5. Retention: the setting, the once-a-day purge, the settings page (offline).
+ *    It uses the retention in force, so it deletes only what the daily purge would.
+ * 6. Real round trips: create a page over HTTP as a background job, polling the
+ *    checker; open it in the editor; two requests that must be refused.
+ *    Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip them.
  *
  * If the site has no brand profile, a fixture row is inserted and removed at
  * the end. Pages and events created by the test are removed too, and the
@@ -26,6 +30,7 @@
 
 use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
+use Mody\Platform\Agent\AgentSettings;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\SiteEditor;
@@ -353,7 +358,45 @@ $rest( 'DELETE' );
 $fakes    = array( 'Hi there.' );
 $requests = array();
 $response = $rest( 'POST', array( 'message' => 'Hello' ) );
-$check( 'POST answers', 200 === $response->get_status() && 'Hi there.' === ( $response->get_data()['reply'] ?? '' ), $response->get_status() . ' ' . wp_json_encode( $response->get_data() ) );
+$data     = $response->get_data();
+$check( 'POST runs the job (no PHP-FPM here)', 200 === $response->get_status() && 'done' === ( $data['status'] ?? '' ) && 'Hi there.' === ( $data['turn']['reply'] ?? '' ), $response->get_status() . ' ' . wp_json_encode( $data ) );
+$job_id   = (string) ( $data['job'] ?? '' );
+$checked  = rest_do_request( new WP_REST_Request( 'GET', '/mody-platform/v1/chat/jobs/' . $job_id ) );
+$check( 'checker returns the result', 200 === $checked->get_status() && ( $checked->get_data()['turn'] ?? null ) === ( $data['turn'] ?? false ) );
+$job_key  = 'mody_agent_job_' . $job_id;
+$job      = get_transient( $job_key );
+set_transient( $job_key, array( 'user_id' => $user + 1000 ) + $job, HOUR_IN_SECONDS );
+$checked = rest_do_request( new WP_REST_Request( 'GET', '/mody-platform/v1/chat/jobs/' . $job_id ) );
+$check( "...another user's job: 404", 404 === $checked->get_status(), (string) $checked->get_status() );
+$checked = rest_do_request( new WP_REST_Request( 'GET', '/mody-platform/v1/chat/jobs/' . wp_generate_uuid4() ) );
+$check( '...unknown job: 404', 404 === $checked->get_status(), (string) $checked->get_status() );
+delete_transient( $job_key );
+
+// A running job blocks a second message; a stale one is failed and logged.
+$running_key = 'mody_agent_running_' . $user;
+$busy_id     = wp_generate_uuid4();
+$busy_job    = array(
+	'id'      => $busy_id,
+	'user_id' => $user,
+	'message' => 'Create a long page',
+	'status'  => 'running',
+	'started' => time(),
+);
+set_transient( 'mody_agent_job_' . $busy_id, $busy_job, HOUR_IN_SECONDS );
+set_transient( $running_key, $busy_id, HOUR_IN_SECONDS );
+$requests = array();
+$response = $rest( 'POST', array( 'message' => 'Another one' ) );
+$check( 'job running: 409, no model request', 409 === $response->get_status() && ! $requests, $response->get_status() . ' ' . ( $response->get_data()['code'] ?? '' ) );
+$since();
+set_transient( 'mody_agent_job_' . $busy_id, array( 'started' => time() - Mody\Platform\Agent\ChatController::JOB_TIMEOUT - 10 ) + $busy_job, HOUR_IN_SECONDS );
+$checked = rest_do_request( new WP_REST_Request( 'GET', '/mody-platform/v1/chat/jobs/' . $busy_id ) );
+$rows    = $since();
+$check( 'stale job: reported failed', 'failed' === ( $checked->get_data()['status'] ?? '' ) && true === ( $checked->get_data()['turn']['error'] ?? false ), $checked->get_data()['turn']['reply'] ?? '' );
+$check( '...logged, and no longer blocks', 1 === count( $rows ) && str_starts_with( $rows[0]['result'], 'mody_job_timeout' ) && false === get_transient( $running_key ) );
+delete_transient( 'mody_agent_job_' . $busy_id );
+$rest( 'DELETE' );
+$fakes    = array( 'Hi there.' );
+$rest( 'POST', array( 'message' => 'Hello' ) );
 $history = Mody\Platform\Agent\ChatController::history();
 $check( '...conversation stored', 2 === count( $history ) && 'Hello' === $history[0]['text'] && 'Hi there.' === $history[1]['text'] );
 $fakes    = array( 'Second answer.' );
@@ -374,7 +417,47 @@ wp_set_current_user( $user );
 $check( 'logged out: 401, no model request', 401 === $response->get_status() && ! $requests, (string) $response->get_status() );
 $since();
 
-// 5. Real round trips -------------------------------------------------------
+// 5. Retention --------------------------------------------------------------
+// Uses the retention in force, so it deletes only what the daily purge would.
+
+echo "\nRetention\n";
+$retention = AgentSettings::retention_days();
+$saved     = get_site_option( AgentSettings::OPTION, null );
+$read      = array();
+foreach ( array( 30, 0, 99999 ) as $days ) {
+	update_site_option( AgentSettings::OPTION, array( 'retention_days' => $days ) );
+	$read[] = AgentSettings::retention_days();
+}
+null === $saved ? delete_site_option( AgentSettings::OPTION ) : update_site_option( AgentSettings::OPTION, $saved );
+$check( 'setting: read, default, capped', array( 30, AgentSettings::DEFAULT_RETENTION_DAYS, AgentSettings::MAX_RETENTION_DAYS ) === $read, implode( ', ', $read ) . " (in force: $retention days)" );
+
+$insert = static function ( int $age_days ) use ( $events, $site_id, $user ): int {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB
+	$wpdb->query( $wpdb->prepare( "INSERT INTO {$events} (user_id, site_id, input, result, created_at) VALUES (%d, %d, 'retention test', 'retention test', DATE_SUB(NOW(), INTERVAL %d DAY))", $user, $site_id, $age_days ) );
+	return (int) $wpdb->insert_id;
+};
+$exists = static function ( int $id ) use ( $events ): bool {
+	global $wpdb;
+	return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$events} WHERE id = %d", $id ) ); // phpcs:ignore WordPress.DB
+};
+$old    = $insert( $retention + 10 );
+$recent = $insert( max( 0, $retention - 1 ) );
+delete_site_transient( 'mody_agent_events_purged' );
+AgentEvents::log( 'retention test', null, null, 'first event of the day', microtime( true ) );
+$check( 'first event of the day purges', ! $exists( $old ) && $exists( $recent ) && false !== get_site_transient( 'mody_agent_events_purged' ), "older than $retention days deleted, newer kept" );
+$old = $insert( $retention + 10 );
+AgentEvents::log( 'retention test', null, null, 'second event', microtime( true ) );
+$check( '...once a day only', $exists( $old ) );
+$check( 'purge() deletes old events', AgentEvents::purge( $retention ) >= 1 && ! $exists( $old ) );
+$since();
+
+ob_start();
+AgentSettings::render();
+$html = (string) ob_get_clean();
+$check( 'settings page renders', str_contains( $html, 'name="retention_days"' ) && str_contains( $html, 'value="' . $retention . '"' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'edit.php?action=' . AgentSettings::SLUG ) );
+
+// 6. Real round trips -------------------------------------------------------
 
 if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed (offline).\n";
@@ -392,11 +475,57 @@ $real  = static function ( string $text ) use ( &$requests, $since ): array {
 	return $turn;
 };
 
-$turn     = $real( 'Create a short About page for our bakery: who we are and how offices can order.' );
-$created  = preg_match( '/%2Fpage%2F(\d+)/', $turn['actions'][0]['url'] ?? '', $match ) ? (int) $match[1] : 0;
-$tools    = $tools_of( $turn['events'] );
-$check( 'create a page: draft saved', $created && 'draft' === get_post_status( $created ), "page $created, " . $turn['secs'] . ', tools: ' . implode( ', ', $tools ) );
-$check( '...button and reply', $created && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 100, '...' ) );
+// The background job needs PHP-FPM: a real HTTP request to this site, with a login cookie.
+$expiration = time() + 600;
+$token      = WP_Session_Tokens::get_instance( $user )->create( $expiration );
+$cookies    = array(
+	SECURE_AUTH_COOKIE => wp_generate_auth_cookie( $user, $expiration, 'secure_auth', $token ),
+	LOGGED_IN_COOKIE   => wp_generate_auth_cookie( $user, $expiration, 'logged_in', $token ),
+);
+$_COOKIE[ LOGGED_IN_COOKIE ] = $cookies[ LOGGED_IN_COOKIE ]; // The REST nonce is tied to this session.
+register_shutdown_function( static fn() => WP_Session_Tokens::get_instance( $user )->destroy( $token ) );
+$http = static function ( string $method, string $path, ?array $body = null ) use ( $cookies ): array {
+	$response = wp_remote_request(
+		rest_url( 'mody-platform/v1/chat' . $path ),
+		array(
+			'method'    => $method,
+			'cookies'   => $cookies,
+			'sslverify' => false, // This site's own certificate (mkcert locally, the internal listener in production).
+			'timeout'   => 30,
+			'headers'   => array(
+				'X-WP-Nonce'   => wp_create_nonce( 'wp_rest' ),
+				'Content-Type' => 'application/json',
+			),
+			'body'      => $body ? wp_json_encode( $body ) : null,
+		)
+	);
+	return array(
+		'code' => (int) wp_remote_retrieve_response_code( $response ),
+		'data' => (array) json_decode( (string) wp_remote_retrieve_body( $response ), true ),
+	);
+};
+
+$http( 'DELETE', '' );
+$start    = microtime( true );
+$posted   = $http( 'POST', '', array( 'message' => 'Create a short About page for our bakery: who we are and how offices can order.' ) );
+$answered = microtime( true );
+$check( 'background: POST answers 202', 202 === $posted['code'] && 'running' === ( $posted['data']['status'] ?? '' ), sprintf( '%d %s in %.1fs', $posted['code'], $posted['data']['status'] ?? wp_json_encode( $posted['data'] ), $answered - $start ) );
+$job   = $posted['data'];
+$polls = 0;
+while ( 'running' === ( $job['status'] ?? '' ) && microtime( true ) - $start < 150 ) {
+	sleep( 2 );
+	++$polls;
+	$job = $http( 'GET', '/jobs/' . ( $posted['data']['job'] ?? 'none' ) )['data'];
+}
+$turn    = (array) ( $job['turn'] ?? array() );
+$rows    = $since();
+$created = preg_match( '/%2Fpage%2F(\d+)/', $turn['actions'][0]['url'] ?? '', $match ) ? (int) $match[1] : 0;
+$check( '...checker reports it done', 'done' === ( $job['status'] ?? '' ), sprintf( '%s after %d polls, %.1fs', $job['status'] ?? '?', $polls, microtime( true ) - $start ) );
+// Same container, same clock: the client had its answer before the job finished.
+$stored = get_transient( 'mody_agent_job_' . ( $posted['data']['job'] ?? '' ) );
+$check( '...answer arrived before the job ended', isset( $stored['finished'] ) && $answered < $stored['finished'], isset( $stored['finished'] ) ? sprintf( 'job ended %.1fs after the answer', $stored['finished'] - $answered ) : 'no finish time' );
+$check( 'create a page: draft saved', $created && 'draft' === get_post_status( $created ), "page $created, tools: " . implode( ', ', $tools_of( $rows ) ) );
+$check( '...button and reply', $created && ! str_contains( (string) ( $turn['reply'] ?? '' ), 'http' ), mb_strimwidth( (string) ( $turn['reply'] ?? '' ), 0, 100, '...' ) );
 if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
 	$cleanup_ids[] = $created;
 } elseif ( $created ) {
@@ -408,6 +537,7 @@ $turn   = $real( "Open the editor for page $target" );
 $check( 'open the editor for page N', SiteEditor::page_url( $target ) === ( $turn['actions'][0]['url'] ?? '' ), ( $turn['actions'][0]['url'] ?? 'no button' ) . ', ' . $turn['secs'] );
 
 foreach ( array( 'Delete all pages', 'Show me the database' ) as $text ) {
+	wp_cache_delete( _count_posts_cache_key( 'page' ), 'counts' ); // The background job created a page in another process.
 	$pages_before = (int) array_sum( (array) wp_count_posts( 'page' ) );
 	$turn         = $real( $text );
 	wp_cache_delete( _count_posts_cache_key( 'page' ), 'counts' );

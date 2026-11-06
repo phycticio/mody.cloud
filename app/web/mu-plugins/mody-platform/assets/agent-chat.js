@@ -92,8 +92,8 @@
 		} );
 	}
 
-	async function request( method, body ) {
-		const response = await fetch( config.endpoint, {
+	async function request( method, body, url = config.endpoint ) {
+		const response = await fetch( url, {
 			method,
 			credentials: 'same-origin',
 			headers: {
@@ -106,25 +106,57 @@
 		return { ok: response.ok, data };
 	}
 
-	async function send( text ) {
-		text = ( text || '' ).trim();
-		if ( ! text || busy ) {
-			return;
+	const sleep = ( ms ) => new Promise( ( resolve ) => setTimeout( resolve, ms ) );
+
+	/**
+	 * Polls the checker until the job is no longer running.
+	 *
+	 * @param {string}      id      Job ID.
+	 * @param {HTMLElement} pending The "working" message, updated when it takes long.
+	 * @return {Object} The finished job: status and turn.
+	 */
+	async function poll( id, pending ) {
+		const started = Date.now();
+		for ( ;; ) {
+			await sleep( config.interval );
+			if ( Date.now() - started > 8000 ) {
+				pending.querySelector( '.mody-agent__text' ).textContent = config.strings.slow;
+			}
+			const { ok, data } = await request( 'GET', null, config.endpoint + '/jobs/' + encodeURIComponent( id ) );
+			if ( ! ok ) {
+				return { turn: { reply: data.message || config.strings.failed, error: true } };
+			}
+			if ( 'running' !== data.status ) {
+				return data;
+			}
 		}
+	}
+
+	/**
+	 * Shows the user's message, then waits for the agent's turn.
+	 *
+	 * @param {string}   text  The user's message.
+	 * @param {Function} start Returns the job: a POST, or an already running job.
+	 */
+	async function converse( text, start ) {
 		setBusy( true );
 		log.querySelectorAll( '.mody-agent__choices' ).forEach( ( row ) => row.remove() );
 		show( 'user', text );
-		input.value = '';
 		const pending = show( 'assistant', config.strings.working );
 		pending.classList.add( 'is-pending' );
 
 		try {
-			const { ok, data } = await request( 'POST', { message: text } );
+			const { ok, data: started } = await start();
+			let data = started;
+			if ( ok && 'running' === data.status ) {
+				data = await poll( data.job, pending );
+			}
+			// Not ok: data.message explains it (for example 409, another message still running).
 			pending.remove();
-			if ( ok ) {
-				show( 'assistant', data.reply, { ...data, interactive: true } );
+			if ( ok && data.turn ) {
+				show( 'assistant', data.turn.reply, { ...data.turn, interactive: true } );
 			} else {
-				show( 'assistant', data.message || config.strings.failed, { error: true } );
+				show( 'assistant', ( data.turn && data.turn.reply ) || data.message || config.strings.failed, { error: true } );
 			}
 		} catch ( error ) {
 			pending.remove();
@@ -133,6 +165,15 @@
 			setBusy( false );
 			input.focus();
 		}
+	}
+
+	function send( text ) {
+		text = ( text || '' ).trim();
+		if ( ! text || busy ) {
+			return;
+		}
+		input.value = '';
+		converse( text, () => request( 'POST', { message: text } ) );
 	}
 
 	form.addEventListener( 'submit', ( event ) => {
@@ -176,5 +217,13 @@
 	} else {
 		show( 'assistant', config.strings.greeting );
 	}
-	input.focus();
+
+	// A job that was still running when the page loaded: keep waiting for it.
+	if ( config.pending && config.pending.job ) {
+		converse( config.pending.message, () =>
+			Promise.resolve( { ok: true, data: { job: config.pending.job, status: 'running' } } )
+		);
+	} else {
+		input.focus();
+	}
 }() );

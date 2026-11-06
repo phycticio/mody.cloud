@@ -16,14 +16,20 @@ defined( 'ABSPATH' ) || exit;
  * One row per tool call (`tool` set), and one row per chat request (`tool`
  * NULL) with the reply. Refusals are tool rows too: `refuse_request`, or the
  * name of a tool that does not exist. Never logs tokens.
+ *
+ * Rows older than the retention set in AgentSettings are deleted once a day,
+ * by the first event written that day. No cron.
  */
 final class AgentEvents {
 
 	/** Bump when the table definition in install() changes. */
-	private const DB_VERSION = '1';
+	private const DB_VERSION = '2';
 
 	/** Network option that records the installed table version. */
 	private const DB_VERSION_OPTION = 'mody_agent_events_db_version';
+
+	/** Network transient set for a day after each purge. */
+	private const PURGED_TRANSIENT = 'mody_agent_events_purged';
 
 	/** Longest stored input or result, in characters. */
 	private const MAX_TEXT = 4000;
@@ -64,7 +70,8 @@ final class AgentEvents {
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY  (id),
   KEY site_created (site_id,created_at),
-  KEY user_id (user_id)
+  KEY user_id (user_id),
+  KEY created_at (created_at)
 ) {$charset};"
 		);
 
@@ -106,6 +113,50 @@ final class AgentEvents {
 			error_log( '[mody-platform] could not write an agent event: ' . $wpdb->last_error );
 			return 0;
 		}
-		return (int) $wpdb->insert_id;
+
+		$id = (int) $wpdb->insert_id;
+		self::maybe_purge();
+		return $id;
+	}
+
+	/**
+	 * Purges old events if no purge ran in the last day.
+	 */
+	public static function maybe_purge(): void {
+		if ( false !== get_site_transient( self::PURGED_TRANSIENT ) ) {
+			return;
+		}
+		set_site_transient( self::PURGED_TRANSIENT, time(), DAY_IN_SECONDS );
+		self::purge( AgentSettings::retention_days() );
+	}
+
+	/**
+	 * Deletes the events older than a number of days.
+	 *
+	 * @param int $days Days to keep.
+	 * @return int Rows deleted.
+	 */
+	public static function purge( int $days ): int {
+		global $wpdb;
+		$table = self::table();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom audit table.
+		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)", max( 1, $days ) ) );
+		return (int) $deleted;
+	}
+
+	/**
+	 * How many events are stored, and when the oldest was written.
+	 *
+	 * @return array{count: int, oldest: string|null} `oldest` in the database's time.
+	 */
+	public static function stats(): array {
+		global $wpdb;
+		$table = self::table();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom audit table.
+		$row = $wpdb->get_row( "SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM {$table}", ARRAY_A );
+		return array(
+			'count'  => (int) ( $row['count'] ?? 0 ),
+			'oldest' => $row['oldest'] ?? null,
+		);
 	}
 }

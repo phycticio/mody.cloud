@@ -176,7 +176,8 @@ The agent is the encouraged control channel: *"Change this color. Install this p
 Built 2026-11-06 as the first slice of M3-01: the chat page, the endpoint, the loop with `mody/generate-page`, `mody/open-editor`, `ask_user` and `refuse_request`, and the audit table. How it works: [ai-engine.md, "The agent"](ai-engine.md#the-agent).
 
 - **UI:** a `Mody Agent` menu item in each member site's wp-admin: a simple chat page (plain HTML + fetch, no JS build toolchain) with action chips for common intents. Until M4 it appears on every site, for users with `edit_pages`.
-- **Endpoint:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce).
+- **Endpoint:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce). Each message is a background job (decided 2026-11-06): the POST answers at once with a job ID, the turn runs after the response, and the page polls a checker (`GET …/chat/jobs/<id>`) until it is done. No cron involved. See [ai-engine.md, "Background jobs"](ai-engine.md#background-jobs).
+- **Settings:** Network Admin → Settings → Mody Agent, super admins only: how many days agent events are kept (default 90).
 - **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()` with the `mody` abilities offered as tools (declared the way core's `using_abilities()` does, decision 13), executes the tool calls in PHP through core's ability resolver, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
 - **Model:** `Qwen/Qwen3.8-27B-FP8` via Infomaniak AI Services (`https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, all identifiers from environment variables). Native function calling (verified on Infomaniak 2026-11-04). Low temperature (0.1).
 
@@ -348,9 +349,9 @@ mody_agent_events (
 - `mody_agent_events` (2026-11-06, M3-01). `Agent\AgentEvents::install()` creates it the same way (`mody_agent_events_db_version`). It matches the definition above, with these additions:
   - `duration_ms` (section 8 asks for the duration);
   - unsigned `bigint(20)` IDs;
-  - indexes on `(site_id, created_at)` and `user_id`.
+  - indexes on `(site_id, created_at)`, `user_id` and `created_at` (for the purge).
 
-  `args` is MariaDB's `JSON` (a `LONGTEXT` checked with `json_valid`). It holds one row per chat request (`tool` NULL) and one per tool call ([ai-engine.md](ai-engine.md#the-agent)).
+  `args` is MariaDB's `JSON` (a `LONGTEXT` checked with `json_valid`). It holds one row per chat request (`tool` NULL) and one per tool call ([ai-engine.md](ai-engine.md#the-agent)). **Retention** (decided 2026-11-06): rows are kept for the number of days set in Network Admin → Settings → Mody Agent (network option `mody_agent_settings`, default 90). They are purged once a day, without cron.
 
 ## 12. Architecture deltas
 

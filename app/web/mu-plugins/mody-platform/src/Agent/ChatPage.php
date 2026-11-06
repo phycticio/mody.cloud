@@ -47,6 +47,9 @@ final class ChatPage {
 
 		wp_enqueue_style( 'mody-agent-chat', plugins_url( 'assets/agent-chat.css', $root . '/mody-platform.php' ), array(), $version( 'agent-chat.css' ) );
 		wp_enqueue_script( 'mody-agent-chat', plugins_url( 'assets/agent-chat.js', $root . '/mody-platform.php' ), array(), $version( 'agent-chat.js' ), true );
+
+		// A job still running (the page was reloaded meanwhile): the page resumes polling it.
+		$running = ChatController::running_job();
 		wp_add_inline_script(
 			'mody-agent-chat',
 			'window.modyAgent = ' . wp_json_encode(
@@ -54,10 +57,16 @@ final class ChatPage {
 					'endpoint' => rest_url( ChatController::REST_NAMESPACE . '/chat' ),
 					'nonce'    => wp_create_nonce( 'wp_rest' ),
 					'history'  => ChatController::history(),
+					'pending'  => $running ? array(
+						'job'     => $running['id'],
+						'message' => $running['message'],
+					) : null,
+					'interval' => 1500,
 					'strings'  => array(
 						'you'      => __( 'You', 'mody_cloud' ),
 						'agent'    => __( 'Mody', 'mody_cloud' ),
 						'working'  => __( 'Working on it…', 'mody_cloud' ),
+						'slow'     => __( 'Still working. Creating a page can take a minute.', 'mody_cloud' ),
 						'failed'   => __( 'The request failed. Reload the page and try again.', 'mody_cloud' ),
 						'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts) and open the editor for you.', 'mody_cloud' ),
 					),

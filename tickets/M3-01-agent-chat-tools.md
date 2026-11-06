@@ -55,9 +55,17 @@ Details: documentation/ai-engine.md, "The agent".
 - **[M3-04](M3-04-ai-plugin-brand-context.md) · Brand context in the `ai` plugin** (`wpai_system_instruction`).
 - **Moved to other tickets:** the market plugin toggles to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the menu to member sites to M4-01.
 
-## Decided 2026-11-06, still in this ticket
-- **Event retention:** events are kept for N days. N is set in an agent settings page in the Network Admin, for super admins only, and defaults to **90**. Old events are purged once a day without cron: the first agent event of the day runs the purge. Members do not see the events.
-- **Background generation:** a chat message becomes a background job, so a slow page generation never meets a proxy timeout (Nginx's default `fastcgi_read_timeout` is 60 s, Cloudflare's 100 s; one generation took 23 s). POST `mody-platform/v1/chat` stores the job and answers at once with its ID. The same PHP worker then finishes the agent turn after the response, with `fastcgi_finish_request()`, so no cron is needed. This works on subsites, where WP-Cron does not run locally (architecture.md, open questions). The chat page polls a checker, `GET mody-platform/v1/chat/jobs/<id>`, until the turn is done. A job still running after 5 minutes is reported as failed. Abilities are unchanged for MCP and REST. Once a scheduler is decided, a cron sweep can retry stuck jobs.
+## Decided 2026-11-06, built the same day
+- **Event retention:** events are kept for N days. N is set on Network Admin → Settings → **Mody Agent** (`src/Agent/AgentSettings.php`, super admins only), 90 by default. Old events are purged once a day without cron: the first agent event of the day runs the purge, and saving the settings purges at once.
+- **Background generation:** each chat message is a background job, so a slow page generation never meets a proxy timeout (Nginx's default `fastcgi_read_timeout` is 60 s, Cloudflare's 100 s; one generation took 23 s).
+  - POST `mody-platform/v1/chat` stores the job and answers `202` with its ID.
+  - The same PHP-FPM worker then finishes the agent turn after the response (`fastcgi_finish_request()` on `shutdown`), so no cron is needed. This works on subsites, where WP-Cron does not run locally.
+  - The chat page polls the checker, `GET mody-platform/v1/chat/jobs/<id>`, and resumes polling after a reload.
+  - One job at a time per user and site (409 otherwise). A job still running after 5 minutes is reported as failed and logged.
+  - Abilities are unchanged for MCP and REST. Once a scheduler is decided, a cron sweep can retry stuck jobs.
+- **Tests:** `scripts/ai-agent-chat-test.php` now has 55 offline checks plus 10 real ones, including a page generation over HTTP: the answer arrived 10.5 s before the job ended.
 
 ## Open
 - Per-member limits on agent use (cost): none yet. The `ai` plugin's request log is the planned basis for cost tracking (decision 13).
+- Who besides super admins (through the database) should see agent events.
+- Each running turn holds a PHP-FPM worker (`pm.max_children` is 5). Watch it before launch (M5).
