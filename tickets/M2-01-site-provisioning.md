@@ -60,7 +60,14 @@ The original M2-01 ("brand wizard + site provisioning pipeline") was too big for
   - After the repair and the retries at 0.4: 6 of 6 generations were valid (two needed one retry), and the next real runs used one request.
 - Other suites pass: `ai-generate-page-test.php` (real), `ai-agent-chat-test.php` (real), `ai-plugin-brand-context-test.php`, `spectra-guard-test.php`.
 
+## Production
+Deployed 2026-11-06 (commit `754e6e8`, together with the publish guard in `Agent`), after a backup in `backups/2026-11-06-pre-m2-01/`.
+- The jobs table was created.
+- The offline agent test, the Spectra test and the `ai` plugin brand context test pass.
+- No PHP warnings, and nothing else changed (one site, its pages, title and tagline).
+- `scripts/provisioning-test.php` was **not** run there, because it creates and deletes sites and a user on the production network. Ask the maintainer first.
+
 ## Open
-- **Production:** not tried there. New sites need the wildcard DNS and TLS for `*.mody.cloud` (mvp-spec §16, question 3).
+- **Production sites:** nothing starts provisioning there yet (no wizard). New sites also need the wildcard DNS and TLS for `*.mody.cloud` (mvp-spec §16, question 3).
 - **The `ai` plugin on new sites:** its features and connector approvals are options of each site, so a provisioned site starts with every feature off (M3-04). Setting them is left to M4-01, with the curated list.
 - **Deleting a site** does not delete its brand profile row yet (the dashboard's Delete is M1; the 60-day deletion is M1-02).
