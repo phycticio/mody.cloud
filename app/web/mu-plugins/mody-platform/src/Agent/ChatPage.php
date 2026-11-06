@@ -68,7 +68,7 @@ final class ChatPage {
 						'working'  => __( 'Working on it…', 'mody_cloud' ),
 						'slow'     => __( 'Still working. Creating a page can take a minute.', 'mody_cloud' ),
 						'failed'   => __( 'The request failed. Reload the page and try again.', 'mody_cloud' ),
-						'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts) and open the editor for you.', 'mody_cloud' ),
+						'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts), change its colors and open the editor for you.', 'mody_cloud' ),
 					),
 				)
 			) . ';',
@@ -83,7 +83,7 @@ final class ChatPage {
 		$chips = array(
 			__( 'Create an About page', 'mody_cloud' ),
 			__( 'Create a Contact page', 'mody_cloud' ),
-			__( 'Open the styles', 'mody_cloud' ),
+			__( 'Change the colors', 'mody_cloud' ),
 			__( 'What can you do?', 'mody_cloud' ),
 		);
 		?>

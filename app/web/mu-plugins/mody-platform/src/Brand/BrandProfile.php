@@ -7,14 +7,18 @@
 
 namespace Mody\Platform\Brand;
 
+use Mody\Platform\Design\Presets;
+use Mody\Platform\Design\SiteDesign;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
  * One site's brand identity: the source of truth for every generation (rule 4).
  *
- * The schema is documentation/mvp-spec.md section 11. Only the fields the
- * model needs are loaded. The palette is applied through the site's Global
- * Styles, and prompts refer to palette slugs, never to the hex values.
+ * The schema is documentation/mvp-spec.md section 11. The brand colors are
+ * applied through the site's Global Styles (Design\SiteDesign), and prompts
+ * refer to palette slugs, never to the hex values: $colors is for the wizard
+ * and the design tools, not for SystemPrompt.
  */
 final class BrandProfile {
 
@@ -30,11 +34,13 @@ final class BrandProfile {
 	/**
 	 * Builds a profile from already sanitized values. Use for_site() or from_row().
 	 *
-	 * @param int    $site_id    Site (blog) ID.
-	 * @param string $brand_name Brand name.
-	 * @param string $mission    What the brand does, in one sentence.
-	 * @param string $tone       One of self::TONES.
-	 * @param string $logo_url   Logo URL, or '' for none.
+	 * @param int                   $site_id    Site (blog) ID.
+	 * @param string                $brand_name Brand name.
+	 * @param string                $mission    What the brand does, in one sentence.
+	 * @param string                $tone       One of self::TONES.
+	 * @param string                $logo_url   Logo URL, or '' for none.
+	 * @param int                   $id         Row ID, or 0 when unknown.
+	 * @param array<string, string> $colors     Brand colors: primary, secondary, accent => lowercase hex.
 	 */
 	private function __construct(
 		public readonly int $site_id,
@@ -42,6 +48,8 @@ final class BrandProfile {
 		public readonly string $mission,
 		public readonly string $tone,
 		public readonly string $logo_url,
+		public readonly int $id,
+		public readonly array $colors,
 	) {}
 
 	/**
@@ -103,7 +111,7 @@ final class BrandProfile {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom table; one indexed lookup.
 		$row = $wpdb->get_row(
-			$wpdb->prepare( "SELECT site_id, brand_name, mission, tone_of_voice, logo_url FROM {$table} WHERE site_id = %d ORDER BY id DESC LIMIT 1", $site_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->prepare( "SELECT id, site_id, brand_name, mission, tone_of_voice, logo_url, color_primary, color_secondary, color_accent FROM {$table} WHERE site_id = %d ORDER BY id DESC LIMIT 1", $site_id ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			ARRAY_A
 		);
 
@@ -116,8 +124,10 @@ final class BrandProfile {
 	 * The wizard validates input (mvp-spec section 6). These values also end up
 	 * in a system prompt, so they are cleaned here too: tags stripped, lengths
 	 * capped, line breaks collapsed, unknown tones replaced by the default.
+	 * A color that is not six-digit hex is replaced by the default preset's.
 	 *
-	 * @param array<string, mixed> $row Row with site_id, brand_name, mission, tone_of_voice, logo_url.
+	 * @param array<string, mixed> $row Row with site_id, brand_name, mission, tone_of_voice, logo_url,
+	 *                                  and optionally id, color_primary, color_secondary, color_accent.
 	 * @return self|null Null when the brand name is empty.
 	 */
 	public static function from_row( array $row ): ?self {
@@ -126,16 +136,50 @@ final class BrandProfile {
 			return null;
 		}
 
-		$tone = (string) ( $row['tone_of_voice'] ?? '' );
-		$logo = esc_url_raw( (string) ( $row['logo_url'] ?? '' ), array( 'http', 'https' ) );
+		$tone   = (string) ( $row['tone_of_voice'] ?? '' );
+		$logo   = esc_url_raw( (string) ( $row['logo_url'] ?? '' ), array( 'http', 'https' ) );
+		$colors = (array) Presets::colors( Presets::DEFAULT );
+		foreach ( SiteDesign::SLUGS as $slug ) {
+			$color = $row[ 'color_' . $slug ] ?? '';
+			if ( SiteDesign::is_hex( $color ) ) {
+				$colors[ $slug ] = strtolower( $color );
+			}
+		}
 
 		return new self(
 			(int) ( $row['site_id'] ?? 0 ),
 			$name,
 			self::clean( $row['mission'] ?? '', 500 ),
 			in_array( $tone, self::TONES, true ) ? $tone : 'friendly',
-			$logo
+			$logo,
+			(int) ( $row['id'] ?? 0 ),
+			$colors
 		);
+	}
+
+	/**
+	 * Changes the brand colors of a profile row (mody/update-design with `brand` true).
+	 *
+	 * @param int                   $profile_id Row ID (BrandProfile::$id).
+	 * @param array<string, string> $colors     Slug (primary, secondary, accent) => six-digit hex.
+	 * @return bool False for an invalid color or ID, or a database error.
+	 */
+	public static function update_colors( int $profile_id, array $colors ): bool {
+		$columns = array();
+		foreach ( array_intersect_key( $colors, array_flip( SiteDesign::SLUGS ) ) as $slug => $hex ) {
+			if ( ! SiteDesign::is_hex( $hex ) ) {
+				return false;
+			}
+			$columns[ 'color_' . $slug ] = strtolower( $hex );
+		}
+		if ( $profile_id < 1 || ! $columns ) {
+			return false;
+		}
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom table; one row by primary key.
+		$updated = $wpdb->update( self::table(), $columns, array( 'id' => $profile_id ), '%s', '%d' );
+		return false !== $updated;
 	}
 
 	/**

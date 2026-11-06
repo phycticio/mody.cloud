@@ -117,7 +117,7 @@ Entry: **+ New site** on the dashboard.
 - Fonts are **Inter, fixed, for the MVP** (the picker appears in a later iteration).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
 
-Candidate presets (data-driven in the MU plugin, to be curated before M2 ships):
+Candidate presets (data-driven in the MU plugin, to be curated before M2 ships). Since 2026-11-06 (M3-02) they live in `src/Design/Presets.php`, the single source for the wizard and the agent's `mody/update-design`, with the slugs `mody-teal`, `forest`, `ocean`, `plum`, `graphite` and `sand`:
 
 | Preset | Primary | Secondary | Accent |
 | --- | --- | --- | --- |
@@ -183,12 +183,12 @@ Built 2026-11-06 as the first slice of M3-01: the chat page, the endpoint, the l
 
 ### Tools (all executed server-side, all guarded)
 
-Each acting tool is an ability in the `mody` category (decision 13). Its permission callback and input schema run on every call, whichever channel calls it: agent, REST or MCP. `mody/generate-page` and `mody/open-editor` exist. The other ability names are proposals.
+Each acting tool is an ability in the `mody` category (decision 13). Its permission callback and input schema run on every call, whichever channel calls it: agent, REST or MCP. `mody/generate-page`, `mody/open-editor` and `mody/update-design` exist. The other ability names are proposals.
 
 | Tool | Ability | Arguments | Effect | Guard |
 | --- | --- | --- | --- | --- |
 | `generate_page` | `mody/generate-page` (built 2026-11-06) | `prompt`, `title?` | Brand-profile generation → validator → **draft** page. Returns the page ID and its Site Editor URL. The validated markup is saved directly and never passes back through the model. Publishing and the front page belong to the caller: provisioning (section 7), and otherwise the member, **on demand** (decided 2026-11-06): by asking the agent (`mody/publish-page`, M3-03) or with the Site Editor's Publish button. | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
-| `update_design` | `mody/update-design` (proposed, M3-02) | `preset` (one of the six presets of section 6, decided 2026-11-06) or `{primary, secondary, accent}`, plus `brand` | Patches the site Global Styles. Before calling it, the agent asks whether the colors are part of the brand; if they are (`brand` true), the brand profile's colors change too (decided 2026-11-06). | Hex regex; maps to palette slugs only. `edit_theme_options` |
+| `update_design` | `mody/update-design` (built 2026-11-06, M3-02) | `preset` (one of the six presets of section 6, decided 2026-11-06) or `{primary, secondary, accent}`, plus `brand` | Patches the site Global Styles (the theme palette, as the Site Editor saves it; each change is a revision). Before calling it, the agent asks whether the colors are part of the brand; if they are (`brand` true), the brand profile's colors change too (decided 2026-11-06). Returns the old and new colors and a button to see them. | Hex regex; maps to palette slugs only (`base` and `contrast` never change). `edit_theme_options`. Requires a brand profile. |
 | `open_editor` | `mody/open-editor` (built 2026-11-06) | `target` (`page` \| `template` \| `styles`), `page_id?`, `page_title?`, `template?` | Returns the exact Site Editor URL and a button label (no mutation). The chat shows it as a button; the model never sees the URL. | URL built from the real site URL. Pages: `edit_pages` and `edit_post`. Templates and styles: `edit_theme_options` |
 | `activate_plugin` / `deactivate_plugin` | `mody/activate-market-plugin` / `mody/deactivate-market-plugin` (proposed) | `slug` | Toggles a market plugin on this site | Slug must exist in `mody_market_plugins` and be listed |
 | `update_site_settings` | `mody/update-site-settings` (proposed) | `title?`, `tagline?` | Updates whitelisted options only | Fixed option allowlist |

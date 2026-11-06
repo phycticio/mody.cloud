@@ -8,6 +8,8 @@
 namespace Mody\Platform;
 
 use Mody\Platform\AI\PageGenerator;
+use Mody\Platform\Design\Presets;
+use Mody\Platform\Design\SiteDesign;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -145,6 +147,74 @@ final class Abilities {
 					'public'      => true, // REST, MCP and the agent.
 					'annotations' => array(
 						'readonly'    => true,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		/*
+		 * Kept short on purpose: with a longer description and a description
+		 * per color (a 3.8 KB tools block), Qwen on Infomaniak often answered
+		 * with bracketed transcript text instead of calling a tool (2026-11-06,
+		 * documentation/ai-engine.md "Prompt size").
+		 */
+		$color = array(
+			'type'    => 'string',
+			'pattern' => SiteDesign::HEX_PATTERN,
+		);
+		wp_register_ability(
+			'mody/update-design',
+			array(
+				'label'               => __( 'Update the design', 'mody_cloud' ),
+				/* translators: %s: the preset names. */
+				'description'         => sprintf( __( 'Changes the site\'s colors: a Mody design preset (%s), or new primary, secondary or accent colors as hex codes. Needs the brand profile.', 'mody_cloud' ), implode( ', ', array_column( Presets::all(), 'name' ) ) ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'preset'    => array(
+							'type' => 'string',
+							'enum' => Presets::slugs(),
+						),
+						'primary'   => $color,
+						'secondary' => $color,
+						'accent'    => $color,
+						'brand'     => array(
+							'type'        => 'boolean',
+							'description' => __( 'True if the owner said the colors are part of their brand: the brand profile changes too.', 'mody_cloud' ),
+						),
+					),
+					'required'             => array( 'brand' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'preset'                => array( 'type' => 'string' ),
+						'colors'                => array(
+							'type'                 => 'object',
+							'additionalProperties' => array(
+								'type'       => 'object',
+								'properties' => array(
+									'old' => array( 'type' => 'string' ),
+									'new' => array( 'type' => 'string' ),
+								),
+							),
+						),
+						'brand_profile_updated' => array( 'type' => 'boolean' ),
+						'url'                   => array( 'type' => 'string' ),
+						'label'                 => array( 'type' => 'string' ),
+					),
+					'required'   => array( 'colors', 'brand_profile_updated', 'url', 'label' ),
+				),
+				'execute_callback'    => array( SiteDesign::class, 'update' ),
+				'permission_callback' => array( SiteDesign::class, 'can_update' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
 						'destructive' => false,
 						'idempotent'  => true,
 					),

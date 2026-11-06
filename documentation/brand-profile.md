@@ -35,7 +35,9 @@ CREATE TABLE mody_brand_profiles (
 
 The briefing's enum values for `tone_of_voice` are `'formal','cercano','tecnico'` with default `'cercano'`. They are translated here (`friendly`, `technical`) because everything in the code base is in English.
 
-**What is built (2026-11-06, M2-02).** The table exists with the MVP schema from [mvp-spec.md §11](mvp-spec.md#11-data-model-new-network-wide-tables-base_prefix), which drops `slogan`, `vision` and the font columns shown above (Inter is fixed for the MVP). `Mody\Platform\Brand\BrandProfile` creates it and reads a site's profile. Prompts use only `brand_name`, `mission`, `tone_of_voice` and `logo_url`. The colors reach the site through Global Styles (M2-01), not the prompt.
+**What is built (2026-11-06, M2-02 and M3-02).** The table exists with the MVP schema from [mvp-spec.md §11](mvp-spec.md#11-data-model-new-network-wide-tables-base_prefix), which drops `slogan`, `vision` and the font columns shown above (Inter is fixed for the MVP). `Mody\Platform\Brand\BrandProfile` creates it and reads a site's profile, including its row ID and the three colors; a color that is not six-digit hex reads as the default preset's (Mody Teal). Prompts use only `brand_name`, `mission`, `tone_of_voice` and `logo_url`. The colors reach the site through Global Styles, not the prompt.
+
+**The colors are the brand's, not only the first site's** (decided 2026-11-06). When the member asks the agent for new colors, it first asks whether they are part of the brand. If they are, `mody/update-design` changes the site's Global Styles **and** the profile's colors (`BrandProfile::update_colors()`); if not, only the site's Global Styles change. See [ai-engine.md, "Changing the colors"](ai-engine.md#changing-the-colors).
 
 **Design decision:** the profile lives IN the WordPress database, next to the site. When the site is created, the agent writes the palette and fonts of the profile into the site's styles. The whole site (templates, blocks, editor) then obeys that identity automatically.
 

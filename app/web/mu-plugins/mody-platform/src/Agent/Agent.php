@@ -42,6 +42,7 @@ final class Agent {
 	public const ABILITIES = array(
 		'generate_page' => 'mody/generate-page',
 		'open_editor'   => 'mody/open-editor',
+		'update_design' => 'mody/update-design',
 	);
 
 	/** Plain function: shows a follow-up question in the chat. Acts on nothing. */
@@ -222,7 +223,7 @@ final class Agent {
 
 		if ( self::REFUSE === $name ) {
 			$reason                = sanitize_text_field( (string) ( $args['reason'] ?? '' ) );
-			$this->turn['reply']   = '' !== $reason ? $reason : __( 'I cannot do that here. I can create pages and open the editor for you.', 'mody_cloud' );
+			$this->turn['reply']   = '' !== $reason ? $reason : __( 'I cannot do that here. I can create pages, change the site\'s colors and open the editor for you.', 'mody_cloud' );
 			$this->turn['refused'] = true;
 			$this->done            = true;
 			AgentEvents::log( $this->input, $name, $args, 'refused: ' . $this->turn['reply'], $started );

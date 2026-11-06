@@ -13,6 +13,7 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 | Authentication | `Authorization: Bearer <token>`. The token is `INFOMANIAK_API_KEY`, which the AI Client reads from the environment by itself. |
 | Thinking mode | Off by default for Qwen models: the provider sends `chat_template_kwargs.enable_thinking = false` unless the caller sets that option. Same output, about a fifth of the tokens, and plugin features stay under the AI Client's 30-second timeout. To turn it on for one call, pass the custom option `chat_template_kwargs` => `array( 'enable_thinking' => true )`. |
 | Price | Not verified for Qwen. The briefing's figures (0.003 / 0.004 EUR per 10K input / output tokens) were for Ministral. Check Infomaniak's pricing before launch. |
+| Rate limit | The project's account is at "rate limit level 1": `x-ratelimit-limit: 50`, then HTTP 429 `rate_limit_error` ("You can contact the support to change it"). Seen on 2026-11-06 after about 50 requests in quick succession; the window length was not measured. The limit is per account, so every site of the network shares it, and one agent message makes 1 to 4 requests. **Open question:** which level is needed before launch. |
 
 ## How it is wired
 
@@ -44,7 +45,8 @@ wp-admin "Mody Agent" page          fetch + X-WP-Nonce, polls the checker       
   └─ POST mody-platform/v1/chat     202 + job, then the turn runs after the response src/Agent/ChatController.php
        └─ Agent::respond()          tool loop, limits, chat buttons                  src/Agent/Agent.php
             ├─ SystemPrompt::for_agent()   agent rules + brand context
-            ├─ wp_ai_client_prompt()       tools: mody/generate-page, mody/open-editor, ask_user, refuse_request
+            ├─ wp_ai_client_prompt()       tools: mody/generate-page, mody/open-editor, mody/update-design,
+            │                                     ask_user, refuse_request
             ├─ core's ability resolver     permission callback + input schema of each ability
             └─ AgentEvents::log()          every request and tool call → mody_agent_events   src/Agent/AgentEvents.php
 GET mody-platform/v1/chat/jobs/<id> the checker: running, done or failed
@@ -107,7 +109,7 @@ The generated text follows the language of the member's prompt (mvp-spec decisio
 
 ## The agent
 
-First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agent)). The member chats on the **Mody Agent** page of the site's wp-admin. The model creates pages, opens the editor, asks a follow-up question or declines.
+First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agent)), and the design tool of M3-02 the same day. The member chats on the **Mody Agent** page of the site's wp-admin. The model creates pages, changes the site's colors, opens the editor, asks a follow-up question or declines.
 
 | Entry point | What it does |
 | --- | --- |
@@ -118,19 +120,49 @@ First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agen
 | Network Admin → Settings → **Mody Agent** (`settings.php?page=mody-agent-settings`, `src/Agent/AgentSettings.php`) | Super admins only (`manage_network_options`). How many days events are kept (1 to 3,650, default 90), stored in the network option `mody_agent_settings`. Shows how many events are stored and the oldest one. Saving purges at once. |
 | `Mody\Platform\Agent\Agent::respond( $message, $history )` | The loop, for PHP callers. Runs on the current site, as the current user. |
 | Ability `mody/open-editor` (`src/SiteEditor.php`) | Input `target` (`page`, `template` or `styles`), plus `page_id` or `page_title` (exact, case-insensitive), or `template` (a slug such as `front-page`). Returns `url` and a button `label`. With no page or template given, it links to the list. Changes nothing. Pages need `edit_pages` and `edit_post` on that page; templates and styles need `edit_theme_options`. When the page or template does not exist, the error lists the site's pages (20 most recent) or templates, so the model can ask which one. Public, like `mody/generate-page`. |
+| Ability `mody/update-design` (`src/Design/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `src/Design/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), plus a required `brand` boolean. Writes the colors to the site's Global Styles; with `brand` true, also to the brand profile row. Returns the old and new colors, `brand_profile_updated`, and a "See the new colors" button (the Site Editor's styles). Needs `edit_theme_options` and a brand profile. Public. See [Changing the colors](#changing-the-colors). |
 
 How a message runs:
 
 1. The message is sanitized and capped at 2,000 characters.
 2. **No brand profile, no call.** Without one, the reply asks the member to complete the brand wizard, the turn is marked `error`, and no request leaves the server. The page also shows a warning banner.
 3. `SystemPrompt::for_agent()` builds the system prompt: what the agent can do, how it decides (act, ask, decline, answer), its rules, and `brand_context()` (rule 4). The model is called with temperature 0.1, 1,000 output tokens at most and thinking off. It receives the last 10 messages of the conversation, as plain text, plus the new one.
-4. **Tools:** the abilities `mody/generate-page` and `mody/open-editor` (as `wpab__mody__generate-page` and `wpab__mody__open-editor`), and two plain functions that act on nothing:
+4. **Tools:** the abilities `mody/generate-page`, `mody/open-editor` and `mody/update-design` (as `wpab__mody__generate-page`, `wpab__mody__open-editor` and `wpab__mody__update-design`), and two plain functions that act on nothing:
    - `ask_user` (`question`, up to four `choices`), which ends the turn with the question;
    - `refuse_request` (`reason`), which ends the turn and flags it as a refusal.
-5. Abilities run in-process through core's `WP_AI_Client_Ability_Function_Resolver`, limited to those two. Each run checks the ability's permission callback and input schema as the current user. A tool name that is not offered, such as `delete_all_pages` or another plugin's ability, runs nothing: the model gets the error `mody_unknown_tool`, and the call is logged as refused.
-6. **Links:** a Site Editor URL in a result (`edit_url` or `url`, only if it points to this site's wp-admin) becomes a chat button. It is removed from what the model sees, replaced by "Shown to the owner as a button", so the model cannot paste or change it.
+5. Abilities run in-process through core's `WP_AI_Client_Ability_Function_Resolver`, limited to those three. Each run checks the ability's permission callback and input schema as the current user. A tool name that is not offered, such as `delete_all_pages` or another plugin's ability, runs nothing: the model gets the error `mody_unknown_tool`, and the call is logged as refused.
+6. **Links:** a Site Editor URL in a result (`edit_url` or `url`, only if it points to this site's wp-admin) becomes a chat button, shown below the reply. It is removed from what the model sees, replaced by "Shown to the owner as a button", so the model cannot paste or change it.
 7. **Limits:** at most 4 model requests and 3 ability runs per message. Further tool calls are refused and logged. If the model has not answered by then, the reply says the request could not be finished.
 8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-platform] agent site N step n: …`, without the prompt or the token.
+
+### Changing the colors
+
+Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "use the Forest preset":
+
+1. The agent first asks, with `ask_user`, whether the new colors are part of the brand: "Yes, they are part of my brand" / "No, only this site's design" (prompt rule 7, decided by the maintainer on 2026-11-06). It skips the question when the member already said so.
+2. With the answer, it calls `mody/update-design` with `brand` true or false. The model converts color names to hex (coral → `#ff7f50`); the server accepts only six-digit hex, or a preset slug. A preset and single colors together, or neither, are refused.
+3. `SiteDesign::apply()` writes the colors the way WordPress 7.1's Site Editor saves an edited theme color: the **whole theme palette** under `settings.color.palette.theme` of the site's user `wp_global_styles` post (the site's own palette if it has one, else the theme's), with only `primary`, `secondary` and `accent` changed. `base` and `contrast` never change. Pages use palette slugs, so they follow at once. The post is saved like core's REST controller does, so each change is a **Global Styles revision** the member can restore in the Site Editor. For members (no `unfiltered_html` on Multisite), kses re-encodes the JSON, and the colors survive it. The ability then reads the colors back, and fails if they do not show.
+4. With `brand` true, `BrandProfile::update_colors()` writes the same colors to the site's row in `mody_brand_profiles`. The profile's colors never reach a prompt: prompts name palette slugs only (rule 2).
+5. The result carries the old and new colors (logged in `mody_agent_events`) and a **See the new colors** button to the Site Editor's styles.
+
+**The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-01) reuses it, and calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
+
+### Prompt size
+
+Found on 2026-11-06 while building M3-02. With the first, longer `mody/update-design` declaration (a 443-character description and one description per color, 3.8 KB of tools in all, 2,135 prompt tokens), Qwen on Infomaniak often answered with bracketed transcript text instead of calling `mody/generate-page`. Examples: "[The member has sent no message yet.]", "[Assistant reply failed to provide]", "[Assistant called wpab__mody__generate-page with the following input]: {…}".
+
+- **It came and went.** The same request body failed 15 times in 20 in one run, 6 in 20 in another, and 0 in 12 in a third.
+- **The other prompts were not affected.** In the same runs, the request without the design tool never failed (0 in 20, twice).
+- **The prompt's length alone was not the trigger.** The old prompt padded to 2,195 tokens passed.
+- **Shortening the declaration fixed it.** Either a short description or no per-color descriptions passed in every run that caught the long version failing. The built declaration has both cuts (3.2 KB of tools, 1,967 tokens): 0 failures in 27 runs, and the full test passes.
+- **Inference:** something on the serving side, not understood. Keep tool declarations short: a one-sentence description, and property descriptions only where the schema cannot say it. Put the instructions in the system prompt, which tolerates more text. When the tools change, run the real tests more than once. **Open question:** report it to Infomaniak (Qwen 3.8 is still listed as `coming_soon`).
+
+**Adding a tool to the agent:**
+
+1. Register the ability in `src/Abilities.php`, with a short declaration (above).
+2. Add it to `Agent::ABILITIES` under a role key.
+3. Describe it in `SystemPrompt::for_agent()`: extend the positional placeholders (`%1$s` to `%5$s` today) with the name from `Agent::tool_names()`.
+4. Add offline checks with fake answers, then check the prompt change with real Qwen runs.
 
 ### Background jobs
 
@@ -171,6 +203,7 @@ Input and result are capped at 4,000 characters. Tokens are never logged.
 | A plain answer or a refusal | 1 | 0.5 to 1.5 s |
 | Opening the editor | 2 | 1.2 to 1.6 s |
 | Creating a page | 3: agent, page, agent | 7 s typically, 23 s once |
+| Changing colors: the brand question, then the change | 1, then 2 | 0.6 to 1 s, then 1.1 to 1.9 s |
 
 These times are for the agent turn itself, measured in-process. In the browser, add the polling interval and the request overhead.
 
@@ -200,6 +233,13 @@ These times are for the agent turn itself, measured in-process. In the browser, 
    - `mody/open-editor` for pages, templates and styles;
    - the refusal without a brand profile;
    - the loop with fake model answers: a plain answer, a page generation, two tool calls in one answer, `ask_user`, `refuse_request`, unknown tools, the limits, and a model error;
+   - the design tool (M3-02):
+     - the presets, which must match `theme.json` and the profile table's defaults;
+     - the profile's colors;
+     - invalid input (bad hex, color names, unknown presets, `base`, a preset with colors, nothing to change, no `brand`);
+     - permissions (no `edit_theme_options`, logged out), and a site without a brand profile;
+     - the ask-then-update flow: a single color with brand no, and a preset with brand yes. It checks the palette, the CSS variables, the profile row, the button, the result sent back and the logged event, that the post has the Site Editor's shape, and that a revision is saved;
+     - `brand` as the string `"false"`, and a save through kses;
    - the REST endpoint:
      - jobs and the checker (in WP-CLI they run at once);
      - another user's job and unknown jobs;
@@ -209,19 +249,21 @@ These times are for the agent turn itself, measured in-process. In the browser, 
    - retention: the setting, the once-a-day purge (using the retention in force, so it deletes only what the daily purge would) and the settings page;
    - the `mody_agent_events` rows for each case.
 
-   Then it makes four real requests:
+   Then it makes real requests:
    - It creates a page **over HTTP as a background job**. A login cookie is made for the test, and its session is destroyed at the end. The test checks that the answer arrived before the job ended, then polls the checker.
    - It opens the editor for that page.
    - It sends "Delete all pages" and "Show me the database".
+   - It asks which design presets there are, and expects all six names.
+   - It sends "Make the primary color coral", then answers "only this site". Then it sends "Use the Forest preset" and answers "part of my brand". Each must ask first, then change the palette, and change the profile only for the brand answer.
 
-   Pages, events and a fixture brand profile created by the test are removed at the end, and the user's conversation is restored. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip the real requests, or `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
+   Pages, events and a fixture brand profile created by the test are removed at the end. The site's Global Styles, the revisions the test made and the profile's colors are restored, and so is the user's conversation. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip the real requests, or `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
 
    ```bash
    docker exec -i -u www-data mody_cloud_app \
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-agent-chat-test.php
    ```
 
-5. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices) and "Delete all pages". The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
+5. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
 
 6. In wp-admin (`https://mody.local/wp/wp-admin/`):
    - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.
@@ -321,4 +363,4 @@ Steps 3 to 6 are an interpretation of the briefing's "use the theme's named colo
 
 ## History
 
-The briefing chose `mistralai/Ministral-3-14B-Instruct-2512`, a Python `hello_ai.py` first step, and the base URL `https://api.infomaniak.com/ai-services/v1`. The MVP spec (2026-11-01) moved to Qwen and a Python agent service. On 2026-11-04 the agent moved into WordPress, using the core AI Client, and the base URL above was confirmed. Ministral fails the block test. On 2026-11-06 the maintainer agreed "Option C" (agent actions as abilities), and page generation, the brand profile table and the validator were built as the first ability, `mody/generate-page`. The same day the agent chat (first slice of M3-01), `mody/open-editor` and the `mody_agent_events` audit table were built.
+The briefing chose `mistralai/Ministral-3-14B-Instruct-2512`, a Python `hello_ai.py` first step, and the base URL `https://api.infomaniak.com/ai-services/v1`. The MVP spec (2026-11-01) moved to Qwen and a Python agent service. On 2026-11-04 the agent moved into WordPress, using the core AI Client, and the base URL above was confirmed. Ministral fails the block test. On 2026-11-06 the maintainer agreed "Option C" (agent actions as abilities), and page generation, the brand profile table and the validator were built as the first ability, `mody/generate-page`. The same day the agent chat (first slice of M3-01), `mody/open-editor` and the `mody_agent_events` audit table were built, then the six design presets and `mody/update-design` (M3-02).

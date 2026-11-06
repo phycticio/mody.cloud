@@ -13,19 +13,25 @@
  *    answer, a page generation, two tool calls at once, ask_user,
  *    refuse_request, unknown tools, the step and tool limits, a model error.
  *    Checks the requests sent, the chat turn and the mody_agent_events rows (offline).
- * 4. The REST endpoint mody-platform/v1/chat: jobs and the checker (here they
+ * 4. Design (ticket M3-02): the presets, mody/update-design's validation and
+ *    permissions, and the ask-then-update flow with fake answers, brand yes
+ *    and no, with a preset and a single color: the Global Styles palette and
+ *    the brand profile row, changed or not (offline).
+ * 5. The REST endpoint mody-platform/v1/chat: jobs and the checker (here they
  *    run at once, WP-CLI has no PHP-FPM), another user's job, a busy and a
  *    stale job, permissions, validation, the stored conversation (offline).
- * 5. Retention: the setting, the once-a-day purge, the settings page (offline).
+ * 6. Retention: the setting, the once-a-day purge, the settings page (offline).
  *    It uses the retention in force, so it deletes only what the daily purge would.
- * 6. Real round trips: create a page over HTTP as a background job, polling the
- *    checker; open it in the editor; two requests that must be refused.
+ * 7. Real round trips: create a page over HTTP as a background job, polling the
+ *    checker; open it in the editor; two requests that must be refused; the
+ *    presets; "make the primary color coral" and "use the Forest preset".
  *    Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip them.
  *
  * If the site has no brand profile, a fixture row is inserted and removed at
- * the end. Pages and events created by the test are removed too, and the
- * user's chat conversation is restored. Add `-e MODY_TEST_KEEP_PAGE=1` to keep
- * the generated draft. Never prints the token.
+ * the end. Pages and events created by the test are removed too, the site's
+ * Global Styles, its revisions and the profile's colors are restored, and so
+ * is the user's chat conversation. Add `-e MODY_TEST_KEEP_PAGE=1` to keep the
+ * generated draft. Never prints the token.
  */
 
 use Mody\Platform\Agent\Agent;
@@ -33,6 +39,8 @@ use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\AgentSettings;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Design\Presets;
+use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\SiteEditor;
 
 $failures = 0;
@@ -77,9 +85,29 @@ if ( null === BrandProfile::for_site( $site_id ) ) {
 $chat_key     = 'mody_agent_chat_' . get_current_user_id();
 $saved_chat   = get_transient( $chat_key );
 $cleanup_ids  = array();
+
+// The design tests change the site's Global Styles and the profile's colors: restore both.
+$profile_id     = BrandProfile::for_site( $site_id )->id;
+$profile_colors = $wpdb->get_row( $wpdb->prepare( 'SELECT color_primary, color_secondary, color_accent FROM ' . BrandProfile::table() . ' WHERE id = %d', $profile_id ), ARRAY_A ); // phpcs:ignore WordPress.DB
+$styles_id      = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+$styles_content = get_post( $styles_id )->post_content;
+$revisions      = wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) );
+$restore_design = static function () use ( $profile_id, $profile_colors, $styles_id, $styles_content ): void {
+	global $wpdb;
+	$wpdb->update( BrandProfile::table(), $profile_colors, array( 'id' => $profile_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	if ( get_post( $styles_id )->post_content !== $styles_content ) {
+		wp_update_post( wp_slash( array( 'ID' => $styles_id, 'post_content' => $styles_content ) ), true, false );
+	}
+	wp_clean_theme_json_cache();
+};
+
 register_shutdown_function(
-	static function () use ( $fixture_id, $test_mark, $events, $chat_key, $saved_chat, &$cleanup_ids ): void {
+	static function () use ( $fixture_id, $test_mark, $events, $chat_key, $saved_chat, &$cleanup_ids, $restore_design, $styles_id, $revisions ): void {
 		global $wpdb;
+		$restore_design();
+		foreach ( array_diff( wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) ), $revisions ) as $revision ) {
+			wp_delete_post_revision( $revision );
+		}
 		if ( $fixture_id ) {
 			$wpdb->delete( BrandProfile::table(), array( 'id' => $fixture_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		}
@@ -241,7 +269,7 @@ $turn     = Agent::respond( 'What can you do?' );
 $rows     = $since();
 $sent     = array_column( array_column( $requests[0]['tools'] ?? array(), 'function' ), 'name' );
 $check( 'plain answer', 'I can create pages and open the editor.' === $turn['reply'] && ! $turn['actions'] && ! $turn['error'], $turn['reply'] );
-$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 4 === count( $sent ), implode( ', ', $sent ) );
+$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 5 === count( $sent ), implode( ', ', $sent ) );
 $check( '...brand in the system prompt', str_contains( wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ) && 'system' === ( $requests[0]['messages'][0]['role'] ?? '' ) );
 $check( '...temperature 0.1', 0.1 === (float) ( $requests[0]['temperature'] ?? 0 ) );
 $check( '...request logged', 1 === count( $rows ) && null === $rows[0]['tool'] && 'What can you do?' === $rows[0]['input'] && $turn['reply'] === $rows[0]['result'] );
@@ -344,7 +372,178 @@ $rows     = $since();
 $check( 'model error: reported', $turn['error'] && 1 === count( $requests ), $turn['reply'] );
 $check( '...logged', 1 === count( $rows ) && null === $rows[0]['tool'] && ! str_contains( $rows[0]['result'], 'Hello' ), $rows ? mb_strimwidth( $rows[0]['result'], 0, 70, '...' ) : '' );
 
-// 4. REST endpoint ----------------------------------------------------------
+// 4. Design: mody/update-design ---------------------------------------------
+
+echo "\nDesign (mody/update-design)\n";
+$palette      = static function (): array { // Every theme palette slug => color, as the site shows it.
+	wp_clean_theme_json_cache();
+	return array_map( 'strtolower', wp_list_pluck( (array) wp_get_global_settings( array( 'color', 'palette', 'theme' ) ), 'color', 'slug' ) );
+};
+$css_color    = static function ( string $slug ): string {
+	return preg_match( '/--wp--preset--color--' . $slug . ':\s*([^;]+);/', wp_get_global_stylesheet( array( 'variables' ) ), $m ) ? strtolower( trim( $m[1] ) ) : '';
+};
+$profile_now  = static fn(): array => BrandProfile::for_site( $site_id )->colors;
+$styles_now   = static fn(): string => (string) get_post( $styles_id )->post_content;
+$theme_colors = array_map( 'strtolower', wp_list_pluck( WP_Theme_JSON_Resolver::get_theme_data()->get_settings()['color']['palette']['theme'], 'color', 'slug' ) );
+$restore_design();
+$start_colors = $palette();
+$start_brand  = $profile_now();
+
+$check( 'six presets, Mody Teal first', array( 'mody-teal', 'forest', 'ocean', 'plum', 'graphite', 'sand' ) === Presets::slugs() && Presets::DEFAULT === Presets::slugs()[0], Presets::names() );
+$check( '...each three hex colors', 6 === count( array_filter( array_map( array( Presets::class, 'colors' ), Presets::slugs() ), static fn( $c ) => is_array( $c ) && 3 === count( array_filter( $c, array( SiteDesign::class, 'is_hex' ) ) ) ) ) );
+$default_hex = Presets::colors( Presets::DEFAULT );
+$table_hex   = (array) $wpdb->get_row( 'SELECT DEFAULT(color_primary) AS `primary`, DEFAULT(color_secondary) AS secondary, DEFAULT(color_accent) AS accent FROM ' . BrandProfile::table() . ' LIMIT 1', ARRAY_A ); // phpcs:ignore WordPress.DB
+$check( '...default = theme.json = table defaults', array_intersect_key( $theme_colors, $default_hex ) == $default_hex && $table_hex == $default_hex, wp_json_encode( $default_hex ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+$check( 'brand profile loads its colors', 3 === count( array_filter( $start_brand, array( SiteDesign::class, 'is_hex' ) ) ) && $profile_id > 0, wp_json_encode( $start_brand ) );
+$fallback = BrandProfile::from_row(
+	array(
+		'brand_name'    => 'Fixture',
+		'color_primary' => 'red',
+		'color_accent'  => '#ABCDEF',
+	)
+);
+$check( '...invalid colors fall back to the default', array( 'primary' => '#005f6b', 'secondary' => '#333333', 'accent' => '#abcdef' ) === $fallback->colors, wp_json_encode( $fallback->colors ) );
+$check( 'agent prompt: brand question', str_contains( $system, $names['update_design'] ) && str_contains( $system, 'part of my brand' ) && ! preg_match( '/#[0-9a-f]{6}/i', SystemPrompt::brand_context( BrandProfile::for_site( $site_id ) ) ), 'no hex in the brand context' );
+
+$design = wp_get_ability( 'mody/update-design' );
+$invalid = array(
+	'bad hex'           => array( 'primary' => '#ff7f5', 'brand' => false ),
+	'color name'        => array( 'primary' => 'coral', 'brand' => false ),
+	'unknown preset'    => array( 'preset' => 'jungle', 'brand' => false ),
+	'no brand'          => array( 'primary' => '#ff7f50' ),
+	'base color'        => array( 'base' => '#ffffff', 'brand' => false ),
+	'preset and colors' => array( 'preset' => 'forest', 'accent' => '#ff7f50', 'brand' => false ),
+	'nothing to change' => array( 'brand' => true ),
+);
+$codes   = array();
+foreach ( $invalid as $label => $input ) {
+	$result          = $design->execute( $input );
+	$codes[ $label ] = is_wp_error( $result ) ? $result->get_error_code() : 'accepted';
+}
+$check( 'invalid input refused', ! in_array( 'accepted', $codes, true ) && 'mody_preset_or_colors' === $codes['preset and colors'] && 'mody_no_colors' === $codes['nothing to change'], wp_json_encode( array_count_values( $codes ) ) );
+$check( '...nothing changed', $styles_content === $styles_now() && $start_brand === $profile_now() );
+
+$deny = static fn( array $caps, string $cap ): array => in_array( $cap, array( 'edit_theme_options' ), true ) ? array( 'do_not_allow' ) : $caps;
+add_filter( 'map_meta_cap', $deny, 10, 2 ); // Super admins pass user_has_cap, not do_not_allow.
+$result = $design->execute( array( 'primary' => '#ff7f50', 'brand' => false ) );
+remove_filter( 'map_meta_cap', $deny, 10 );
+$check( 'without edit_theme_options: refused', is_wp_error( $result ) && $styles_content === $styles_now(), $message( $result ) );
+wp_set_current_user( 0 );
+$result = $design->execute( array( 'primary' => '#ff7f50', 'brand' => false ) );
+wp_set_current_user( $user );
+$check( 'logged out: refused', is_wp_error( $result ) && $styles_content === $styles_now(), $message( $result ) );
+if ( $without ) {
+	switch_to_blog( $without );
+	$other_styles = (string) get_post( WP_Theme_JSON_Resolver::get_user_global_styles_post_id() )->post_content;
+	$result       = $design->execute( array( 'primary' => '#ff7f50', 'brand' => false ) );
+	$unchanged    = (string) get_post( WP_Theme_JSON_Resolver::get_user_global_styles_post_id() )->post_content === $other_styles;
+	restore_current_blog();
+	wp_clean_theme_json_cache();
+	$check( 'no brand profile: refused', is_wp_error( $result ) && 'mody_no_brand_profile' === $result->get_error_code() && $unchanged, $message( $result ) . " (site $without)" );
+}
+
+// Ask, then change one color: only this site's design.
+$fakes    = array(
+	array(
+		array(
+			Agent::ASK_USER,
+			array(
+				'question' => 'Is coral part of your brand, or only for this site?',
+				'choices'  => array( 'Yes, they are part of my brand', 'No, only this site\'s design' ),
+			),
+		),
+	),
+);
+$requests = array();
+$turn     = Agent::respond( 'Make the primary color coral' );
+$rows     = $since();
+$check( 'coral: the agent asks first', 2 === count( $turn['choices'] ) && array( 'ask_user' ) === $tools_of( $rows ) && $start_colors === $palette(), $turn['reply'] );
+$history  = array(
+	array(
+		'role' => 'user',
+		'text' => 'Make the primary color coral',
+	),
+	array(
+		'role' => 'assistant',
+		'text' => $turn['reply'],
+	),
+);
+$fakes    = array(
+	array(
+		array(
+			$names['update_design'],
+			array(
+				'primary' => '#FF7F50',
+				'brand'   => false,
+			),
+		),
+	),
+	'Done: the primary color is now coral.',
+);
+$requests = array();
+$turn     = Agent::respond( 'No, only this site\'s design', $history );
+$rows     = $since();
+$now      = $palette();
+$sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
+$check( '...brand no: primary changed', '#ff7f50' === $now['primary'] && '#ff7f50' === $css_color( 'primary' ), 'palette ' . $now['primary'] . ', CSS ' . $css_color( 'primary' ) );
+$check( '...other colors unchanged', array_diff_key( $now, array( 'primary' => 1 ) ) === array_diff_key( $start_colors, array( 'primary' => 1 ) ) );
+$check( '...profile unchanged', $start_brand === $profile_now(), wp_json_encode( $profile_now() ) );
+$check( '...button to see the colors', SiteEditor::url( '/styles' ) === ( $turn['actions'][0]['url'] ?? '' ), $turn['actions'][0]['label'] ?? 'no button' );
+$check( '...old and new sent back, no URL', str_contains( $sent, '"old":"' . $start_colors['primary'] . '"' ) && str_contains( $sent, '"new":"#ff7f50"' ) && str_contains( $sent, '"brand_profile_updated":false' ) && ! str_contains( $sent, 'site-editor' ), mb_strimwidth( $sent, 0, 90, '...' ) );
+$check( '...logged with old and new', array( 'mody/update-design' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], '"new":"#ff7f50"' ) && str_contains( (string) $rows[0]['args'], '"brand":false' ) );
+$stored = json_decode( $styles_now(), true );
+$check( '...stored like the Site Editor', count( $theme_colors ) === count( $stored['settings']['color']['palette']['theme'] ?? array() ) && ! empty( $stored['isGlobalStylesUserThemeJSON'] ), 'settings.color.palette.theme, ' . count( $stored['settings']['color']['palette']['theme'] ?? array() ) . ' entries' );
+$check( '...a Global Styles revision', count( wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) ) ) > count( $revisions ) );
+
+// A preset, part of the brand.
+$fakes    = array(
+	array(
+		array(
+			$names['update_design'],
+			array(
+				'preset' => 'forest',
+				'brand'  => true,
+			),
+		),
+	),
+	'Done: your site and your brand now use Forest.',
+);
+$turn     = Agent::respond( 'Yes, they are part of my brand', array( array( 'role' => 'user', 'text' => 'Use the Forest preset' ), array( 'role' => 'assistant', 'text' => 'Are these colors part of your brand?' ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing
+$rows     = $since();
+$now      = $palette();
+$forest   = Presets::colors( 'forest' );
+$check( 'forest, brand yes: palette', array_intersect_key( $now, $forest ) == $forest && $now['base'] === $start_colors['base'] && $now['contrast'] === $start_colors['contrast'], wp_json_encode( array_intersect_key( $now, $forest ) ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+$check( '...brand profile changed too', $forest == $profile_now() && str_contains( (string) $rows[0]['result'], '"brand_profile_updated":true' ), wp_json_encode( $profile_now() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+
+// "false" as a string is a valid boolean for the schema, and means false.
+$result = $design->execute(
+	array(
+		'accent' => '#123456',
+		'brand'  => 'false',
+	)
+);
+$check( 'brand "false": profile unchanged', is_array( $result ) && false === $result['brand_profile_updated'] && $forest == $profile_now() && '#123456' === $palette()['accent'], $message( $result ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+
+// A member saves through kses (only super admins have unfiltered_html on Multisite).
+$no_html = static fn( array $caps, string $cap ): array => 'unfiltered_html' === $cap ? array( 'do_not_allow' ) : $caps;
+add_filter( 'map_meta_cap', $no_html, 10, 2 );
+kses_init(); // What set_current_user runs for a member.
+$filtered = false !== has_filter( 'content_save_pre', 'wp_filter_global_styles_post' );
+$result   = $design->execute(
+	array(
+		'secondary' => '#222222',
+		'brand'     => false,
+	)
+);
+remove_filter( 'map_meta_cap', $no_html, 10 );
+kses_init();
+$check( 'through kses: saved', $filtered && is_array( $result ) && '#222222' === $palette()['secondary'], $filtered ? $message( $result ) : 'kses filter not active' );
+
+$restore_design();
+$check( 'restored', $start_colors === $palette() && $start_brand === $profile_now() );
+$since();
+
+// 5. REST endpoint ----------------------------------------------------------
 
 echo "\nREST endpoint\n";
 $rest = static function ( string $method, array $body = array() ) {
@@ -417,7 +616,7 @@ wp_set_current_user( $user );
 $check( 'logged out: 401, no model request', 401 === $response->get_status() && ! $requests, (string) $response->get_status() );
 $since();
 
-// 5. Retention --------------------------------------------------------------
+// 6. Retention --------------------------------------------------------------
 // Uses the retention in force, so it deletes only what the daily purge would.
 
 echo "\nRetention\n";
@@ -457,7 +656,7 @@ AgentSettings::render();
 $html = (string) ob_get_clean();
 $check( 'settings page renders', str_contains( $html, 'name="retention_days"' ) && str_contains( $html, 'value="' . $retention . '"' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'edit.php?action=' . AgentSettings::SLUG ) );
 
-// 6. Real round trips -------------------------------------------------------
+// 7. Real round trips -------------------------------------------------------
 
 if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed (offline).\n";
@@ -466,10 +665,10 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 
 echo "\nReal round trips (Infomaniak)\n";
 $fakes = null;
-$real  = static function ( string $text ) use ( &$requests, $since ): array {
+$real  = static function ( string $text, array $history = array() ) use ( &$requests, $since ): array {
 	$requests = array();
 	$start    = microtime( true );
-	$turn     = Agent::respond( $text );
+	$turn     = Agent::respond( $text, $history );
 	$turn['secs']     = sprintf( '%.1fs, %d request(s)', microtime( true ) - $start, count( $requests ) );
 	$turn['events']   = $since();
 	return $turn;
@@ -545,5 +744,41 @@ foreach ( array( 'Delete all pages', 'Show me the database' ) as $text ) {
 	$check( "\"$text\": nothing run", ! $ran && (int) array_sum( (array) wp_count_posts( 'page' ) ) === $pages_before, ( $turn['refused'] ? 'refuse_request' : 'plain-text refusal' ) . ', ' . $turn['secs'] );
 	$check( '...logged', (bool) array_filter( $turn['events'], static fn( $row ) => null === $row['tool'] && $text === $row['input'] ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
 }
+
+// Design: the presets, then two changes, each asked first. Restored at the end.
+$turn  = $real( 'Which design presets are there?' );
+$named = array_filter( array_column( Presets::all(), 'name' ), static fn( $name ) => str_contains( $turn['reply'], $name ) );
+$check( 'presets listed by name', 6 === count( $named ) && ! preg_match( '/#[0-9a-f]{6}/i', $turn['reply'] ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) . ', ' . $turn['secs'] );
+
+$design_runs = array(
+	array( 'Make the primary color coral', 1, false ), // Answer with the first choice (brand) or the second (this site only).
+	array( 'Use the Forest preset', 0, true ),
+);
+foreach ( $design_runs as list( $text, $choice, $brand ) ) {
+	$restore_design();
+	$asked   = $real( $text );
+	$ran     = in_array( 'mody/update-design', $tools_of( $asked['events'] ), true );
+	$check( "\"$text\": asks first", 2 === count( $asked['choices'] ) && ! $ran, mb_strimwidth( $asked['reply'], 0, 60, '...' ) . ' [' . implode( ' | ', $asked['choices'] ) . '], ' . $asked['secs'] );
+	$answer  = $asked['choices'][ $choice ] ?? ( $brand ? 'Yes, they are part of my brand' : 'No, only this site\'s design' );
+	$history = array(
+		array(
+			'role' => 'user',
+			'text' => $text,
+		),
+		array(
+			'role' => 'assistant',
+			'text' => $asked['reply'],
+		),
+	);
+	$turn    = $real( $answer, $history );
+	$call    = array_values( array_filter( $turn['events'], static fn( $row ) => 'mody/update-design' === $row['tool'] ) )[0] ?? null;
+	$args    = $call ? (array) json_decode( (string) $call['args'], true ) : array();
+	$now     = $palette();
+	$changed = $brand ? Presets::colors( 'forest' ) : array( 'primary' => strtolower( (string) ( $args['primary'] ?? '' ) ) );
+	$check( '...then updates', $call && array_intersect_key( $now, $changed ) == $changed && $start_colors['primary'] !== $now['primary'], ( $call ? $call['args'] : 'no call' ) . ', ' . $turn['secs'] ); // phpcs:ignore Universal.Operators.StrictComparisons
+	$check( $brand ? '...brand profile changed' : '...brand profile unchanged', $brand ? Presets::colors( 'forest' ) == $profile_now() : $start_brand === $profile_now(), wp_json_encode( $profile_now() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+	$check( '...button and reply', SiteEditor::url( '/styles' ) === ( $turn['actions'][0]['url'] ?? '' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+}
+$restore_design();
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";
