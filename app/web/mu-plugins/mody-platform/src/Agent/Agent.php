@@ -90,6 +90,14 @@ final class Agent {
 	private bool $done = false;
 
 	/**
+	 * Whether mody/publish-page failed in this turn. Then no other page is
+	 * published until the owner says which one: on 2026-11-06, after "There
+	 * is no page 259", the model published an older draft with the same
+	 * title without asking.
+	 */
+	private bool $publish_failed = false;
+
+	/**
 	 * The abilities run in this turn, as the model called them and with the
 	 * result it got (links removed), for the conversation's next turns.
 	 *
@@ -268,9 +276,22 @@ final class Agent {
 			);
 		}
 
+		if ( 'mody/publish-page' === $ability && $this->publish_failed ) {
+			AgentEvents::log( $this->input, $ability, $args, 'refused: publish failed earlier in this turn', $started );
+			return array(
+				'error' => sprintf( 'The page asked for could not be published, so no other page is published in this turn. Nothing was run. Call %s and ask the owner which page to publish, with the drafts\' titles as choices.', self::ASK_USER ),
+				'code'  => 'mody_publish_needs_answer',
+			);
+		}
+
 		++$this->executed;
 		$response = $resolver->execute_ability( $call )->getResponse();
 		AgentEvents::log( $this->input, $ability, $args, (string) wp_json_encode( $response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $started );
+
+		// A schema error leaves the target unchanged: the model may fix its arguments.
+		if ( 'mody/publish-page' === $ability && is_array( $response ) && isset( $response['error'] ) && 'ability_invalid_input' !== ( $response['code'] ?? '' ) ) {
+			$this->publish_failed = true;
+		}
 
 		$response      = $this->take_link( $response );
 		$json          = wp_json_encode( $response );

@@ -692,6 +692,21 @@ $check( '...logged', array( 'mody/publish-page' ) === $tools_of( $rows ) && str_
 $result = $publish->execute( array( 'page_id' => $draft_id ) );
 $check( '...twice: already published', is_wp_error( $result ) && 'mody_page_published' === $result->get_error_code(), $message( $result ) );
 
+// "Publish it" for a page that is gone: no other draft is published without asking (seen 2026-11-06).
+$other_id = $make( 'Mody publish test other draft' );
+$fakes    = array(
+	array( array( $names['publish_page'], array( 'page_id' => 999999999 ) ) ),
+	array( array( $names['publish_page'], array( 'page_id' => $other_id ) ) ),
+	array( array( 'ask_user', array( 'question' => 'Which page should I publish?', 'choices' => array( 'Mody publish test other draft' ) ) ) ),
+);
+$requests = array();
+$turn     = Agent::respond( 'Publish it' );
+$rows     = $since();
+$second   = $tool_messages( $requests[2] ?? array() )[1]['content'] ?? '';
+$check( 'page gone: no other draft published', 'draft' === $status( $other_id ) && 'Which page should I publish?' === $turn['reply'] && array( 'Mody publish test other draft' ) === $turn['choices'], $turn['reply'] );
+$check( '...the second publish refused, told to ask', str_contains( $second, 'mody_publish_needs_answer' ) && str_contains( $second, 'ask_user' ), mb_strimwidth( $second, 0, 90, '...' ) );
+$check( '...logged', array( 'mody/publish-page', 'mody/publish-page', 'ask_user' ) === $tools_of( $rows ) && str_starts_with( (string) $rows[1]['result'], 'refused: publish failed' ), implode( ', ', $tools_of( $rows ) ) );
+
 // A draft the member edited by hand, through kses: published as it is, though the validator refuses it.
 $edited_id = $make( 'Mody publish test edited', 'draft', 'page', SystemPrompt::EXAMPLE );
 add_filter( 'map_meta_cap', $no_html, 10, 2 );

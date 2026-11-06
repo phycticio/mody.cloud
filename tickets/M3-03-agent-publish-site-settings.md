@@ -31,3 +31,6 @@ Split from M3-01 on 2026-11-06.
 - [x] "Create an about page" → validated draft, not published. "Publish the about page" → published, every step logged. Five real runs passed (the last two with "Publish it" over HTTP, using the stored conversation).
 - [x] A draft edited by hand in the Site Editor is published as it is when the member asks (offline test, through kses, with content the validator refuses).
 - [x] "Change the tagline to …" → tagline updated, event logged. No other option can be written (schema allowlist, tested with `admin_email`, `blogname` and `siteurl`).
+
+## Found after (2026-11-06)
+- **A failed publish led to the wrong page.** In the maintainer's manual test, "Publish it" targeted a draft deleted meanwhile (page 259). After the "not found" error, the model published an older "About" draft (page 29) without asking: 5 times in 5 when replayed. Fixed in `Agent::handle()`: after a failed `mody/publish-page` (other than a schema error), no other publish runs in that turn, and the error tells the model to ask. Replayed: it asked 5 times in 5, nothing published. Test: "page gone" in `scripts/ai-agent-chat-test.php`. Details: ai-engine.md, "Publishing and site settings".
