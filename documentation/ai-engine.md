@@ -260,7 +260,8 @@ an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/include
 - **An empty instruction stays empty:** the brand is added to a feature's rules, never in their place.
 - **A new feature** in a plugin update gets no brand until it is added to `FEATURES`. `scripts/ai-plugin-brand-context-test.php` fails on any `ai/` feature it does not know, so the update forces the decision.
 - **The plugin's switches are per site.** Each site has its own feature toggles and connector approvals (the option `wpai_connector_approvals`). A new subsite has every feature off and nothing approved. Locally, `alpha` has no features on: a title generation run there under `switch_to_blog()` fails with "unsupported model", because the connector is not approved for the plugin on that site. M2's provisioning or M4-01's lock-down has to set both on member sites.
-- **Speed:** a real title generation with the brand took 3.5 s locally (one request).
+- **Speed:** a real title generation with the brand took 3.5 s locally and 0.3 s in production (one request each).
+- **Production** (2026-11-06): the plugin (1.5.0) is active on mody.cloud with every feature on, and `ai/ai.php` is approved for `infomaniak`. The plugin's 1.4 upgrade removed its global switch; had it been off then, the upgrade would have switched every feature off. mody.cloud has no brand profile, so its features run without brand context until it gets one.
 - **Seen on 2026-11-06:** the suggested reply to "Do you also deliver on Saturdays?" once said "we deliver only on weekdays", which no data said. The model inferred it from the mission ("for offices"). The plugin's own rules forbid inventing facts, and the owner reviews every suggestion before using it.
 
 ## Testing locally
@@ -331,7 +332,7 @@ an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/include
    - title generation with a fake model answer: one request, whose system message has the plugin's rules and the brand. The same run on a site without a profile sends no brand, but is skipped when the plugin is not set up on that site (locally, `alpha`);
    - one real title generation.
 
-   The parts that run a feature are skipped, with a note, when title generation is not registered or the connector is not approved (production today). A fixture brand profile is inserted and removed if the site has none. Add `-e MODY_TEST_OFFLINE=1` to skip the real request.
+   The parts that run a feature are skipped, with a note, when title generation is not registered or the connector is not approved. In production (2026-11-06) the whole test runs: the plugin is active on mody.cloud with every feature on and `ai/ai.php` approved. Its requests, fake ones included, land in the plugin's request log like real ones. A fixture brand profile is inserted and removed if the site has none. Add `-e MODY_TEST_OFFLINE=1` to skip the real request.
 
    ```bash
    docker exec -i -u www-data mody_cloud_app \
