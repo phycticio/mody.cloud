@@ -56,7 +56,7 @@ final class ChatPage {
 				array(
 					'endpoint' => rest_url( ChatController::REST_NAMESPACE . '/chat' ),
 					'nonce'    => wp_create_nonce( 'wp_rest' ),
-					'history'  => ChatController::history(),
+					'history'  => ChatController::display_history(),
 					'pending'  => $running ? array(
 						'job'     => $running['id'],
 						'message' => $running['message'],
@@ -68,7 +68,7 @@ final class ChatPage {
 						'working'  => __( 'Working on it…', 'mody_cloud' ),
 						'slow'     => __( 'Still working. Creating a page can take a minute.', 'mody_cloud' ),
 						'failed'   => __( 'The request failed. Reload the page and try again.', 'mody_cloud' ),
-						'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts), change its colors and open the editor for you.', 'mody_cloud' ),
+						'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts) and publish them when you ask, change its colors, title and tagline, and open the editor for you.', 'mody_cloud' ),
 					),
 				)
 			) . ';',

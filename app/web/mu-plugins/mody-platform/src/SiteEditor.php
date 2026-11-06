@@ -27,6 +27,9 @@ final class SiteEditor {
 	/** Pages listed in a "not found" error, so the agent can ask which one. */
 	private const LISTED_PAGES = 20;
 
+	/** Page statuses found by title and listed in a "not found" error. */
+	public const PAGE_STATUSES = array( 'publish', 'draft', 'pending', 'private', 'future' );
+
 	/**
 	 * The Site Editor URL of a page.
 	 *
@@ -95,31 +98,9 @@ final class SiteEditor {
 			return self::result( 'page', self::url( '/page' ), __( 'Open the pages', 'mody_cloud' ) );
 		}
 
-		if ( ! $page_id ) {
-			$found   = get_posts(
-				array(
-					'post_type'   => 'page',
-					'post_status' => 'any',
-					'title'       => $title,
-					'numberposts' => 1,
-					'orderby'     => 'modified',
-					'fields'      => 'ids',
-				)
-			);
-			$page_id = (int) ( $found[0] ?? 0 );
-		}
-
-		$page = $page_id ? get_post( $page_id ) : null;
-		if ( ! $page || 'page' !== $page->post_type || in_array( $page->post_status, array( 'trash', 'auto-draft' ), true ) ) {
-			return new WP_Error(
-				'mody_page_not_found',
-				'' !== $title
-					/* translators: %s: page title. */
-					? sprintf( __( 'There is no page titled "%s" on this site.', 'mody_cloud' ), $title )
-					/* translators: %d: page ID. */
-					: sprintf( __( 'There is no page %d on this site.', 'mody_cloud' ), $page_id ),
-				array( 'pages' => self::pages() )
-			);
+		$page = self::find_page( $page_id, $title );
+		if ( is_wp_error( $page ) ) {
+			return $page;
 		}
 		if ( ! current_user_can( 'edit_post', $page->ID ) ) {
 			return new WP_Error( 'mody_forbidden', __( 'You cannot edit this page.', 'mody_cloud' ) );
@@ -167,15 +148,59 @@ final class SiteEditor {
 	}
 
 	/**
+	 * A page of the current site, by ID or else by exact title (the most
+	 * recently changed one). Also for mody/publish-page.
+	 *
+	 * @param int      $page_id  Page ID, or 0 to look up the title.
+	 * @param string   $title    Exact title, case-insensitive.
+	 * @param string[] $statuses Statuses a title lookup searches, and the error lists.
+	 * @return \WP_Post|WP_Error `mody_page_not_found` lists the pages in $statuses.
+	 */
+	public static function find_page( int $page_id, string $title, array $statuses = self::PAGE_STATUSES ): \WP_Post|WP_Error {
+		if ( ! $page_id && '' !== $title ) {
+			$found   = get_posts(
+				array(
+					'post_type'   => 'page',
+					'post_status' => $statuses,
+					'title'       => $title,
+					'numberposts' => 1,
+					'orderby'     => 'modified',
+					'fields'      => 'ids',
+				)
+			);
+			$page_id = (int) ( $found[0] ?? 0 );
+		}
+
+		$page = $page_id ? get_post( $page_id ) : null;
+		if ( $page && 'page' === $page->post_type && 'trash' === $page->post_status ) {
+			/* translators: %s: page title. */
+			return new WP_Error( 'mody_page_in_trash', sprintf( __( 'The page "%s" is in the trash. Restore it from the Pages screen first.', 'mody_cloud' ), get_the_title( $page ) ) );
+		}
+		if ( ! $page || 'page' !== $page->post_type || 'auto-draft' === $page->post_status ) {
+			return new WP_Error(
+				'mody_page_not_found',
+				'' !== $title && ! $page_id
+					/* translators: %s: page title. */
+					? sprintf( __( 'There is no page titled "%s" on this site.', 'mody_cloud' ), $title )
+					/* translators: %d: page ID. */
+					: sprintf( __( 'There is no page %d on this site.', 'mody_cloud' ), $page_id ),
+				array( 'pages' => self::pages( $statuses ) )
+			);
+		}
+		return $page;
+	}
+
+	/**
 	 * The site's most recently changed pages: ID, title and status.
 	 *
+	 * @param string[] $statuses Page statuses to list.
 	 * @return list<array{id: int, title: string, status: string}>
 	 */
-	private static function pages(): array {
+	public static function pages( array $statuses = self::PAGE_STATUSES ): array {
 		$pages = get_posts(
 			array(
 				'post_type'   => 'page',
-				'post_status' => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+				'post_status' => $statuses,
 				'numberposts' => self::LISTED_PAGES,
 				'orderby'     => 'modified',
 			)

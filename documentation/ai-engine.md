@@ -13,7 +13,7 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 | Authentication | `Authorization: Bearer <token>`. The token is `INFOMANIAK_API_KEY`, which the AI Client reads from the environment by itself. |
 | Thinking mode | Off by default for Qwen models: the provider sends `chat_template_kwargs.enable_thinking = false` unless the caller sets that option. Same output, about a fifth of the tokens, and plugin features stay under the AI Client's 30-second timeout. To turn it on for one call, pass the custom option `chat_template_kwargs` => `array( 'enable_thinking' => true )`. |
 | Price | Not verified for Qwen. The briefing's figures (0.003 / 0.004 EUR per 10K input / output tokens) were for Ministral. Check Infomaniak's pricing before launch. |
-| Rate limit | The project's account is at "rate limit level 1": `x-ratelimit-limit: 50`, then HTTP 429 `rate_limit_error` ("You can contact the support to change it"). Seen on 2026-11-06 after about 50 requests in quick succession; the window length was not measured. The limit is per account, so every site of the network shares it, and one agent message makes 1 to 4 requests. **Open question:** which level is needed before launch. |
+| Rate limit | The project's account is at "rate limit level 1": `x-ratelimit-limit: 50`, then HTTP 429 `rate_limit_error` ("You can contact the support to change it"). Seen on 2026-11-06 after about 50 requests in quick succession. The window was not measured exactly, but it is short: the same day, `x-ratelimit-remaining` went from 34 back to 45 within about four minutes. **Inference:** a one-minute window. There is no reset header. The limit is per account, so every site of the network shares it, and one agent message makes 1 to 4 requests. **Open question:** which level is needed before launch. |
 
 ## How it is wired
 
@@ -109,7 +109,7 @@ The generated text follows the language of the member's prompt (mvp-spec decisio
 
 ## The agent
 
-First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agent)), and the design tool of M3-02 the same day. The member chats on the **Mody Agent** page of the site's wp-admin. The model creates pages, changes the site's colors, opens the editor, asks a follow-up question or declines.
+First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agent)), then the same day the design tool of M3-02, and publishing and the site title and tagline of M3-03. The member chats on the **Mody Agent** page of the site's wp-admin. The model creates pages, publishes them when asked, changes the site's colors, title and tagline, opens the editor, asks a follow-up question or declines.
 
 | Entry point | What it does |
 | --- | --- |
@@ -121,19 +121,21 @@ First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agen
 | `Mody\Platform\Agent\Agent::respond( $message, $history )` | The loop, for PHP callers. Runs on the current site, as the current user. |
 | Ability `mody/open-editor` (`src/SiteEditor.php`) | Input `target` (`page`, `template` or `styles`), plus `page_id` or `page_title` (exact, case-insensitive), or `template` (a slug such as `front-page`). Returns `url` and a button `label`. With no page or template given, it links to the list. Changes nothing. Pages need `edit_pages` and `edit_post` on that page; templates and styles need `edit_theme_options`. When the page or template does not exist, the error lists the site's pages (20 most recent) or templates, so the model can ask which one. Public, like `mody/generate-page`. |
 | Ability `mody/update-design` (`src/Design/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `src/Design/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), plus a required `brand` boolean. Writes the colors to the site's Global Styles; with `brand` true, also to the brand profile row. Returns the old and new colors, `brand_profile_updated`, and a "See the new colors" button (the Site Editor's styles). Needs `edit_theme_options` and a brand profile. Public. See [Changing the colors](#changing-the-colors). |
+| Ability `mody/publish-page` (`src/Site/PagePublisher.php`, M3-03) | Input `page_id` or `page_title` (exact, case-insensitive; a draft with that title first). Publishes a draft or pending page of this site **as it is now**, without the validator. Refuses posts and other types, pages that are published, private, scheduled or in the trash, and an unknown page, whose error lists the site's drafts. Returns `page_id`, `title`, `status` and two buttons: **View** (the page's URL) and the Site Editor. Needs `publish_pages`, and `edit_post` on that page. Public. See [Publishing and site settings](#publishing-and-site-settings). |
+| Ability `mody/update-site-settings` (`src/Site/SiteSettings.php`, M3-03) | Input `title` (at most 120 characters) and/or `tagline` (at most 200). Writes `blogname` and `blogdescription`, nothing else. Returns the old and new values. Needs `manage_options`. Public. |
 
 How a message runs:
 
 1. The message is sanitized and capped at 2,000 characters.
 2. **No brand profile, no call.** Without one, the reply asks the member to complete the brand wizard, the turn is marked `error`, and no request leaves the server. The page also shows a warning banner.
-3. `SystemPrompt::for_agent()` builds the system prompt: what the agent can do, how it decides (act, ask, decline, answer), its rules, and `brand_context()` (rule 4). The model is called with temperature 0.1, 1,000 output tokens at most and thinking off. It receives the last 10 messages of the conversation, as plain text, plus the new one.
-4. **Tools:** the abilities `mody/generate-page`, `mody/open-editor` and `mody/update-design` (as `wpab__mody__generate-page`, `wpab__mody__open-editor` and `wpab__mody__update-design`), and two plain functions that act on nothing:
+3. `SystemPrompt::for_agent()` builds the system prompt: what the agent can do, how it decides (act, ask, decline, answer), its rules, and `brand_context()` (rule 4). The model is called with temperature 0.1, 1,000 output tokens at most and thinking off. It receives the last 10 messages of the conversation, plus the new one. Each earlier reply comes with the abilities it ran, as tool calls with their results ([the conversation](#background-jobs)).
+4. **Tools:** the abilities `mody/generate-page`, `mody/open-editor`, `mody/update-design`, `mody/publish-page` and `mody/update-site-settings` (the model sees them as `wpab__mody__generate-page` and so on), and two plain functions that act on nothing:
    - `ask_user` (`question`, up to four `choices`), which ends the turn with the question;
    - `refuse_request` (`reason`), which ends the turn and flags it as a refusal.
-5. Abilities run in-process through core's `WP_AI_Client_Ability_Function_Resolver`, limited to those three. Each run checks the ability's permission callback and input schema as the current user. A tool name that is not offered, such as `delete_all_pages` or another plugin's ability, runs nothing: the model gets the error `mody_unknown_tool`, and the call is logged as refused.
-6. **Links:** a Site Editor URL in a result (`edit_url` or `url`, only if it points to this site's wp-admin) becomes a chat button, shown below the reply. It is removed from what the model sees, replaced by "Shown to the owner as a button", so the model cannot paste or change it.
+5. Abilities run in-process through core's `WP_AI_Client_Ability_Function_Resolver`, limited to those five. Each run checks the ability's permission callback and input schema as the current user. A tool name that is not offered, such as `delete_all_pages` or another plugin's ability, runs nothing: the model gets the error `mody_unknown_tool`, and the call is logged as refused.
+6. **Links:** a result can carry `url` (labelled by its `label`) and `edit_url` (a Site Editor link, labelled with the page title). Each becomes a chat button, shown below the reply, but only if it points to this site's wp-admin or front end (`home_url()`). `mody/publish-page` gives both, so the member gets **View** and **Edit** buttons. The URLs are removed from what the model sees, replaced by "Shown to the owner as a button below your reply", so the model cannot paste or change them. Buttons with the same URL are shown once.
 7. **Limits:** at most 4 model requests and 3 ability runs per message. Further tool calls are refused and logged. If the model has not answered by then, the reply says the request could not be finished.
-8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-platform] agent site N step n: …`, without the prompt or the token.
+8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-platform] agent site N step n: …`, without the prompt or the token. If a tool had already run in that turn, the reply says that part of the request may already be done, and to check the site before asking again, so a retry does not create a second page. The buttons of the tools that ran are still shown. Seen once for real on 2026-11-06: "create a contact page and publish it" created and published the page, then the model's last request timed out while connecting to Infomaniak (cURL error 28, 10 s).
 
 ### Changing the colors
 
@@ -147,6 +149,20 @@ Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "u
 
 **The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-01) reuses it, and calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
 
+### Publishing and site settings
+
+Built 2026-11-06 for M3-03 (`src/Site/`). Pages are published **on demand** (decided by the maintainer on 2026-11-06): when the member asks the agent, or with the Publish button in the Site Editor. The agent never publishes by itself.
+
+1. **The prompt** (`SystemPrompt::for_agent()`, rules 3 and 8):
+   - After creating a draft, the agent gives its title, and says the member can publish it by asking or with the Publish button. It never asks "shall I publish it?".
+   - It calls `mody/publish-page` only when the member's message asks to publish. It never publishes a page it created in the same turn, unless the message asked for both ("create a contact page and publish it": generate, then publish, in one turn).
+   - When it is unclear which page, or the tool cannot find it, it asks with `ask_user`, the likely pages' titles as choices. For "Publish the pricing page" on a site without one, Qwen asked "Which page would you like to publish?" with the site's drafts.
+2. **Finding the page.** In the same conversation, the model sees the earlier `mody/generate-page` call and its result, so "publish it" becomes `{"page_id": N}`. Otherwise it gives a title. `mody/publish-page` takes `page_id` or `page_title`. A title is looked up like `mody/open-editor` does (`SiteEditor::find_page()`): exact and case-insensitive, the most recently changed draft first. Only if no draft matches does it look at the other pages, to say why one cannot be published (already published, private, scheduled, in the trash).
+3. **"Done" without a call (found and fixed on 2026-11-06).** While the conversation sent the model only the text of earlier replies, "Create a page about our sourdough", then "Publish it", got the reply "Done, "Our Sourdough" is now live." in 10 tries out of 10, with no tool call: the page stayed a draft. Inference: the history showed earlier turns that did things without a tool call, and the model copied them. Prompt changes alone brought it to 5 or 6 tries in 10. Sending each reply's ability calls with it (see [the conversation](#background-jobs)) fixed it: 10 in 10 called `mody/publish-page` with the page's ID, and a third message after that history (a tagline, a new page) was 20 in 20 correct, with no bracketed replies.
+4. **Publishing as it is.** The page is published with `wp_update_post()` and the new status only, like the editor's Publish button: the date becomes now and the slug is set from the title. Its content is not changed or validated. The member asked for it, may have edited the draft by hand, and the Publish button does not validate either. `BlockValidator` guards generated content, which `mody/generate-page` already validated. For members (no `unfiltered_html`), the content goes through kses again, as it does on every save. The test checks that a draft edited by hand through kses, with a loose color the validator refuses, is published byte for byte.
+5. **The result** carries `page_id`, `title` and `status`, and two buttons: **View "…"** (the page's URL, under `home_url()`) and **Open "…" in the Site Editor**.
+6. **Site title and tagline.** `mody/update-site-settings` writes `blogname` and `blogdescription` only. The input schema has `title` and `tagline` and refuses any other property. Values are sanitized with `sanitize_text_field()` (tags and line breaks removed). WordPress stores them HTML-escaped (`sanitize_option()`), so the result and `SiteSettings::get()` decode them: "Bread & Co" is stored as `Bread &amp; Co` and reported as "Bread & Co". An empty title is refused; an empty tagline clears it.
+
 ### Prompt size
 
 Found on 2026-11-06 while building M3-02. With the first, longer `mody/update-design` declaration (a 443-character description and one description per color, 3.8 KB of tools in all, 2,135 prompt tokens), Qwen on Infomaniak often answered with bracketed transcript text instead of calling `mody/generate-page`. Examples: "[The member has sent no message yet.]", "[Assistant reply failed to provide]", "[Assistant called wpab__mody__generate-page with the following input]: {…}".
@@ -156,13 +172,15 @@ Found on 2026-11-06 while building M3-02. With the first, longer `mody/update-de
 - **The prompt's length alone was not the trigger.** The old prompt padded to 2,195 tokens passed.
 - **Shortening the declaration fixed it.** Either a short description or no per-color descriptions passed in every run that caught the long version failing. The built declaration has both cuts (3.2 KB of tools, 1,967 tokens): 0 failures in 27 runs, and the full test passes.
 - **Inference:** something on the serving side, not understood. Keep tool declarations short: a one-sentence description, and property descriptions only where the schema cannot say it. Put the instructions in the system prompt, which tolerates more text. When the tools change, run the real tests more than once. **Open question:** report it to Infomaniak (Qwen 3.8 is still listed as `coming_soon`).
+- **Seven tools, 3,782 bytes (M3-03, 2026-11-06).** The two new declarations are one sentence each, with no property descriptions (about 300 bytes each). That brings the tools back to about the size that failed in M3-02, but without long descriptions. There were no bracketed replies: 15 in 15 "Create an about page" first requests called `mody/generate-page`, 5 in 5 "Publish the about page" called `mody/publish-page`, and 5 in 5 "Change the tagline to …" called `mody/update-site-settings`. Three full real runs of the agent test passed. So the size alone is still not the trigger. The test fails if the tools JSON reaches 4,000 bytes, so the next tool makes someone measure again.
 
 **Adding a tool to the agent:**
 
 1. Register the ability in `src/Abilities.php`, with a short declaration (above).
 2. Add it to `Agent::ABILITIES` under a role key.
-3. Describe it in `SystemPrompt::for_agent()`: extend the positional placeholders (`%1$s` to `%5$s` today) with the name from `Agent::tool_names()`.
-4. Add offline checks with fake answers, then check the prompt change with real Qwen runs.
+3. Describe it in `SystemPrompt::for_agent()`: extend the positional placeholders (`%1$s` to `%7$s` today) with the name from `Agent::tool_names()`.
+4. Add offline checks with fake answers, then check the prompt change with real Qwen runs. Mind the 4,000-byte check on the tools JSON in `scripts/ai-agent-chat-test.php`.
+5. If the result has a link for the member, return it as `url` with a `label`, or as `edit_url` (a Site Editor link): `Agent::take_link()` turns it into a button.
 
 ### Background jobs
 
@@ -182,6 +200,8 @@ Verified on 2026-11-06 over HTTP (`scripts/ai-agent-chat-test.php`), then the ch
 - in production (commit `4093e8e`), the POST answered in 0.2 s, and the generation ended 6.6 s later.
 
 **The conversation** is stored on the server, in a transient per user and site: the last 20 messages, kept for 2 hours after the last one. The client sends only the new message, so it cannot put words in the agent's mouth. Failed turns (no brand profile, model error, timeout) are not stored. Reloading the page shows the conversation; **New conversation** deletes it.
+
+Each assistant message is stored with the abilities it ran (`calls`): the call ID, the function name, the arguments, and the result as the model saw it, with links already removed. A result over 1,000 bytes of JSON keeps only its scalar fields, so a long page list is dropped. The next turns send these to the model as tool calls with their results, before the reply's text (`Agent::history_messages()`). `ask_user` and `refuse_request` are not stored: the reply's text is the question or the reason. The calls never reach the browser: the checker's `turn` and the chat page's history (`ChatController::display_history()`) leave them out. Since 2026-11-06 (M3-03), see ["Done" without a call](#publishing-and-site-settings).
 
 **Audit log: `mody_agent_events`** (network-wide, [mvp-spec.md §11](mvp-spec.md#11-data-model-new-network-wide-tables-base_prefix)). It has one row per chat request (`tool` NULL, `result` = the reply, or the error code and the reply), and one row per tool call:
 
@@ -204,6 +224,8 @@ Input and result are capped at 4,000 characters. Tokens are never logged.
 | Opening the editor | 2 | 1.2 to 1.6 s |
 | Creating a page | 3: agent, page, agent | 7 s typically, 23 s once |
 | Changing colors: the brand question, then the change | 1, then 2 | 0.6 to 1 s, then 1.1 to 1.9 s |
+| Publishing a page | 2 | 1.0 to 1.1 s |
+| Changing the tagline | 2 | 0.8 to 1.6 s |
 
 These times are for the agent turn itself, measured in-process. In the browser, add the polling interval and the request overhead.
 
@@ -240,30 +262,40 @@ These times are for the agent turn itself, measured in-process. In the browser, 
      - permissions (no `edit_theme_options`, logged out), and a site without a brand profile;
      - the ask-then-update flow: a single color with brand no, and a preset with brand yes. It checks the palette, the CSS variables, the profile row, the button, the result sent back and the logged event, that the post has the Site Editor's shape, and that a revision is saved;
      - `brand` as the string `"false"`, and a save through kses;
+   - publishing and the site settings (M3-03):
+     - `mody/publish-page`'s refusals, each with its code: nothing given, an unknown ID or title, a post, a published page (by ID and by title), a private page, a page in the trash, an extra property. Nothing changes, and the "not found" error lists the drafts;
+     - permissions: no `publish_pages`, no `edit_post` on that page, logged out;
+     - publishing by title through the agent (fake answers): the status, slug and date, the **View** and Site Editor buttons, the result sent back without URLs, the logged event; a second call is refused as already published;
+     - a draft edited by hand through kses, with a loose color the validator refuses, published byte for byte;
+     - `mody/update-site-settings`: its schema has only `title` and `tagline`; refusals (nothing, an empty title, too long, `admin_email`, `blogname`, `siteurl`, a list), with no option changed; permissions (no `manage_options`, logged out); a tagline with tags and a line break, sanitized and stored escaped; a title with an empty tagline;
+   - a model error after a tool ran: the reply says part of the request may be done, and each button is shown once;
+   - the size of the tools JSON (under 4,000 bytes, see [Prompt size](#prompt-size));
    - the REST endpoint:
      - jobs and the checker (in WP-CLI they run at once);
      - another user's job and unknown jobs;
      - a busy job and a stale one;
-     - the stored conversation;
+     - the stored conversation, and the ability calls stored with a reply: kept without links, left out of the checker's turn and the chat page's history, and sent back to the model as a tool call and its result;
      - too-long or missing messages, and logged-out requests;
    - retention: the setting, the once-a-day purge (using the retention in force, so it deletes only what the daily purge would) and the settings page;
    - the `mody_agent_events` rows for each case.
 
    Then it makes real requests:
-   - It creates a page **over HTTP as a background job**. A login cookie is made for the test, and its session is destroyed at the end. The test checks that the answer arrived before the job ended, then polls the checker.
+   - It creates a page **over HTTP as a background job**. A login cookie is made for the test, and its session is destroyed at the end. The test checks that the answer arrived before the job ended, then polls the checker. The page must stay a draft, and the reply must not ask whether to publish it.
    - It opens the editor for that page.
+   - It sends "Publish it" over HTTP, so the conversation stored on the server, with the creation's tool call, is the context. If the agent asks which page, it answers with the created page's title. That page must be published, with the View and Site Editor buttons, no other page may change, and the checker's turn must not contain the stored calls.
+   - It sends "Change the tagline to …", and checks the tagline, and that the title did not change.
    - It sends "Delete all pages" and "Show me the database".
    - It asks which design presets there are, and expects all six names.
    - It sends "Make the primary color coral", then answers "only this site". Then it sends "Use the Forest preset" and answers "part of my brand". Each must ask first, then change the palette, and change the profile only for the brand answer.
 
-   Pages, events and a fixture brand profile created by the test are removed at the end. The site's Global Styles, the revisions the test made and the profile's colors are restored, and so is the user's conversation. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip the real requests, or `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
+   Pages, events and a fixture brand profile created by the test are removed at the end. The statuses of the site's other pages, the site title and tagline, the site's Global Styles, the revisions the test made and the profile's colors are restored, and so is the user's conversation. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip the real requests, or `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
 
    ```bash
    docker exec -i -u www-data mody_cloud_app \
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-agent-chat-test.php
    ```
 
-5. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
+5. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
 
 6. In wp-admin (`https://mody.local/wp/wp-admin/`):
    - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.

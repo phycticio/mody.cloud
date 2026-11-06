@@ -72,6 +72,7 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 | Spectra guard (rule 1) | `app/web/mu-plugins/mody-platform/src/Spectra/SpectraGuard.php`, test `scripts/spectra-guard-test.php` | [mvp-spec.md](documentation/mvp-spec.md#10-plugin-market-and-capability-gating) |
 | Brand profile and abilities | `app/web/mu-plugins/mody-platform/src/Brand/`, `src/Abilities.php` | [brand-profile.md](documentation/brand-profile.md), [mvp-spec.md](documentation/mvp-spec.md#8-the-agent) |
 | Design presets and site colors (`mody/update-design`) | `app/web/mu-plugins/mody-platform/src/Design/` (`Presets`, the single list for the wizard and the agent; `SiteDesign`, which writes Global Styles) | [ai-engine.md](documentation/ai-engine.md#changing-the-colors), [mvp-spec.md §6](documentation/mvp-spec.md#6-brand-wizard) |
+| Publishing and the site title and tagline (`mody/publish-page`, `mody/update-site-settings`) | `app/web/mu-plugins/mody-platform/src/Site/` (`PagePublisher`, `SiteSettings`); page lookup in `src/SiteEditor.php` | [ai-engine.md](documentation/ai-engine.md#publishing-and-site-settings), [mvp-spec.md §8](documentation/mvp-spec.md#8-the-agent) |
 
 Do not edit WordPress core (`app/wp/`), anything installed by Composer (`app/web/plugins/`, `app/vendor/`), or put project behavior in plugin source.
 

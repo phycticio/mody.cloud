@@ -40,9 +40,11 @@ final class Agent {
 
 	/** The abilities offered as tools, keyed by their role in the system prompt. */
 	public const ABILITIES = array(
-		'generate_page' => 'mody/generate-page',
-		'open_editor'   => 'mody/open-editor',
-		'update_design' => 'mody/update-design',
+		'generate_page'        => 'mody/generate-page',
+		'open_editor'          => 'mody/open-editor',
+		'update_design'        => 'mody/update-design',
+		'publish_page'         => 'mody/publish-page',
+		'update_site_settings' => 'mody/update-site-settings',
 	);
 
 	/** Plain function: shows a follow-up question in the chat. Acts on nothing. */
@@ -72,6 +74,9 @@ final class Agent {
 	/** Longest reply shown, in characters. */
 	private const MAX_REPLY_LENGTH = 2000;
 
+	/** Longest ability result kept for the conversation, in bytes of JSON. Longer ones keep their scalar fields. */
+	private const MAX_KEPT_RESULT = 1000;
+
 	/** The member's message. */
 	private string $input;
 
@@ -83,6 +88,14 @@ final class Agent {
 
 	/** Whether a tool ended the turn (ask_user, refuse_request). */
 	private bool $done = false;
+
+	/**
+	 * The abilities run in this turn, as the model called them and with the
+	 * result it got (links removed), for the conversation's next turns.
+	 *
+	 * @var list<array{id: string, name: string, args: array, result: mixed}>
+	 */
+	private array $calls = array();
 
 	/**
 	 * What the chat shows.
@@ -111,9 +124,11 @@ final class Agent {
 	 * Answers a member message on the current site, as the current user.
 	 *
 	 * @param string                                   $message The member's message.
-	 * @param list<array{role: string, text: string}> $history Earlier messages, oldest first.
-	 * @return array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool}
+	 * @param list<array{role: string, text: string}> $history Earlier messages, oldest first. An
+	 *                                                          assistant message may carry its `calls`.
+	 * @return array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, calls: list<array<string, mixed>>}
 	 *         `error` is true when the agent could not answer (no brand profile, model unavailable).
+	 *         `calls` are the abilities run, to store with the reply as context: not for the client.
 	 */
 	public static function respond( string $message, array $history = array() ): array {
 		$agent = new self( trim( mb_substr( sanitize_textarea_field( $message ), 0, self::MAX_MESSAGE_LENGTH ) ) );
@@ -168,7 +183,13 @@ final class Agent {
 			if ( is_wp_error( $result ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Never the prompt or the token.
 				error_log( sprintf( '[mody-platform] agent site %d step %d: %s %s', get_current_blog_id(), $step, $result->get_error_code(), $result->get_error_message() ) );
-				return $this->fail( $result->get_error_code(), __( 'The assistant is not available right now. Please try again in a moment.', 'mody_cloud' ) );
+				return $this->fail(
+					$result->get_error_code(),
+					$this->executed
+						// A tool already ran (a page created, say): asking again could do it twice.
+						? __( 'The assistant stopped before it could finish, but part of your request may already be done. Check your site before asking again.', 'mody_cloud' )
+						: __( 'The assistant is not available right now. Please try again in a moment.', 'mody_cloud' )
+				);
 			}
 
 			$answer = $result->toMessage();
@@ -194,7 +215,7 @@ final class Agent {
 		$this->turn['actions'] = array_values( array_column( $this->turn['actions'], null, 'url' ) );
 
 		AgentEvents::log( $this->input, null, null, $this->turn['reply'], $this->started );
-		return $this->turn;
+		return $this->turn + array( 'calls' => $this->calls );
 	}
 
 	/**
@@ -223,7 +244,7 @@ final class Agent {
 
 		if ( self::REFUSE === $name ) {
 			$reason                = sanitize_text_field( (string) ( $args['reason'] ?? '' ) );
-			$this->turn['reply']   = '' !== $reason ? $reason : __( 'I cannot do that here. I can create pages, change the site\'s colors and open the editor for you.', 'mody_cloud' );
+			$this->turn['reply']   = '' !== $reason ? $reason : __( 'I cannot do that here. I can create and publish pages, change the site\'s colors, title and tagline, and open the editor for you.', 'mody_cloud' );
 			$this->turn['refused'] = true;
 			$this->done            = true;
 			AgentEvents::log( $this->input, $name, $args, 'refused: ' . $this->turn['reply'], $started );
@@ -251,12 +272,24 @@ final class Agent {
 		$response = $resolver->execute_ability( $call )->getResponse();
 		AgentEvents::log( $this->input, $ability, $args, (string) wp_json_encode( $response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $started );
 
-		return $this->take_link( $response );
+		$response      = $this->take_link( $response );
+		$json          = wp_json_encode( $response );
+		$this->calls[] = array(
+			'id'     => (string) $call->getId(),
+			'name'   => $name,
+			'args'   => $args,
+			'result' => is_string( $json ) && strlen( $json ) <= self::MAX_KEPT_RESULT ? $response : array_filter( (array) $response, 'is_scalar' ),
+		);
+		return $response;
 	}
 
 	/**
-	 * Turns a Site Editor link in a tool result into a chat button, and
-	 * removes it from what the model sees, so it cannot paste or alter it.
+	 * Turns this site's links in a tool result into chat buttons, and removes
+	 * them from what the model sees, so it cannot paste or alter them.
+	 *
+	 * A result can carry `url`, labelled by `label`, and `edit_url`, a Site
+	 * Editor link labelled with the page title. Only links to this site's
+	 * wp-admin or front end (a published page) become buttons.
 	 *
 	 * @param mixed $response The ability's result.
 	 * @return mixed The result for the model.
@@ -266,23 +299,30 @@ final class Agent {
 			return $response;
 		}
 
-		$url = (string) ( $response['edit_url'] ?? $response['url'] ?? '' );
-		if ( '' === $url || ! str_starts_with( $url, admin_url() ) ) {
-			return $response;
-		}
-
-		$label = isset( $response['label'] )
-			? (string) $response['label']
-			/* translators: %s: page title. */
-			: sprintf( __( 'Open "%s" in the Site Editor', 'mody_cloud' ), (string) ( $response['title'] ?? '' ) );
-
-		$this->turn['actions'][] = array(
-			'label' => sanitize_text_field( $label ),
-			'url'   => esc_url_raw( $url ),
+		/* translators: %s: page title. */
+		$edit_label = sprintf( __( 'Open "%s" in the Site Editor', 'mody_cloud' ), (string) ( $response['title'] ?? '' ) );
+		$links      = array(
+			'url'      => (string) ( $response['label'] ?? $edit_label ),
+			'edit_url' => $edit_label,
 		);
 
-		unset( $response['edit_url'], $response['url'] );
-		$response['link'] = 'Shown to the owner as a button.';
+		$shown = 0;
+		foreach ( $links as $key => $label ) {
+			$url = (string) ( $response[ $key ] ?? '' );
+			if ( '' === $url || ! ( str_starts_with( $url, admin_url() ) || str_starts_with( $url, home_url( '/' ) ) ) ) {
+				continue;
+			}
+			$this->turn['actions'][] = array(
+				'label' => sanitize_text_field( $label ),
+				'url'   => esc_url_raw( $url ),
+			);
+			unset( $response[ $key ] );
+			++$shown;
+		}
+
+		if ( $shown ) {
+			$response['link'] = 1 === $shown ? 'Shown to the owner as a button below your reply.' : 'Shown to the owner as buttons below your reply.';
+		}
 		return $response;
 	}
 
@@ -294,10 +334,11 @@ final class Agent {
 	 * @return array<string, mixed> The turn.
 	 */
 	private function fail( string $code, string $reply ): array {
-		$this->turn['reply'] = $reply;
-		$this->turn['error'] = true;
+		$this->turn['reply']   = $reply;
+		$this->turn['error']   = true;
+		$this->turn['actions'] = array_values( array_column( $this->turn['actions'], null, 'url' ) );
 		AgentEvents::log( $this->input, null, null, $code . ': ' . $reply, $this->started );
-		return $this->turn;
+		return $this->turn + array( 'calls' => $this->calls );
 	}
 
 	/**
@@ -356,10 +397,15 @@ final class Agent {
 	}
 
 	/**
-	 * Earlier chat messages as AI Client messages: text only, the last
-	 * HISTORY_TURNS, starting with a member message.
+	 * Earlier chat messages as AI Client messages: the last HISTORY_TURNS,
+	 * starting with a member message.
 	 *
-	 * @param list<array{role: string, text: string}> $history Earlier messages.
+	 * A reply's ability calls come first, as the model made them, with the
+	 * results it got. With the reply text alone, the model saw earlier turns
+	 * that did things without a tool call, and answered "publish it" with
+	 * "Done" and no call (2026-11-06, documentation/ai-engine.md).
+	 *
+	 * @param list<array{role: string, text: string, calls?: list<array{id: string, name: string, args: array, result: mixed}>}> $history Earlier messages.
 	 * @return list<Message>
 	 */
 	private static function history_messages( array $history ): array {
@@ -371,9 +417,22 @@ final class Agent {
 			}
 			if ( 'user' === ( $entry['role'] ?? '' ) ) {
 				$messages[] = new UserMessage( array( new MessagePart( $text ) ) );
-			} elseif ( $messages ) {
-				$messages[] = new ModelMessage( array( new MessagePart( $text ) ) );
+				continue;
 			}
+			if ( ! $messages ) {
+				continue;
+			}
+			foreach ( (array) ( $entry['calls'] ?? array() ) as $i => $call ) {
+				$name = is_array( $call ) ? (string) ( $call['name'] ?? '' ) : '';
+				if ( '' === $name ) {
+					continue;
+				}
+				$id         = '' !== (string) ( $call['id'] ?? '' ) ? (string) $call['id'] : 'call_' . count( $messages ) . '_' . $i;
+				$args       = is_array( $call['args'] ?? null ) && $call['args'] ? $call['args'] : new \stdClass();
+				$messages[] = new ModelMessage( array( new MessagePart( new FunctionCall( $id, $name, $args ) ) ) );
+				$messages[] = new UserMessage( array( new MessagePart( new FunctionResponse( $id, $name, $call['result'] ?? null ) ) ) );
+			}
+			$messages[] = new ModelMessage( array( new MessagePart( $text ) ) );
 		}
 		return $messages;
 	}

@@ -171,6 +171,8 @@ final class ChatController {
 		try {
 			$history = self::history();
 			$turn    = Agent::respond( $job['message'], $history );
+			$calls   = (array) ( $turn['calls'] ?? array() );
+			unset( $turn['calls'] ); // Context for the model, kept on the server.
 
 			// Failed turns (no brand profile, model unavailable) are not context.
 			if ( ! $turn['error'] ) {
@@ -178,7 +180,10 @@ final class ChatController {
 					'role' => 'user',
 					'text' => $job['message'],
 				);
-				$history[] = array( 'role' => 'assistant' ) + array_intersect_key( $turn, array_flip( array( 'actions', 'choices', 'refused' ) ) ) + array( 'text' => $turn['reply'] );
+				$history[] = array( 'role' => 'assistant' ) + array_intersect_key( $turn, array_flip( array( 'actions', 'choices', 'refused' ) ) ) + array(
+					'text'  => $turn['reply'],
+					'calls' => $calls,
+				);
 				set_transient( self::history_key(), array_slice( $history, -self::KEPT_MESSAGES ), self::TTL );
 			}
 			$job['status'] = 'done';
@@ -208,12 +213,22 @@ final class ChatController {
 
 	/**
 	 * The current user's conversation on this site, oldest message first.
+	 * Assistant messages carry the abilities they ran (`calls`), for the model.
 	 *
-	 * @return list<array{role: string, text: string, actions?: array, choices?: array, refused?: bool}>
+	 * @return list<array{role: string, text: string, actions?: array, choices?: array, refused?: bool, calls?: array}>
 	 */
 	public static function history(): array {
 		$history = get_transient( self::history_key() );
 		return is_array( $history ) ? array_values( $history ) : array();
+	}
+
+	/**
+	 * The conversation as the chat page shows it: without the `calls`.
+	 *
+	 * @return list<array{role: string, text: string, actions?: array, choices?: array, refused?: bool}>
+	 */
+	public static function display_history(): array {
+		return array_map( static fn( array $entry ): array => array_diff_key( $entry, array( 'calls' => true ) ), self::history() );
 	}
 
 	/**

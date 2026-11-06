@@ -17,30 +17,38 @@
  *    permissions, and the ask-then-update flow with fake answers, brand yes
  *    and no, with a preset and a single color: the Global Styles palette and
  *    the brand profile row, changed or not (offline).
- * 5. The REST endpoint mody-platform/v1/chat: jobs and the checker (here they
+ * 5. Publish and site settings (ticket M3-03): mody/publish-page's refusals and
+ *    permissions, publishing by title with two buttons, a hand-edited draft
+ *    published as it is; mody/update-site-settings' sanitizing, refusals and
+ *    permissions, and that nothing else can be written (offline).
+ * 6. The REST endpoint mody-platform/v1/chat: jobs and the checker (here they
  *    run at once, WP-CLI has no PHP-FPM), another user's job, a busy and a
  *    stale job, permissions, validation, the stored conversation (offline).
- * 6. Retention: the setting, the once-a-day purge, the settings page (offline).
+ * 7. Retention: the setting, the once-a-day purge, the settings page (offline).
  *    It uses the retention in force, so it deletes only what the daily purge would.
- * 7. Real round trips: create a page over HTTP as a background job, polling the
- *    checker; open it in the editor; two requests that must be refused; the
- *    presets; "make the primary color coral" and "use the Forest preset".
- *    Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip them.
+ * 8. Real round trips: create a page over HTTP as a background job, polling the
+ *    checker, which must stay a draft; open it in the editor; "publish it",
+ *    over HTTP with the stored conversation; "change the tagline to …"; two requests that must be
+ *    refused; the presets; "make the primary color coral" and "use the Forest
+ *    preset". Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip them.
  *
  * If the site has no brand profile, a fixture row is inserted and removed at
- * the end. Pages and events created by the test are removed too, the site's
- * Global Styles, its revisions and the profile's colors are restored, and so
- * is the user's chat conversation. Add `-e MODY_TEST_KEEP_PAGE=1` to keep the
- * generated draft. Never prints the token.
+ * the end. Pages and events created by the test are removed too, other pages'
+ * statuses, the site title and tagline, the site's Global Styles, its
+ * revisions and the profile's colors are restored, and so is the user's chat
+ * conversation. Add `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
+ * Never prints the token.
  */
 
 use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\AgentSettings;
+use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
+use Mody\Platform\Site\SiteSettings;
 use Mody\Platform\SiteEditor;
 
 $failures = 0;
@@ -118,6 +126,40 @@ register_shutdown_function(
 		false === $saved_chat ? delete_transient( $chat_key ) : set_transient( $chat_key, $saved_chat, 2 * HOUR_IN_SECONDS );
 	}
 );
+
+// Publishing and the site settings: other pages' statuses, the title and the tagline are restored.
+$page_statuses = wp_list_pluck(
+	get_posts(
+		array(
+			'post_type'   => 'page',
+			'post_status' => 'any',
+			'numberposts' => -1,
+		)
+	),
+	'post_status',
+	'ID'
+);
+$site_options  = array(
+	'blogname'        => get_option( 'blogname' ),
+	'blogdescription' => get_option( 'blogdescription' ),
+);
+$restore_site  = static function () use ( $page_statuses, $site_options ): void {
+	foreach ( $site_options as $option => $value ) {
+		update_option( $option, $value );
+	}
+	foreach ( $page_statuses as $id => $status ) {
+		clean_post_cache( $id );
+		if ( get_post_status( $id ) !== $status ) {
+			wp_update_post(
+				array(
+					'ID'          => $id,
+					'post_status' => $status,
+				)
+			);
+		}
+	}
+};
+register_shutdown_function( $restore_site );
 
 // A page to open.
 $page_id       = wp_insert_post(
@@ -269,7 +311,8 @@ $turn     = Agent::respond( 'What can you do?' );
 $rows     = $since();
 $sent     = array_column( array_column( $requests[0]['tools'] ?? array(), 'function' ), 'name' );
 $check( 'plain answer', 'I can create pages and open the editor.' === $turn['reply'] && ! $turn['actions'] && ! $turn['error'], $turn['reply'] );
-$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 5 === count( $sent ), implode( ', ', $sent ) );
+$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 7 === count( $sent ), implode( ', ', $sent ) );
+$check( '...tools JSON size', strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) < 4000, strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) . ' bytes (see ai-engine.md "Prompt size")' );
 $check( '...brand in the system prompt', str_contains( wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ) && 'system' === ( $requests[0]['messages'][0]['role'] ?? '' ) );
 $check( '...temperature 0.1', 0.1 === (float) ( $requests[0]['temperature'] ?? 0 ) );
 $check( '...request logged', 1 === count( $rows ) && null === $rows[0]['tool'] && 'What can you do?' === $rows[0]['input'] && $turn['reply'] === $rows[0]['result'] );
@@ -371,6 +414,18 @@ $turn     = Agent::respond( 'Hello' );
 $rows     = $since();
 $check( 'model error: reported', $turn['error'] && 1 === count( $requests ), $turn['reply'] );
 $check( '...logged', 1 === count( $rows ) && null === $rows[0]['tool'] && ! str_contains( $rows[0]['result'], 'Hello' ), $rows ? mb_strimwidth( $rows[0]['result'], 0, 70, '...' ) : '' );
+
+// Two tools ran, then the model failed (seen once for real: a connection timeout).
+$fakes    = array(
+	array( array( $names['open_editor'], array( 'target' => 'styles' ) ) ),
+	array( array( $names['open_editor'], array( 'target' => 'styles' ) ) ),
+	500,
+);
+$requests = array();
+$turn     = Agent::respond( 'Open the styles twice' );
+$since();
+$check( 'model error after a tool: says so', $turn['error'] && str_contains( $turn['reply'], 'may already be done' ), $turn['reply'] );
+$check( '...buttons kept, once each', array( SiteEditor::url( '/styles' ) ) === array_column( $turn['actions'], 'url' ), count( $turn['actions'] ) . ' button(s)' );
 
 // 4. Design: mody/update-design ---------------------------------------------
 
@@ -543,7 +598,197 @@ $restore_design();
 $check( 'restored', $start_colors === $palette() && $start_brand === $profile_now() );
 $since();
 
-// 5. REST endpoint ----------------------------------------------------------
+// 5. Publish and site settings ----------------------------------------------
+
+echo "\nPublish and site settings (mody/publish-page, mody/update-site-settings)\n";
+$publish  = wp_get_ability( 'mody/publish-page' );
+$settings = wp_get_ability( 'mody/update-site-settings' );
+$status   = static function ( int $id ): string {
+	clean_post_cache( $id );
+	return (string) get_post_status( $id );
+};
+$make     = static function ( string $title, string $post_status = 'draft', string $type = 'page', string $content = '' ) use ( &$cleanup_ids ): int {
+	$id            = (int) wp_insert_post(
+		array(
+			'post_type'    => $type,
+			'post_status'  => $post_status,
+			'post_title'   => $title,
+			'post_content' => $content,
+		)
+	);
+	$cleanup_ids[] = $id;
+	return $id;
+};
+$check( 'agent prompt: publish on demand', str_contains( $system, $names['publish_page'] ) && str_contains( $system, $names['update_site_settings'] ) && str_contains( $system, 'Never ask whether to publish it' ) && ! str_contains( $system, 'publish it there' ) );
+
+$draft_id     = $make( 'Mody publish test draft' );
+$published_id = $make( 'Mody publish test published', 'publish' );
+$private_id   = $make( 'Mody publish test private', 'private' );
+$trashed_id   = $make( 'Mody publish test trashed' );
+$post_id      = $make( 'Mody publish test post', 'draft', 'post' );
+wp_trash_post( $trashed_id );
+$statuses = static fn(): array => array_map( $status, array( $draft_id, $published_id, $private_id, $trashed_id, $post_id ) );
+$before   = $statuses();
+
+$refusals = array( // Input => the error code expected; null: any error (the schema refuses it).
+	'nothing given'    => array( array(), 'mody_page_required' ),
+	'unknown ID'       => array( array( 'page_id' => 999999999 ), 'mody_page_not_found' ),
+	'unknown title'    => array( array( 'page_title' => 'No such page here' ), 'mody_page_not_found' ),
+	'a post'           => array( array( 'page_id' => $post_id ), 'mody_page_not_found' ),
+	'published'        => array( array( 'page_id' => $published_id ), 'mody_page_published' ),
+	'published, title' => array( array( 'page_title' => 'mody publish test PUBLISHED' ), 'mody_page_published' ),
+	'private'          => array( array( 'page_id' => $private_id ), 'mody_page_not_draft' ),
+	'in the trash'     => array( array( 'page_id' => $trashed_id ), 'mody_page_in_trash' ),
+	'other property'   => array(
+		array(
+			'page_id' => $draft_id,
+			'status'  => 'publish',
+		),
+		null,
+	),
+);
+$wrong    = array();
+foreach ( $refusals as $label => list( $input, $code ) ) {
+	$result = $publish->execute( $input );
+	if ( ! is_wp_error( $result ) || ( null !== $code && $code !== $result->get_error_code() ) ) {
+		$wrong[] = $label . ': ' . ( is_wp_error( $result ) ? $result->get_error_code() : 'published' );
+	}
+}
+$check( 'publish: refusals', ! $wrong, $wrong ? implode( ', ', $wrong ) : count( $refusals ) . ' refused with the right code' );
+$check( '...nothing changed', $before === $statuses(), implode( ', ', $statuses() ) );
+$result = $publish->execute( array( 'page_title' => 'No such page here' ) );
+$listed = is_wp_error( $result ) ? array_column( (array) ( $result->get_error_data()['pages'] ?? array() ), 'id' ) : array();
+$check( '...not found: lists the drafts', in_array( $draft_id, $listed, true ) && ! in_array( $published_id, $listed, true ), count( $listed ) . ' draft(s) listed' );
+
+$deny = static fn( array $caps, string $cap ): array => 'publish_pages' === $cap ? array( 'do_not_allow' ) : $caps;
+add_filter( 'map_meta_cap', $deny, 10, 2 );
+$result = $publish->execute( array( 'page_id' => $draft_id ) );
+remove_filter( 'map_meta_cap', $deny, 10 );
+$check( 'without publish_pages: refused', is_wp_error( $result ) && 'draft' === $status( $draft_id ), $message( $result ) );
+$deny_page = static fn( array $caps, string $cap, int $uid, array $args ): array => 'edit_post' === $cap && $draft_id === (int) ( $args[0] ?? 0 ) ? array( 'do_not_allow' ) : $caps;
+add_filter( 'map_meta_cap', $deny_page, 10, 4 );
+$result = $publish->execute( array( 'page_id' => $draft_id ) );
+remove_filter( 'map_meta_cap', $deny_page, 10 );
+$check( 'without edit_post on the page: refused', is_wp_error( $result ) && 'mody_forbidden' === $result->get_error_code() && 'draft' === $status( $draft_id ), $message( $result ) );
+wp_set_current_user( 0 );
+$result = $publish->execute( array( 'page_id' => $draft_id ) );
+wp_set_current_user( $user );
+$check( 'logged out: refused', is_wp_error( $result ) && 'draft' === $status( $draft_id ), $message( $result ) );
+
+// The member asks; the model names the page by title (any case).
+$fakes    = array(
+	array( array( $names['publish_page'], array( 'page_title' => 'mody PUBLISH test draft' ) ) ),
+	'Done: "Mody publish test draft" is published.',
+);
+$requests = array();
+$turn     = Agent::respond( 'Publish the Mody publish test draft' );
+$rows     = $since();
+$sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
+$page     = get_post( $draft_id );
+$check( 'publish by title: published', 'publish' === $status( $draft_id ) && '' !== $page->post_name && '0000-00-00 00:00:00' !== $page->post_date_gmt, "slug {$page->post_name}, date {$page->post_date_gmt}" );
+$check( '...two buttons: view and edit', array( get_permalink( $draft_id ), SiteEditor::page_url( $draft_id ) ) === array_column( $turn['actions'], 'url' ) && str_starts_with( (string) get_permalink( $draft_id ), home_url( '/' ) ), implode( ' | ', array_column( $turn['actions'], 'label' ) ) );
+$check( '...result sent back without URLs', str_contains( $sent, '"status":"publish"' ) && str_contains( $sent, 'as buttons' ) && ! str_contains( $sent, '://' ), mb_strimwidth( $sent, 0, 90, '...' ) );
+$check( '...logged', array( 'mody/publish-page' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], '"status":"publish"' ) && str_contains( (string) $rows[0]['args'], 'mody PUBLISH' ) );
+$result = $publish->execute( array( 'page_id' => $draft_id ) );
+$check( '...twice: already published', is_wp_error( $result ) && 'mody_page_published' === $result->get_error_code(), $message( $result ) );
+
+// A draft the member edited by hand, through kses: published as it is, though the validator refuses it.
+$edited_id = $make( 'Mody publish test edited', 'draft', 'page', SystemPrompt::EXAMPLE );
+add_filter( 'map_meta_cap', $no_html, 10, 2 );
+kses_init();
+wp_update_post(
+	wp_slash(
+		array(
+			'ID'           => $edited_id,
+			'post_content' => SystemPrompt::EXAMPLE . "\n\n<!-- wp:paragraph {\"style\":{\"color\":{\"text\":\"#c0392b\"}}} -->\n<p class=\"has-text-color\" style=\"color:#c0392b\">Edited by hand.</p>\n<!-- /wp:paragraph -->",
+		)
+	)
+);
+clean_post_cache( $edited_id );
+$edited = get_post( $edited_id )->post_content;
+$result = $publish->execute( array( 'page_id' => $edited_id ) );
+remove_filter( 'map_meta_cap', $no_html, 10 );
+kses_init();
+clean_post_cache( $edited_id );
+$verdict = BlockValidator::validate( $edited );
+$check( 'hand-edited draft: published as it is', is_array( $result ) && 'publish' === $status( $edited_id ) && get_post( $edited_id )->post_content === $edited && str_contains( $edited, 'Edited by hand' ), is_array( $result ) ? strlen( $edited ) . ' bytes, unchanged' : $message( $result ) );
+$check( '...which the validator refuses', is_wp_error( $verdict ), mb_strimwidth( $message( $verdict ), 0, 90, '...' ) );
+
+// Site title and tagline.
+$options    = static fn(): array => array_map( 'get_option', array( 'blogname', 'blogdescription', 'admin_email', 'siteurl', 'home' ) );
+$start_site = $options();
+$schema     = $settings->get_input_schema();
+$check( 'settings: only title and tagline', array( 'title', 'tagline' ) === array_keys( $schema['properties'] ) && false === $schema['additionalProperties'] );
+$refusals = array( // Input => the error code expected; null: any error (the schema refuses it).
+	'nothing given'      => array( array(), 'mody_no_settings' ),
+	'empty title'        => array( array( 'title' => '  ' ), 'mody_empty_title' ),
+	'title of 121 chars' => array( array( 'title' => str_repeat( 'a', 121 ) ), null ),
+	'tagline, 201 chars' => array( array( 'tagline' => str_repeat( 'a', 201 ) ), null ),
+	'admin_email'        => array( array( 'admin_email' => 'someone@example.org' ), null ),
+	'blogname'           => array( array( 'blogname' => 'Renamed' ), null ),
+	'title and siteurl'  => array(
+		array(
+			'title'   => 'Renamed',
+			'siteurl' => 'https://example.org',
+		),
+		null,
+	),
+	'title as a list'    => array( array( 'title' => array( 'Renamed' ) ), null ),
+);
+$wrong    = array();
+foreach ( $refusals as $label => list( $input, $code ) ) {
+	$result = $settings->execute( $input );
+	if ( ! is_wp_error( $result ) || ( null !== $code && $code !== $result->get_error_code() ) ) {
+		$wrong[] = $label . ': ' . ( is_wp_error( $result ) ? $result->get_error_code() : 'accepted' );
+	}
+}
+$check( 'settings: refusals', ! $wrong, $wrong ? implode( ', ', $wrong ) : count( $refusals ) . ' refused with the right code' );
+$check( '...no option changed', $start_site === $options() );
+
+$deny = static fn( array $caps, string $cap ): array => 'manage_options' === $cap ? array( 'do_not_allow' ) : $caps;
+add_filter( 'map_meta_cap', $deny, 10, 2 );
+$result = $settings->execute( array( 'title' => 'Renamed' ) );
+remove_filter( 'map_meta_cap', $deny, 10 );
+$check( 'without manage_options: refused', is_wp_error( $result ) && $start_site === $options(), $message( $result ) );
+wp_set_current_user( 0 );
+$result = $settings->execute( array( 'tagline' => 'Renamed' ) );
+wp_set_current_user( $user );
+$check( 'logged out: refused', is_wp_error( $result ) && $start_site === $options(), $message( $result ) );
+
+$old_tagline = SiteSettings::get( 'tagline' );
+$fakes       = array(
+	array( array( $names['update_site_settings'], array( 'tagline' => "Fresh <b>sourdough</b>\nfor offices & teams" ) ) ),
+	'Done: the tagline is updated.',
+);
+$requests    = array();
+$turn        = Agent::respond( 'Change the tagline to Fresh sourdough for offices & teams' );
+$rows        = $since();
+$sent        = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
+$check( 'tagline: sanitized and saved', 'Fresh sourdough for offices & teams' === SiteSettings::get( 'tagline' ) && 'Fresh sourdough for offices &amp; teams' === get_option( 'blogdescription' ), get_option( 'blogdescription' ) );
+$check( '...title unchanged', $start_site[0] === get_option( 'blogname' ), SiteSettings::get( 'title' ) );
+$check( '...old and new sent back', str_contains( $sent, '"new":"Fresh sourdough for offices & teams"' ) && ! $turn['actions'], mb_strimwidth( $sent, 0, 90, '...' ) );
+$check(
+	'...logged with old and new',
+	array( 'mody/update-site-settings' ) === $tools_of( $rows ) && array(
+		'tagline' => array(
+			'old' => $old_tagline,
+			'new' => 'Fresh sourdough for offices & teams',
+		),
+	) === json_decode( (string) $rows[0]['result'], true )
+);
+$result = $settings->execute(
+	array(
+		'title'   => 'Ogia Bakery & Co',
+		'tagline' => '',
+	)
+);
+$check( 'title and an empty tagline', is_array( $result ) && 'Ogia Bakery & Co' === $result['title']['new'] && '' === $result['tagline']['new'] && 'Ogia Bakery &amp; Co' === get_option( 'blogname' ) && '' === get_option( 'blogdescription' ), is_array( $result ) ? wp_json_encode( $result ) : $message( $result ) );
+$check( '...other options unchanged', array_slice( $start_site, 2 ) === array_slice( $options(), 2 ) );
+$restore_site();
+$check( 'restored', $start_site === $options(), SiteSettings::get( 'title' ) );
+$since();
+
+// 6. REST endpoint ----------------------------------------------------------
 
 echo "\nREST endpoint\n";
 $rest = static function ( string $method, array $body = array() ) {
@@ -603,6 +848,23 @@ $requests = array();
 $rest( 'POST', array( 'message' => 'And now?' ) );
 $roles = array_column( $requests[0]['messages'] ?? array(), 'role' );
 $check( '...sent back as context', array( 'system', 'user', 'assistant', 'user' ) === $roles, implode( ', ', $roles ) );
+
+// A turn that ran an ability: the call is stored with the reply, sent back to the model, never to the client.
+$rest( 'DELETE' );
+$fakes    = array(
+	array( array( $names['open_editor'], array( 'target' => 'styles' ) ) ),
+	'Here are the styles.',
+);
+$response = $rest( 'POST', array( 'message' => 'Open the styles' ) );
+$stored   = Mody\Platform\Agent\ChatController::history()[1]['calls'] ?? array();
+$check( 'ability calls stored with the reply', 1 === count( $stored ) && $names['open_editor'] === $stored[0]['name'] && array( 'target' => 'styles' ) === $stored[0]['args'] && ! str_contains( (string) wp_json_encode( $stored ), 'site-editor' ), mb_strimwidth( (string) wp_json_encode( $stored ), 0, 90, '...' ) );
+$check( '...not sent to the client', ! array_key_exists( 'calls', (array) ( $response->get_data()['turn'] ?? array() ) ) && ! array_key_exists( 'calls', Mody\Platform\Agent\ChatController::display_history()[1] ?? array() ) );
+$fakes    = array( 'Glad to help.' );
+$requests = array();
+$rest( 'POST', array( 'message' => 'Thanks' ) );
+$sent  = $requests[0]['messages'] ?? array();
+$roles = array_column( $sent, 'role' );
+$check( '...sent back to the model as a tool call', array( 'system', 'user', 'assistant', 'tool', 'assistant', 'user' ) === $roles && $names['open_editor'] === ( $sent[2]['tool_calls'][0]['function']['name'] ?? '' ) && ( $sent[2]['tool_calls'][0]['id'] ?? '' ) === ( $sent[3]['tool_call_id'] ?? 'none' ), implode( ', ', $roles ) );
 $rest( 'DELETE' );
 $check( 'DELETE forgets it', array() === Mody\Platform\Agent\ChatController::history() );
 $response = $rest( 'POST', array( 'message' => str_repeat( 'a', Agent::MAX_MESSAGE_LENGTH + 1 ) ) );
@@ -616,7 +878,7 @@ wp_set_current_user( $user );
 $check( 'logged out: 401, no model request', 401 === $response->get_status() && ! $requests, (string) $response->get_status() );
 $since();
 
-// 6. Retention --------------------------------------------------------------
+// 7. Retention --------------------------------------------------------------
 // Uses the retention in force, so it deletes only what the daily purge would.
 
 echo "\nRetention\n";
@@ -656,7 +918,7 @@ AgentSettings::render();
 $html = (string) ob_get_clean();
 $check( 'settings page renders', str_contains( $html, 'name="retention_days"' ) && str_contains( $html, 'value="' . $retention . '"' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'edit.php?action=' . AgentSettings::SLUG ) );
 
-// 7. Real round trips -------------------------------------------------------
+// 8. Real round trips -------------------------------------------------------
 
 if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed (offline).\n";
@@ -723,8 +985,10 @@ $check( '...checker reports it done', 'done' === ( $job['status'] ?? '' ), sprin
 // Same container, same clock: the client had its answer before the job finished.
 $stored = get_transient( 'mody_agent_job_' . ( $posted['data']['job'] ?? '' ) );
 $check( '...answer arrived before the job ended', isset( $stored['finished'] ) && $answered < $stored['finished'], isset( $stored['finished'] ) ? sprintf( 'job ended %.1fs after the answer', $stored['finished'] - $answered ) : 'no finish time' );
-$check( 'create a page: draft saved', $created && 'draft' === get_post_status( $created ), "page $created, tools: " . implode( ', ', $tools_of( $rows ) ) );
-$check( '...button and reply', $created && ! str_contains( (string) ( $turn['reply'] ?? '' ), 'http' ), mb_strimwidth( (string) ( $turn['reply'] ?? '' ), 0, 100, '...' ) );
+$created_reply = (string) ( $turn['reply'] ?? '' );
+$check( 'create a page: draft saved', $created && 'draft' === $status( $created ) && ! in_array( 'mody/publish-page', $tools_of( $rows ), true ), "page $created, tools: " . implode( ', ', $tools_of( $rows ) ) );
+$check( '...button and reply', $created && ! str_contains( $created_reply, 'http' ), mb_strimwidth( $created_reply, 0, 100, '...' ) );
+$check( '...does not ask to publish', ! preg_match( '/publish[^.!?]*\?/i', $created_reply ) );
 if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
 	$cleanup_ids[] = $created;
 } elseif ( $created ) {
@@ -734,6 +998,47 @@ if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
 $target = $created ? $created : $page_id;
 $turn   = $real( "Open the editor for page $target" );
 $check( 'open the editor for page N', SiteEditor::page_url( $target ) === ( $turn['actions'][0]['url'] ?? '' ), ( $turn['actions'][0]['url'] ?? 'no button' ) . ', ' . $turn['secs'] );
+
+// "Publish it", over HTTP like the chat page: the conversation stored on the server, with the
+// creation's tool call, is the context. A question about which page is answered with the created one.
+$http_turn = static function ( string $text ) use ( $http, $since ): array {
+	$start  = microtime( true );
+	$posted = $http( 'POST', '', array( 'message' => $text ) );
+	$job    = $posted['data'];
+	while ( 'running' === ( $job['status'] ?? '' ) && microtime( true ) - $start < 150 ) {
+		sleep( 1 );
+		$job = $http( 'GET', '/jobs/' . ( $posted['data']['job'] ?? 'none' ) )['data'];
+	}
+	$turn = (array) ( $job['turn'] ?? array() ) + array(
+		'reply'   => '',
+		'actions' => array(),
+		'choices' => array(),
+	);
+	return array(
+		'secs'   => sprintf( '%.1fs', microtime( true ) - $start ),
+		'events' => $since(),
+	) + $turn;
+};
+if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
+	$turn  = $http_turn( 'Publish it' );
+	$asked = '';
+	if ( $turn['choices'] && 'publish' !== $status( $created ) ) {
+		$title = get_the_title( $created );
+		$asked = ' (asked: ' . implode( ' | ', $turn['choices'] ) . ')';
+		$turn  = $http_turn( array_values( array_filter( $turn['choices'], static fn( $c ) => 0 === strcasecmp( $c, $title ) ) )[0] ?? $title );
+	}
+	$others = array_filter( $page_statuses, static fn( $st, $id ) => $status( $id ) !== $st, ARRAY_FILTER_USE_BOTH );
+	$args   = array_values( array_filter( $turn['events'], static fn( $row ) => 'mody/publish-page' === $row['tool'] ) )[0]['args'] ?? 'no call';
+	$check( '"Publish it": published', 'publish' === $status( $created ) && ! $others, "page $created, $args" . ( $others ? ', also changed: ' . implode( ', ', array_keys( $others ) ) : '' ) . $asked . ', ' . $turn['secs'] );
+	$check( '...view and edit buttons', array( get_permalink( $created ), SiteEditor::page_url( $created ) ) === array_column( $turn['actions'], 'url' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+	$check( '...no calls sent to the client', ! array_key_exists( 'calls', $turn ) );
+}
+
+$tagline = 'Sourdough bread for Zurich offices';
+$turn    = $real( "Change the tagline to \"$tagline\"" );
+$check( '"Change the tagline to …": updated', $tagline === rtrim( SiteSettings::get( 'tagline' ), '.' ) && $site_options['blogname'] === get_option( 'blogname' ), SiteSettings::get( 'tagline' ) . ', ' . $turn['secs'] );
+$check( '...logged', array( 'mody/update-site-settings' ) === array_values( array_filter( $tools_of( $turn['events'] ), static fn( $tool ) => str_starts_with( $tool, 'mody/' ) ) ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+$restore_site();
 
 foreach ( array( 'Delete all pages', 'Show me the database' ) as $text ) {
 	wp_cache_delete( _count_posts_cache_key( 'page' ), 'counts' ); // The background job created a page in another process.

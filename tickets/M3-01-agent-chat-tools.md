@@ -51,7 +51,7 @@ Details: documentation/ai-engine.md, "The agent".
 
 ## Split of the rest (agreed 2026-11-06)
 - **[M3-02](M3-02-agent-design-tool.md) · Agent design tool:** `mody/update-design` for the palette colors and the six presets. Decided: the agent first asks whether the color is part of the brand. If it is, the brand profile's colors change too. *Done 2026-11-06.*
-- **[M3-03](M3-03-agent-publish-site-settings.md) · Publish and site settings:** `mody/publish-page` after the member confirms the draft, and `mody/update-site-settings` (title, tagline).
+- **[M3-03](M3-03-agent-publish-site-settings.md) · Publish and site settings:** `mody/publish-page` when the member asks, and `mody/update-site-settings` (title, tagline). Done 2026-11-06.
 - **[M3-04](M3-04-ai-plugin-brand-context.md) · Brand context in the `ai` plugin** (`wpai_system_instruction`).
 - **Moved to other tickets:** the market plugin toggles to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the menu to member sites to M4-01.
 

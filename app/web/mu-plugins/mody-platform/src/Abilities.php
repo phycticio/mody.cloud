@@ -10,6 +10,8 @@ namespace Mody\Platform;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
+use Mody\Platform\Site\PagePublisher;
+use Mody\Platform\Site\SiteSettings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -211,6 +213,102 @@ final class Abilities {
 				),
 				'execute_callback'    => array( SiteDesign::class, 'update' ),
 				'permission_callback' => array( SiteDesign::class, 'can_update' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		// Short declarations, for the same reason. When to publish is in the agent's system prompt.
+		wp_register_ability(
+			'mody/publish-page',
+			array(
+				'label'               => __( 'Publish page', 'mody_cloud' ),
+				'description'         => __( 'Publishes a draft page of this site as it is now, found by ID or exact title.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'page_id'    => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+						),
+						'page_title' => array(
+							'type'      => 'string',
+							'maxLength' => 200,
+						),
+					),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'page_id'  => array( 'type' => 'integer' ),
+						'title'    => array( 'type' => 'string' ),
+						'status'   => array(
+							'type' => 'string',
+							'enum' => array( 'publish' ),
+						),
+						'url'      => array( 'type' => 'string' ),
+						'label'    => array( 'type' => 'string' ),
+						'edit_url' => array( 'type' => 'string' ),
+					),
+					'required'   => array( 'page_id', 'title', 'status', 'url', 'label', 'edit_url' ),
+				),
+				'execute_callback'    => array( PagePublisher::class, 'publish' ),
+				'permission_callback' => array( PagePublisher::class, 'can_publish' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		$change = array(
+			'type'       => 'object',
+			'properties' => array(
+				'old' => array( 'type' => 'string' ),
+				'new' => array( 'type' => 'string' ),
+			),
+		);
+		wp_register_ability(
+			'mody/update-site-settings',
+			array(
+				'label'               => __( 'Update site settings', 'mody_cloud' ),
+				'description'         => __( 'Changes the site title, the tagline, or both.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'title'   => array(
+							'type'      => 'string',
+							'maxLength' => SiteSettings::FIELDS['title']['max'],
+						),
+						'tagline' => array(
+							'type'      => 'string',
+							'maxLength' => SiteSettings::FIELDS['tagline']['max'],
+						),
+					),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'title'   => $change,
+						'tagline' => $change,
+					),
+				),
+				'execute_callback'    => array( SiteSettings::class, 'update' ),
+				'permission_callback' => array( SiteSettings::class, 'can_update' ),
 				'meta'                => array(
 					'public'      => true, // REST, MCP and the agent.
 					'annotations' => array(
