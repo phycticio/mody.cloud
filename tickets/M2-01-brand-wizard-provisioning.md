@@ -11,13 +11,13 @@ The 3-step choice-based brand wizard creates a subdomain site that is fully prov
   - Step 2 design: **6 curated presets** (cards with swatches + mini mock), optional logo upload, Inter fixed; live preview of header + hero.
   - Step 3 first page: one textarea + suggestion chips → **Create my site**.
   - Server-side validation of every field (hex `^#[0-9a-fA-F]{6}$`, tone enum, lengths, logo via media library).
-- Tables: `mody_brand_profiles`, `mody_provisioning_jobs` (spec §11).
+- Tables: `mody_brand_profiles` (**exists** since M2-02: `Brand\BrandProfile`), `mody_provisioning_jobs` (spec §11).
 - **Provisioning pipeline** (in-process, idempotent, resumable), steps `quota → profile → site → theme → styles → page → email → done` (spec §7):
   - `quota`: `can_create_site()` + network-wide slug uniqueness.
   - `site`: `wpmu_create_blog`, member added as `administrator` of the new site.
   - `theme`: activate `theme` + market plugins (Spectra at minimum).
   - `styles`: write the site's Global Styles (`wp_global_styles`) with preset palette + fonts (resolves the "per-site theme.json" open question in favor of Global Styles).
-  - `page`: call the agent (M2-02, WordPress AI Client) to generate + validate + publish the front page; 2 retries; on final failure publish a fallback page + surface **Retry generation**.
+  - `page`: call `PageGenerator::generate_page( $site_id, $prompt )` (M2-02: brand profile, validator and the 2 retries are built in) **in the new site's context**, so its registered blocks are checked. Publish the result as the front page. On `mody_generation_failed` or an AI Client error, publish a fallback page and surface **Retry generation**.
   - `email`: welcome email with site URL + "Open your site in the editor" link (member's own login).
 - `can_create_site()` quota check wired to `mody_members.plan` (3/10/50).
 

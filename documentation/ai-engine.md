@@ -25,6 +25,18 @@ WordPress (any site in the network)
                  └─ InfomaniakTextGenerationModel      POST {INFOMANIAK_AI_BASE_URL}/chat/completions
 ```
 
+Page generation sits on top of that (2026-11-06, see [Generating a page](#generating-a-page)):
+
+```text
+ability mody/generate-page   (agent via using_abilities(), MCP, REST)    src/Abilities.php
+  └─ PageGenerator::create_draft()     saves a draft page, returns its Site Editor URL
+       └─ PageGenerator::generate_page( $site_id, $prompt )                 src/AI/PageGenerator.php
+            ├─ BrandProfile::for_site()     no profile → refused, no model call    src/Brand/BrandProfile.php
+            ├─ SystemPrompt::for_page()     rules + brand context + few-shot example  src/AI/SystemPrompt.php
+            ├─ wp_ai_client_prompt()        temperature 0.1, provider infomaniak, thinking off
+            └─ BlockValidator::validate()   retry with the reason, 3 attempts in all  src/AI/BlockValidator.php
+```
+
 - **Configuration is environment-only.** The MU plugin registers the provider on `init` (priority 5, before core reads the registry at 15) only when `INFOMANIAK_AI_BASE_URL` is set. Without it, nothing is registered and no connector card appears, so a server without the variables is unaffected.
 - **Network-wide.** Every site in the Multisite network uses the same provider and token, with no per-site setup (checked on the `alpha` subsite).
 - **Settings → Connectors** shows "Infomaniak AI" with the key source `env`. The token is never stored in the database (rule 6).
@@ -33,7 +45,7 @@ WordPress (any site in the network)
 - **JSON output.** Core sends the schema itself as `response_format.json_schema`. Infomaniak validates the OpenAI shape and rejects a request without `json_schema.name` (HTTP 400), so the model class wraps the schema as `{ "name": "response", "schema": … }`.
 - Everything else (messages, tools, parsing) is core's OpenAI-compatible implementation.
 
-**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
+**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". Mody's own calls need no approval: the experiment treats the plugin that provides a connector as infrastructure, and `mody-platform` provides `infomaniak` (checked in the plugin's `Caller_Identifier`, 2026-11-06). `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
 
 Local setup: put both variables in `.env`, then `docker compose up -d wordpress`. The container reads `env_file` only when it is created, and PHP-FPM passes the environment through (`clear_env = no`).
 
@@ -51,6 +63,32 @@ $blocks = wp_ai_client_prompt( $user_prompt )
 - **JSON:** `as_json_response( $json_schema )`.
 - If you use `using_model_config()` (for custom options), call it first: the other `using_*` calls add to the configuration it sets.
 - The builder returns `WP_Error` instead of throwing.
+- For page content, do not call the model directly: use `PageGenerator::generate_page()`, which adds the brand profile and the validator (rule 4).
+
+## Generating a page
+
+Built 2026-11-06 for M2-02, following "Option C" ([mvp-spec.md](mvp-spec.md#2-decisions-recorded-2026-11-01-review), decision 13): agent actions are WordPress abilities.
+
+| Entry point | What it does |
+| --- | --- |
+| `Mody\Platform\AI\PageGenerator::generate_page( $site_id, $prompt )` | Returns validated block markup, or `WP_Error`. Saves nothing. For provisioning (M2-01) and other PHP callers. |
+| `PageGenerator::create_draft( $prompt, $title = '' )` | Generates for the current site and saves the result as a **draft page**. Returns `page_id`, `title`, `status` and `edit_url` (the Site Editor). Without a title, the generated level-1 heading becomes the title. |
+| Ability `mody/generate-page` (category `mody`) | Wraps `create_draft()`. Input `prompt` (3 to 2,000 characters) and optional `title`. Needs a logged-in user with `edit_pages`. Public: REST (`/wp-abilities/v1/abilities/mody/generate-page/run`), MCP (through mcp-adapter) and the agent (`using_abilities()`). Unauthenticated calls get 401 before any model request. |
+
+How a call runs:
+
+1. The prompt is sanitized and capped at 2,000 characters.
+2. **No brand profile, no call.** `BrandProfile::for_site()` reads the site's row from `mody_brand_profiles`. Without one, the result is `mody_no_brand_profile` and no request leaves the server. The table is created by the MU plugin on `init` (versioned, `dbDelta`), with the schema of [mvp-spec.md §11](mvp-spec.md#11-data-model-new-network-wide-tables-base_prefix).
+3. `SystemPrompt::for_page()` builds the system prompt: the output rules, the brand context and one few-shot example page. `SystemPrompt::brand_context()` is the shared brand part that every future prompt must reuse (the agent in M3, the `ai` plugin's features through `wpai_system_instruction`).
+4. The model is called on the `infomaniak` provider, with temperature 0.1, 4,000 output tokens at most, a 60-second timeout (the AI Client's default is 30) and thinking off.
+5. `BlockValidator::validate()` checks the trimmed answer. If it fails, the model gets the same request plus the reason it was rejected, up to **3 attempts in all** (the first plus 2 retries, mvp-spec §7). After the third failure the result is `mody_generation_failed`, with the last reason in the error data. Nothing is saved.
+6. An AI Client error (network, authentication, timeout) is returned at once, without a retry. Every failure is written to the PHP error log as `[mody-platform] generate_page site N attempt n/3: …`, without the prompt or the token. The `mody_agent_events` audit table arrives with M3.
+
+The generated text follows the language of the member's prompt (mvp-spec decision 12): French and German prompts gave French and German pages.
+
+**The site context matters.** Whether a block is registered is checked in the current request. Core blocks are registered everywhere. Plugin blocks (Spectra) only on sites where the plugin is active, so provisioning must generate in the new site's own context, not from the main site.
+
+**Content saved by members goes through kses.** On Multisite only super admins have `unfiltered_html`. A member's draft is filtered like anything they save in the editor. On 2026-11-06, in four runs as the `alpha` site's administrator, the saved (filtered) content still passed the validator.
 
 ## Testing locally
 
@@ -62,7 +100,14 @@ $blocks = wp_ai_client_prompt( $user_prompt )
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-smoke-test.php
    ```
 
-3. In wp-admin (`https://mody.local/wp/wp-admin/`):
+3. Run the page generation test. Most of it is offline: the validator against good and broken markup, the refusal without a brand profile (and that no request is sent), and the retry loop, fed fake model answers through the `pre_http_request` filter (broken then valid: one retry; always broken: three attempts, a reported failure, no page inserted). Then it makes one real call through `mody/generate-page`. If the site has no brand profile, the script inserts a fixture row ("Ogia Bakery") and removes it at the end, together with the draft page. Add `-e MODY_TEST_KEEP_PAGE=1` after `docker exec` to keep the draft and print its Site Editor URL.
+
+   ```bash
+   docker exec -i -u www-data mody_cloud_app \
+     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-generate-page-test.php
+   ```
+
+4. In wp-admin (`https://mody.local/wp/wp-admin/`):
    - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.
    - **Settings → AI** turns the `ai` plugin's features on and off. Network-activate the plugin first: `./bin/wp plugin activate ai --network`.
    - **Settings → Connector Approvals** must approve `ai/ai.php` for `infomaniak` while the Connector Approval experiment is on.
@@ -82,6 +127,8 @@ Run through `wp_ai_client_prompt()` on the local stack, and directly against the
 | JSON-schema output | Pass | Pass |
 | Image input (2026-11-06) | Pass: described the test image correctly in 0.4 s. `ai/alt-text-generation` on a Media Library image took 1.1 s. | Pass. Gemma 4, Mistral Small 4, Qwen 3.5, Kimi K2.6 and Apertus also pass. |
 | Gutenberg blocks | Pass: valid `core/heading` and `core/paragraph`, palette slugs, no hex, identical after `parse_blocks()` and `serialize_blocks()`. 0.7 s and 95 tokens with thinking off. 1.6 s and 461 tokens (374 of them reasoning) with it on. | **Fail:** Markdown fences, invented syntax, Spanish text |
+
+**Full pages (2026-11-06).** Six real generations through `mody/generate-page`, with fixture brand profiles, in English, French and German. Each took about 5 seconds and one request, and returned 4.5 to 5 KB of markup (about 40 blocks: group, headings, paragraphs, buttons, columns, lists, separators). Five were valid at the first attempt. One contained a tag typo, `<Packed with …</p>` instead of `<p>Packed with …</p>`. The first version of the validator let it through, because the block comments were intact. The HTML structure check (below) now rejects it, so it would be retried.
 
 Infomaniak's native listing marks Qwen 3.8 and most other LLMs as `coming_soon`, and only Ministral as `ready`. Qwen answered every test anyway. The MVP spec calls it a project-scoped build, which may explain the label. **Open question:** confirm with Infomaniak that this model is supported for production use.
 
@@ -111,7 +158,13 @@ spectra: header, testimonial, counter, team-member, pricing-table,
          info-box, modal, google-maps, container
 ```
 
-> **Open question: Spectra block names.** Confirm the exact registered names against the installed Spectra version before building the validator (older Spectra versions register blocks under the `uagb/` namespace). The validator checks against the live block registry (`WP_Block_Type_Registry`), not a copied list.
+As implemented in `BlockValidator::WHITELIST` (2026-11-06):
+
+- **Core:** the list above, plus `core/button`, `core/list-item` and `core/social-link`. Their parents (`buttons`, `list`, `social-links`) cannot hold anything else, so without them those blocks would be unusable.
+- **Spectra: none yet.** Spectra is not installed (`app/composer.json`), so none of its blocks could pass the registry check anyway. A block must be on the whitelist **and** registered on the site (`WP_Block_Type_Registry`).
+- **The prompt is narrower than the whitelist.** It offers only the page-content blocks: heading, paragraph, buttons, button, columns, column, group, list, list-item, quote, separator, spacer. Navigation, site logo, title and tagline, and query belong in templates. Images are left out because the model has no images to use.
+
+> **Open question: Spectra block names.** When Spectra is installed (M2-01 or M4-02), confirm the names it registers (older versions use the `uagb/` namespace) and add them to `BlockValidator::WHITELIST`. **Do not add `google-maps`:** it loads Google Maps, a US service (rule 1).
 
 ## Master prompt rules
 
@@ -124,17 +177,32 @@ spectra: header, testimonial, counter, team-member, pricing-table,
 
 The system prompt is assembled from the brand profile on every call. Use the theme's named colors, never loose hex values. See [brand-profile.md](brand-profile.md#message-to-the-model).
 
+How `SystemPrompt::for_page()` applies these rules:
+
+- **Output rules:** only block markup, only the listed blocks, written exactly as WordPress saves them (no `core/` prefix, compact attribute JSON, every block closed). Colors only as palette slugs through `textColor` and `backgroundColor` plus the matching `has-*` classes. No inline styles, fonts or spacing. No images or external links. One level-1 heading. No invented prices, addresses, phone numbers, hours or names: placeholders in square brackets instead.
+- **Brand context:** name, mission and logo URL between `<brand>` tags, declared as data entered by the site owner and not as instructions. Tone of voice as a fixed description per enum value. The palette is described by **slug only**. The hex values stay out of the prompt, so the model has nothing to copy. They reach the site through Global Styles (M2-01).
+- **Few-shot:** one complete example page (`SystemPrompt::EXAMPLE`) for a different brand, written in the markup the block editor saves. The test script checks that it passes the validator.
+
 ## Validation pipeline
 
-Runs in PHP, in the MU plugin, before anything is saved:
+Runs in PHP, in the MU plugin, before anything is saved. Implemented in `Mody\Platform\AI\BlockValidator` (2026-11-06). Each rejection message is written so the model can act on it in the retry.
 
-1. Parse with WordPress's own `parse_blocks()`. Fail on unbalanced blocks, unparseable attribute JSON, or output that does not survive `serialize_blocks()` unchanged.
+1. Parse with WordPress's own `parse_blocks()`. Fail on unbalanced blocks, unparseable attribute JSON, or output that does not survive `serialize_blocks()` unchanged. Text outside blocks fails too: explanations, Markdown fences, loose HTML, and stray closing comments, which the parser keeps as plain text.
 2. Reject any block name that is not in the whitelist and registered in `WP_Block_Type_Registry`.
-3. Reject loose hex colors. Colors must be palette slugs (`primary`, `secondary`, `accent`, `base`, `contrast`).
-4. On failure, retry (2 attempts, per the MVP spec). After that, report the failure. Never insert unvalidated output.
+3. Check each block's own HTML (added after the `<Packed` typo, see [Verification](#verification-2026-11-04)): only known HTML tags, balanced, and the outer tag the block saves (`<p>` for a paragraph, `<h3>` for a level-3 heading, `<ul>` or `<ol>` for a list, and so on).
+4. Reject loose colors. Colors must be the theme's palette slugs, read from the active theme's palette (`primary`, `secondary`, `accent`, `base`, `contrast` today). The check covers:
+   - hex values and CSS color functions in block attributes and inline styles;
+   - color properties in inline styles that do not use `var(--wp--preset--color--<slug>)`;
+   - `*Color` attributes, `var:preset|color|…` references and `has-<slug>-color` classes that name an unknown slug.
+5. Reject media from outside the network: `src`, `srcset` and CSS `url()` in the HTML, and the `url` attribute of image and cover blocks, must point to this site or a subdomain of the network (rule 1). Links (`href`) may point anywhere.
+6. On failure, retry: 3 attempts in all (the first plus 2 retries, mvp-spec §7). After that, report the failure. Never insert unvalidated output.
 
-Steps 3 and 4 are an interpretation of the briefing's "use the theme's named colors" and "retry if broken" rules. **Open question:** whether to escalate to a larger model before giving up. `Qwen/Qwen3.5-397B-A17B-FP8` is listed but untested. The briefing's `google/gemma-4-31B-it` is `coming_soon`.
+Steps 3 to 6 are an interpretation of the briefing's "use the theme's named colors" and "retry if broken" rules.
+
+**What PHP cannot check:** whether each block's HTML is exactly what its save function in the editor would produce. A mismatch (for example a missing `has-text-color` class) shows as "unexpected or invalid content" in the editor. The wrapper check catches the gross cases, and the few-shot example keeps the rest rare. **Open question:** whether to add an editor-side check, or accept the editor's own "attempt recovery".
+
+**Open question:** whether to escalate to a larger model before giving up. `Qwen/Qwen3.5-397B-A17B-FP8` is listed but untested. The briefing's `google/gemma-4-31B-it` is `coming_soon`.
 
 ## History
 
-The briefing chose `mistralai/Ministral-3-14B-Instruct-2512`, a Python `hello_ai.py` first step, and the base URL `https://api.infomaniak.com/ai-services/v1`. The MVP spec (2026-11-01) moved to Qwen and a Python agent service. On 2026-11-04 the agent moved into WordPress, using the core AI Client, and the base URL above was confirmed. Ministral fails the block test.
+The briefing chose `mistralai/Ministral-3-14B-Instruct-2512`, a Python `hello_ai.py` first step, and the base URL `https://api.infomaniak.com/ai-services/v1`. The MVP spec (2026-11-01) moved to Qwen and a Python agent service. On 2026-11-04 the agent moved into WordPress, using the core AI Client, and the base URL above was confirmed. Ministral fails the block test. On 2026-11-06 the maintainer agreed "Option C" (agent actions as abilities), and page generation, the brand profile table and the validator were built as the first ability, `mody/generate-page`.

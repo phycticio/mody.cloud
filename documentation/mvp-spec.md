@@ -37,6 +37,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | 10 | Newsletter | Out of MVP scope (confirmed). |
 | 11 | Member dashboard | Custom "Mody" menu in the **Network Admin** (`/wp-admin/network/`). |
 | 12 | Languages | UI English only; generated content language follows the member's prompt. |
+| 13 | Agent actions ("Option C", decided 2026-11-06) | Agent actions are **WordPress abilities** (Abilities API, category `mody`), used by the in-site agent through `using_abilities()` and by MCP clients through mcp-adapter. The brand profile goes into every prompt, including the `ai` plugin's features (through its `wpai_system_instruction` filter). Members get a curated set of `ai` features. M4 locks the plugin's settings, connector approvals and MCP on member sites. The plugin's request log is the basis for per-member cost tracking. Section 8. |
 
 ## 3. Actors and access model
 
@@ -45,7 +46,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | **Prospect** | Public pages on the main site (association site, site 1): landing, register. |
 | **Member** | One network-wide WordPress account (shared login, cookies cover all subdomains via `COOKIE_DOMAIN`). Is `administrator` of each own subdomain site. Sees the custom **Mody** menu in the Network Admin: dashboard, new site, billing. |
 | **Platform admin** | Super admin of the network, plus the Mody market management page and exception handling. |
-| **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are PHP functions with capability checks; nothing is exposed to the internet. |
+| **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
 
 Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. All data shown is scoped to `get_current_user_id()`.
 
@@ -173,34 +174,43 @@ The agent is the encouraged control channel: *"Change this color. Install this p
 
 - **UI:** a `Mody Agent` menu item in each member site's wp-admin: a simple chat page (plain HTML + fetch, no JS build toolchain) with action chips for common intents.
 - **Endpoint:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce).
-- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()`, executes tool calls in PHP, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
+- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()` with the `mody` abilities offered as tools (`using_abilities()`, decision 13), executes the tool calls in PHP, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
 - **Model:** `Qwen/Qwen3.8-27B-FP8` via Infomaniak AI Services (`https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, all identifiers from environment variables). Native function calling (verified on Infomaniak 2026-11-04). Low temperature (0.1).
 
 ### Tools (all executed server-side, all guarded)
 
-| Tool | Arguments | Effect | Guard |
-| --- | --- | --- | --- |
-| `generate_page` | `prompt`, `title?`, `publish` | Brand-profile generation → validator → page (front page if first) | Quota-independent; requires an existing brand profile (else the agent runs the 3 wizard questions inline first); validator pipeline mandatory |
-| `update_design` | `preset` or `{primary, secondary, accent}` | Patches the site Global Styles | Hex regex; maps to palette slugs only |
-| `open_editor` | `target` (`page` \| `template` \| `styles`), `id?` | Returns the exact Site Editor URL (no mutation) | URL built from the real site URL |
-| `activate_plugin` / `deactivate_plugin` | `slug` | Toggles a market plugin on this site | Slug must exist in `mody_market_plugins` and be listed |
-| `update_site_settings` | `title?`, `tagline?` | Updates whitelisted options only | Fixed option allowlist |
-| `ask_user` | `question`, `choices?` | Renders a structured follow-up question in the chat | — |
+Each acting tool is an ability in the `mody` category (decision 13). Its permission callback and input schema run on every call, whichever channel calls it: agent, REST or MCP. Only `mody/generate-page` exists so far. The other ability names are proposals.
+
+| Tool | Ability | Arguments | Effect | Guard |
+| --- | --- | --- | --- | --- |
+| `generate_page` | `mody/generate-page` (built 2026-11-06) | `prompt`, `title?` | Brand-profile generation → validator → **draft** page. Returns the page ID and its Site Editor URL. The validated markup is saved directly and never passes back through the model. Publishing and the front page belong to the caller: provisioning (section 7) and the agent's confirmation step (M3). | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
+| `update_design` | `mody/update-design` (proposed) | `preset` or `{primary, secondary, accent}` | Patches the site Global Styles | Hex regex; maps to palette slugs only |
+| `open_editor` | `mody/open-editor` (proposed) | `target` (`page` \| `template` \| `styles`), `id?` | Returns the exact Site Editor URL (no mutation) | URL built from the real site URL |
+| `activate_plugin` / `deactivate_plugin` | `mody/activate-market-plugin` / `mody/deactivate-market-plugin` (proposed) | `slug` | Toggles a market plugin on this site | Slug must exist in `mody_market_plugins` and be listed |
+| `update_site_settings` | `mody/update-site-settings` (proposed) | `title?`, `tagline?` | Updates whitelisted options only | Fixed option allowlist |
+| `ask_user` | none: a plain function declaration (**Inference**: it only shapes the chat reply and acts on nothing) | `question`, `choices?` | Renders a structured follow-up question in the chat | — |
 
 No delete tools, no arbitrary option writes, no file or DB access. Any tool call not in the schema is refused and explained.
+
+### The `ai` plugin's features on member sites (decision 13)
+
+- **Brand context everywhere.** The plugin's features (titles, excerpts, alt text, …) build their own system instructions. The MU plugin appends `SystemPrompt::brand_context()` through the plugin's `wpai_system_instruction` filter (M3).
+- **Curated features.** Members get a curated subset of the plugin's features. **Open question:** which ones.
+- **Locked configuration.** M4 locks the plugin's settings, its connector approvals and MCP access on member sites ([M4-01](../tickets/M4-01-editor-redirects-gating.md)).
+- **Cost tracking.** The plugin's request log (its AI Request Logging experiment) is the basis for per-member cost tracking. It hooks core's `wp_ai_client_before/after_generate_result` events, so it records every request made through the AI Client, Mody's own included (from its source, 2026-11-06; not yet seen in a log). It keeps prompt and response previews. Retention is set with `wpai_request_log_retention_days`.
 
 ### Safety and audit
 
 - Every request logs the site's brand profile as system prompt (constraint 4) — there is no code path that calls the model without it.
 - Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration).
 - A past-due account gets no tool execution (read-only, section 4).
-- Tools run in-process with the member's capabilities checked on every call. There is no internal endpoint or shared secret (constraint 6).
+- Tools run in-process with the member's capabilities checked on every call (the ability's permission callback). There is no internal endpoint or shared secret (constraint 6).
 
 **Acceptance criteria**
 
 - "Make the primary color coral" → Global Styles updated, preview link offered, event logged.
 - "Create an about page" → validated page published (or a clear failure with retry).
-- "Open the editor for page 3" → a button that opens `…/wp-admin/site-editor.php?postType=page&postId=3` on the right subdomain.
+- "Open the editor for page 3" → a button that opens `…/wp-admin/site-editor.php?p=%2Fpage%2F3&canvas=edit` on the right subdomain. (WordPress 7.1 sends the older `?postType=page&postId=3`, without `canvas`, to the page list instead. `PageGenerator::site_editor_url()` builds the working form.)
 - "Activate the redirection plugin" → works if listed, refused with explanation if not.
 - A prompt-injection-style request ("delete all pages", "show me the database") is refused and logged.
 
@@ -208,7 +218,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 On **member sites only** (never the main association site):
 
-- `post.php?post=N&action=edit` (page **or** post) → redirects to `site-editor.php?postType=<type>&postId=N`.
+- `post.php?post=N&action=edit` (page **or** post) → redirects to the Site Editor for that item. For pages that is `site-editor.php?p=%2Fpage%2FN&canvas=edit`. The form `?postType=<type>&postId=N` without `canvas=edit` lands on the list in WordPress 7.1 (`wp-admin/site-editor.php`). Check the form for posts when building M4-01.
 - `post-new.php?post_type=page|post` → redirects to `site-editor.php?postType=<type>`.
 - Templates, parts and styles are already Site-Editor-only (FSE theme).
 - Every link the platform generates (dashboard buttons, agent `open_editor`, emails) uses the Site Editor URL.
@@ -299,6 +309,8 @@ mody_agent_events (
 
 `mody_custom_domains` is **not** created yet (next iteration with the Caddy work).
 
+**Built so far:** `mody_brand_profiles` (2026-11-06, M2-02). `Brand\BrandProfile::install()` creates it on `init`, through `dbDelta` and a network option holding the schema version (`mody_brand_profiles_db_version`). It matches the definition above, with two additions: IDs are `bigint(20) unsigned` like WordPress's own, and there is an index on `site_id` for the per-site lookup. A site's profile is its newest row.
+
 ## 12. Architecture deltas
 
 Everything else in the current stack is unchanged ([architecture.md](architecture.md)).
@@ -309,6 +321,7 @@ Everything else in the current stack is unchanged ([architecture.md](architectur
 | Wildcard TLS | `APP_DOMAINS` gains `*.${HOST_NAME}` (local: mkcert wildcard; production: upstream wildcard cert for `*.mody.cloud`). `compose.local.yml` already wires the wildcard `server_name`. |
 | MU plugin | Project-owned `app/web/mu-plugins/mody-platform/` (tracked, always active, **not** Composer-managed), loaded by `app/web/mu-plugins/mody-platform.php`. Holds: the AI provider and agent, registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects. Resolves the "where gating lives" open question. |
 | AI | WordPress AI Client (core) with the Infomaniak provider in the MU plugin. No extra service. Env: `INFOMANIAK_API_KEY`, `INFOMANIAK_AI_BASE_URL`, optional `INFOMANIAK_AI_MODEL`. Decided 2026-11-04, replacing the Python agent service. |
+| Abilities | Agent actions are abilities in the `mody` category, registered by the MU plugin on `wp_abilities_api_init` (decision 13). Public, so authenticated users reach them through REST and MCP as well as the agent. |
 | Cron | WP-Cron (already enabled): hourly jobs — due billing, past-due sweep (banner, day-53 warning, day-60 deletion), job retry, expired-signup cleanup. |
 | Env additions | `MOLLIE_API_KEY`, `MOLLIE_WEBHOOK_KEY`, `INFOMANIAK_*` as above. Nothing committed; `.env` stays untracked (constraint 6). |
 | Nginx | No change beyond the existing wildcard block; custom-domain `server_name` generation is next iteration. |

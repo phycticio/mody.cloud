@@ -65,10 +65,10 @@ Member ──▶ WordPress (accounts, wizard, site panel)
               │                                                  Qwen/Qwen3.8-27B-FP8
               │ ◀──────────── serialized Gutenberg blocks ───────┘
               ▼
-        Block validator (syntax, JSON, whitelist)
+        Block validator (syntax, JSON, whitelist, HTML, palette slugs, local media)
               │ valid
               ▼
-        WordPress REST API (Application Password) ──▶ site content + styles
+        WordPress, in-process (no REST, no Application Password) ──▶ site content + styles
               │
               └──▶ Infomaniak Newsletter API (domain + monthly sending cap)
 ```
@@ -78,12 +78,12 @@ Member ──▶ WordPress (accounts, wizard, site panel)
 | WordPress | Subdomain Multisite, one site per generated website (enabled in M0-01). Site 1 is the association site. | 0 |
 | FSE block theme | Header, footer, templates and global styles are blocks and JSON editable with Gutenberg. | 0 |
 | Spectra | Extra block library alongside native Gutenberg. Not installed yet. | 0 |
-| Agent | Tool loop and block validator in the MU plugin, calling models through the WordPress AI Client with the Infomaniak provider. See [ai-engine.md](ai-engine.md). | 1 |
+| Agent | Tool loop and block validator in the MU plugin, calling models through the WordPress AI Client with the Infomaniak provider. Its actions are WordPress abilities (category `mody`), which MCP clients can also call. The first, `mody/generate-page`, and the validator exist (2026-11-06). See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak AI Services | Model inference in Switzerland. See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak Newsletter | Per-domain sending with monthly caps. See [newsletter.md](newsletter.md). | 3 |
 | Infomaniak DNS | Domain DNS, included with the domain. | 0 |
 | Dedicated Hetzner VPS | Top membership tier. Resources sized and extended by negotiation. | 3 |
-| Payments | Provider not decided. See open questions. | 3 |
+| Payments | Mollie (EU), decided 2026-11-01. See [mvp-spec.md](mvp-spec.md#4-tiers-trial-and-billing). | 3 |
 
 ### Briefing recommendations not adopted
 

@@ -33,7 +33,9 @@ CREATE TABLE mody_brand_profiles (
 );
 ```
 
-The briefing's enum values for `tone_of_voice` are `'formal','cercano','tecnico'` with default `'cercano'`. They are translated here (`friendly`, `technical`) because everything in the code base is in English. Nothing is implemented yet, so this is free to change.
+The briefing's enum values for `tone_of_voice` are `'formal','cercano','tecnico'` with default `'cercano'`. They are translated here (`friendly`, `technical`) because everything in the code base is in English.
+
+**What is built (2026-11-06, M2-02).** The table exists with the MVP schema from [mvp-spec.md §11](mvp-spec.md#11-data-model-new-network-wide-tables-base_prefix), which drops `slogan`, `vision` and the font columns shown above (Inter is fixed for the MVP). `Mody\Platform\Brand\BrandProfile` creates it and reads a site's profile. Prompts use only `brand_name`, `mission`, `tone_of_voice` and `logo_url`. The colors reach the site through Global Styles (M2-01), not the prompt.
 
 **Design decision:** the profile lives IN the WordPress database, next to the site. When the site is created, the agent writes the palette and fonts of the profile into the site's styles. The whole site (templates, blocks, editor) then obeys that identity automatically.
 
@@ -69,6 +71,14 @@ USER (the member's prompt for this page):
 
 The master prompt rules, whitelist and validation are in [ai-engine.md](ai-engine.md#master-prompt-rules).
 
+**As built (`SystemPrompt`, 2026-11-06).** The message follows this shape, with three deliberate changes:
+
+- **Slugs, not hex.** The palette is named by slug only (`primary`, `secondary`, `accent`, `base`, `contrast`), so the model never sees a hex value it could copy.
+- **Member text as data.** The member's fields sit between `<brand>` tags, declared as data and not instructions. This guards against text in a brand name or mission being read as a command.
+- **No fonts.** The prompt says nothing about fonts: the theme sets them, and the model must not.
+
+`SystemPrompt::brand_context()` is the shared part that every prompt reuses (rule 4).
+
 ## Site creation flow
 
 1. A registered user passes the `can_create_site()` check ([membership-tiers.md](membership-tiers.md#gating-logic-pseudocode-from-the-briefing-translated)).
@@ -84,7 +94,7 @@ The master prompt rules, whitelist and validation are in [ai-engine.md](ai-engin
 
 ## Open questions
 
-- **Table scope in Multisite.** The row carries `site_id`, so the table is network-wide. Use `$wpdb->base_prefix`, not the per-site prefix. Whether `site_id` should be unique is not specified.
+- **Table scope in Multisite.** The row carries `site_id`, so the table is network-wide. It uses `$wpdb->base_prefix`, not the per-site prefix (built that way, 2026-11-06). The MVP spec makes `(user_id, site_id)` unique, not `site_id` alone. Until that is settled, a site's profile is its newest row.
 - **Per-site styles.** See [architecture.md](architecture.md#open-questions).
 - **Fonts.** `Inter` is the default. Loading it from a third-party CDN conflicts with the sovereignty rule and GDPR, so font files must be served locally (`fontFace` in `theme.json`, see [theme-development.md](theme-development.md#design-tokens)). Other fonts a member picks need the same treatment.
 - **Content language.** The system prompt is in English. The language of the generated page content is not specified. It presumably follows the member's prompt (**Inference**).
