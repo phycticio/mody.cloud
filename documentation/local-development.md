@@ -213,7 +213,7 @@ The stack scripts came from an earlier project (Tamarind Intelligence). The prev
 
 | Item | Problem |
 | --- | --- |
-| `config/bin/install.config`, `config/bin/build.config` | `install.config` lists plugins (`redirection`, `ultimate-addons-for-gutenberg`) that `app/composer.json` does not require. `build.config` is an empty placeholder that `bin/build` still sources. |
+| `config/bin/install.config`, `config/bin/build.config` | `install.config` lists plugins (`redirection`, `ultimate-addons-for-gutenberg`) that `app/composer.json` does not require. Composer has the current Spectra instead (`spectra-blocks`); `ultimate-addons-for-gutenberg` is now "Spectra Legacy". `build.config` is an empty placeholder that `bin/build` still sources. |
 | `bin/install` | Calls `./bin/db import` (needs a database dump). Use the first-run steps above, or `--no-build` and expect the import to fail. |
 | `bin/migrate-*`, `bin/subscription-migration-local-env`, `config/bin/db.config` | Tamarind data-migration tooling. `db.config` now maps only `mody.cloud` to `mody.local`. `bin/wp` also forwards `TAMARIND_MIGRATION_*` variables. |
 | `compose.yml` | Ofelia labels for `wp tamarind newsletters run-due`. No Ofelia service is defined, so they do nothing. |

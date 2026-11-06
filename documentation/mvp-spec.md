@@ -227,7 +227,15 @@ On **member sites only** (never the main association site):
 
 ## 10. Plugin market and capability gating
 
-**Market design (decided):** the whole market is **preinstalled** via Composer (`app/web/plugins/`, network-visible); members only **activate/deactivate**. MVP seed: `ultimate-addons-for-gutenberg` (Spectra) and `redirection` (matching `config/bin/install.config`); final membership TBD. All plugins free — no per-plugin billing.
+**Market design (decided):** the whole market is **preinstalled** via Composer (`app/web/plugins/`, network-visible); members only **activate/deactivate**. MVP seed: Spectra and `redirection`; final membership TBD. All plugins free — no per-plugin billing. Spectra is the `spectra-blocks` package, Brainstorm Force's current Spectra, in Composer since 2026-11-06. `config/bin/install.config` still names `ultimate-addons-for-gutenberg`, which is now "Spectra Legacy". `redirection` is not in Composer yet.
+
+**Spectra and rule 1: before activating it on any site.** Its code calls services outside Europe (checked in the 1.0.13 source, 2026-11-06). Installed but inactive, it runs nothing.
+
+- **Turn off:** its AI website builder and ZipWP images (`api.zipwp.com`, `credits.startertemplates.com`, the `gutenberg-templates/spectra-ai` block).
+- **Never enable:** its Google Fonts loading in global styles, and the `spectra/google-map` block.
+- **Keep off:** its usage telemetry to `metrics.brainstormforce.com`. It is opt-in (`spectra_blocks_usage_optin`, default `no`).
+
+**Open question:** how to switch these off: plugin settings, filters, or a blocklist in the MU plugin.
 
 - `mody_market_plugins` table (slug, name, description, listed, sort). Platform admin manages the list in a super-admin page.
 - Members see a **Plugins** page in their site wp-admin: the listed market plugins with *Activate / Deactivate* (server-side, own capability `mody_manage_market`). No upload, no install from URL, no search beyond the market.

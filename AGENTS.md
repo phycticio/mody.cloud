@@ -4,7 +4,7 @@
 
 Mody Cloud is a non-profit association for digital sovereignty. Members define their brand identity once (a wizard that produces the **brand profile**) and a sovereign AI agent generates every page of their WordPress site, faithful to that brand. The whole stack is European or Swiss. Fees cover real costs, with no profit margin. Full context: [documentation/project-overview.md](documentation/project-overview.md).
 
-This repository is a clean base: a Dockerized WordPress stack (Nginx, PHP-FPM, MariaDB, Redis, Mailpit), a Full Site Editing theme scaffold at `app/web/themes/theme`, and the plugins pinned in `app/composer.json`: Wordfence (security), `ai` (WordPress AI features), `ai-provider-for-ollama` and `mcp-adapter`, plus Query Monitor (dev only). Production installs plugins only through Composer and `./bin/deploy`, because wp-admin file changes are disabled there. The product itself (AI agent, brand profile, membership gating) is not built yet. Status and next steps: [documentation/roadmap.md](documentation/roadmap.md).
+This repository is a clean base: a Dockerized WordPress stack (Nginx, PHP-FPM, MariaDB, Redis, Mailpit), a Full Site Editing theme scaffold at `app/web/themes/theme`, and the plugins pinned in `app/composer.json`: Wordfence (security), `ai` (WordPress AI features), `ai-provider-for-ollama`, `mcp-adapter` and Spectra (`spectra-blocks`, installed but not activated), plus Query Monitor (dev only). Production installs plugins only through Composer and `./bin/deploy`, because wp-admin file changes are disabled there. The product itself (AI agent, brand profile, membership gating) is not built yet. Status and next steps: [documentation/roadmap.md](documentation/roadmap.md).
 
 ## Documentation map (read on demand)
 

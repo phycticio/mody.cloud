@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "15669b35ce55f1316d0fe64f3f05b36e",
+    "content-hash": "a1b6794c8b5724ef2414c9d4f4376135",
     "packages": [
         {
             "name": "composer/installers",
@@ -206,6 +206,24 @@
             },
             "type": "wordpress-plugin",
             "homepage": "https://wordpress.org/plugins/mcp-adapter/"
+        },
+        {
+            "name": "wpackagist-plugin/spectra-blocks",
+            "version": "1.0.13",
+            "source": {
+                "type": "svn",
+                "url": "https://plugins.svn.wordpress.org/spectra-blocks/",
+                "reference": "tags/1.0.13"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://downloads.wordpress.org/plugin/spectra-blocks.1.0.13.zip"
+            },
+            "require": {
+                "composer/installers": "^1.0 || ^2.0"
+            },
+            "type": "wordpress-plugin",
+            "homepage": "https://wordpress.org/plugins/spectra-blocks/"
         },
         {
             "name": "wpackagist-plugin/wordfence",

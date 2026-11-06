@@ -12,7 +12,7 @@ The infrastructure is the Docker stack already in this repository. The briefing'
 | Cache | Redis (alpine) container. No object-cache plugin is installed yet. | `compose.yml` |
 | Mail (local) | Mailpit captures all outgoing mail, served at `MAIL_HOST` through Nginx. PHP sends through msmtp. Local only: stage and production disable the service (profile `never-start`) and do not load its Nginx template. | `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
 | Dependencies | Composer. WordPress plugins and themes install into `app/web/`. | `app/composer.json` |
-| Plugins | Pinned to the versions first installed by hand in production, and brought into Composer on 2026-11-04: Wordfence 9.0.2 (security), `ai` 1.5.0 (WordPress AI features), `ai-provider-for-ollama` 1.4.0 and `mcp-adapter` 0.7.1 (exposes WordPress abilities to MCP clients). The OpenAI and Mistral providers installed with them were removed. | `app/composer.json` |
+| Plugins | Pinned to the versions first installed by hand in production, and brought into Composer on 2026-11-04: Wordfence 9.0.2 (security), `ai` 1.5.0 (WordPress AI features), `ai-provider-for-ollama` 1.4.0 and `mcp-adapter` 0.7.1 (exposes WordPress abilities to MCP clients). The OpenAI and Mistral providers installed with them were removed. Spectra (`spectra-blocks` 1.0.13) added on 2026-11-06, installed but not activated on any site. | `app/composer.json` |
 | Dev tooling | Query Monitor (the only dev requirement) and its `db.php` drop-in symlink. | `app/composer.json`, `app/web/db.php` |
 | JS and CSS build | `@wordpress/scripts` through pnpm: `src/` compiles into `app/dist`. Only the libraries a feature needs ([theme-development.md](theme-development.md#rules)). | `package.json`, `config/webpack/config.js` |
 | Environments | `compose.yml` plus `compose.local.yml` (local, mkcert TLS). Stage and production are compose overrides where TLS ends at an upstream proxy. Production is described in [Production](#production). | `compose.local.yml`, `compose.stage.yml.sample`, `compose.prod.yml.sample` |
@@ -77,7 +77,7 @@ Member ──▶ WordPress (accounts, wizard, site panel)
 | --- | --- | --- |
 | WordPress | Subdomain Multisite, one site per generated website (enabled in M0-01). Site 1 is the association site. | 0 |
 | FSE block theme | Header, footer, templates and global styles are blocks and JSON editable with Gutenberg. | 0 |
-| Spectra | Extra block library alongside native Gutenberg. Not installed yet. | 0 |
+| Spectra | Extra block library alongside native Gutenberg. `spectra-blocks` (Brainstorm Force's current Spectra; `ultimate-addons-for-gutenberg` is now "Spectra Legacy") is in Composer since 2026-11-06, not activated yet. Before activation, see the rule 1 checklist in [mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating). | 0 |
 | Agent | Tool loop and block validator in the MU plugin, calling models through the WordPress AI Client with the Infomaniak provider. Its actions are WordPress abilities (category `mody`), which MCP clients can also call. The first, `mody/generate-page`, and the validator exist (2026-11-06). See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak AI Services | Model inference in Switzerland. See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak Newsletter | Per-domain sending with monthly caps. See [newsletter.md](newsletter.md). | 3 |

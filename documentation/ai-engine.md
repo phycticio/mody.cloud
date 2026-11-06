@@ -161,10 +161,10 @@ spectra: header, testimonial, counter, team-member, pricing-table,
 As implemented in `BlockValidator::WHITELIST` (2026-11-06):
 
 - **Core:** the list above, plus `core/button`, `core/list-item` and `core/social-link`. Their parents (`buttons`, `list`, `social-links`) cannot hold anything else, so without them those blocks would be unusable.
-- **Spectra: none yet.** Spectra is not installed (`app/composer.json`), so none of its blocks could pass the registry check anyway. A block must be on the whitelist **and** registered on the site (`WP_Block_Type_Registry`).
+- **Spectra: none yet.** Spectra (`spectra-blocks` 1.0.13) is in Composer since 2026-11-06, but not activated on any site, so its blocks are not registered. A block must be on the whitelist **and** registered on the site (`WP_Block_Type_Registry`).
 - **The prompt is narrower than the whitelist.** It offers only the page-content blocks: heading, paragraph, buttons, button, columns, column, group, list, list-item, quote, separator, spacer. Navigation, site logo, title and tagline, and query belong in templates. Images are left out because the model has no images to use.
 
-> **Open question: Spectra block names.** When Spectra is installed (M2-01 or M4-02), confirm the names it registers (older versions use the `uagb/` namespace) and add them to `BlockValidator::WHITELIST`. **Do not add `google-maps`:** it loads Google Maps, a US service (rule 1).
+> **Open question: which Spectra blocks to allow.** `spectra-blocks` 1.0.13 registers its blocks under `spectra/`, not `uagb/`. The whitelist's names do not all exist there. Its top-level blocks are `accordion`, `buttons`, `button`, `container`, `content`, `countdown`, `counter`, `icon`, `icons`, `list`, `modal`, `popup-builder`, `post`, `separator`, `slider` and `tabs`, plus their child blocks. There is no header, testimonial, team member, pricing table or info box. Choose which ones join `BlockValidator::WHITELIST` (with their children) once Spectra is active. **Never `spectra/google-map`** (Google Maps, rule 1) **or `gutenberg-templates/spectra-ai`** (ZipWP's AI service, rule 1).
 
 ## Master prompt rules
 
