@@ -187,8 +187,8 @@ Each acting tool is an ability in the `mody` category (decision 13). Its permiss
 
 | Tool | Ability | Arguments | Effect | Guard |
 | --- | --- | --- | --- | --- |
-| `generate_page` | `mody/generate-page` (built 2026-11-06) | `prompt`, `title?` | Brand-profile generation → validator → **draft** page. Returns the page ID and its Site Editor URL. The validated markup is saved directly and never passes back through the model. Publishing and the front page belong to the caller: provisioning (section 7) and the agent's confirmation step (M3). | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
-| `update_design` | `mody/update-design` (proposed) | `preset` or `{primary, secondary, accent}` | Patches the site Global Styles | Hex regex; maps to palette slugs only |
+| `generate_page` | `mody/generate-page` (built 2026-11-06) | `prompt`, `title?` | Brand-profile generation → validator → **draft** page. Returns the page ID and its Site Editor URL. The validated markup is saved directly and never passes back through the model. Publishing and the front page belong to the caller: provisioning (section 7), and otherwise the member, **on demand** (decided 2026-11-06): by asking the agent (`mody/publish-page`, M3-03) or with the Site Editor's Publish button. | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
+| `update_design` | `mody/update-design` (proposed, M3-02) | `preset` (one of the six presets of section 6, decided 2026-11-06) or `{primary, secondary, accent}`, plus `brand` | Patches the site Global Styles. Before calling it, the agent asks whether the colors are part of the brand; if they are (`brand` true), the brand profile's colors change too (decided 2026-11-06). | Hex regex; maps to palette slugs only. `edit_theme_options` |
 | `open_editor` | `mody/open-editor` (built 2026-11-06) | `target` (`page` \| `template` \| `styles`), `page_id?`, `page_title?`, `template?` | Returns the exact Site Editor URL and a button label (no mutation). The chat shows it as a button; the model never sees the URL. | URL built from the real site URL. Pages: `edit_pages` and `edit_post`. Templates and styles: `edit_theme_options` |
 | `activate_plugin` / `deactivate_plugin` | `mody/activate-market-plugin` / `mody/deactivate-market-plugin` (proposed) | `slug` | Toggles a market plugin on this site | Slug must exist in `mody_market_plugins` and be listed |
 | `update_site_settings` | `mody/update-site-settings` (proposed) | `title?`, `tagline?` | Updates whitelisted options only | Fixed option allowlist |
@@ -213,8 +213,8 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 **Acceptance criteria**
 
-- "Make the primary color coral" → Global Styles updated, preview link offered, event logged.
-- "Create an about page" → validated page published (or a clear failure with retry).
+- "Make the primary color coral" → the agent asks whether the color is part of the brand → Global Styles updated (and the brand profile, if it is), preview link offered, event logged. The same for "use the Forest preset".
+- "Create an about page" → validated **draft** (or a clear failure with retry). It is published only when the member asks: "publish the about page" to the agent, or the Publish button in the Site Editor (decided 2026-11-06).
 - "Open the editor for page 3" → a button that opens `…/wp-admin/site-editor.php?p=%2Fpage%2F3&canvas=edit` on the right subdomain. (WordPress 7.1 sends the older `?postType=page&postId=3`, without `canvas`, to the page list instead. `PageGenerator::site_editor_url()` builds the working form.)
 - "Activate the redirection plugin" → works if listed, refused with explanation if not.
 - A prompt-injection-style request ("delete all pages", "show me the database") is refused and logged.

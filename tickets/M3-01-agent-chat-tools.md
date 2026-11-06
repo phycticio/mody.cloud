@@ -44,7 +44,7 @@ Details: documentation/ai-engine.md, "The agent".
 
 ## Acceptance criteria (spec §8)
 - [ ] "Make the primary color coral" → Global Styles updated, preview offered, event logged. *(needs `mody/update-design`: M3-02 below)*
-- [ ] "Create an about page" → validated page published (or clear failure with retry). *Done: a validated **draft** and a button to it in the Site Editor (7 s typically). Publishing after the member confirms is M3-03.*
+- [ ] "Create an about page" → validated page published (or clear failure with retry). *Done: a validated **draft** and a button to it in the Site Editor (7 s typically). Publishing on demand (asking the agent, or the Site Editor's Publish button; decided 2026-11-06) is M3-03.*
 - [x] "Open the editor for page 3" → button opens `site-editor.php?p=%2Fpage%2F3&canvas=edit` on the right subdomain (`SiteEditor::page_url()`; the `postType`/`postId` form without `canvas` lands on the page list in WordPress 7.1). Verified with the real model.
 - [ ] "Activate the redirection plugin" → works if listed, refused with explanation otherwise. *(needs `mody_market_plugins`: M4-02)*
 - [x] Injection-style requests ("delete all pages", "show me the database") refused and logged. No tool can delete anything or reach the database. The request row records every refusal. Flagging through `refuse_request` is best effort: Qwen sometimes declines in plain text.
@@ -56,6 +56,7 @@ Details: documentation/ai-engine.md, "The agent".
 - **Moved to other tickets:** the market plugin toggles to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the menu to member sites to M4-01.
 
 ## Decided 2026-11-06, built the same day
+- **Who sees the events:** only the maintainer, for now (a one-person project). There is no viewer: events are read in the database.
 - **Event retention:** events are kept for N days. N is set on Network Admin → Settings → **Mody Agent** (`src/Agent/AgentSettings.php`, super admins only), 90 by default. Old events are purged once a day without cron: the first agent event of the day runs the purge, and saving the settings purges at once.
 - **Background generation:** each chat message is a background job, so a slow page generation never meets a proxy timeout (Nginx's default `fastcgi_read_timeout` is 60 s, Cloudflare's 100 s; one generation took 23 s).
   - POST `mody-platform/v1/chat` stores the job and answers `202` with its ID.
@@ -67,5 +68,4 @@ Details: documentation/ai-engine.md, "The agent".
 
 ## Open
 - Per-member limits on agent use (cost): none yet. The `ai` plugin's request log is the planned basis for cost tracking (decision 13).
-- Who besides super admins (through the database) should see agent events.
 - Each running turn holds a PHP-FPM worker (`pm.max_children` is 5). Watch it before launch (M5).
