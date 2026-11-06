@@ -8,6 +8,7 @@
 namespace Mody\Platform\AI;
 
 use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\SiteEditor;
 use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WP_Error;
 
@@ -145,21 +146,12 @@ final class PageGenerator {
 	}
 
 	/**
-	 * The Site Editor URL of a page (mvp-spec section 9).
-	 *
-	 * WordPress 7.1 opens a page with `?p=/page/<id>&canvas=edit`. The older
-	 * `?postType=page&postId=<id>` form without `canvas` lands on the page list.
+	 * The Site Editor URL of a page (mvp-spec section 9). See SiteEditor.
 	 *
 	 * @param int $page_id Page ID on the current site.
 	 */
 	public static function site_editor_url( int $page_id ): string {
-		return add_query_arg(
-			array(
-				'p'      => rawurlencode( '/page/' . $page_id ),
-				'canvas' => 'edit',
-			),
-			admin_url( 'site-editor.php' )
-		);
+		return SiteEditor::page_url( $page_id );
 	}
 
 	/**

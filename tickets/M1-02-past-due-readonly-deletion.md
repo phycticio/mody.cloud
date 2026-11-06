@@ -6,7 +6,8 @@
 A past-due account has all its sites read-only (with a banner) and is deleted 60 days later, with a warning at day 53.
 
 ## Deliverables
-- Capability filter (MU plugin) that, when `mody_members.status = past_due`, denies content/style mutation on the member's own sites: Site Editor save, `wp/v2` post/style/theme update, media, and (later) agent tools. Front end and reading stay up.
+- Capability filter (MU plugin) that, when `mody_members.status = past_due`, denies content/style mutation on the member's own sites: Site Editor save, `wp/v2` post/style/theme update, media, and agent tools. Front end and reading stay up.
+  - Agent (moved here from M3-01 on 2026-11-06): a past-due member gets no tool execution. The agent chat exists (`src/Agent/`); check the status in `Agent::respond()` or in the `mody` abilities' permission callbacks, so REST and MCP are covered too. Log the refusal in `mody_agent_events`.
 - Persistent banner on the member dashboard and on each site's wp-admin: "Update your payment to keep editing", linking to *Update card*.
 - WP-Cron sweep (hourly):
   - Detect trial/billing due → fire the charge (with M1-01's payment method).

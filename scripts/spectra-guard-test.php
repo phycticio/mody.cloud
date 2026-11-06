@@ -67,10 +67,18 @@ array_walk_recursive(
 $remote = array_filter( $urls, array( SpectraGuard::class, 'is_denied_url' ) );
 $check( 'no font served from Google', array() === $remote, count( $urls ) . ' font file URL(s), ' . count( $remote ) . ' on denied hosts' );
 
-// Abilities.
+// Abilities: Spectra's own abilities and MCP server are pinned off (mvp-spec section 10).
 foreach ( SpectraGuard::DENIED_ABILITIES as $name ) {
 	$check( "ability $name unregistered", ! wp_has_ability( $name ) );
 }
+foreach ( array( 'spectra_blocks_enable_abilities', 'spectra_blocks_enable_mcp_server' ) as $option ) {
+	$check( "option $option", 'disabled' === get_option( $option ) && 'disabled' === SpectraGuard::PINNED_OPTIONS[ $option ], wp_json_encode( get_option( $option ) ) );
+}
+$spectra_abilities = array_filter(
+	array_map( static fn( $ability ) => $ability->get_name(), wp_get_abilities() ),
+	static fn( $name ) => str_starts_with( $name, 'spectra' )
+);
+$check( 'no Spectra abilities registered', array() === $spectra_abilities, count( $spectra_abilities ) . ' registered' );
 
 // Editor assets.
 set_current_screen( 'post' );

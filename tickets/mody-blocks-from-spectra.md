@@ -19,7 +19,7 @@ Our own block library, `mody/*`, forked from Spectra's GPL source, with every ve
   - every vendor library: BSF analytics, NPS survey, onboarding, design library and `spectra-ai`, ZipWP images, Astra notices;
   - the Zip AI notices, the Pro and video nudges, and the dashboard and Learn pages;
   - the Google Fonts font manager, and every remote URL.
-- **Abilities:** drop Spectra's ~45 `spectra-blocks/*` abilities. Write the few the agent needs as `mody/*` abilities ("Option C", mvp-spec decision 13).
+- **Abilities:** drop Spectra's 51 `spectra-blocks/*` abilities (pinned off since 2026-11-06, mvp-spec §10). Write the few the agent needs as `mody/*` abilities ("Option C", mvp-spec decision 13).
 - **Evaluate before porting:** Spectra's own CSS engine (GlobalStyles, JIT compiler, responsive controls). Prefer `theme.json` and core block supports where they cover the need (rule 5).
 
 ## Where it lives (proposal)

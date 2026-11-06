@@ -173,25 +173,28 @@ The agent is the encouraged control channel: *"Change this color. Install this p
 
 ### Components
 
-- **UI:** a `Mody Agent` menu item in each member site's wp-admin: a simple chat page (plain HTML + fetch, no JS build toolchain) with action chips for common intents.
+Built 2026-11-06 as the first slice of M3-01: the chat page, the endpoint, the loop with `mody/generate-page`, `mody/open-editor`, `ask_user` and `refuse_request`, and the audit table. How it works: [ai-engine.md, "The agent"](ai-engine.md#the-agent).
+
+- **UI:** a `Mody Agent` menu item in each member site's wp-admin: a simple chat page (plain HTML + fetch, no JS build toolchain) with action chips for common intents. Until M4 it appears on every site, for users with `edit_pages`.
 - **Endpoint:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce).
-- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()` with the `mody` abilities offered as tools (`using_abilities()`, decision 13), executes the tool calls in PHP, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
+- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()` with the `mody` abilities offered as tools (declared the way core's `using_abilities()` does, decision 13), executes the tool calls in PHP through core's ability resolver, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
 - **Model:** `Qwen/Qwen3.8-27B-FP8` via Infomaniak AI Services (`https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, all identifiers from environment variables). Native function calling (verified on Infomaniak 2026-11-04). Low temperature (0.1).
 
 ### Tools (all executed server-side, all guarded)
 
-Each acting tool is an ability in the `mody` category (decision 13). Its permission callback and input schema run on every call, whichever channel calls it: agent, REST or MCP. Only `mody/generate-page` exists so far. The other ability names are proposals.
+Each acting tool is an ability in the `mody` category (decision 13). Its permission callback and input schema run on every call, whichever channel calls it: agent, REST or MCP. `mody/generate-page` and `mody/open-editor` exist. The other ability names are proposals.
 
 | Tool | Ability | Arguments | Effect | Guard |
 | --- | --- | --- | --- | --- |
 | `generate_page` | `mody/generate-page` (built 2026-11-06) | `prompt`, `title?` | Brand-profile generation → validator → **draft** page. Returns the page ID and its Site Editor URL. The validated markup is saved directly and never passes back through the model. Publishing and the front page belong to the caller: provisioning (section 7) and the agent's confirmation step (M3). | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
 | `update_design` | `mody/update-design` (proposed) | `preset` or `{primary, secondary, accent}` | Patches the site Global Styles | Hex regex; maps to palette slugs only |
-| `open_editor` | `mody/open-editor` (proposed) | `target` (`page` \| `template` \| `styles`), `id?` | Returns the exact Site Editor URL (no mutation) | URL built from the real site URL |
+| `open_editor` | `mody/open-editor` (built 2026-11-06) | `target` (`page` \| `template` \| `styles`), `page_id?`, `page_title?`, `template?` | Returns the exact Site Editor URL and a button label (no mutation). The chat shows it as a button; the model never sees the URL. | URL built from the real site URL. Pages: `edit_pages` and `edit_post`. Templates and styles: `edit_theme_options` |
 | `activate_plugin` / `deactivate_plugin` | `mody/activate-market-plugin` / `mody/deactivate-market-plugin` (proposed) | `slug` | Toggles a market plugin on this site | Slug must exist in `mody_market_plugins` and be listed |
 | `update_site_settings` | `mody/update-site-settings` (proposed) | `title?`, `tagline?` | Updates whitelisted options only | Fixed option allowlist |
-| `ask_user` | none: a plain function declaration (**Inference**: it only shapes the chat reply and acts on nothing) | `question`, `choices?` | Renders a structured follow-up question in the chat | — |
+| `ask_user` | none: a plain function declaration (built 2026-11-06; it only shapes the chat reply and acts on nothing) | `question`, `choices?` (up to 4) | Renders a follow-up question in the chat, with the choices as buttons. Ends the turn. | — |
+| `refuse_request` | none: a plain function declaration (added 2026-11-06) | `reason` | Shows the reason and ends the turn. Its only purpose is to flag refusals in `mody_agent_events`. | — |
 
-No delete tools, no arbitrary option writes, no file or DB access. Any tool call not in the schema is refused and explained.
+No delete tools, no arbitrary option writes, no file or DB access. Any tool call not in the schema is refused and explained: nothing runs, the model gets the error `mody_unknown_tool`, and the call is logged.
 
 ### The `ai` plugin's features on member sites (decision 13)
 
@@ -203,8 +206,8 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 ### Safety and audit
 
 - Every request logs the site's brand profile as system prompt (constraint 4) — there is no code path that calls the model without it.
-- Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration).
-- A past-due account gets no tool execution (read-only, section 4).
+- Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration), and so is every chat request with its reply (built 2026-11-06).
+- A past-due account gets no tool execution (read-only, section 4). Not built yet: it needs `mody_members` (M1).
 - Tools run in-process with the member's capabilities checked on every call (the ability's permission callback). There is no internal endpoint or shared secret (constraint 6).
 
 **Acceptance criteria**
@@ -244,9 +247,20 @@ On **member sites only** (never the main association site):
 | Editor nudges | YouTube (autoplay video), ZipWP AI and Pro upsells | Scripts and styles dequeued |
 | Spectra dashboard (Learn videos, AI features, Free vs Pro), onboarding wizard | YouTube, Google Fonts, ZipWP links | Menus removed, direct visits redirected to the dashboard. Its settings are pinned, as above. |
 | Abilities `spectra-blocks/create-google-map`, `add-google-font`, `list-available-google-fonts`, `remove-google-font` | Google Fonts, Google Maps | Unregistered |
+| All of Spectra's abilities and its MCP server (`spectra-blocks/v1/mcp`) | Not a connection, but weak permissions (see below) | `spectra_blocks_enable_abilities` and `spectra_blocks_enable_mcp_server` pinned to `disabled` (2026-11-06) |
 | Anything missed | the hosts above | **Safety net:** `pre_http_request` refuses requests to `brainstormforce.com`, `zipwp.com`, `startertemplates.com`, `websitedemos.net`, `wpspectra.com`, `wpastra.com` and Google's font and map hosts. Each refusal is logged as `[mody-platform] refused a request to …`. |
 
-Plain links to vendor sites in Spectra's UI are not connections until someone clicks them. Spectra's popup builder (`edit.php?post_type=spectra-blocks-popup`) stays reachable by URL; its menu went with the dashboard. Spectra's other ~45 abilities (`spectra-blocks/*`) are MCP-public; M4-01 locks MCP on member sites. The long-term plan is to replace Spectra with our own blocks ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)).
+Plain links to vendor sites in Spectra's UI are not connections until someone clicks them. Spectra's popup builder (`edit.php?post_type=spectra-blocks-popup`) stays reachable by URL; its menu went with the dashboard. The long-term plan is to replace Spectra with our own blocks ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)).
+
+**Spectra's abilities (decided 2026-11-06).** Spectra 1.0.13 ships 51 `spectra-blocks/*` abilities, plus `spectra/create-container` and `spectra/create-content`, which its own MCP server exposes. They are off by default (both options default to `disabled`), but any site administrator could switch them on, and their permissions are weak: read-only abilities need `edit_posts`, writing ones (including `update-plugin-setting`) need `edit_others_posts`, and writes go straight into posts. The guard pins both options to `disabled`, so none is registered on any site.
+
+If Mody uses them, it is only as hidden machinery behind its own `mody/*` abilities:
+
+- made non-public with `wp_register_ability_args`, with tightened permissions (`wp_ability_permission_result`), hex colors and outside URLs rejected in their inputs, and `BlockValidator` run on their results;
+- for: rich blocks from JSON (`create-accordion`, tabs, counter, …), editing existing pages (`get-post-content`, `update-block-attributes`, `move-block`, `duplicate-block`), syncing the brand palette (`set-active-colors`; keep `spectra_blocks_theme_color_override_enabled` off, it overwrites the theme palette);
+- never: settings, popups, `remove-block` and `delete-popup` (section 8: no delete tools), `apply-image-mask` (takes a `custom_url`), Spectra's MCP server.
+
+Using them needs its own ticket; until then they stay off.
 
 - `mody_market_plugins` table (slug, name, description, listed, sort). Platform admin manages the list in a super-admin page.
 - Members see a **Plugins** page in their site wp-admin: the listed market plugins with *Activate / Deactivate* (server-side, own capability `mody_manage_market`). No upload, no install from URL, no search beyond the market.
@@ -328,7 +342,15 @@ mody_agent_events (
 
 `mody_custom_domains` is **not** created yet (next iteration with the Caddy work).
 
-**Built so far:** `mody_brand_profiles` (2026-11-06, M2-02). `Brand\BrandProfile::install()` creates it on `init`, through `dbDelta` and a network option holding the schema version (`mody_brand_profiles_db_version`). It matches the definition above, with two additions: IDs are `bigint(20) unsigned` like WordPress's own, and there is an index on `site_id` for the per-site lookup. A site's profile is its newest row.
+**Built so far:**
+
+- `mody_brand_profiles` (2026-11-06, M2-02). `Brand\BrandProfile::install()` creates it on `init`, through `dbDelta` and a network option holding the schema version (`mody_brand_profiles_db_version`). It matches the definition above, with two additions: IDs are `bigint(20) unsigned` like WordPress's own, and there is an index on `site_id` for the per-site lookup. A site's profile is its newest row.
+- `mody_agent_events` (2026-11-06, M3-01). `Agent\AgentEvents::install()` creates it the same way (`mody_agent_events_db_version`). It matches the definition above, with these additions:
+  - `duration_ms` (section 8 asks for the duration);
+  - unsigned `bigint(20)` IDs;
+  - indexes on `(site_id, created_at)` and `user_id`.
+
+  `args` is MariaDB's `JSON` (a `LONGTEXT` checked with `json_valid`). It holds one row per chat request (`tool` NULL) and one per tool call ([ai-engine.md](ai-engine.md#the-agent)).
 
 ## 12. Architecture deltas
 

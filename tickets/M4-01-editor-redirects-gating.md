@@ -15,8 +15,9 @@ On member sites, every editing entry point lands in the Site Editor, and a membe
 - **`ai` plugin lock-down** (spec decision 13, "Option C", agreed 2026-11-06), on member sites:
   - members cannot change the plugin's settings (Settings → AI) or its connector approvals;
   - members get only the curated set of features (which ones is an open question in mvp-spec §8);
-  - MCP access (mcp-adapter) is locked. That includes Spectra's ~45 `spectra-blocks/*` abilities, which are all MCP-public.
+  - MCP access (mcp-adapter) is locked. Spectra's own abilities and MCP server are already off on every site: `SpectraGuard` pins their options to `disabled` (mvp-spec §10, 2026-11-06).
 - `mody` abilities stay reachable for members through the agent. They keep their own permission callbacks.
+- **Agent menu** (moved here from M3-01 on 2026-11-06): the `Mody Agent` page (`src/Agent/ChatPage.php`) and its endpoint appear on every site today, for users with `edit_pages`. Limit them to member sites, and decide whether the main site keeps them for platform admins.
 
 ## Acceptance criteria (spec §10)
 - A member-site admin cannot install, upload or switch themes/plugins by any UI or REST path.

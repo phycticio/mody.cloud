@@ -1,0 +1,93 @@
+/* Mody Agent chat in wp-admin. Uses the admin color scheme variables. */
+
+.mody-agent {
+	max-width: 760px;
+}
+
+.mody-agent__log {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	height: min(60vh, 560px);
+	margin: 16px 0 12px;
+	padding: 16px;
+	overflow-y: auto;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+}
+
+.mody-agent__message {
+	max-width: 85%;
+	padding: 10px 14px;
+	border-radius: 8px;
+	background: #f0f0f1;
+}
+
+.mody-agent__message--user {
+	align-self: flex-end;
+	background: var(--wp-admin-theme-color, #2271b1);
+	color: #fff;
+}
+
+.mody-agent__message.is-pending {
+	opacity: 0.7;
+	font-style: italic;
+}
+
+.mody-agent__message.is-error {
+	background: #fcf0f1;
+	border-left: 4px solid #d63638;
+}
+
+.mody-agent__message.is-refused {
+	border-left: 4px solid #dba617;
+}
+
+.mody-agent__who {
+	display: block;
+	margin-bottom: 2px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	opacity: 0.75;
+}
+
+.mody-agent__text {
+	margin: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.mody-agent__actions,
+.mody-agent__choices,
+.mody-agent__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.mody-agent__actions,
+.mody-agent__choices {
+	margin-top: 10px;
+}
+
+.mody-agent__chips {
+	margin-bottom: 12px;
+}
+
+.mody-agent__chip {
+	border-radius: 16px !important;
+}
+
+.mody-agent__form textarea {
+	width: 100%;
+	resize: vertical;
+}
+
+.mody-agent__buttons {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	margin-top: 8px;
+}

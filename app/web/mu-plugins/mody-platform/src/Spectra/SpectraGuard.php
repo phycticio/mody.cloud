@@ -64,11 +64,19 @@ final class SpectraGuard {
 	);
 
 	/** Spectra options pinned to their off value, whatever is stored. */
-	private const PINNED_OPTIONS = array(
+	public const PINNED_OPTIONS = array(
 		'spectra_blocks_enable_templates_button' => 'no',       // Design library button.
 		'spectra_blocks_load_select_font_globally' => 'disabled', // Google Fonts in global styles.
 		'spectra_blocks_load_gfonts_locally'     => 'disabled', // Downloads fonts from Google.
 		'spectra_blocks_usage_optin'             => 'no',       // Telemetry.
+		/*
+		 * Spectra's own abilities and MCP server (decided 2026-11-06, mvp-spec
+		 * section 10): weak permissions (edit_posts, edit_others_posts) and
+		 * direct writes to posts. If Mody uses them, it will be behind its own
+		 * mody/* abilities, never exposed to members or MCP as they are.
+		 */
+		'spectra_blocks_enable_abilities'        => 'disabled',
+		'spectra_blocks_enable_mcp_server'       => 'disabled',
 	);
 
 	/** Editor upsell extensions (build/extensions/<name>): a YouTube autoplay video, ZipWP AI and Pro nudges. */

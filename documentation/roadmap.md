@@ -10,7 +10,7 @@ Milestones from the briefing (v4, October 2026). Status is as the briefing repor
 | | 0.2 | Blog with 3 foundational articles + Matomo + newsletter | Pending | Blog templates exist (`index`, `single`, `archive`, `search`). Matomo is not part of the stack. Analytics is open. |
 | 1 · AI core | 1.1 | Python script connects to Ministral and returns valid JSON | Pending | **First task.** See below. |
 | | 1.2 | Master prompt + block validator + whitelist | Done (2026-11-06) | Built in M2-02 in PHP, in the MU plugin: `SystemPrompt`, `BlockValidator`, `PageGenerator`, ability `mody/generate-page`. See [ai-engine.md](ai-engine.md#generating-a-page). |
-| | 1.3 | Bridge script: AI inserts content into a real WordPress | Pending | |
+| | 1.3 | Bridge script: AI inserts content into a real WordPress | Done (2026-11-06) | No script: the ability `mody/generate-page` saves validated drafts (M2-02), and the agent chat calls it (M3-01). See [ai-engine.md](ai-engine.md#the-agent). |
 | 2 · Platform | 2.1 | WordPress Multisite operational | Done (2026-11-01) | Subdomain network enabled locally in M0-01: wildcard TLS, two subsites owned by one non-super-admin member. See `tickets/M0-01-multisite-foundation.md` and [local-development.md](local-development.md#multisite-subdomain-network). |
 | | 2.2 | Member registration + site panel + role gating (sites, sends, disk) | Pending | See [membership-tiers.md](membership-tiers.md). |
 | | 2.3 | Brand profile backend + `theme.json` writing | Pending | See [brand-profile.md](brand-profile.md). Resolve the per-site styles question first. |
@@ -20,6 +20,6 @@ Milestones from the briefing (v4, October 2026). Status is as the briefing repor
 
 ## First concrete step (superseded)
 
-The MVP spec replaced the Milestone 1.1 `hello_ai.py` task. **M0-01 (subdomain Multisite locally with wildcard TLS) is done** as of 2026-11-01; it left one open question that blocks M1, WP-Cron on subsites ([architecture.md](architecture.md#open-questions)). Next up is **M1-01**. **M2-02 is done** (2026-11-06, `tickets/M2-02-ai-agent-qwen-validator.md`): the Infomaniak provider, the brand profile table, the system prompt, the block validator and the ability `mody/generate-page` exist and are tested ([ai-engine.md](ai-engine.md)).
+The MVP spec replaced the Milestone 1.1 `hello_ai.py` task. **M0-01 (subdomain Multisite locally with wildcard TLS) is done** as of 2026-11-01; it left one open question that blocks M1, WP-Cron on subsites ([architecture.md](architecture.md#open-questions)). Next up is **M1-01**. **M2-02 is done** (2026-11-06, `tickets/M2-02-ai-agent-qwen-validator.md`): the Infomaniak provider, the brand profile table, the system prompt, the block validator and the ability `mody/generate-page` exist and are tested ([ai-engine.md](ai-engine.md)). **M3-01 is in progress**: its first slice (2026-11-06) is the "Mody Agent" chat in wp-admin, with page generation, `mody/open-editor`, follow-up questions, refusals and the `mody_agent_events` audit log ([ai-engine.md](ai-engine.md#the-agent)).
 
 Sections 5, 6, 7 and 9 of the briefing (tiers, brand profile, coherent generation, Newsletter) define the target data architecture for Phases 2 and 3. Details are in [ai-engine.md](ai-engine.md) and the documents linked from the table above.

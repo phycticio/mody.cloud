@@ -95,5 +95,61 @@ final class Abilities {
 				),
 			)
 		);
+
+		wp_register_ability(
+			'mody/open-editor',
+			array(
+				'label'               => __( 'Open the editor', 'mody_cloud' ),
+				'description'         => __( 'Returns the Site Editor link for a page (by ID or exact title), a template of the theme (by slug, such as front-page or page) or the site\'s global styles (colors and fonts). Without a page or template, it links to the list. Changes nothing.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'target'     => array(
+							'type'        => 'string',
+							'description' => __( 'What to open.', 'mody_cloud' ),
+							'enum'        => SiteEditor::TARGETS,
+						),
+						'page_id'    => array(
+							'type'        => 'integer',
+							'description' => __( 'Page ID, for target "page".', 'mody_cloud' ),
+							'minimum'     => 1,
+						),
+						'page_title' => array(
+							'type'        => 'string',
+							'description' => __( 'Exact page title, for target "page" when the ID is unknown.', 'mody_cloud' ),
+							'maxLength'   => 200,
+						),
+						'template'   => array(
+							'type'        => 'string',
+							'description' => __( 'Template slug, for target "template".', 'mody_cloud' ),
+							'maxLength'   => 100,
+						),
+					),
+					'required'             => array( 'target' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'target'  => array( 'type' => 'string' ),
+						'url'     => array( 'type' => 'string' ),
+						'label'   => array( 'type' => 'string' ),
+						'page_id' => array( 'type' => 'integer' ),
+					),
+					'required'   => array( 'target', 'url', 'label' ),
+				),
+				'execute_callback'    => array( SiteEditor::class, 'open' ),
+				'permission_callback' => array( SiteEditor::class, 'can_open' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => true,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
 	}
 }

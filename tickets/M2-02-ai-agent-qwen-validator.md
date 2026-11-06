@@ -37,7 +37,7 @@ Decided 2026-11-04: this replaces the Python agent service (`agent/`, internal e
 
 ## Notes for the next tickets
 - **M2-01** calls `PageGenerator::generate_page()` in the new site's context, publishes the result as the front page, and falls back to the "Hello, I'm {brand}" page on `mody_generation_failed`.
-- **M3-01** offers `mody/generate-page` to the model with `using_abilities()`, and adds the other abilities.
+- **M3-01** offers `mody/generate-page` to the model, and adds the other abilities. Done in its first slice (2026-11-06), with the ability declarations built like `using_abilities()` does, because that call replaces the list of function declarations.
 - **Spectra** (`spectra-blocks`, network-active since 2026-11-06) registers `spectra/*` blocks on every site. Choose which join the whitelist, or wait for our own `mody/*` blocks (`tickets/mody-blocks-from-spectra.md`). `SpectraGuard` removes `spectra/google-map` and the AI builder block (rule 1).
 
 ## Open

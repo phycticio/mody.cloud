@@ -39,6 +39,7 @@ Spectra\SpectraGuard::boot();
  * when their version changed.
  */
 add_action( 'init', array( Brand\BrandProfile::class, 'install' ), 1 );
+add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 
 /*
  * AI: register Infomaniak AI Services as a provider for the WordPress AI
@@ -73,3 +74,12 @@ add_action(
  */
 add_action( 'wp_abilities_api_categories_init', array( Abilities::class, 'register_category' ) );
 add_action( 'wp_abilities_api_init', array( Abilities::class, 'register' ) );
+
+/*
+ * Agent chat: the "Mody Agent" page in wp-admin and its REST endpoint
+ * (mvp-spec section 8). Needs the AI Client (WordPress 7.0+).
+ */
+if ( function_exists( 'wp_ai_client_prompt' ) ) {
+	add_action( 'rest_api_init', array( Agent\ChatController::class, 'register_routes' ) );
+	add_action( 'admin_menu', array( Agent\ChatPage::class, 'register_menu' ) );
+}
