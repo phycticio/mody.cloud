@@ -29,6 +29,12 @@ spl_autoload_register(
 );
 
 /*
+ * Spectra: switch off everything that connects to a non-European service
+ * (rule 1). Runs now, before plugins load, so it is in place before Spectra.
+ */
+Spectra\SpectraGuard::boot();
+
+/*
  * Network-wide tables (mvp-spec section 11). Creates or updates them only
  * when their version changed.
  */

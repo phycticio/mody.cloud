@@ -15,7 +15,7 @@ The 3-step choice-based brand wizard creates a subdomain site that is fully prov
 - **Provisioning pipeline** (in-process, idempotent, resumable), steps `quota → profile → site → theme → styles → page → email → done` (spec §7):
   - `quota`: `can_create_site()` + network-wide slug uniqueness.
   - `site`: `wpmu_create_blog`, member added as `administrator` of the new site.
-  - `theme`: activate `theme` + market plugins (Spectra at minimum).
+  - `theme`: activate `theme` + market plugins. Spectra is network-active (spec decision 14), so there is nothing to activate for it.
   - `styles`: write the site's Global Styles (`wp_global_styles`) with preset palette + fonts (resolves the "per-site theme.json" open question in favor of Global Styles).
   - `page`: call `PageGenerator::generate_page( $site_id, $prompt )` (M2-02: brand profile, validator and the 2 retries are built in) **in the new site's context**, so its registered blocks are checked. Publish the result as the front page. On `mody_generation_failed` or an AI Client error, publish a fallback page and surface **Retry generation**.
   - `email`: welcome email with site URL + "Open your site in the editor" link (member's own login).

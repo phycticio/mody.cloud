@@ -6,7 +6,7 @@ Milestones from the briefing (v4, October 2026). Status is as the briefing repor
 
 | Phase | Milestone | Deliverable | Status | Repository notes |
 | --- | --- | --- | --- | --- |
-| 0 · Foundations | 0.1 | WordPress + FSE theme + Spectra on the VPS, "under construction" page + email form | In progress | FSE theme scaffold exists (`theme`). Spectra (`spectra-blocks` 1.0.13) is in `app/composer.json` since 2026-11-06, installed but not activated. The NPM proxy host item does not apply (infrastructure decision, see [architecture.md](architecture.md#briefing-recommendations-not-adopted)). |
+| 0 · Foundations | 0.1 | WordPress + FSE theme + Spectra on the VPS, "under construction" page + email form | In progress | FSE theme scaffold exists (`theme`). Spectra (`spectra-blocks` 1.0.13) is in `app/composer.json` and network-active since 2026-11-06, with `SpectraGuard` blocking its non-European connections. The NPM proxy host item does not apply (infrastructure decision, see [architecture.md](architecture.md#briefing-recommendations-not-adopted)). |
 | | 0.2 | Blog with 3 foundational articles + Matomo + newsletter | Pending | Blog templates exist (`index`, `single`, `archive`, `search`). Matomo is not part of the stack. Analytics is open. |
 | 1 · AI core | 1.1 | Python script connects to Ministral and returns valid JSON | Pending | **First task.** See below. |
 | | 1.2 | Master prompt + block validator + whitelist | Done (2026-11-06) | Built in M2-02 in PHP, in the MU plugin: `SystemPrompt`, `BlockValidator`, `PageGenerator`, ability `mody/generate-page`. See [ai-engine.md](ai-engine.md#generating-a-page). |

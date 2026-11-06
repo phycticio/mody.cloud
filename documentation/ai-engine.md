@@ -86,7 +86,7 @@ How a call runs:
 
 The generated text follows the language of the member's prompt (mvp-spec decision 12): French and German prompts gave French and German pages.
 
-**The site context matters.** Whether a block is registered is checked in the current request. Core blocks are registered everywhere. Plugin blocks (Spectra) only on sites where the plugin is active, so provisioning must generate in the new site's own context, not from the main site.
+**The site context matters.** Whether a block is registered is checked in the current request. Core blocks are registered everywhere, and so are Spectra's, because it is network-active. Other plugin blocks are registered only on sites where their plugin is active, so provisioning must generate in the new site's own context, not from the main site.
 
 **Content saved by members goes through kses.** On Multisite only super admins have `unfiltered_html`. A member's draft is filtered like anything they save in the editor. On 2026-11-06, in four runs as the `alpha` site's administrator, the saved (filtered) content still passed the validator.
 
@@ -161,10 +161,10 @@ spectra: header, testimonial, counter, team-member, pricing-table,
 As implemented in `BlockValidator::WHITELIST` (2026-11-06):
 
 - **Core:** the list above, plus `core/button`, `core/list-item` and `core/social-link`. Their parents (`buttons`, `list`, `social-links`) cannot hold anything else, so without them those blocks would be unusable.
-- **Spectra: none yet.** Spectra (`spectra-blocks` 1.0.13) is in Composer since 2026-11-06, but not activated on any site, so its blocks are not registered. A block must be on the whitelist **and** registered on the site (`WP_Block_Type_Registry`).
+- **Spectra: none yet.** Spectra (`spectra-blocks` 1.0.13) has been network-active since 2026-11-06, so its blocks are registered on every site. They are not on the whitelist until someone chooses which ones to allow. A block must be on the whitelist **and** registered on the site (`WP_Block_Type_Registry`). `SpectraGuard` unregisters `spectra/google-map` and `gutenberg-templates/spectra-ai` (rule 1, [mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)).
 - **The prompt is narrower than the whitelist.** It offers only the page-content blocks: heading, paragraph, buttons, button, columns, column, group, list, list-item, quote, separator, spacer. Navigation, site logo, title and tagline, and query belong in templates. Images are left out because the model has no images to use.
 
-> **Open question: which Spectra blocks to allow.** `spectra-blocks` 1.0.13 registers its blocks under `spectra/`, not `uagb/`. The whitelist's names do not all exist there. Its top-level blocks are `accordion`, `buttons`, `button`, `container`, `content`, `countdown`, `counter`, `icon`, `icons`, `list`, `modal`, `popup-builder`, `post`, `separator`, `slider` and `tabs`, plus their child blocks. There is no header, testimonial, team member, pricing table or info box. Choose which ones join `BlockValidator::WHITELIST` (with their children) once Spectra is active. **Never `spectra/google-map`** (Google Maps, rule 1) **or `gutenberg-templates/spectra-ai`** (ZipWP's AI service, rule 1).
+> **Open question: which Spectra blocks to allow.** `spectra-blocks` 1.0.13 registers its blocks under `spectra/`, not `uagb/`. The whitelist's names do not all exist there. Its top-level blocks are `accordion`, `buttons`, `button`, `container`, `content`, `countdown`, `counter`, `icon`, `icons`, `list`, `modal`, `popup-builder`, `post`, `separator`, `slider` and `tabs`, plus their child blocks. There is no header, testimonial, team member, pricing table or info box. Choose which ones join `BlockValidator::WHITELIST` (with their children). They may instead come from our own `mody/*` blocks ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)). **Never `spectra/google-map`** (Google Maps, rule 1) **or `gutenberg-templates/spectra-ai`** (ZipWP's AI service, rule 1).
 
 ## Master prompt rules
 

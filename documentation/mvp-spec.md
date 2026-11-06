@@ -31,13 +31,14 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | 4 | Expired accounts | Past-due sites go **read-only with a banner**; billing retried daily; after **60 days** the sites are deleted. |
 | 5 | Tier site counts | **3 / 10 / 50**. More sites than that is a dedicated-VPS conversation. |
 | 6 | Custom domains | Per **site** (not per page), **next iteration**. Caddy sidecar is the decided mechanism. No domain resale yet. |
-| 7 | Plugin market | Membership: TBD (seed: Spectra + Redirection). **Everything is preinstalled via Composer; members only activate.** All plugins free. |
+| 7 | Plugin market | Membership: TBD (seed: Redirection; Spectra is network-active instead, decision 14). **Everything is preinstalled via Composer; members only activate.** All plugins free. |
 | 8 | Editor redirect | **All** content editing (pages and posts) redirects to the Site Editor on member sites. |
 | 9 | Brand wizard | Choice-based, no raw inputs (section 6). |
 | 10 | Newsletter | Out of MVP scope (confirmed). |
 | 11 | Member dashboard | Custom "Mody" menu in the **Network Admin** (`/wp-admin/network/`). |
 | 12 | Languages | UI English only; generated content language follows the member's prompt. |
 | 13 | Agent actions ("Option C", decided 2026-11-06) | Agent actions are **WordPress abilities** (Abilities API, category `mody`), used by the in-site agent through `using_abilities()` and by MCP clients through mcp-adapter. The brand profile goes into every prompt, including the `ai` plugin's features (through its `wpai_system_instruction` filter). Members get a curated set of `ai` features. M4 locks the plugin's settings, connector approvals and MCP on member sites. The plugin's request log is the basis for per-member cost tracking. Section 8. |
+| 14 | Spectra (decided 2026-11-06) | **Network-activated** platform plugin, not a market toggle. `SpectraGuard` in the MU plugin switches off every part that connects outside Europe (rule 1). A clean `mody/*` block library forked from Spectra's GPL source will replace it (ticket `mody-blocks-from-spectra`). Section 10. |
 
 ## 3. Actors and access model
 
@@ -153,7 +154,7 @@ Runs **in-process** in the MU plugin (no REST, no Application Passwords — that
 | 1 `quota` | `can_create_site()` (section 4) and slug uniqueness (network-wide). |
 | 2 `profile` | Save the brand profile row (network-wide table, `base_prefix`). |
 | 3 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. |
-| 4 `theme` | Activate theme `theme` and the market plugins (Spectra, …) on the new site. |
+| 4 `theme` | Activate theme `theme` and the market plugins on the new site. Spectra is network-active already (section 10). |
 | 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. |
 | 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. |
 | 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). |
@@ -227,15 +228,25 @@ On **member sites only** (never the main association site):
 
 ## 10. Plugin market and capability gating
 
-**Market design (decided):** the whole market is **preinstalled** via Composer (`app/web/plugins/`, network-visible); members only **activate/deactivate**. MVP seed: Spectra and `redirection`; final membership TBD. All plugins free — no per-plugin billing. Spectra is the `spectra-blocks` package, Brainstorm Force's current Spectra, in Composer since 2026-11-06. `config/bin/install.config` still names `ultimate-addons-for-gutenberg`, which is now "Spectra Legacy". `redirection` is not in Composer yet.
+**Market design (decided):** the whole market is **preinstalled** via Composer (`app/web/plugins/`, network-visible); members only **activate/deactivate**. MVP seed: `redirection`; final membership TBD. Spectra was a seed until 2026-11-06 and is now network-active instead (decision 14). All plugins free — no per-plugin billing. Spectra is the `spectra-blocks` package, Brainstorm Force's current Spectra, in Composer since 2026-11-06. `config/bin/install.config` still names `ultimate-addons-for-gutenberg`, which is now "Spectra Legacy". `redirection` is not in Composer yet.
 
-**Spectra and rule 1: before activating it on any site.** Its code calls services outside Europe (checked in the 1.0.13 source, 2026-11-06). Installed but inactive, it runs nothing.
+**Spectra is a platform plugin, network-activated** (decided 2026-11-06). Every site has it, provisioning does not activate it, and members cannot switch it off and break their Spectra blocks. It is not a market toggle.
 
-- **Turn off:** its AI website builder and ZipWP images (`api.zipwp.com`, `credits.startertemplates.com`, the `gutenberg-templates/spectra-ai` block).
-- **Never enable:** its Google Fonts loading in global styles, and the `spectra/google-map` block.
-- **Keep off:** its usage telemetry to `metrics.brainstormforce.com`. It is opt-in (`spectra_blocks_usage_optin`, default `no`).
+**Spectra and rule 1: `SpectraGuard`** (`app/web/mu-plugins/mody-platform/src/Spectra/SpectraGuard.php`, 2026-11-06). Spectra's code calls services outside Europe. The guard switches those parts off from the MU plugin, without touching the plugin's files. It was checked against the 1.0.13 source; **recheck it on every Spectra update** with `scripts/spectra-guard-test.php`.
 
-**Open question:** how to switch these off: plugin settings, filters, or a blocklist in the MU plugin.
+| Spectra part | Connects to | How the guard stops it |
+| --- | --- | --- |
+| Block `spectra/google-map` | Google Maps (an iframe saved in the content) | Unregistered on the server and in the editor. `pre_render_block` renders nothing, even for saved content. |
+| Design library and the `gutenberg-templates/spectra-ai` block | websitedemos.net, ZipWP AI | `ast_block_templates_disable`, and the option `spectra_blocks_enable_templates_button` pinned to `no` |
+| ZipWP images (media tab), NPS survey | ZipWP, Brainstorm Force | Never loaded. The guard claims a higher version in the BSF version-negotiation globals (`$zipwp_images_version`, `$nps_survey_version`) with no file. |
+| BSF analytics and deactivation survey, onboarding signup | metrics.brainstormforce.com | `bsf_usage_tracking_enabled` off, `uds_survey_allowed_screens` empty, onboarding redirect off, `spectra_blocks_usage_optin` pinned to `no` |
+| Google Fonts in Spectra's global styles | fonts.googleapis.com, fonts.gstatic.com | `spectra_blocks_load_select_font_globally` and `spectra_blocks_load_gfonts_locally` pinned to `disabled`. Spectra's default fonts (Inter, Cardo) are local files. |
+| Editor nudges | YouTube (autoplay video), ZipWP AI and Pro upsells | Scripts and styles dequeued |
+| Spectra dashboard (Learn videos, AI features, Free vs Pro), onboarding wizard | YouTube, Google Fonts, ZipWP links | Menus removed, direct visits redirected to the dashboard. Its settings are pinned, as above. |
+| Abilities `spectra-blocks/create-google-map`, `add-google-font`, `list-available-google-fonts`, `remove-google-font` | Google Fonts, Google Maps | Unregistered |
+| Anything missed | the hosts above | **Safety net:** `pre_http_request` refuses requests to `brainstormforce.com`, `zipwp.com`, `startertemplates.com`, `websitedemos.net`, `wpspectra.com`, `wpastra.com` and Google's font and map hosts. Each refusal is logged as `[mody-platform] refused a request to …`. |
+
+Plain links to vendor sites in Spectra's UI are not connections until someone clicks them. Spectra's popup builder (`edit.php?post_type=spectra-blocks-popup`) stays reachable by URL; its menu went with the dashboard. Spectra's other ~45 abilities (`spectra-blocks/*`) are MCP-public; M4-01 locks MCP on member sites. The long-term plan is to replace Spectra with our own blocks ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)).
 
 - `mody_market_plugins` table (slug, name, description, listed, sort). Platform admin manages the list in a super-admin page.
 - Members see a **Plugins** page in their site wp-admin: the listed market plugins with *Activate / Deactivate* (server-side, own capability `mody_manage_market`). No upload, no install from URL, no search beyond the market.
@@ -372,5 +383,5 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5.
 3. **Upstream wildcard TLS** — confirm the production front end can terminate a wildcard cert for `*.mody.cloud` (infra task, M5).
 4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
-5. **Final market membership** — beyond Spectra + Redirection (TBD, user-confirmed).
+5. **Final market membership** — beyond Redirection (TBD, user-confirmed). Spectra is network-active, not a market plugin (decision 14).
 6. **Fee confirmation** — 5/15/50 EUR unchanged for 3/10/50 sites (assumed).

@@ -15,7 +15,7 @@ On member sites, every editing entry point lands in the Site Editor, and a membe
 - **`ai` plugin lock-down** (spec decision 13, "Option C", agreed 2026-11-06), on member sites:
   - members cannot change the plugin's settings (Settings → AI) or its connector approvals;
   - members get only the curated set of features (which ones is an open question in mvp-spec §8);
-  - MCP access (mcp-adapter) is locked.
+  - MCP access (mcp-adapter) is locked. That includes Spectra's ~45 `spectra-blocks/*` abilities, which are all MCP-public.
 - `mody` abilities stay reachable for members through the agent. They keep their own permission callbacks.
 
 ## Acceptance criteria (spec §10)

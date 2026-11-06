@@ -6,8 +6,8 @@
 The whole plugin market is preinstalled via Composer; members only **activate/deactivate** listed plugins from a clean market page. All plugins free, no upload/install-from-URL.
 
 ## Deliverables
-- **Composer:** add the market to `app/composer.json` (wpackagist): Spectra and `redirection` as the MVP seed (final membership TBD — spec §16.5). They install into `app/web/plugins/` and are network-visible. Spectra is done: `spectra-blocks` 1.0.13, added 2026-11-06 (the current Spectra; `ultimate-addons-for-gutenberg` is "Spectra Legacy"). `redirection` is still to add.
-- **Spectra and rule 1:** before Spectra can be activated on any site, switch off its AI builder, ZipWP images, Google Fonts loading and `spectra/google-map` block, and keep telemetry off (checklist in spec §10).
+- **Composer:** add the market to `app/composer.json` (wpackagist): `redirection` as the MVP seed (final membership TBD — spec §16.5). Market plugins install into `app/web/plugins/` and are network-visible.
+- **Spectra is not a market plugin** (spec decision 14, 2026-11-06). It is network-active and guarded by `SpectraGuard` (spec §10), so it does not belong on the market page.
 - Table `mody_market_plugins` (spec §11): slug, name, description, `listed`, sort.
 - **Market admin page** (super admin): add/list/delist market plugins (managed data only; the actual install is via Composer).
 - **Market page** in member-site wp-admin (capability `mody_manage_market`): lists `listed` plugins with **Activate / Deactivate** (server-side). No upload, no install-from-URL, no search beyond the market.
@@ -19,4 +19,4 @@ The whole plugin market is preinstalled via Composer; members only **activate/de
 - A delisted plugin disappears from member sites' market page.
 
 ## Open / blocking
-- **Final market membership** beyond Spectra + Redirection is TBD (spec §16.5). Ship with the seed and add plugins via the admin page as they are chosen.
+- **Final market membership** beyond Redirection is TBD (spec §16.5). Ship with the seed and add plugins via the admin page as they are chosen.
