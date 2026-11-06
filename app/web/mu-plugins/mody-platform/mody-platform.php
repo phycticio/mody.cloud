@@ -76,6 +76,12 @@ add_action(
 );
 
 /*
+ * The `ai` plugin's writing features get the site's brand in their system
+ * instructions (rule 4, ticket M3-04). The plugin's source is not edited.
+ */
+add_filter( 'wpai_system_instruction', array( AI\PluginBrandContext::class, 'filter' ), 10, 2 );
+
+/*
  * Abilities: the agent's actions (mvp-spec section 8, "Option C").
  */
 add_action( 'wp_abilities_api_categories_init', array( Abilities::class, 'register_category' ) );

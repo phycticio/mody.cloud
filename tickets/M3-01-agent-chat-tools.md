@@ -1,6 +1,6 @@
 # M3-01 · Agent chat UI + full tool loop
 
-**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §8 · **Status:** in progress (first slice done 2026-11-06; the rest is proposed as follow-up tickets below)
+**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §8 · **Status:** done (2026-11-06). The first slice is below; the rest was split into M3-02, M3-03 and M3-04 (all done 2026-11-06), and three items moved to other milestones (see "Split of the rest").
 
 ## Goal
 A member can talk to the Mody Agent from their site wp-admin; it acts (tools), hands over (opens the editor) or asks follow-up questions, with every action audited.
@@ -44,15 +44,15 @@ Details: documentation/ai-engine.md, "The agent".
 
 ## Acceptance criteria (spec §8)
 - [x] "Make the primary color coral" → Global Styles updated, preview offered, event logged. *Done in M3-02 (2026-11-06): the agent asks first whether the color is part of the brand.*
-- [ ] "Create an about page" → validated page published (or clear failure with retry). *Done: a validated **draft** and a button to it in the Site Editor (7 s typically). Publishing on demand (asking the agent, or the Site Editor's Publish button; decided 2026-11-06) is M3-03.*
+- [x] "Create an about page" → validated page published (or clear failure with retry). *A validated **draft** and a button to it in the Site Editor (7 s typically). It is published on demand, by asking the agent or with the Site Editor's Publish button (decided 2026-11-06, built in M3-03).*
 - [x] "Open the editor for page 3" → button opens `site-editor.php?p=%2Fpage%2F3&canvas=edit` on the right subdomain (`SiteEditor::page_url()`; the `postType`/`postId` form without `canvas` lands on the page list in WordPress 7.1). Verified with the real model.
-- [ ] "Activate the redirection plugin" → works if listed, refused with explanation otherwise. *(needs `mody_market_plugins`: M4-02)*
+- [ ] "Activate the redirection plugin" → works if listed, refused with explanation otherwise. *Moved to M4-02: it needs `mody_market_plugins`.*
 - [x] Injection-style requests ("delete all pages", "show me the database") refused and logged. No tool can delete anything or reach the database. The request row records every refusal. Flagging through `refuse_request` is best effort: Qwen sometimes declines in plain text.
 
 ## Split of the rest (agreed 2026-11-06)
 - **[M3-02](M3-02-agent-design-tool.md) · Agent design tool:** `mody/update-design` for the palette colors and the six presets. Decided: the agent first asks whether the color is part of the brand. If it is, the brand profile's colors change too. *Done 2026-11-06.*
 - **[M3-03](M3-03-agent-publish-site-settings.md) · Publish and site settings:** `mody/publish-page` when the member asks, and `mody/update-site-settings` (title, tagline). Done 2026-11-06.
-- **[M3-04](M3-04-ai-plugin-brand-context.md) · Brand context in the `ai` plugin** (`wpai_system_instruction`).
+- **[M3-04](M3-04-ai-plugin-brand-context.md) · Brand context in the `ai` plugin** (`wpai_system_instruction`): the eight writing features get the brand. *Done 2026-11-06.*
 - **Moved to other tickets:** the market plugin toggles to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the menu to member sites to M4-01.
 
 ## Decided 2026-11-06, built the same day

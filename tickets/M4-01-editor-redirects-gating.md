@@ -14,7 +14,9 @@ On member sites, every editing entry point lands in the Site Editor, and a membe
 - Keep intact: content, media, site users, settings, Spectra, Global Styles.
 - **`ai` plugin lock-down** (spec decision 13, "Option C", agreed 2026-11-06), on member sites:
   - members cannot change the plugin's settings (Settings → AI) or its connector approvals;
-  - members get only the curated set of features (which ones is an open question in mvp-spec §8);
+  - members get only the curated set of features (which ones is an open question in mvp-spec §8). Which features get the brand context is decided (M3-04, 2026-11-06: the eight writing features), but that is not the curated list;
+  - the plugin's feature toggles and connector approvals are options of each site (`wpai_connector_approvals`), so a new member site has every feature off and nothing approved. Set the curated features on and approve `ai/ai.php` for `infomaniak` on member sites (here or in M2's provisioning), and keep members from changing either;
+  - decide whether the features should refuse on a member site without a brand profile, as the agent does (left open in M3-04: today they work there with no brand context);
   - MCP access (mcp-adapter) is locked. Spectra's own abilities and MCP server are already off on every site: `SpectraGuard` pins their options to `disabled` (mvp-spec §10, 2026-11-06).
 - `mody` abilities stay reachable for members through the agent. They keep their own permission callbacks.
 - **Agent menu** (moved here from M3-01 on 2026-11-06): the `Mody Agent` page (`src/Agent/ChatPage.php`) and its endpoint appear on every site today, for users with `edit_pages`. Limit them to member sites, and decide whether the main site keeps them for platform admins.

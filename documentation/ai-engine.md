@@ -234,6 +234,35 @@ These times are for the agent turn itself, measured in-process. In the browser, 
 - M4 limits it to member sites.
 - M1 adds the past-due check (no tool runs for a past-due account), which needs `mody_members`.
 
+## The `ai` plugin's features
+
+Built 2026-11-06 for M3-04 (`src/AI/PluginBrandContext.php`, rule 4, [mvp-spec decision 13](mvp-spec.md#the-ai-plugins-features-on-member-sites-decision-13)). The plugin's source is not edited.
+
+```text
+an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/includes/Abilities/*/
+  └─ Abstract_Ability::get_system_instruction()     the feature's own rules (+ the plugin's editorial guidelines)
+       └─ filter wpai_system_instruction            ( $instruction, $ability_name, $data )
+            └─ PluginBrandContext::filter()          a writing feature, a brand profile → append
+                 └─ SystemPrompt::for_ai_feature()   "the instructions above come first" + brand_context()
+```
+
+**Which features** (decided by the maintainer on 2026-11-06): the eight that write text in the site's voice, listed in `PluginBrandContext::FEATURES`:
+
+- **Get the brand:** `ai/title-generation`, `ai/excerpt-generation`, `ai/meta-description`, `ai/content-resizing`, `ai/type-ahead`, `ai/suggest-reply`, `ai/editorial-updates`, `ai/image-prompt-generation`.
+- **Left as they are:**
+  - `ai/summarization`: the plugin asks for a neutral summary, with no stylistic language;
+  - `ai/content-translation`: a translation keeps the source's voice and HTML exactly;
+  - `ai/alt-text-generation`, `ai/slug-generation`, `ai/block-container-label-generation`, `ai/comment-analysis`, `ai/content-classification`, `ai/editorial-notes`, `ai/revision-change-summary`: analysis or technical output, which brand tone would only bend;
+  - `ai/image-generation`, `ai/image-import`, `ai/speech-generation`: no system instruction.
+
+- **What is appended:** a blank line, one sentence ("The site you write for has the brand below. The instructions above come first: follow their format, length and language. Where they leave the tone open, use the brand's tone of voice."), then `SystemPrompt::brand_context()`. The sentence matters for the suggested reply, which has its own requested tone. On 2026-11-06 the professional and casual replies to the same comment read clearly differently, both in the brand's voice ("we").
+- **Sites without a brand profile** get the plugin's instruction unchanged (decided 2026-11-06). Whether the features should refuse there, as the agent does, is left to M4-01's gating.
+- **An empty instruction stays empty:** the brand is added to a feature's rules, never in their place.
+- **A new feature** in a plugin update gets no brand until it is added to `FEATURES`. `scripts/ai-plugin-brand-context-test.php` fails on any `ai/` feature it does not know, so the update forces the decision.
+- **The plugin's switches are per site.** Each site has its own feature toggles and connector approvals (the option `wpai_connector_approvals`). A new subsite has every feature off and nothing approved. Locally, `alpha` has no features on: a title generation run there under `switch_to_blog()` fails with "unsupported model", because the connector is not approved for the plugin on that site. M2's provisioning or M4-01's lock-down has to set both on member sites.
+- **Speed:** a real title generation with the brand took 3.5 s locally (one request).
+- **Seen on 2026-11-06:** the suggested reply to "Do you also deliver on Saturdays?" once said "we deliver only on weekdays", which no data said. The model inferred it from the mission ("for offices"). The plugin's own rules forbid inventing facts, and the owner reviews every suggestion before using it.
+
 ## Testing locally
 
 1. Put `INFOMANIAK_API_KEY` and `INFOMANIAK_AI_BASE_URL` in `.env` and run `docker compose up -d wordpress`.
@@ -295,9 +324,23 @@ These times are for the agent turn itself, measured in-process. In the browser, 
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-agent-chat-test.php
    ```
 
-5. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
+5. Run the `ai` plugin brand context test (M3-04, see [The `ai` plugin's features](#the-ai-plugins-features)):
+   - the filter on a site without a brand profile: every feature unchanged;
+   - the filter with a profile: the eight writing features get the brand, the other features, an empty instruction, other abilities and a non-string value stay unchanged, and there are no hex colors;
+   - every `ai/` feature the plugin registers, with its real instruction: brand or no brand as decided, and a failure for any feature the test does not know;
+   - title generation with a fake model answer: one request, whose system message has the plugin's rules and the brand. The same run on a site without a profile sends no brand, but is skipped when the plugin is not set up on that site (locally, `alpha`);
+   - one real title generation.
 
-6. In wp-admin (`https://mody.local/wp/wp-admin/`):
+   The parts that run a feature are skipped, with a note, when title generation is not registered or the connector is not approved (production today). A fixture brand profile is inserted and removed if the site has none. Add `-e MODY_TEST_OFFLINE=1` to skip the real request.
+
+   ```bash
+   docker exec -i -u www-data mody_cloud_app \
+     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-plugin-brand-context-test.php
+   ```
+
+6. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
+
+7. In wp-admin (`https://mody.local/wp/wp-admin/`):
    - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.
    - **Settings → AI** turns the `ai` plugin's features on and off. Network-activate the plugin first: `./bin/wp plugin activate ai --network`.
    - **Settings → Connector Approvals** must approve `ai/ai.php` for `infomaniak` while the Connector Approval experiment is on.
@@ -395,4 +438,4 @@ Steps 3 to 6 are an interpretation of the briefing's "use the theme's named colo
 
 ## History
 
-The briefing chose `mistralai/Ministral-3-14B-Instruct-2512`, a Python `hello_ai.py` first step, and the base URL `https://api.infomaniak.com/ai-services/v1`. The MVP spec (2026-11-01) moved to Qwen and a Python agent service. On 2026-11-04 the agent moved into WordPress, using the core AI Client, and the base URL above was confirmed. Ministral fails the block test. On 2026-11-06 the maintainer agreed "Option C" (agent actions as abilities), and page generation, the brand profile table and the validator were built as the first ability, `mody/generate-page`. The same day the agent chat (first slice of M3-01), `mody/open-editor` and the `mody_agent_events` audit table were built, then the six design presets and `mody/update-design` (M3-02).
+The briefing chose `mistralai/Ministral-3-14B-Instruct-2512`, a Python `hello_ai.py` first step, and the base URL `https://api.infomaniak.com/ai-services/v1`. The MVP spec (2026-11-01) moved to Qwen and a Python agent service. On 2026-11-04 the agent moved into WordPress, using the core AI Client, and the base URL above was confirmed. Ministral fails the block test. On 2026-11-06 the maintainer agreed "Option C" (agent actions as abilities), and page generation, the brand profile table and the validator were built as the first ability, `mody/generate-page`. The same day the agent chat (first slice of M3-01), `mody/open-editor` and the `mody_agent_events` audit table were built, then the six design presets and `mody/update-design` (M3-02), publishing on demand and the site title and tagline (M3-03), and the brand context in the `ai` plugin's writing features (M3-04).

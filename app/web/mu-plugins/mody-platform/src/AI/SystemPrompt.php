@@ -15,9 +15,9 @@ defined( 'ABSPATH' ) || exit;
  * Builds every system prompt Mody sends to the model (rule 4).
  *
  * Each method needs a BrandProfile, so no prompt can exist without brand
- * context. brand_context() is the shared part: page generation and the agent
- * use it now, the `ai` plugin's features (wpai_system_instruction) will use
- * it later. Everything here is in English (rule 8). The page text
+ * context. brand_context() is the shared part: page generation, the agent and
+ * the `ai` plugin's writing features (for_ai_feature(), through
+ * PluginBrandContext) use it. Everything here is in English (rule 8). The page text
  * itself follows the language of the member's request (mvp-spec decision 12).
  */
 final class SystemPrompt {
@@ -195,5 +195,22 @@ PROMPT;
 			$tools['publish_page'] ?? 'publish_page',
 			$tools['update_site_settings'] ?? 'update_site_settings'
 		) . "\n\n" . self::brand_context( $profile );
+	}
+
+	/**
+	 * An `ai` plugin feature's own system instruction, with the brand appended
+	 * (ticket M3-04, see PluginBrandContext).
+	 *
+	 * The feature's rules stay first and win: some set a tone themselves (the
+	 * suggested reply has a requested tone), and all of them set the output
+	 * format, length and language.
+	 *
+	 * @param string       $instruction The feature's system instruction.
+	 * @param BrandProfile $profile     The site's brand profile.
+	 */
+	public static function for_ai_feature( string $instruction, BrandProfile $profile ): string {
+		return $instruction . "\n\n"
+			. "The site you write for has the brand below. The instructions above come first: follow their format, length and language. Where they leave the tone open, use the brand's tone of voice.\n\n"
+			. self::brand_context( $profile );
 	}
 }
