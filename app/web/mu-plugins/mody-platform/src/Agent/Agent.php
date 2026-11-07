@@ -430,9 +430,13 @@ final class Agent {
 			if ( '' === $url || ! ( str_starts_with( $url, admin_url() ) || str_starts_with( $url, home_url( '/' ) ) ) ) {
 				continue;
 			}
+			// Admin links (the Site Editor) open in the same tab, with the chat bubble open
+			// there (decided 2026-11-07); front-end links open in a new tab.
+			$admin                   = str_starts_with( $url, admin_url() );
 			$this->turn['actions'][] = array(
-				'label' => sanitize_text_field( $label ),
-				'url'   => esc_url_raw( $url ),
+				'label'  => sanitize_text_field( $label ),
+				'url'    => esc_url_raw( $admin ? EditorBubble::open_url( $url ) : $url ),
+				'editor' => $admin,
 			);
 			unset( $response[ $key ] );
 			++$shown;

@@ -35,6 +35,12 @@ spl_autoload_register(
 Spectra\SpectraGuard::boot();
 
 /*
+ * The Font Library: no Google Fonts collection (rule 1). Core registers it on
+ * `init` at priority 10.
+ */
+add_action( 'init', array( Design\Fonts::class, 'remove_collections' ), 20 );
+
+/*
  * Network-wide tables (mvp-spec section 11). Creates or updates them only
  * when their version changed.
  */

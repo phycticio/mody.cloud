@@ -320,7 +320,7 @@ $profile = BrandProfile::for_site( $site_id );
 $check( 'brand profile', $profile && 'Ogia Bakery' === $profile->brand_name && 'friendly' === $profile->tone && Presets::colors( 'forest' ) == $profile->colors, $profile ? wp_json_encode( $profile->colors ) : 'none' ); // phpcs:ignore Universal.Operators.StrictComparisons
 $check( 'one model request, with the brand', 1 === count( $requests ) && str_contains( (string) wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ), count( $requests ) . ' request(s)' );
 $welcome = $mails_to( $member_email );
-$check( 'one welcome email', 1 === count( $welcome ) && str_contains( $welcome[0]['message'], $home ) && str_contains( $welcome[0]['message'], $admin_base . 'site-editor.php' ), count( $welcome ) . ' email(s)' );
+$check( 'one welcome email', 1 === count( $welcome ) && str_contains( $welcome[0]['message'], $home ) && str_contains( $welcome[0]['message'], $admin_base . 'site-editor.php' ) && str_contains( $welcome[0]['message'], 'mody-chat=open' ), count( $welcome ) . ' email(s)' );
 $check( 'result', false === ( $job['result']['fallback'] ?? null ) && 'sent' === ( $job['result']['email'] ?? '' ), wp_json_encode( $job['result'] ?? array() ) );
 
 $requests = array();

@@ -214,7 +214,7 @@ $view  = $out['data'];
 $check( 'a creation runs (at once here)', 200 === $out['code'] && 'done' === ( $view['status'] ?? '' ) && 'done' === ( $view['step'] ?? '' ), $out['code'] . ' ' . ( $view['status'] ?? '' ) . ' ' . ( $view['error'] ?? '' ) );
 $check(
 	'...the site\'s links',
-	'https://' . Pipeline::domain( $slug( 'full' ) ) . '/' === ( $view['site']['url'] ?? '' ) && str_contains( (string) ( $view['site']['editor'] ?? '' ), '/wp-admin/site-editor.php?p=%2Fpage%2F' )
+	'https://' . Pipeline::domain( $slug( 'full' ) ) . '/' === ( $view['site']['url'] ?? '' ) && str_contains( (string) ( $view['site']['editor'] ?? '' ), '/wp-admin/site-editor.php?p=%2Fpage%2F' ) && str_contains( (string) ( $view['site']['editor'] ?? '' ), 'mody-chat=open' )
 		&& str_ends_with( (string) ( $view['site']['admin'] ?? '' ), '/wp/wp-admin/' ) && 'Ogia Bakery' === ( $view['site']['title'] ?? '' ),
 	(string) ( $view['site']['url'] ?? 'no site' )
 );

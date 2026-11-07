@@ -42,13 +42,16 @@
 		return node;
 	}
 
-	function link( text, url, primary ) {
+	// Links to the new site open in a new tab; its editor and dashboard in this one (sameTab).
+	function link( text, url, primary, sameTab ) {
 		const node = element( 'a', primary ? 'button button-primary' : 'button', text );
 		if ( /^https?:\/\//.test( url ) ) {
 			node.href = url;
 		}
-		node.target = '_blank';
-		node.rel = 'noopener';
+		if ( ! sameTab ) {
+			node.target = '_blank';
+			node.rel = 'noopener';
+		}
 		return node;
 	}
 
@@ -408,8 +411,8 @@
 			const row = element( 'p', 'mody-wizard__buttons' );
 			row.append(
 				link( config.strings.visit, job.site.url, true ),
-				link( config.strings.editor, job.site.editor, false ),
-				link( config.strings.admin, job.site.admin, false )
+				link( config.strings.editor, job.site.editor, false, true ),
+				link( config.strings.admin, job.site.admin, false, true )
 			);
 			nodes.push( row );
 		}

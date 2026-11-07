@@ -97,6 +97,7 @@ $settings = EditorBubble::settings();
 $page     = ChatPage::settings();
 $check( 'the chat page\'s settings', $settings['endpoint'] === $page['endpoint'] && $settings['interval'] === $page['interval'] && array_intersect_key( $settings['strings'], $page['strings'] ) === $page['strings'] );
 $check( '...plus the bubble\'s', true === $settings['bubble'] && ChatPage::chips() === $settings['chips'] && isset( $settings['strings']['open'], $settings['strings']['profile'] ) );
+$check( 'agent buttons open the editor with the chat open', 'mody-chat' === $settings['openParam'] && str_ends_with( EditorBubble::open_url( admin_url( 'site-editor.php?p=%2Fstyles' ) ), '&mody-chat=open' ) );
 $check( '...brand profile: here yes', ( null !== BrandProfile::for_site( $main ) ) === $settings['hasProfile'], wp_json_encode( $settings['hasProfile'] ) );
 switch_to_blog( $site );
 $no_profile = EditorBubble::settings()['hasProfile'];

@@ -19,7 +19,7 @@ The Mody agent lives where the member edits: a chat bubble at the bottom right o
   - The panel sits above the editor's panels and below its modals. It is outside the editor's own elements, so the editor's keyboard shortcuts (undo and so on) do not fire while typing in it.
 - **`assets/agent-bubble.css`** fits the chat's styles to a 380 × 560 panel.
 - **The `Mody Agent` wp-admin page** (decided 2026-11-07, `ChatPage::shows_menu()`): gone on member sites, super admins too, because the bubble replaces it. On the main site of a network, super admins only.
-- Buttons from the agent open in a new tab, as on the page.
+- **Buttons from the agent** (changed 2026-11-07 at the maintainer's request): buttons to the editor or wp-admin open in the same tab with `?mody-chat=open`, so the bubble opens there with the conversation; buttons to the site itself ("View …") open in a new tab.
 
 ## Acceptance criteria
 - [x] In the Site Editor and the post editor of a member site, the bubble is there, with the chat page's endpoint and conversation (tested over HTTP: the editors carry the bubble's script and settings). **To check in a browser:** creating a page, changing the colors and publishing from the bubble.

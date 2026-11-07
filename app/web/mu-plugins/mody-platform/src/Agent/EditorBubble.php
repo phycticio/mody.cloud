@@ -22,6 +22,9 @@ defined( 'ABSPATH' ) || exit;
  */
 final class EditorBubble {
 
+	/** URL parameter that opens the bubble when the page loads: `mody-chat=open`. */
+	public const OPEN_PARAM = 'mody-chat';
+
 	/** Editor screens that get the bubble: the post editor and the Site Editor. */
 	private const SCREENS = array( 'post', 'site-editor' );
 
@@ -49,6 +52,17 @@ final class EditorBubble {
 	}
 
 	/**
+	 * An admin URL that opens with the chat bubble open, for the agent's
+	 * buttons: they open in the same tab, and the conversation carries on
+	 * there (decided 2026-11-07).
+	 *
+	 * @param string $url An admin URL, such as a Site Editor link.
+	 */
+	public static function open_url( string $url ): string {
+		return add_query_arg( self::OPEN_PARAM, 'open', $url );
+	}
+
+	/**
 	 * The chat page's settings, plus the bubble's own.
 	 *
 	 * @return array<string, mixed>
@@ -56,6 +70,7 @@ final class EditorBubble {
 	public static function settings(): array {
 		$settings                       = ChatPage::settings();
 		$settings['bubble']             = true;
+		$settings['openParam']          = self::OPEN_PARAM;
 		$settings['chips']              = ChatPage::chips();
 		$settings['maxLength']          = Agent::MAX_MESSAGE_LENGTH;
 		$settings['hasProfile']         = null !== BrandProfile::for_site( get_current_blog_id() );

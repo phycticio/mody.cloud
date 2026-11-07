@@ -113,6 +113,7 @@ Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizar
 ### Step 2 — Your design (visual)
 
 - **Six curated Mody presets**, shown as cards: preset name, three swatches (primary / secondary / accent), and a mini mock (a heading + a button rendered in those colors). Selecting one updates a **live preview** of the site header and hero below.
+- **Style variations** (decided 2026-11-07, [M2-06](../tickets/M2-06-presets-as-style-variations.md)): the six presets become the theme's style variations (`themes/theme/styles/*.json`), shown in the Site Editor's Styles and editable per site; the wizard reads them. **Typography:** members choose fonts from a repository of free fonts served by the network ([M2-07](../tickets/M2-07-font-repository.md)); the styles keep Inter. Core's Google Fonts collection is removed from the Font Library on every site (rule 1, 2026-11-07).
 - **Logo upload** — optional drag & drop into the media library. Built 2026-11-07 as a file field ([M2-05](../tickets/M2-05-wizard-logo.md)): PNG, JPEG, GIF or WebP, at most 2 MB, shown in the live preview; the pipeline copies it into the new site's media library as its site logo.
 - Fonts are **Inter, fixed, for the MVP** (the picker appears in a later iteration).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
@@ -234,7 +235,7 @@ On **member sites only** (never the main association site):
 - `post.php?post=N&action=edit` (page **or** post) → redirects to the Site Editor for that item. For pages that is `site-editor.php?p=%2Fpage%2FN&canvas=edit`. The form `?postType=<type>&postId=N` without `canvas=edit` lands on the list in WordPress 7.1 (`wp-admin/site-editor.php`). **Built 2026-11-07 ([M4-01](../tickets/M4-01-editor-redirects-gating.md)), with one decided exception: posts.** WordPress 7.1's Site Editor has routes for pages, patterns (`/wp_block/:id`) and navigation menus (`/wp_navigation/:id`), but none for posts, so posts keep the block editor (`post.php`) until it does (decided by the maintainer on 2026-11-07). Pages, patterns and menus open in the Site Editor; `post-new.php` for pages goes to the Site Editor's pages (`?p=/page`). Member sites are every site but the main one; super admins are not redirected.
 - `post-new.php?post_type=page|post` → redirects to `site-editor.php?postType=<type>`.
 - Templates, parts and styles are already Site-Editor-only (FSE theme).
-- Every link the platform generates (dashboard buttons, agent `open_editor`, emails) uses the Site Editor URL.
+- Every link the platform generates (dashboard buttons, agent `open_editor`, emails) uses the Site Editor URL. The agent's editor buttons open it in the same tab with `?mody-chat=open`, so the chat bubble opens there and the conversation carries on; the wizard's last screen and the welcome email link to the new site's front page in the Site Editor with the chat open too (decided 2026-11-07).
 
 **Acceptance criterion:** a member cannot reach a classic block-editor page for any content type on their site; every editing entry point lands in the Site Editor.
 

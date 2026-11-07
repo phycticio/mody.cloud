@@ -252,6 +252,7 @@ These times are for the agent turn itself, measured in-process. In the browser, 
 
 - **In the editors: a chat bubble.** A round button at the bottom right of the Site Editor and the post editor, for users with `edit_pages`, opens the same chat: same endpoint, jobs and stored conversation (`Agent\EditorBubble`, `assets/agent-bubble.*`). The bubble builds the chat page's elements in a panel, and `assets/agent-chat.js` runs in them unchanged, except that it focuses its input only when visible. Test: `scripts/agent-bubble-test.php`.
 - **The wp-admin page:** gone on member sites, where the bubble replaces it. On the main site, super admins only (`ChatPage::shows_menu()`).
+- **The agent's buttons** (decided by the maintainer on 2026-11-07). Buttons to this site's admin ("Open … in the Site Editor", the styles) open in the **same tab**, with `?mody-chat=open` (`EditorBubble::open_url()`): the bubble opens there, with the same stored conversation. Each action carries `editor: true`. Buttons to the site itself ("View …") still open in a new tab. The bubble also reopens after a reload if it was open (`sessionStorage`).
 - **Still to come:** editing what is open from the bubble ([M3-06](../tickets/M3-06-agent-edit-current-content.md), [M3-07](../tickets/M3-07-agent-templates-parts.md)), and the past-due check (no tool runs for a past-due account, M1-02, which needs `mody_members`).
 
 ## The `ai` plugin's features

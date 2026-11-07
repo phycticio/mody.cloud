@@ -66,8 +66,12 @@
 				}
 				const link = element( 'a', 'button button-primary', action.label );
 				link.href = action.url;
-				link.target = '_blank';
-				link.rel = 'noopener';
+				// Editor links stay in this tab (the bubble opens there with this conversation);
+				// links to the site itself open in a new tab.
+				if ( ! action.editor ) {
+					link.target = '_blank';
+					link.rel = 'noopener';
+				}
 				row.append( link );
 			} );
 			item.append( row );

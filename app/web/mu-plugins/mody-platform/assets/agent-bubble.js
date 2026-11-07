@@ -215,10 +215,12 @@
 		( ( event.detail && event.detail.edits ) || [] ).forEach( apply );
 	} );
 
-	// Open again after a reload if it was open, or if the agent is still working.
+	// Open on load: after an agent button (?mody-chat=open), after a reload if it was
+	// open, or while the agent is still working.
 	let reopen = false;
 	try {
-		reopen = 'open' === window.sessionStorage.getItem( 'modyAgentBubble' );
+		reopen = 'open' === new URLSearchParams( window.location.search ).get( config.openParam || 'mody-chat' )
+			|| 'open' === window.sessionStorage.getItem( 'modyAgentBubble' );
 	} catch ( e ) {}
 	if ( reopen || ( config.pending && config.pending.job ) ) {
 		panel.hidden = false;

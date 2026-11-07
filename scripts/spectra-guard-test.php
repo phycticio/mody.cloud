@@ -96,4 +96,7 @@ foreach ( array( 'https://api.zipwp.com/api/', 'https://metrics.brainstormforce.
 }
 $check( 'Infomaniak and WordPress.org not denied', ! SpectraGuard::is_denied_url( 'https://api.infomaniak.com/1/ai/models' ) && ! SpectraGuard::is_denied_url( 'https://api.wordpress.org/plugins/' ) );
 
+// Not Spectra, also rule 1 (2026-11-07): the Font Library has no Google Fonts collection.
+$check( 'Font Library: no Google Fonts collection', ! isset( WP_Font_Library::get_instance()->get_font_collections()['google-fonts'] ), implode( ', ', array_keys( WP_Font_Library::get_instance()->get_font_collections() ) ) );
+
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

@@ -41,7 +41,7 @@ The palette is the briefing's visual identity. Default palette, gradients and du
 
 All pairs the theme actually uses pass WCAG AA for normal text (4.5:1).
 
-- **Typography:** `Inter` first, then a system stack. No font files are bundled and nothing loads from a CDN (sovereignty and GDPR). To really serve Inter, add the files under `assets/fonts/` and declare them with `fontFace` in `theme.json`.
+- **Typography:** `Inter` first, then a system stack. No font files are bundled and nothing loads from a CDN (sovereignty and GDPR). To really serve Inter, add the files under `assets/fonts/` and declare them with `fontFace` in `theme.json`. Members will choose fonts from a repository of free fonts served by the network ([M2-07](../tickets/M2-07-font-repository.md)). Core's Google Fonts collection is removed from the Font Library on every site (`Design\Fonts`, 2026-11-07, rule 1).
 - **Font sizes:** `small`, `medium`, `large`, `x-large`, `xx-large`, fluid between viewport sizes.
 - **Spacing presets:** `20` to `80` (0.5 rem up to 8 rem). Templates use `var:preset|spacing|NN`.
 - **Layout:** content width 720px, wide 1200px, root-padding-aware alignments.

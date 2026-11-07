@@ -43,6 +43,7 @@
 use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\AgentSettings;
+use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
@@ -331,7 +332,7 @@ if ( $new_page ) {
 }
 $tool_reply = $tool_messages( $requests[2] ?? array() )[0]['content'] ?? '';
 $check( 'generate page: draft saved', $new_page && 'draft' === get_post_status( $new_page ), "page $new_page" );
-$check( '...button to the Site Editor', SiteEditor::page_url( $new_page ) === ( $turn['actions'][0]['url'] ?? '' ), $turn['actions'][0]['label'] ?? '' );
+$check( '...button to the Site Editor', EditorBubble::open_url( SiteEditor::page_url( $new_page ) ) === ( $turn['actions'][0]['url'] ?? '' ) && true === ( $turn['actions'][0]['editor'] ?? null ), $turn['actions'][0]['label'] ?? '' );
 $check( '...3 requests (agent, page, agent)', 3 === count( $requests ), count( $requests ) . ' request(s)' );
 $check( '...result sent back without the URL', str_contains( $tool_reply, '"page_id":' . $new_page ) && ! str_contains( $tool_reply, 'site-editor' ), mb_strimwidth( $tool_reply, 0, 80, '...' ) );
 $check( '...tool call logged', array( 'mody/generate-page' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['args'], 'An about page' ) && null !== $rows[0]['duration_ms'], $rows ? "args {$rows[0]['args']}, {$rows[0]['duration_ms']} ms" : '' );
@@ -425,7 +426,7 @@ $requests = array();
 $turn     = Agent::respond( 'Open the styles twice' );
 $since();
 $check( 'model error after a tool: says so', $turn['error'] && str_contains( $turn['reply'], 'may already be done' ), $turn['reply'] );
-$check( '...buttons kept, once each', array( SiteEditor::url( '/styles' ) ) === array_column( $turn['actions'], 'url' ), count( $turn['actions'] ) . ' button(s)' );
+$check( '...buttons kept, once each', array( EditorBubble::open_url( SiteEditor::url( '/styles' ) ) ) === array_column( $turn['actions'], 'url' ), count( $turn['actions'] ) . ' button(s)' );
 
 // 4. Design: mody/update-design ---------------------------------------------
 
@@ -543,7 +544,7 @@ $sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
 $check( '...brand no: primary changed', '#ff7f50' === $now['primary'] && '#ff7f50' === $css_color( 'primary' ), 'palette ' . $now['primary'] . ', CSS ' . $css_color( 'primary' ) );
 $check( '...other colors unchanged', array_diff_key( $now, array( 'primary' => 1 ) ) === array_diff_key( $start_colors, array( 'primary' => 1 ) ) );
 $check( '...profile unchanged', $start_brand === $profile_now(), wp_json_encode( $profile_now() ) );
-$check( '...button to see the colors', SiteEditor::url( '/styles' ) === ( $turn['actions'][0]['url'] ?? '' ), $turn['actions'][0]['label'] ?? 'no button' );
+$check( '...button to see the colors', EditorBubble::open_url( SiteEditor::url( '/styles' ) ) === ( $turn['actions'][0]['url'] ?? '' ), $turn['actions'][0]['label'] ?? 'no button' );
 $check( '...old and new sent back, no URL', str_contains( $sent, '"old":"' . $start_colors['primary'] . '"' ) && str_contains( $sent, '"new":"#ff7f50"' ) && str_contains( $sent, '"brand_profile_updated":false' ) && ! str_contains( $sent, 'site-editor' ), mb_strimwidth( $sent, 0, 90, '...' ) );
 $check( '...logged with old and new', array( 'mody/update-design' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], '"new":"#ff7f50"' ) && str_contains( (string) $rows[0]['args'], '"brand":false' ) );
 $stored = json_decode( $styles_now(), true );
@@ -686,7 +687,8 @@ $rows     = $since();
 $sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
 $page     = get_post( $draft_id );
 $check( 'publish by title: published', 'publish' === $status( $draft_id ) && '' !== $page->post_name && '0000-00-00 00:00:00' !== $page->post_date_gmt, "slug {$page->post_name}, date {$page->post_date_gmt}" );
-$check( '...two buttons: view and edit', array( get_permalink( $draft_id ), SiteEditor::page_url( $draft_id ) ) === array_column( $turn['actions'], 'url' ) && str_starts_with( (string) get_permalink( $draft_id ), home_url( '/' ) ), implode( ' | ', array_column( $turn['actions'], 'label' ) ) );
+$check( '...two buttons: view and edit', array( get_permalink( $draft_id ), EditorBubble::open_url( SiteEditor::page_url( $draft_id ) ) ) === array_column( $turn['actions'], 'url' ) && str_starts_with( (string) get_permalink( $draft_id ), home_url( '/' ) ), implode( ' | ', array_column( $turn['actions'], 'label' ) ) );
+$check( '...view in a new tab, edit in this one (chat open)', array( false, true ) === array_column( $turn['actions'], 'editor' ) && str_contains( $turn['actions'][1]['url'], 'mody-chat=open' ) );
 $check( '...result sent back without URLs', str_contains( $sent, '"status":"publish"' ) && str_contains( $sent, 'as buttons' ) && ! str_contains( $sent, '://' ), mb_strimwidth( $sent, 0, 90, '...' ) );
 $check( '...logged', array( 'mody/publish-page' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], '"status":"publish"' ) && str_contains( (string) $rows[0]['args'], 'mody PUBLISH' ) );
 $result = $publish->execute( array( 'page_id' => $draft_id ) );
@@ -1012,7 +1014,7 @@ if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
 
 $target = $created ? $created : $page_id;
 $turn   = $real( "Open the editor for page $target" );
-$check( 'open the editor for page N', SiteEditor::page_url( $target ) === ( $turn['actions'][0]['url'] ?? '' ), ( $turn['actions'][0]['url'] ?? 'no button' ) . ', ' . $turn['secs'] );
+$check( 'open the editor for page N', EditorBubble::open_url( SiteEditor::page_url( $target ) ) === ( $turn['actions'][0]['url'] ?? '' ), ( $turn['actions'][0]['url'] ?? 'no button' ) . ', ' . $turn['secs'] );
 
 // "Publish it", over HTTP like the chat page: the conversation stored on the server, with the
 // creation's tool call, is the context. A question about which page is answered with the created one.

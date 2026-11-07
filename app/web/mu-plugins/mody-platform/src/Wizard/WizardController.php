@@ -8,6 +8,7 @@
 namespace Mody\Platform\Wizard;
 
 use Mody\Platform\Agent\ChatController;
+use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\SiteEditor;
@@ -273,7 +274,8 @@ final class WizardController {
 				'title'  => get_option( 'blogname' ),
 				'url'    => home_url( '/' ),
 				'admin'  => admin_url(),
-				'editor' => $page_id ? SiteEditor::page_url( $page_id ) : SiteEditor::url( '/' ),
+				// With the agent's chat open there (decided 2026-11-07).
+				'editor' => EditorBubble::open_url( $page_id ? SiteEditor::page_url( $page_id ) : SiteEditor::url( '/' ) ),
 			);
 			restore_current_blog();
 		}

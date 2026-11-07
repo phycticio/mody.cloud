@@ -7,6 +7,7 @@
 
 namespace Mody\Platform\Provisioning;
 
+use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\Design\Presets;
@@ -657,7 +658,8 @@ final class Pipeline {
 			$user->display_name,
 			$title,
 			home_url( '/' ),
-			SiteEditor::page_url( (int) ( $job['result']['page_id'] ?? 0 ) )
+			// The front page in the Site Editor, with the agent's chat open (decided 2026-11-07).
+			EditorBubble::open_url( SiteEditor::page_url( (int) ( $job['result']['page_id'] ?? 0 ) ) )
 		);
 		/* translators: %s: the site title. */
 		$sent = wp_mail( $user->user_email, sprintf( __( 'Your site %s is ready', 'mody_cloud' ), $title ), $body );
