@@ -9,7 +9,7 @@ On member sites, every editing entry point lands in the Site Editor, and a membe
 - **Split:** this ticket covers the redirects and the capability gating. The `ai` plugin lock-down moved to [M4-03](M4-03-ai-plugin-lockdown.md).
 - **Member sites:** every site of the network but the main one. The rules apply to everyone on them **except super admins**, who keep full rights to fix things.
 - **Posts keep the block editor.** WordPress 7.1's Site Editor has routes for pages (`/page/:id`), patterns (`/wp_block/:id`) and navigation menus (`/wp_navigation/:id`), but none for posts. So posts open in `post.php`, the block editor, until the Site Editor supports them.
-- **The agent menu:** instead of limiting the `Mody Agent` page, the maintainer wants the agent as a **chat bubble in the editor**. It should know the page, template or part being edited, and be able to change it. This is a new feature, to be scoped in its own tickets; the page stays as it is until then.
+- **The agent menu:** instead of limiting the `Mody Agent` page, the maintainer wants the agent as a **chat bubble in the editor**. It should know the page, template or part being edited, and be able to change it. Scoped the same day as [M3-05](M3-05-agent-editor-bubble.md) (the bubble, which replaces the page on member sites), [M3-06](M3-06-agent-edit-current-content.md) (editing what is open) and [M3-07](M3-07-agent-templates-parts.md) (templates and parts). The page stays as it is until M3-05.
 
 ## Deliverables
 - [x] **`Gating\MemberSite`** (`src/Gating/MemberSite.php`), hooked in `mody-platform.php`.
