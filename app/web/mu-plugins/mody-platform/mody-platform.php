@@ -64,6 +64,18 @@ add_action( 'load-post.php', array( Gating\MemberSite::class, 'redirect_editor' 
 add_action( 'load-post-new.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
 
 /*
+ * The `ai` plugin on member sites (ticket M4-03): the curated features and the
+ * connector approval pinned, its screens and configuration routes refused to
+ * members, MCP locked, and its request log table created for new sites.
+ */
+add_filter( 'pre_option', array( Gating\AiPlugin::class, 'pin_option' ), 10, 2 );
+add_action( 'admin_menu', array( Gating\AiPlugin::class, 'hide_screens' ), 999 );
+add_action( 'wp_dashboard_setup', array( Gating\AiPlugin::class, 'hide_widgets' ), 999 );
+add_action( 'admin_init', array( Gating\AiPlugin::class, 'refuse_screens' ) );
+add_filter( 'rest_pre_dispatch', array( Gating\AiPlugin::class, 'lock_routes' ), 10, 3 );
+add_action( 'wp_initialize_site', array( Gating\AiPlugin::class, 'create_log_table' ), 200 );
+
+/*
  * Brand wizard (Network Admin → Mody → New site, ticket M2-03): its page and
  * its REST endpoint, which runs the provisioning pipeline after the response.
  */

@@ -280,10 +280,30 @@ an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/include
 - **Sites without a brand profile** get the plugin's instruction unchanged (decided 2026-11-06). Whether the features should refuse there, as the agent does, is left to M4-01's gating.
 - **An empty instruction stays empty:** the brand is added to a feature's rules, never in their place.
 - **A new feature** in a plugin update gets no brand until it is added to `FEATURES`. `scripts/ai-plugin-brand-context-test.php` fails on any `ai/` feature it does not know, so the update forces the decision.
-- **The plugin's switches are per site.** Each site has its own feature toggles and connector approvals (the option `wpai_connector_approvals`). A new subsite has every feature off and nothing approved. Locally, `alpha` has no features on: a title generation run there under `switch_to_blog()` fails with "unsupported model", because the connector is not approved for the plugin on that site. M2's provisioning or M4-01's lock-down has to set both on member sites.
+- **The plugin's switches are per site.** Each site has its own feature toggles and connector approvals (the option `wpai_connector_approvals`). A new subsite has every feature off and nothing approved. Locally, `alpha` has no features on: a title generation run there under `switch_to_blog()` fails with "unsupported model", because the connector is not approved for the plugin on that site. Since 2026-11-07 (M4-03) both are pinned on member sites; see "On member sites" below.
 - **Speed:** a real title generation with the brand took 3.5 s locally and 0.3 s in production (one request each).
 - **Production** (2026-11-06): the plugin (1.5.0) is active on mody.cloud with every feature on, and `ai/ai.php` is approved for `infomaniak`. The plugin's 1.4 upgrade removed its global switch; had it been off then, the upgrade would have switched every feature off. mody.cloud has no brand profile, so its features run without brand context until it gets one.
 - **Seen on 2026-11-06:** the suggested reply to "Do you also deliver on Saturdays?" once said "we deliver only on weekdays", which no data said. The model inferred it from the mission ("for offices"). The plugin's own rules forbid inventing facts, and the owner reviews every suggestion before using it.
+
+### On member sites
+
+Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer the same day).
+
+- **Members get every text feature.**
+  - On-demand writing: titles, excerpts, meta descriptions, resizing, editorial updates, summaries, translation, slugs, alt text.
+  - Type-ahead.
+  - Comments: moderation, suggested replies.
+  - Organizing: classification, block labels, editorial notes, revision summaries.
+  - The plugin's infrastructure: connector approval, request logging (the basis of cost tracking), key encryption.
+- **Off:** image generation and text to speech (the Infomaniak connection is text only), the developer tools (MCP, WebMCP, abilities explorer, custom abilities), Markdown feeds and the C2PA monitor.
+- **Pinned, not saved.** On every site but the main one, the `pre_option` filter answers the plugin's switches (`wpai_feature_<id>_enabled`): `1` for the list in `AiPlugin::FEATURES`, `0` for anything else, including features a plugin update adds. It also answers its approvals (`ai/ai.php` may use `infomaniak`) and its pending requests (none). Saved values have no effect, the plugin's own screens show the pinned values, and a new site works at once.
+- **Locked for members** (not super admins):
+  - the plugin's screens (Settings → AI, Connector Approvals, MCP access, abilities explorer, request logs) are removed from the menus and refused by URL;
+  - its "AI Status" dashboard widget is removed;
+  - its configuration routes and mcp-adapter's `/mcp` routes answer 403 (`mody_locked`).
+- **The request log table** is created for every new site (`wp_initialize_site`). Before, requests made in a new site's context during provisioning hit a missing table and logged database errors. The plugin itself creates it only on the site's first own request.
+- Test: `scripts/ai-plugin-lockdown-test.php`. It fails on a plugin feature it does not know, so an update needs a decision.
+- **Production:** the plugin is active only on the main site there, so member sites get none of this until it is network-activated (the maintainer's decision).
 
 ## Testing locally
 
