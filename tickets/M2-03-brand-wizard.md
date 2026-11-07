@@ -45,4 +45,10 @@ The 3-step, choice-based wizard that creates a site: a first-time user completes
   - **The endpoint:** permissions (401 logged out, 403 without the capability), field errors, a full creation with the Plum preset, the site's links, another user's job (404), a creation in progress (409), the site limit (403), Retry generation, Try again on a failed and on a stopped job.
   - **Over HTTP:** the page loads in Network Admin (200). One real creation: POST answered 202 in 0.3 s, and the site was ready 14.4 s later with a generated page.
 - The other suites pass: `provisioning-test.php`, `ai-agent-chat-test.php` (offline), `spectra-guard-test.php`.
+- **Production** (deployed 2026-11-07, commit `222f284`, after a backup in `backups/2026-11-07-pre-m2-03/`):
+  - the four routes are registered;
+  - a logged-out POST gets 401. An empty one gets 400 first, because WordPress checks required parameters before the permission callback; nothing runs either way;
+  - the page loads in Network Admin for the super admin, showing "0 of 3 sites used";
+  - the offline agent test and the Spectra test pass, with no PHP warnings.
+  - `scripts/wizard-test.php` was not run there: it creates sites. A site created there is not reachable until wildcard DNS and TLS for `*.mody.cloud` exist (M5).
 - **Not checked by the tests:** clicking through the page itself. There is no browser in the test setup, and the script was only checked with `node --check` and read through. Walk through it once in a browser: Network Admin → Mody → New site.
