@@ -68,7 +68,7 @@ Deployed 2026-11-06 (commit `754e6e8`, together with the publish guard in `Agent
 - `scripts/provisioning-test.php` was **not** run there, because it creates and deletes sites and a user on the production network. Ask the maintainer first.
 
 ## Open
-- **Production addresses** (seen 2026-11-07): production's main site has `home` = `siteurl` = `https://mody.cloud/wp`, while locally `home` has no `/wp`. So `Pipeline::urls()` finds no suffix there, and new production sites get `siteurl` without `/wp` (`phycticio.mody.cloud`). It works: nginx rewrites `/wp-admin/…`, `/wp-includes/…` and `wp-*.php` into `/wp/` on every host. See the open question in architecture.md.
+- **Production addresses** (seen 2026-11-07): production's main site has `home` = `siteurl` = `https://mody.cloud/wp`, while locally `home` has no `/wp`. So `Pipeline::urls()` finds no suffix there, and new production sites get `siteurl` without `/wp` (`phycticio.mody.cloud`). It works: nginx rewrites `/wp-admin/…`, `/wp-includes/…` and `wp-*.php` into `/wp/` on every host. See deviation 3 in architecture.md ("Deviations to resolve").
 - **Production sites:** nothing starts provisioning there yet (no wizard). New sites also need the wildcard DNS and TLS for `*.mody.cloud` (mvp-spec §16, question 3).
 - **The `ai` plugin on new sites:** its features and connector approvals are options of each site, so a provisioned site starts with every feature off (M3-04). Setting them is left to M4-01, with the curated list.
 - **Deleting a site** does not delete its brand profile row yet (the dashboard's Delete is M1; the 60-day deletion is M1-02).
