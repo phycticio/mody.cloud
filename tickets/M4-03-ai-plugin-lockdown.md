@@ -1,6 +1,6 @@
 # M4-03 · The `ai` plugin on member sites
 
-**Milestone:** M4 · **Spec:** documentation/mvp-spec.md §8 ("The `ai` plugin's features on member sites"), decision 13 · **Status:** done (2026-11-07, locally; production needs the plugin network-activated)
+**Milestone:** M4 · **Spec:** documentation/mvp-spec.md §8 ("The `ai` plugin's features on member sites"), decision 13 · **Status:** done (2026-11-07; in production, with the plugin network-activated)
 
 Split from M4-01 on 2026-11-07 (rule 5).
 
@@ -48,7 +48,15 @@ On member sites, the `ai` plugin offers a curated set of features that work out 
 - All other suites pass.
 
 ## Production
-The `ai` plugin is active only on the main site in production (site level, not network). Until it is network-activated, member sites (`phycticio.mody.cloud`) get no AI features, and none of this applies there. Network activation is the maintainer's decision. The command is `wp plugin activate ai --network`, after a backup; then `ai/ai.php` is approved on member sites by the pins. `mcp-adapter` is in the same situation, and its routes are locked on member sites either way.
+Deployed 2026-11-07 (commit `4d139f2`, after a backup in `backups/2026-11-07-pre-m4-03/`). The `ai` plugin was then **network-activated** (decided by the maintainer the same day). Before, it was active on the main site only.
+
+Checked on `phycticio.mody.cloud` in its own context:
+- the curated switches on and the others off;
+- `ai/title-generation` registered and `ai/image-generation` not;
+- `ai/ai.php` approved for Infomaniak;
+- its request log table there.
+
+The main site keeps its own settings and approvals. The agent and Spectra tests pass, with no PHP warnings. `mcp-adapter` stays active on the main site only; its routes are locked on member sites either way.
 
 ## Open
 - **Cost:** type-ahead calls the model as members type, and comment moderation on every new comment. The request log records them per site; per-member limits are still open (mvp-spec §8).

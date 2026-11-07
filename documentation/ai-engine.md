@@ -303,7 +303,7 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
   - its configuration routes and mcp-adapter's `/mcp` routes answer 403 (`mody_locked`).
 - **The request log table** is created for every new site (`wp_initialize_site`). Before, requests made in a new site's context during provisioning hit a missing table and logged database errors. The plugin itself creates it only on the site's first own request.
 - Test: `scripts/ai-plugin-lockdown-test.php`. It fails on a plugin feature it does not know, so an update needs a decision.
-- **Production:** the plugin is active only on the main site there, so member sites get none of this until it is network-activated (the maintainer's decision).
+- **Production:** the plugin was network-activated on 2026-11-07 (it was active on the main site only), so member sites get this there too.
 
 ## Testing locally
 
