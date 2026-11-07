@@ -37,6 +37,9 @@ final class WizardController {
 	/** A retry of the generation not finished after this long has stopped. */
 	private const RETRY_TIMEOUT = 5 * MINUTE_IN_SECONDS;
 
+	/** The largest logo accepted (M2-05). */
+	public const MAX_LOGO_BYTES = 2 * MB_IN_BYTES;
+
 	/**
 	 * Hooked to `rest_api_init`.
 	 */
@@ -133,8 +136,35 @@ final class WizardController {
 			);
 		}
 
-		$input  = array_intersect_key( $request->get_params(), array_flip( array( 'slug', 'title', 'brand_name', 'mission', 'tone', 'preset', 'prompt' ) ) );
+		$input = array_intersect_key( $request->get_params(), array_flip( array( 'slug', 'title', 'brand_name', 'mission', 'tone', 'preset', 'prompt' ) ) );
+
+		// The answers first, so a logo is not stored for a request that fails anyway.
+		$valid = Pipeline::validate( $input, wp_get_current_user() );
+		if ( is_wp_error( $valid ) ) {
+			$valid->add_data( array_merge( (array) $valid->get_error_data(), array( 'status' => 400 ) ) );
+			return $valid;
+		}
+
+		$files = $request->get_file_params();
+		if ( ! empty( $files['logo']['name'] ) ) {
+			$logo_id = self::store_logo( (array) $files['logo'] );
+			if ( is_wp_error( $logo_id ) ) {
+				return new WP_Error(
+					'mody_invalid_input',
+					$logo_id->get_error_message(),
+					array(
+						'status' => 400,
+						'fields' => array( 'logo' => $logo_id->get_error_message() ),
+					)
+				);
+			}
+			$input['logo_id'] = $logo_id;
+		}
+
 		$job_id = Pipeline::start( $user_id, $input );
+		if ( is_wp_error( $job_id ) && ! empty( $input['logo_id'] ) ) {
+			wp_delete_attachment( (int) $input['logo_id'], true );
+		}
 		if ( is_wp_error( $job_id ) ) {
 			$status = array(
 				'mody_invalid_input'      => 400,
@@ -248,6 +278,49 @@ final class WizardController {
 			restore_current_blog();
 		}
 		return $view;
+	}
+
+	/**
+	 * Stores an uploaded logo in the main site's media library, until the
+	 * pipeline copies it into the new site (M2-05).
+	 *
+	 * @param array<string, mixed> $file The upload, as in $_FILES.
+	 * @return int|WP_Error The attachment ID on the main site.
+	 */
+	private static function store_logo( array $file ): int|WP_Error {
+		$invalid = new WP_Error(
+			'mody_invalid_logo',
+			/* translators: %s: the size limit, such as "2 MB". */
+			sprintf( __( 'The logo must be a PNG, JPEG, GIF or WebP image of at most %s.', 'mody_cloud' ), size_format( self::MAX_LOGO_BYTES ) )
+		);
+		if ( UPLOAD_ERR_OK !== (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) || empty( $file['tmp_name'] ) || (int) ( $file['size'] ?? 0 ) > self::MAX_LOGO_BYTES || filesize( $file['tmp_name'] ) > self::MAX_LOGO_BYTES ) {
+			return $invalid;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+
+		// The file's content decides its type, not its name.
+		$type = wp_check_filetype_and_ext( $file['tmp_name'], (string) $file['name'], Pipeline::LOGO_MIMES );
+		if ( ! $type['type'] || ! in_array( $type['type'], Pipeline::LOGO_MIMES, true ) ) {
+			return $invalid;
+		}
+
+		$restrict = static fn(): array => Pipeline::LOGO_MIMES;
+		add_filter( 'upload_mimes', $restrict );
+		switch_to_blog( get_main_site_id() );
+		$id = media_handle_sideload(
+			array(
+				'name'     => sanitize_file_name( (string) $file['name'] ),
+				'tmp_name' => $file['tmp_name'],
+			),
+			0
+		);
+		restore_current_blog();
+		remove_filter( 'upload_mimes', $restrict );
+
+		return is_wp_error( $id ) ? $invalid : (int) $id;
 	}
 
 	/**

@@ -371,13 +371,15 @@ foreach ( array_slice( Jobs::STEPS, 0, -1 ) as $kill_at ) {
 		"killed at $kill_at",
 		$ok,
 		sprintf(
-			'%s; %d site(s), %d profile(s), %d page(s), %d email(s), %d request(s)',
+			'%s; %d site(s), %d profile(s), %d page(s), %d email(s), %d request(s)%s',
 			is_wp_error( $job ) ? $message( $job ) : $job['status'] . ( $job['last_error'] ? ' ' . $job['last_error'] : '' ),
 			count( $sites ),
 			$profiles( $site ),
 			$site ? count( $job_pages( $site, $job_id ) ) : 0,
 			count( $mails_to( $member_email ) ),
-			count( $requests )
+			count( $requests ),
+			// Seen once (2026-11-07, not reproduced in 15 runs): 0 requests. Show where the page came from.
+			$ok ? '' : '; site ' . $site . ', result ' . ( is_wp_error( $job ) ? '' : wp_json_encode( $job['result'] ) )
 		)
 	);
 }
@@ -435,6 +437,148 @@ restore_current_blog();
 $check( 'retry replaces the fallback page', ! is_wp_error( $retry ) && false === $retry['result']['fallback'] && SystemPrompt::EXAMPLE === $page->post_content && 'Bikes repaired while you work' === $page->post_title && '' === $meta, $message( $retry ) );
 $again = Pipeline::retry_generation( $job_id );
 $check( '...and only once', is_wp_error( $again ) && 'mody_nothing_to_retry' === $again->get_error_code() );
+remove_filter( 'mody_site_limit', $raise_limit, 10 );
+
+// Logo (M2-05) -------------------------------------------------------------------------
+
+echo "\nLogo\n";
+add_filter( 'mody_site_limit', $raise_limit, 10, 2 );
+require_once ABSPATH . 'wp-admin/includes/file.php';
+require_once ABSPATH . 'wp-admin/includes/media.php';
+require_once ABSPATH . 'wp-admin/includes/image.php';
+$main_uploads = array();
+// A 64 px PNG in the main site's media library, uploaded by $user_id.
+$make_logo = static function ( int $user_id ) use ( &$main_uploads ): int {
+	$tmp = wp_tempnam( 'logo.png' );
+	$img = imagecreatetruecolor( 64, 64 );
+	imagefill( $img, 0, 0, imagecolorallocate( $img, 91, 42, 134 ) );
+	imagepng( $img, $tmp );
+	$previous = get_current_user_id();
+	wp_set_current_user( $user_id );
+	switch_to_blog( get_main_site_id() );
+	$id = media_handle_sideload(
+		array(
+			'name'     => 'logo.png',
+			'tmp_name' => $tmp,
+		),
+		0
+	);
+	restore_current_blog();
+	wp_set_current_user( $previous );
+	$main_uploads[] = (int) $id;
+	return is_wp_error( $id ) ? 0 : (int) $id;
+};
+register_shutdown_function(
+	static function () use ( &$main_uploads ): void {
+		switch_to_blog( get_main_site_id() );
+		foreach ( $main_uploads as $id ) {
+			if ( $id && get_post( $id ) ) {
+				wp_delete_attachment( $id, true );
+			}
+		}
+		restore_current_blog();
+	}
+);
+$site_logos = static function ( int $site_id, int $job_id ): array {
+	switch_to_blog( $site_id );
+	$ids = get_posts(
+		array(
+			'post_type'   => 'attachment',
+			'post_status' => 'inherit',
+			'meta_key'    => '_mody_provisioning_job', // phpcs:ignore WordPress.DB.SlowDBQuery
+			'meta_value'  => $job_id, // phpcs:ignore WordPress.DB.SlowDBQuery
+			'fields'      => 'ids',
+			'numberposts' => -1,
+		)
+	);
+	restore_current_blog();
+	return $ids;
+};
+
+$theirs = $make_logo( $admin->ID );
+$out    = Pipeline::validate( array_merge( $valid, array( 'slug' => $slugs( 'logotheirs' ), 'logo_id' => $theirs ) ), $user );
+$check( 'someone else\'s upload refused', is_wp_error( $out ) && isset( $out->get_error_data()['fields']['logo'] ), $out instanceof WP_Error ? $out->get_error_message() : 'accepted' );
+$out = Pipeline::validate( array_merge( $valid, array( 'slug' => $slugs( 'logonone' ), 'logo_id' => 999999999 ) ), $user );
+$check( '...an unknown one refused', is_wp_error( $out ) && isset( $out->get_error_data()['fields']['logo'] ) );
+switch_to_blog( get_main_site_id() );
+$text_id        = wp_insert_attachment(
+	array(
+		'post_mime_type' => 'text/plain',
+		'post_title'     => 'Not an image',
+		'post_status'    => 'inherit',
+		'post_author'    => $member,
+	)
+);
+$main_uploads[] = $text_id;
+restore_current_blog();
+$out = Pipeline::validate( array_merge( $valid, array( 'slug' => $slugs( 'logotext' ), 'logo_id' => $text_id ) ), $user );
+$check( '...a file that is not an image refused', is_wp_error( $out ) && isset( $out->get_error_data()['fields']['logo'] ) );
+
+$source   = $make_logo( $member );
+$slug     = $slugs( 'logo' );
+$job_id   = $start( $member, array_merge( $valid, array( 'slug' => $slug, 'logo_id' => $source ) ) );
+$fakes    = array( SystemPrompt::EXAMPLE );
+$job      = $run( $job_id );
+$fakes    = null;
+$site_id  = is_array( $job ) ? (int) $job['site_id'] : 0;
+$logos    = $site_logos( $site_id, $job_id );
+switch_to_blog( $site_id );
+$logo_id  = (int) get_option( 'site_logo' );
+$logo_url  = (string) wp_get_attachment_url( $logo_id );
+$logo_mime = (string) get_post_mime_type( $logo_id );
+$on_disk   = is_readable( (string) get_attached_file( $logo_id ) );
+$header   = do_blocks( '<!-- wp:template-part {"slug":"header","theme":"theme","area":"header","tagName":"header"} /-->' );
+restore_current_blog();
+switch_to_blog( get_main_site_id() );
+$source_left = (bool) get_post( $source );
+restore_current_blog();
+// Upload URLs take the request's host here (wp-config.php); the profile keeps the site's own.
+$logo_path = (string) wp_parse_url( $logo_url, PHP_URL_PATH );
+$site_url  = 'https://' . Pipeline::domain( $slug ) . $logo_path;
+$check( 'the site gets the logo', ! is_wp_error( $job ) && 'done' === $job['status'] && 1 === count( $logos ) && $logos[0] === $logo_id && $on_disk, $site_url );
+$check( '...in its own media library', str_contains( $logo_path, '/uploads/sites/' . $site_id . '/' ) && 'image/png' === $logo_mime, $logo_mime );
+$check( '...shown in the header', str_contains( $header, 'wp-block-site-logo' ) && str_contains( $header, wp_basename( $logo_url ) ) );
+$check( '...recorded in the profile, on the site\'s host', $site_url === BrandProfile::for_site( $site_id )?->logo_url && $site_url === ( $job['result']['logo_url'] ?? '' ), (string) BrandProfile::for_site( $site_id )?->logo_url );
+$check( '...and the upload on the main site removed', ! $source_left );
+
+// Killed in the profile step, after the copy: one logo.
+$source  = $make_logo( $member );
+$slug    = $slugs( 'logokill' );
+$job_id  = $start( $member, array_merge( $valid, array( 'slug' => $slug, 'logo_id' => $source ) ) );
+$fakes   = array( SystemPrompt::EXAMPLE, SystemPrompt::EXAMPLE );
+$killer  = static function ( string $step ): void {
+	if ( 'profile' === $step ) {
+		throw new \Error( 'killed' );
+	}
+};
+add_action( 'mody_provisioning_step_done', $killer );
+try {
+	$run( $job_id );
+} catch ( \Error $e ) {
+	unset( $e );
+}
+remove_action( 'mody_provisioning_step_done', $killer );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . Jobs::table() . ' SET updated_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE) WHERE id = %d', $job_id ) ); // phpcs:ignore WordPress.DB
+$job     = $run( $job_id );
+$fakes   = null;
+$site_id = is_array( $job ) ? (int) $job['site_id'] : 0;
+$check( 'killed after the copy, resumed: one logo', ! is_wp_error( $job ) && 'done' === $job['status'] && 1 === count( $site_logos( $site_id, $job_id ) ) && '' !== (string) BrandProfile::for_site( $site_id )?->logo_url, count( $site_logos( $site_id, $job_id ) ) . ' logo(s)' );
+
+// The upload vanished before the run: the site is created without a logo.
+$source = $make_logo( $member );
+$slug   = $slugs( 'logogone' );
+$job_id = $start( $member, array_merge( $valid, array( 'slug' => $slug, 'logo_id' => $source ) ) );
+switch_to_blog( get_main_site_id() );
+wp_delete_attachment( $source, true );
+restore_current_blog();
+$fakes   = array( SystemPrompt::EXAMPLE );
+$job     = $run( $job_id );
+$fakes   = null;
+$site_id = is_array( $job ) ? (int) $job['site_id'] : 0;
+switch_to_blog( $site_id );
+$no_logo = ! get_option( 'site_logo' );
+restore_current_blog();
+$check( 'upload gone: the site, without a logo', ! is_wp_error( $job ) && 'done' === $job['status'] && $no_logo && '' !== ( $job['result']['logo_error'] ?? '' ), (string) ( $job['result']['logo_error'] ?? '' ) );
 remove_filter( 'mody_site_limit', $raise_limit, 10 );
 
 // The agent's drafts use the same template (no second title).

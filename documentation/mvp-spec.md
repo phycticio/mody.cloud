@@ -99,7 +99,7 @@ The dashboard is the only place where cross-site actions (create/delete site, bi
 
 **Design principle: the member never types raw values** — no hex codes, no font names, no CSS. Every step is a **choice** from a small number of beautiful, prefilled options, with a live preview. The whole wizard can be completed in three clicks.
 
-Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizard lives under Network Admin → **Mody**, for super admins (decided 2026-11-06, [M2-03](../tickets/M2-03-brand-wizard.md)). Built 2026-11-06 ([M2-03](../tickets/M2-03-brand-wizard.md)), on top of the provisioning pipeline ([M2-01](../tickets/M2-01-site-provisioning.md)). How it works: [brand-profile.md](brand-profile.md#wizard-steps). The logo upload moved to [M2-05](../tickets/M2-05-wizard-logo.md) (decided 2026-11-06, rule 5).
+Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizard lives under Network Admin → **Mody**, for super admins (decided 2026-11-06, [M2-03](../tickets/M2-03-brand-wizard.md)). Built 2026-11-06 ([M2-03](../tickets/M2-03-brand-wizard.md)), on top of the provisioning pipeline ([M2-01](../tickets/M2-01-site-provisioning.md)). How it works: [brand-profile.md](brand-profile.md#wizard-steps). The logo upload moved to [M2-05](../tickets/M2-05-wizard-logo.md) (decided 2026-11-06, rule 5), built 2026-11-07.
 
 ### Step 1 — Your brand (identity)
 
@@ -113,7 +113,7 @@ Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizar
 ### Step 2 — Your design (visual)
 
 - **Six curated Mody presets**, shown as cards: preset name, three swatches (primary / secondary / accent), and a mini mock (a heading + a button rendered in those colors). Selecting one updates a **live preview** of the site header and hero below.
-- **Logo upload** — optional drag & drop into the media library.
+- **Logo upload** — optional drag & drop into the media library. Built 2026-11-07 as a file field ([M2-05](../tickets/M2-05-wizard-logo.md)): PNG, JPEG, GIF or WebP, at most 2 MB, shown in the live preview; the pipeline copies it into the new site's media library as its site logo.
 - Fonts are **Inter, fixed, for the MVP** (the picker appears in a later iteration).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
 
@@ -142,7 +142,7 @@ The presets (data-driven in the MU plugin; kept as they are for M2, decided 2026
 **Acceptance criteria**
 
 - A first-time user can create a site without reading any help text (3 steps, all prefilled).
-- The preview in step 2 uses the real theme (header + hero rendered with the preset palette).
+- The preview in step 2 uses the real theme (header + hero rendered with the preset palette). Built 2026-11-07 ([M2-04](../tickets/M2-04-wizard-live-preview.md)).
 - The wizard validates everything server-side (hex `^#[0-9a-fA-F]{6}$`, tone enum, lengths, logo via media library).
 
 ## 7. Site provisioning pipeline
@@ -384,7 +384,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 | --- | --- | --- | --- |
 | **M0** | Multisite foundation | 3, 12 | Flip the multisite env switches, add the wildcard to `APP_DOMAINS`, document the network activation step; two subdomain sites reachable over HTTPS locally, both running theme `theme`, owned by one non-super-admin user. |
 | **M1** | Accounts, trial and billing | 4, 5 | Register → Mollie 0.01 checkout → webhook → active trial with dashboard (My sites, Plan & billing). Simulated failed charge → read-only + banner + 60-day deletion job verified. |
-| **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **In progress:** M2-02 (AI engine) and M2-01 (the provisioning pipeline) done 2026-11-06; M2-03 (the wizard) done the same day; M2-04 (its live preview) and M2-05 (the logo upload) to do. |
+| **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **Done locally 2026-11-07:** M2-02 (AI engine), M2-01 (the provisioning pipeline) and M2-03 (the wizard) on 2026-11-06, M2-04 (its live preview) and M2-05 (the logo upload) on 2026-11-07. Not provable in production yet: new sites there need the wildcard DNS and TLS for `*.mody.cloud` (section 16, question 3; M5). |
 | **M3** | Agent | 8 | Chat in wp-admin; all six tools work end-to-end; injection attempts refused and logged; every event in `mody_agent_events`. **Done 2026-11-06** (M3-01 to M3-04), except three items moved on: the plugin toggle tools to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the agent menu to member sites to M4-01. |
 | **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; market page activates listed plugins; every editing entry point lands in the Site Editor. |
 | **M5** | Hardening and launch | all | Production compose (no Xdebug/DB ports), wildcard cert at the upstream, backup/restore drill, security pass (nonces, sanitization, webhook signatures), monitoring via Query Monitor, launch checklist green for 100 founding members. |

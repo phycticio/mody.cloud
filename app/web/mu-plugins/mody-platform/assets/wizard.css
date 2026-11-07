@@ -143,6 +143,34 @@
 	border-radius: 3px;
 }
 
+/* Step 2's live preview: the site rendered at desktop width, shown at 60%. */
+.mody-wizard__preview {
+	margin: 8px 0 16px;
+}
+
+.mody-wizard__preview-label {
+	display: block;
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.mody-wizard__preview-frame {
+	height: 270px;
+	overflow: hidden;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+}
+
+.mody-wizard__preview-frame iframe {
+	width: 166.667%;
+	height: 450px;
+	border: 0;
+	transform: scale(0.6);
+	transform-origin: 0 0;
+	pointer-events: none;
+}
+
 .mody-wizard__chips .button {
 	margin: 0 6px 6px 0;
 }

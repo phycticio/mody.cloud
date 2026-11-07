@@ -84,6 +84,10 @@ final class WizardPage {
 					'nonce'    => wp_create_nonce( 'wp_rest' ),
 					'pending'  => $pending ? WizardController::view( $pending ) : null,
 					'interval' => 1500,
+					'preview'  => WizardPreview::url(),
+					'logoMax'  => WizardController::MAX_LOGO_BYTES,
+					'logoMime' => array_values( Pipeline::LOGO_MIMES ),
+					'presets'  => array_map( static fn( string $slug ): ?array => Presets::colors( $slug ), array_combine( Presets::slugs(), Presets::slugs() ) ),
 					'steps'    => array(
 						'quota'   => __( 'Checking your plan', 'mody_cloud' ),
 						'site'    => __( 'Creating your site', 'mody_cloud' ),
@@ -95,6 +99,8 @@ final class WizardPage {
 					),
 					'strings'  => array(
 						'required'   => __( 'Please fill this in.', 'mody_cloud' ),
+						/* translators: %s: the size limit, such as "2 MB". */
+						'badLogo'    => sprintf( __( 'The logo must be a PNG, JPEG, GIF or WebP image of at most %s.', 'mody_cloud' ), size_format( WizardController::MAX_LOGO_BYTES ) ),
 						'creating'   => __( 'Creating your site…', 'mody_cloud' ),
 						'ready'      => __( 'Your site is ready', 'mody_cloud' ),
 						'failed'     => __( 'Your site could not be created', 'mody_cloud' ),
@@ -209,7 +215,22 @@ final class WizardPage {
 						<?php endforeach; ?>
 						<?php $error( 'preset' ); ?>
 					</fieldset>
-					<p class="description"><?php esc_html_e( 'You can fine-tune the colors and add a logo later, in the Site Editor or by asking the Mody Agent.', 'mody_cloud' ); ?></p>
+					<p class="mody-wizard__field">
+						<label for="mody-logo"><?php esc_html_e( 'Logo (optional)', 'mody_cloud' ); ?></label>
+						<input type="file" id="mody-logo" name="logo" accept="<?php echo esc_attr( implode( ',', Pipeline::LOGO_MIMES ) ); ?>">
+						<span class="description">
+							<?php
+							/* translators: %s: the size limit, such as "2 MB". */
+							echo esc_html( sprintf( __( 'PNG, JPEG, GIF or WebP, at most %s.', 'mody_cloud' ), size_format( WizardController::MAX_LOGO_BYTES ) ) );
+							?>
+						</span>
+						<?php $error( 'logo' ); ?>
+					</p>
+					<div class="mody-wizard__preview">
+						<span class="mody-wizard__preview-label"><?php esc_html_e( 'Preview', 'mody_cloud' ); ?></span>
+						<div class="mody-wizard__preview-frame"><iframe id="mody-wizard-preview" title="<?php esc_attr_e( 'Preview of your site', 'mody_cloud' ); ?>" tabindex="-1"></iframe></div>
+					</div>
+					<p class="description"><?php esc_html_e( 'You can fine-tune the colors later, in the Site Editor or by asking the Mody Agent.', 'mody_cloud' ); ?></p>
 					<p class="mody-wizard__buttons">
 						<button type="button" class="button" data-go="1"><?php esc_html_e( 'Back', 'mody_cloud' ); ?></button>
 						<button type="button" class="button button-primary" data-go="3"><?php esc_html_e( 'Next', 'mody_cloud' ); ?></button>

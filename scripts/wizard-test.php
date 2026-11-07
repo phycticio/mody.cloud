@@ -29,6 +29,7 @@ use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Wizard\WizardController;
 use Mody\Platform\Wizard\WizardPage;
+use Mody\Platform\Wizard\WizardPreview;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -136,11 +137,12 @@ $answers = static fn( string $name, array $more = array() ): array => array_merg
 	),
 	$more
 );
-$rest = static function ( string $method, string $path, array $body = array() ) {
+$rest = static function ( string $method, string $path, array $body = array(), array $files = array() ) {
 	$request = new WP_REST_Request( $method, '/mody-platform/v1/sites' . $path );
 	foreach ( $body as $key => $value ) {
 		$request->set_param( $key, $value );
 	}
+	$request->set_file_params( $files );
 	$response = rest_do_request( $request );
 	return array(
 		'code' => $response->get_status(),
@@ -169,6 +171,25 @@ $check( 'the quota', (bool) preg_match( '/\d+ of 50 sites used/', $html ) );
 WizardPage::enqueue();
 $settings = (string) implode( '', (array) wp_scripts()->get_data( 'mody-wizard', 'before' ) );
 $check( 'script settings', str_contains( $settings, 'window.modyWizard' ) && str_contains( $settings, wp_json_encode( rest_url( 'mody-platform/v1/sites' ) ) ) && str_contains( $settings, '"pending":null' ) );
+$check( '...the preview\'s address and the presets\' colors', str_contains( $settings, wp_json_encode( WizardPreview::url() ) ) && str_contains( $settings, '"plum":{"primary":"#5b2a86"' ) );
+$check( 'step 2 has the preview', str_contains( $html, 'id="mody-wizard-preview"' ) );
+
+// Step 2's live preview (M2-04) ---------------------------------------------------------
+
+echo "\nLive preview\n";
+$preview = WizardPreview::html( 'Ogia <script>x</script> Bakery', 'We bake & deliver.', 'plum' );
+preg_match( '/<style id="mody-preview-colors">([^<]+)/', $preview, $css );
+preg_match_all( '/wp-block-navigation-item__label">([^<]+)/', $preview, $nav );
+preg_match_all( '#\s(?:src|href)=["\'](https?:)?//([^/"\']+)#', $preview, $hosts );
+$foreign = array_unique( array_filter( $hosts[2], static fn( $host ) => $host !== get_network()->domain && ! str_ends_with( $host, '.' . get_network()->domain ) ) );
+$check( 'the theme\'s header with the brand name', str_contains( $preview, 'wp-block-site-title' ) && str_contains( $preview, 'Ogia &lt;script&gt;x&lt;/script&gt; Bakery' ) && ! str_contains( $preview, '<script>x</script>' ) );
+$check( '...a hero with the sentence', str_contains( $preview, '<h1 class="wp-block-heading">Ogia' ) && str_contains( $preview, 'We bake &amp; deliver.' ) );
+$check( '...the preset\'s colors', isset( $css[1] ) && str_contains( $css[1], '--wp--preset--color--primary:#5b2a86' ) && str_contains( $css[1], '--wp--preset--color--accent:#d94f8f' ), $css[1] ?? 'no colors' );
+$check( '...three fixed links, not the main site\'s pages', array( 'Home', 'About', 'Contact' ) === $nav[1], implode( ', ', $nav[1] ) );
+$check( '...nothing from outside the network', ! $foreign, implode( ', ', $foreign ) );
+$check( '...no admin bar, the main site\'s title untouched', ! str_contains( $preview, 'id="wpadminbar"' ) && 'Ogia' !== substr( get_option( 'blogname' ), 0, 4 ) );
+$fallback_css = (string) ( preg_match( '/<style id="mody-preview-colors">([^<]+)/', WizardPreview::html( '', '', 'no-such-preset' ), $m ) ? $m[1] : '' );
+$check( 'unknown preset: the default colors', str_contains( $fallback_css, '--wp--preset--color--primary:' . Presets::colors( Presets::DEFAULT )['primary'] ) );
 
 // 2. The REST endpoint -----------------------------------------------------------------
 
@@ -264,6 +285,59 @@ $out   = $rest( 'POST', '/jobs/' . $stopped . '/run' );
 $fakes = null;
 $check( '...Try again resumes it', 'done' === ( $out['data']['status'] ?? '' ), (string) ( $out['data']['status'] ?? '' ) . ' ' . ( $out['data']['error'] ?? '' ) );
 
+// The logo (M2-05) ---------------------------------------------------------------------
+
+echo "\nLogo\n";
+// A file for the upload: a real PNG, or other bytes under a .png name.
+$png = static function ( ?string $bytes = null ): array {
+	$tmp = wp_tempnam( 'logo.png' );
+	if ( null === $bytes ) {
+		$img = imagecreatetruecolor( 64, 64 );
+		imagefill( $img, 0, 0, imagecolorallocate( $img, 47, 93, 58 ) );
+		imagepng( $img, $tmp );
+	} else {
+		file_put_contents( $tmp, $bytes ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+	return array(
+		'logo' => array(
+			'name'     => 'logo.png',
+			'type'     => 'image/png',
+			'tmp_name' => $tmp,
+			'error'    => UPLOAD_ERR_OK,
+			'size'     => filesize( $tmp ),
+		),
+	);
+};
+$main_attachments = static function (): int {
+	global $wpdb;
+	return (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $wpdb->get_blog_prefix( get_main_site_id() ) . "posts WHERE post_type = 'attachment'" ); // phpcs:ignore WordPress.DB
+};
+
+$before = $main_attachments();
+$fakes  = array( SystemPrompt::EXAMPLE );
+$out    = $rest( 'POST', '', $answers( 'logo' ), $png() );
+$fakes  = null;
+$site   = (int) ( Jobs::get( (int) ( $out['data']['job'] ?? 0 ) )['site_id'] ?? 0 );
+switch_to_blog( $site );
+$logo = (int) get_option( 'site_logo' );
+$mime = (string) get_post_mime_type( $logo );
+restore_current_blog();
+$check( 'a PNG: the site gets it as its logo', 'done' === ( $out['data']['status'] ?? '' ) && $logo > 0 && 'image/png' === $mime, $out['code'] . ' ' . $mime );
+$check( '...and the upload on the main site is removed', $before === $main_attachments(), ( $main_attachments() - $before ) . ' left' );
+
+$out = $rest( 'POST', '', $answers( 'logotext' ), $png( 'This is not an image.' ) );
+$check( 'text named .png: 400 on the logo field', 400 === $out['code'] && isset( $out['data']['data']['fields']['logo'] ) && $before === $main_attachments(), $out['code'] . ' ' . ( $out['data']['message'] ?? '' ) );
+$out = $rest( 'POST', '', $answers( 'logobig' ), $png( str_repeat( 'x', WizardController::MAX_LOGO_BYTES + 1 ) ) );
+$check( 'over the size limit: 400 on the logo field', 400 === $out['code'] && isset( $out['data']['data']['fields']['logo'] ) && $before === $main_attachments(), (string) $out['code'] );
+$out = $rest( 'POST', '', $answers( 'logobad', array( 'mission' => '' ) ), $png() );
+$check( 'another field wrong: nothing stored', 400 === $out['code'] && isset( $out['data']['data']['fields']['mission'] ) && $before === $main_attachments(), (string) $out['code'] );
+remove_filter( 'mody_site_limit', $roomy, 10 );
+add_filter( 'mody_site_limit', '__return_zero' );
+$out = $rest( 'POST', '', $answers( 'logolimit' ), $png() );
+remove_filter( 'mody_site_limit', '__return_zero' );
+add_filter( 'mody_site_limit', $roomy, 10, 2 );
+$check( 'at the site limit: the stored logo is deleted', 403 === $out['code'] && $before === $main_attachments(), $out['code'] . ', ' . ( $main_attachments() - $before ) . ' left' );
+
 // 3. Over HTTP --------------------------------------------------------------------------
 
 echo "\nOver HTTP\n";
@@ -298,14 +372,50 @@ $http = static function ( string $method, string $url, ?array $body = null ) use
 
 $page = $http( 'GET', network_admin_url( 'admin.php?page=' . WizardPage::SLUG ) );
 $check( 'the page in Network Admin', 200 === $page['code'] && str_contains( $page['body'], 'id="mody-wizard-form"' ) && str_contains( $page['body'], 'window.modyWizard' ) && str_contains( $page['body'], 'assets/wizard.js' ), (string) $page['code'] );
+$preview_url = add_query_arg(
+	array(
+		'brand'   => rawurlencode( 'Ogia Bakery' ),
+		'mission' => rawurlencode( 'We bake bread.' ),
+		'preset'  => 'forest',
+	),
+	WizardPreview::url()
+);
+$shown = $http( 'GET', $preview_url );
+$check( 'the preview, same origin as the wizard', 200 === $shown['code'] && str_contains( $shown['body'], '--wp--preset--color--primary:#2f5d3a' ) && str_contains( $shown['body'], 'Ogia Bakery' ) && wp_parse_url( $preview_url, PHP_URL_HOST ) === wp_parse_url( network_admin_url(), PHP_URL_HOST ), (string) $shown['code'] );
+$anon = wp_remote_get( $preview_url, array( 'sslverify' => false ) );
+$check( '...refused when logged out', 403 === (int) wp_remote_retrieve_response_code( $anon ), (string) wp_remote_retrieve_response_code( $anon ) );
 
 if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	echo "--   real creation skipped: MODY_TEST_OFFLINE is set\n";
 } else {
 	// The request runs in PHP-FPM, with the real quota: the sites made above go first.
 	$cleanup();
-	$start  = microtime( true );
-	$posted = $http( 'POST', rest_url( 'mody-platform/v1/sites' ), $answers( 'http', array( 'preset' => 'sand' ) ) );
+	// As the browser sends it: multipart, with a logo.
+	$boundary = 'mody' . wp_generate_password( 20, false );
+	$body     = '';
+	foreach ( $answers( 'http', array( 'preset' => 'sand' ) ) as $name => $value ) {
+		$body .= "--{$boundary}\r\nContent-Disposition: form-data; name=\"{$name}\"\r\n\r\n{$value}\r\n";
+	}
+	$body    .= "--{$boundary}\r\nContent-Disposition: form-data; name=\"logo\"; filename=\"logo.png\"\r\nContent-Type: image/png\r\n\r\n"
+		. file_get_contents( $png()['logo']['tmp_name'] ) . "\r\n--{$boundary}--\r\n"; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	$start    = microtime( true );
+	$response = wp_remote_post(
+		rest_url( 'mody-platform/v1/sites' ),
+		array(
+			'cookies'   => $cookies,
+			'sslverify' => false,
+			'timeout'   => 30,
+			'headers'   => array(
+				'X-WP-Nonce'   => wp_create_nonce( 'wp_rest' ),
+				'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+			),
+			'body'      => $body,
+		)
+	);
+	$posted = array(
+		'code' => (int) wp_remote_retrieve_response_code( $response ),
+		'body' => (string) wp_remote_retrieve_body( $response ),
+	);
 	$secs   = microtime( true ) - $start;
 	$view   = (array) json_decode( $posted['body'], true );
 	$check( 'POST answers 202 at once', 202 === $posted['code'] && in_array( $view['status'] ?? '', array( 'queued', 'running' ), true ) && $secs < 5, sprintf( '%d %s in %.1fs', $posted['code'], $view['status'] ?? $posted['body'], $secs ) );
@@ -316,6 +426,8 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 		$view = (array) json_decode( $http( 'GET', rest_url( 'mody-platform/v1/sites/jobs/' . (int) ( $view['job'] ?? 0 ) ) )['body'], true );
 	}
 	$check( '...followed until the site is ready', 'done' === ( $view['status'] ?? '' ) && ! empty( $view['site']['url'] ), sprintf( '%s after %d polls, %.1fs, %s', $view['status'] ?? '?', $polls, microtime( true ) - $start, ( $view['fallback'] ?? false ) ? 'fallback page' : 'generated page' ) );
+	$site = (int) ( Jobs::get( (int) ( $view['job'] ?? 0 ) )['site_id'] ?? 0 );
+	$check( '...with the logo sent along', $site && (int) get_blog_option( $site, 'site_logo' ) > 0 && '' !== (string) BrandProfile::for_site( $site )?->logo_url, (string) BrandProfile::for_site( $site )?->logo_url );
 }
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

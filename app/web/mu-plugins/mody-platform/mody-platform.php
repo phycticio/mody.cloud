@@ -54,6 +54,7 @@ add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\Agen
  */
 add_action( 'network_admin_menu', array( Wizard\WizardPage::class, 'register_menu' ) );
 add_action( 'rest_api_init', array( Wizard\WizardController::class, 'register_routes' ) );
+add_action( 'template_redirect', array( Wizard\WizardPreview::class, 'maybe_render' ), 0 ); // Step 2's live preview (M2-04).
 
 /*
  * AI: register Infomaniak AI Services as a provider for the WordPress AI

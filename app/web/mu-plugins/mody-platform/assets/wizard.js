@@ -19,7 +19,7 @@
 
 	const field = ( name ) => form.elements.namedItem( name );
 	const steps = Array.from( form.querySelectorAll( '[data-step]' ) );
-	const stepOf = { title: 1, slug: 1, brand_name: 1, mission: 1, tone: 1, preset: 2, prompt: 3 };
+	const stepOf = { title: 1, slug: 1, brand_name: 1, mission: 1, tone: 1, preset: 2, logo: 2, prompt: 3 };
 	const required = { title: 1, slug: 1, mission: 1, prompt: 3 };
 	let poller = null;
 	let retried = false; // A Retry generation was asked for on this page.
@@ -54,7 +54,100 @@
 
 	// Steps ----------------------------------------------------------------
 
+	// The live preview (step 2) -------------------------------------------------
+
+	const preview = document.getElementById( 'mody-wizard-preview' );
+	let previewKey = null;
+	let logoUrl = null; // The chosen logo, as a local object URL.
+
+	const presetValue = () => form.querySelector( '[name=preset]:checked' )?.value || '';
+
+	// Loads the preview page; again only when the brand or the sentence changed.
+	function loadPreview() {
+		if ( ! preview || ! config.preview ) {
+			return;
+		}
+		const brandName = field( 'brand_name' ).value.trim() || field( 'title' ).value.trim();
+		const mission = field( 'mission' ).value.trim();
+		const key = brandName + '\n' + mission;
+		if ( key === previewKey ) {
+			paint();
+			return;
+		}
+		previewKey = key;
+		const url = new URL( config.preview );
+		url.searchParams.set( 'brand', brandName );
+		url.searchParams.set( 'mission', mission );
+		url.searchParams.set( 'preset', presetValue() );
+		preview.src = url.toString();
+	}
+
+	// Sets the chosen preset's colors in the preview, without reloading it.
+	function paint() {
+		const colors = config.presets && config.presets[ presetValue() ];
+		let root = null;
+		try {
+			root = preview.contentDocument && preview.contentDocument.documentElement;
+		} catch ( e ) {
+			root = null; // Another origin: the colors in the URL stay.
+		}
+		if ( ! colors || ! root ) {
+			return;
+		}
+		Object.keys( colors ).forEach( ( slug ) => {
+			root.style.setProperty( '--wp--preset--color--' + slug, colors[ slug ] );
+		} );
+
+		// The logo before the site title, as the Site Logo block shows it (48 px wide).
+		const doc = preview.contentDocument;
+		const shown = doc.getElementById( 'mody-preview-logo' );
+		if ( shown ) {
+			shown.remove();
+		}
+		const title = doc.querySelector( '.wp-block-site-title' );
+		if ( logoUrl && title ) {
+			const wrap = doc.createElement( 'div' );
+			wrap.id = 'mody-preview-logo';
+			wrap.className = 'wp-block-site-logo';
+			const img = doc.createElement( 'img' );
+			img.src = logoUrl;
+			img.alt = '';
+			img.style.width = '48px';
+			img.style.height = 'auto';
+			wrap.append( img );
+			title.before( wrap );
+		}
+	}
+
+	// A logo is checked here for type and size; the server checks it again.
+	const logo = field( 'logo' );
+	if ( logo ) {
+		logo.addEventListener( 'change', () => {
+			setError( 'logo', '' );
+			if ( logoUrl ) {
+				URL.revokeObjectURL( logoUrl );
+				logoUrl = null;
+			}
+			const file = logo.files[ 0 ];
+			if ( file && ( ! config.logoMime.includes( file.type ) || file.size > config.logoMax ) ) {
+				setError( 'logo', config.strings.badLogo );
+				logo.value = '';
+			} else if ( file ) {
+				logoUrl = URL.createObjectURL( file );
+			}
+			paint();
+		} );
+	}
+
+	if ( preview ) {
+		preview.addEventListener( 'load', paint );
+		form.querySelectorAll( '[name=preset]' ).forEach( ( radio ) => radio.addEventListener( 'change', paint ) );
+	}
+
 	function go( number ) {
+		if ( 2 === number ) {
+			loadPreview();
+		}
 		steps.forEach( ( step ) => {
 			step.hidden = Number( step.dataset.step ) !== number;
 		} );
@@ -139,12 +232,18 @@
 
 	// Requests -------------------------------------------------------------
 
+	// A FormData body goes as multipart (the logo file with the answers); anything else as JSON.
 	async function request( method, path, body ) {
+		const isForm = body instanceof FormData;
+		const headers = { 'X-WP-Nonce': config.nonce };
+		if ( body && ! isForm ) {
+			headers[ 'Content-Type' ] = 'application/json';
+		}
 		const response = await fetch( config.endpoint + path, {
 			method,
 			credentials: 'same-origin',
-			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': config.nonce },
-			body: body ? JSON.stringify( body ) : undefined,
+			headers,
+			body: isForm || ! body ? body : JSON.stringify( body ),
 		} );
 		let data = {};
 		try {
@@ -174,12 +273,15 @@
 
 		const submit = form.querySelector( '[type=submit]' );
 		submit.disabled = true;
-		const answers = {};
+		const answers = new FormData();
 		[ 'title', 'slug', 'brand_name', 'mission', 'prompt' ].forEach( ( name ) => {
-			answers[ name ] = field( name ).value.trim();
+			answers.append( name, field( name ).value.trim() );
 		} );
-		answers.tone = form.querySelector( '[name=tone]:checked' )?.value || '';
-		answers.preset = form.querySelector( '[name=preset]:checked' )?.value || '';
+		answers.append( 'tone', form.querySelector( '[name=tone]:checked' )?.value || '' );
+		answers.append( 'preset', presetValue() );
+		if ( logo && logo.files[ 0 ] ) {
+			answers.append( 'logo', logo.files[ 0 ] );
+		}
 
 		let result;
 		try {

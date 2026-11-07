@@ -45,13 +45,22 @@ final class Pipeline {
 	/** Longest site title and brand name (the profile table's column). */
 	public const MAX_NAME_LENGTH = 120;
 
+	/** The image types a logo may have (M2-05). */
+	public const LOGO_MIMES = array(
+		'jpg|jpeg|jpe' => 'image/jpeg',
+		'png'          => 'image/png',
+		'gif'          => 'image/gif',
+		'webp'         => 'image/webp',
+	);
+
 	/**
 	 * Validates the wizard's answers and queues a job.
 	 *
 	 * @param int                  $user_id The member the site is for.
 	 * @param array<string, mixed> $input   slug, title, mission, prompt, and optionally
 	 *                                      brand_name (default: title), tone (default:
-	 *                                      friendly), preset (default: Presets::DEFAULT).
+	 *                                      friendly), preset (default: Presets::DEFAULT),
+	 *                                      logo_id (an image the user uploaded to the main site).
 	 * @return int|WP_Error The job ID, or `mody_invalid_input` (data: `fields`, field => message),
 	 *                      `mody_site_limit_reached`, `mody_invalid_user`.
 	 */
@@ -136,6 +145,11 @@ final class Pipeline {
 			$errors['prompt'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), PageGenerator::MAX_PROMPT_LENGTH );
 		}
 
+		$logo_id = absint( $input['logo_id'] ?? 0 );
+		if ( $logo_id && ! self::is_own_logo( $logo_id, $user->ID ) ) {
+			$errors['logo'] = __( 'The logo must be an image you uploaded: PNG, JPEG, GIF or WebP.', 'mody_cloud' );
+		}
+
 		if ( $errors ) {
 			return new WP_Error( 'mody_invalid_input', reset( $errors ), array( 'fields' => $errors ) );
 		}
@@ -148,7 +162,24 @@ final class Pipeline {
 			'tone'       => $tone,
 			'preset'     => $preset,
 			'prompt'     => $prompt,
+			'logo_id'    => $logo_id,
 		);
+	}
+
+	/**
+	 * Whether an attachment on the main site is an image the user uploaded,
+	 * of a type a logo may have.
+	 *
+	 * @param int $attachment_id Attachment ID on the main site.
+	 * @param int $user_id       User ID.
+	 */
+	public static function is_own_logo( int $attachment_id, int $user_id ): bool {
+		switch_to_blog( get_main_site_id() );
+		$post = get_post( $attachment_id );
+		$ok   = $post && 'attachment' === $post->post_type && $user_id === (int) $post->post_author
+			&& in_array( get_post_mime_type( $post ), self::LOGO_MIMES, true );
+		restore_current_blog();
+		return $ok;
 	}
 
 	/**
@@ -400,9 +431,12 @@ final class Pipeline {
 	 * @return array<string, mixed>|WP_Error
 	 */
 	private static function step_profile( array $job ): array|WP_Error {
+		// The logo first, so the profile can record its address (M2-05).
+		$result = empty( $job['input']['logo_id'] ) ? array() : self::copy_logo( $job );
+
 		$existing = BrandProfile::for_site( $job['site_id'] );
 		if ( null !== $existing ) {
-			return array( 'result' => array( 'profile_id' => $existing->id ) );
+			return array( 'result' => $result + array( 'profile_id' => $existing->id ) );
 		}
 
 		$input   = $job['input'];
@@ -414,12 +448,101 @@ final class Pipeline {
 				'brand_name'      => $input['brand_name'],
 				'mission'         => $input['mission'],
 				'tone_of_voice'   => $input['tone'],
+				'logo_url'        => $result['logo_url'] ?? '',
 				'color_primary'   => $colors['primary'] ?? '',
 				'color_secondary' => $colors['secondary'] ?? '',
 				'color_accent'    => $colors['accent'] ?? '',
 			)
 		);
-		return is_wp_error( $profile ) ? $profile : array( 'result' => array( 'profile_id' => $profile->id ) );
+		return is_wp_error( $profile ) ? $profile : array( 'result' => $result + array( 'profile_id' => $profile->id ) );
+	}
+
+	/**
+	 * Copies the uploaded logo into the new site's media library, makes it
+	 * the site logo (the theme's header shows it), and deletes the upload on
+	 * the main site. Done once: the copy records its job.
+	 *
+	 * A logo that cannot be copied does not stop the site: the error is kept
+	 * in the job's result, and the site has no logo.
+	 *
+	 * @param array<string, mixed> $job The job.
+	 * @return array{logo_url?: string, logo_error?: string}
+	 */
+	private static function copy_logo( array $job ): array {
+		$source_id = (int) $job['input']['logo_id'];
+
+		switch_to_blog( $job['site_id'] );
+		$found = get_posts(
+			array(
+				'post_type'   => 'attachment',
+				'post_status' => 'inherit',
+				'meta_key'    => '_mody_provisioning_job', // phpcs:ignore WordPress.DB.SlowDBQuery -- One lookup on a new site.
+				'meta_value'  => $job['id'], // phpcs:ignore WordPress.DB.SlowDBQuery
+				'fields'      => 'ids',
+				'numberposts' => 1,
+			)
+		);
+		$logo_id = (int) ( $found[0] ?? 0 );
+		restore_current_blog();
+
+		if ( ! $logo_id ) {
+			switch_to_blog( get_main_site_id() );
+			$path = (string) get_attached_file( $source_id );
+			$mime = (string) get_post_mime_type( $source_id );
+			restore_current_blog();
+			if ( '' === $path || ! is_readable( $path ) || ! in_array( $mime, self::LOGO_MIMES, true ) ) {
+				return array( 'logo_error' => __( 'The uploaded logo could not be found.', 'mody_cloud' ) );
+			}
+
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+			switch_to_blog( $job['site_id'] );
+			$upload = wp_upload_bits( wp_basename( $path ), null, (string) file_get_contents( $path ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local file.
+			if ( empty( $upload['error'] ) ) {
+				$logo_id = wp_insert_attachment(
+					array(
+						'post_mime_type' => $mime,
+						/* translators: %s: the brand name. */
+						'post_title'     => sprintf( __( '%s logo', 'mody_cloud' ), $job['input']['brand_name'] ),
+						'post_status'    => 'inherit',
+						'post_author'    => $job['user_id'],
+						'meta_input'     => array( '_mody_provisioning_job' => $job['id'] ),
+					),
+					$upload['file'],
+					0,
+					true
+				);
+				if ( ! is_wp_error( $logo_id ) ) {
+					wp_update_attachment_metadata( $logo_id, wp_generate_attachment_metadata( $logo_id, $upload['file'] ) );
+				}
+			}
+			restore_current_blog();
+			if ( ! empty( $upload['error'] ) || is_wp_error( $logo_id ) ) {
+				return array( 'logo_error' => is_wp_error( $logo_id ) ? $logo_id->get_error_message() : (string) $upload['error'] );
+			}
+		}
+
+		switch_to_blog( $job['site_id'] );
+		update_option( 'site_logo', $logo_id );
+		$url = (string) wp_get_attachment_url( $logo_id );
+		restore_current_blog();
+
+		// wp-config.php builds WP_CONTENT_URL from the request's host, so an upload URL made
+		// while switched to the new site carries the wizard's host. The file is the same on
+		// every host of the network: keep the site's own.
+		$home = wp_parse_url( get_home_url( $job['site_id'] ) );
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		if ( ! empty( $home['host'] ) && '' !== $path ) {
+			$url = ( $home['scheme'] ?? 'https' ) . '://' . $home['host'] . $path;
+		}
+
+		// The upload on the main site has served its purpose.
+		switch_to_blog( get_main_site_id() );
+		if ( get_post( $source_id ) ) {
+			wp_delete_attachment( $source_id, true );
+		}
+		restore_current_blog();
+
+		return array( 'logo_url' => $url );
 	}
 
 	/**
