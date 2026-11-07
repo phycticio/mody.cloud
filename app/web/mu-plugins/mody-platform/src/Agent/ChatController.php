@@ -66,6 +66,11 @@ final class ChatController {
 							'minLength' => 1,
 							'maxLength' => Agent::MAX_MESSAGE_LENGTH,
 						),
+						// What is open in the editor (the chat bubble, M3-06). Checked by EditorContext.
+						'context' => array(
+							'type'     => 'object',
+							'required' => false,
+						),
 					),
 				),
 				array(
@@ -114,10 +119,16 @@ final class ChatController {
 			);
 		}
 
+		$context = EditorContext::from_input( $request->get_param( 'context' ) );
+		if ( is_wp_error( $context ) ) {
+			return $context;
+		}
+
 		$job = array(
 			'id'      => wp_generate_uuid4(),
 			'user_id' => get_current_user_id(),
 			'message' => trim( mb_substr( sanitize_textarea_field( (string) $request->get_param( 'message' ) ), 0, Agent::MAX_MESSAGE_LENGTH ) ),
+			'context' => $context,
 			'status'  => 'running',
 			'started' => time(),
 		);
@@ -170,7 +181,7 @@ final class ChatController {
 
 		try {
 			$history = self::history();
-			$turn    = Agent::respond( $job['message'], $history );
+			$turn    = Agent::respond( $job['message'], $history, $job['context'] ?? null );
 			$calls   = (array) ( $turn['calls'] ?? array() );
 			unset( $turn['calls'] ); // Context for the model, kept on the server.
 

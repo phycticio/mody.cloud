@@ -19,6 +19,13 @@
 
 	let busy = false;
 
+	// In the editor's chat bubble the input may be hidden: never take the focus from the editor.
+	const focusInput = () => {
+		if ( ! input.closest( '[hidden]' ) ) {
+			input.focus();
+		}
+	};
+
 	function element( tag, className, text ) {
 		const node = document.createElement( tag );
 		if ( className ) {
@@ -155,6 +162,8 @@
 			pending.remove();
 			if ( ok && data.turn ) {
 				show( 'assistant', data.turn.reply, { ...data.turn, interactive: true } );
+				// The editor's bubble applies the turn's edits (M3-06).
+				document.dispatchEvent( new CustomEvent( 'mody-agent:turn', { detail: data.turn } ) );
 			} else {
 				show( 'assistant', ( data.turn && data.turn.reply ) || data.message || config.strings.failed, { error: true } );
 			}
@@ -163,7 +172,7 @@
 			show( 'assistant', config.strings.failed, { error: true } );
 		} finally {
 			setBusy( false );
-			input.focus();
+			focusInput();
 		}
 	}
 
@@ -173,7 +182,13 @@
 			return;
 		}
 		input.value = '';
-		converse( text, () => request( 'POST', { message: text } ) );
+		const body = { message: text };
+		// In the editor's bubble: what is open, read when the message is sent (M3-06).
+		const context = 'function' === typeof config.context ? config.context() : null;
+		if ( context ) {
+			body.context = context;
+		}
+		converse( text, () => request( 'POST', body ) );
 	}
 
 	form.addEventListener( 'submit', ( event ) => {
@@ -224,6 +239,6 @@
 			Promise.resolve( { ok: true, data: { job: config.pending.job, status: 'running' } } )
 		);
 	} else {
-		input.focus();
+		focusInput();
 	}
 }() );

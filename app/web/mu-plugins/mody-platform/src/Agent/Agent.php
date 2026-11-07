@@ -7,6 +7,7 @@
 
 namespace Mody\Platform\Agent;
 
+use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
 use WordPress\AiClient\Messages\DTO\Message;
@@ -53,6 +54,12 @@ final class Agent {
 	/** Plain function: declines the request, so refusals are logged as such. */
 	public const REFUSE = 'refuse_request';
 
+	/**
+	 * Plain function, offered only with an editor context (M3-06): changes
+	 * what is open in the editor. The result goes back to the editor, unsaved.
+	 */
+	public const EDIT_CONTENT = 'edit_content';
+
 	/** Longest accepted member message, in characters. */
 	public const MAX_MESSAGE_LENGTH = 2000;
 
@@ -98,6 +105,16 @@ final class Agent {
 	private bool $publish_failed = false;
 
 	/**
+	 * What the owner has open in the editor (EditorContext::from_input()), or null.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private ?array $context = null;
+
+	/** Whether edit_content ran in this turn: one edit per message. */
+	private bool $edited = false;
+
+	/**
 	 * The abilities run in this turn, as the model called them and with the
 	 * result it got (links removed), for the conversation's next turns.
 	 *
@@ -108,7 +125,10 @@ final class Agent {
 	/**
 	 * What the chat shows.
 	 *
-	 * @var array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool}
+	 * `edits` are changes for the editor to apply (M3-06): post_id, client_id
+	 * (the selected block, or null for the whole content) and markup.
+	 *
+	 * @var array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array{post_id: int, client_id: ?string, markup: string}>}
 	 */
 	private array $turn = array(
 		'reply'   => '',
@@ -116,6 +136,7 @@ final class Agent {
 		'choices' => array(),
 		'refused' => false,
 		'error'   => false,
+		'edits'   => array(),
 	);
 
 	/**
@@ -134,12 +155,16 @@ final class Agent {
 	 * @param string                                   $message The member's message.
 	 * @param list<array{role: string, text: string}> $history Earlier messages, oldest first. An
 	 *                                                          assistant message may carry its `calls`.
-	 * @return array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, calls: list<array<string, mixed>>}
+	 * @param array<string, mixed>|null                $context What is open in the editor, already
+	 *                                                          checked (EditorContext::from_input()).
+	 * @return array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array<string, mixed>>, calls: list<array<string, mixed>>}
 	 *         `error` is true when the agent could not answer (no brand profile, model unavailable).
-	 *         `calls` are the abilities run, to store with the reply as context: not for the client.
+	 *         `edits` are changes for the editor. `calls` are the abilities run, to store
+	 *         with the reply as context: not for the client.
 	 */
-	public static function respond( string $message, array $history = array() ): array {
-		$agent = new self( trim( mb_substr( sanitize_textarea_field( $message ), 0, self::MAX_MESSAGE_LENGTH ) ) );
+	public static function respond( string $message, array $history = array(), ?array $context = null ): array {
+		$agent          = new self( trim( mb_substr( sanitize_textarea_field( $message ), 0, self::MAX_MESSAGE_LENGTH ) ) );
+		$agent->context = $context;
 		return $agent->run( $history );
 	}
 
@@ -150,6 +175,7 @@ final class Agent {
 	 */
 	public static function tool_names(): array {
 		$names = array_map( array( Resolver::class, 'ability_name_to_function_name' ), self::ABILITIES );
+		// edit_content is not here: only the editor's context offers it (SystemPrompt::for_editor()).
 		return $names + array(
 			'ask_user' => self::ASK_USER,
 			'refuse'   => self::REFUSE,
@@ -173,10 +199,12 @@ final class Agent {
 			return $this->fail( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first, then I can help you.', 'mody_cloud' ) );
 		}
 
-		$system       = SystemPrompt::for_agent( $profile, self::tool_names() );
-		$declarations = self::declarations();
+		$editing      = null !== $this->context;
+		$system       = SystemPrompt::for_agent( $profile, self::tool_names() )
+			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT ) : '' );
+		$declarations = self::declarations( $editing );
 		$resolver     = new Resolver( ...array_values( self::ABILITIES ) );
-		$messages     = self::history_messages( $history );
+		$messages     = self::history_messages( $history, $editing );
 		$messages[]   = new UserMessage( array( new MessagePart( $this->input ) ) );
 
 		for ( $step = 1; $step <= self::MAX_STEPS && ! $this->done; $step++ ) {
@@ -259,6 +287,10 @@ final class Agent {
 			return array( 'shown' => true );
 		}
 
+		if ( self::EDIT_CONTENT === $name && null !== $this->context ) {
+			return $this->edit_content( $call, $args, $started );
+		}
+
 		$ability = $resolver->is_ability_call( $call ) ? Resolver::function_name_to_ability_name( $name ) : '';
 		if ( ! in_array( $ability, self::ABILITIES, true ) ) {
 			AgentEvents::log( $this->input, $name, $args, 'refused: unknown tool', $started );
@@ -300,6 +332,71 @@ final class Agent {
 			'name'   => $name,
 			'args'   => $args,
 			'result' => is_string( $json ) && strlen( $json ) <= self::MAX_KEPT_RESULT ? $response : array_filter( (array) $response, 'is_scalar' ),
+		);
+		return $response;
+	}
+
+	/**
+	 * Runs edit_content: asks the page writer to change the selected block or
+	 * the whole content, and hands the validated result to the editor. One
+	 * edit per message; nothing is saved here.
+	 *
+	 * @param FunctionCall         $call    The call.
+	 * @param array<string, mixed> $args    instruction, scope (selection or content).
+	 * @param float                $started When the call started (microtime).
+	 * @return array<string, mixed> What the model gets back.
+	 */
+	private function edit_content( FunctionCall $call, array $args, float $started ): array {
+		$instruction = sanitize_textarea_field( (string) ( $args['instruction'] ?? '' ) );
+		$selected    = $this->context['selected'];
+		$scope       = (string) ( $args['scope'] ?? '' );
+		$scope       = in_array( $scope, array( 'selection', 'content' ), true ) ? $scope : ( $selected ? 'selection' : 'content' );
+
+		$error = null;
+		if ( $this->edited ) {
+			$error = array( 'mody_one_edit', 'One change per message: the editor already shows a change. Tell the owner what changed.' );
+		} elseif ( $this->executed >= self::MAX_TOOL_CALLS ) {
+			$error = array( 'mody_tool_limit', 'Tool call limit reached for this message. Tell the owner what was done so far.' );
+		} elseif ( '' === trim( $instruction ) ) {
+			$error = array( 'mody_empty_prompt', 'Give the owner\'s instruction.' );
+		} elseif ( 'selection' === $scope && ! $selected ) {
+			$error = array( 'mody_no_selection', 'No block is selected. Use scope content, or ask the owner to select the block.' );
+		}
+		if ( $error ) {
+			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, 'refused: ' . $error[0], $started );
+			return array(
+				'error' => $error[1] . ' Nothing was changed.',
+				'code'  => $error[0],
+			);
+		}
+
+		++$this->executed;
+		$fragment = 'selection' === $scope;
+		$markup   = PageGenerator::edit_markup( get_current_blog_id(), $fragment ? $selected['markup'] : (string) $this->context['content'], $instruction, $fragment );
+		if ( is_wp_error( $markup ) ) {
+			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, $markup->get_error_code() . ': ' . $markup->get_error_message(), $started );
+			return array(
+				'error' => $markup->get_error_message() . ' Nothing was changed.',
+				'code'  => $markup->get_error_code(),
+			);
+		}
+
+		$this->edited          = true;
+		$this->turn['edits'][] = array(
+			'post_id'   => (int) $this->context['post_id'],
+			'client_id' => $fragment ? $selected['client_id'] : null,
+			'markup'    => $markup,
+		);
+		$response = array(
+			'changed' => $fragment ? 'the selected block' : 'the whole ' . $this->context['post_type'],
+			'shown'   => 'The change is shown in the editor now. The owner can undo it, and it is saved only when they save.',
+		);
+		AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, (string) wp_json_encode( $response + array( 'bytes' => strlen( $markup ) ) ), $started );
+		$this->calls[] = array(
+			'id'     => (string) $call->getId(),
+			'name'   => self::EDIT_CONTENT,
+			'args'   => $args,
+			'result' => $response,
 		);
 		return $response;
 	}
@@ -369,7 +466,7 @@ final class Agent {
 	 *
 	 * @return list<FunctionDeclaration>
 	 */
-	private static function declarations(): array {
+	private static function declarations( bool $editing = false ): array {
 		$declarations = array();
 		foreach ( self::ABILITIES as $name ) {
 			$ability = wp_get_ability( $name );
@@ -414,6 +511,24 @@ final class Agent {
 			)
 		);
 
+		if ( $editing ) {
+			$declarations[] = new FunctionDeclaration(
+				self::EDIT_CONTENT,
+				'Changes what the owner has open in the editor, following their instruction; the change is shown in the editor, unsaved.',
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'instruction' => array( 'type' => 'string' ),
+						'scope'       => array(
+							'type' => 'string',
+							'enum' => array( 'selection', 'content' ),
+						),
+					),
+					'required'   => array( 'instruction' ),
+				)
+			);
+		}
+
 		return $declarations;
 	}
 
@@ -426,10 +541,14 @@ final class Agent {
 	 * that did things without a tool call, and answered "publish it" with
 	 * "Done" and no call (2026-11-06, documentation/ai-engine.md).
 	 *
+	 * An edit_content call is left out when the editor is not open now: the
+	 * model would see a call to a function it was not given.
+	 *
 	 * @param list<array{role: string, text: string, calls?: list<array{id: string, name: string, args: array, result: mixed}>}> $history Earlier messages.
+	 * @param bool $editing Whether edit_content is offered in this request.
 	 * @return list<Message>
 	 */
-	private static function history_messages( array $history ): array {
+	private static function history_messages( array $history, bool $editing = false ): array {
 		$messages = array();
 		foreach ( array_slice( $history, -self::HISTORY_TURNS ) as $entry ) {
 			$text = trim( (string) ( $entry['text'] ?? '' ) );
@@ -445,7 +564,7 @@ final class Agent {
 			}
 			foreach ( (array) ( $entry['calls'] ?? array() ) as $i => $call ) {
 				$name = is_array( $call ) ? (string) ( $call['name'] ?? '' ) : '';
-				if ( '' === $name ) {
+				if ( '' === $name || ( self::EDIT_CONTENT === $name && ! $editing ) ) {
 					continue;
 				}
 				$id         = '' !== (string) ( $call['id'] ?? '' ) ? (string) $call['id'] : 'call_' . count( $messages ) . '_' . $i;

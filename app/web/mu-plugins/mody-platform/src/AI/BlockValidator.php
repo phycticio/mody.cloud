@@ -95,11 +95,18 @@ final class BlockValidator {
 	/**
 	 * Validates serialized block markup.
 	 *
-	 * @param string $markup The markup, exactly as it would be saved.
+	 * For an edit of existing content (M3-06), pass the content as it was:
+	 * a block the model returned exactly as it was there (same serialization,
+	 * inner blocks included) is the member's own and is accepted as it is,
+	 * whatever its name or attributes (an image, a Spectra block). Every block
+	 * the model wrote or changed is checked in full.
+	 *
+	 * @param string $markup   The markup, exactly as it would be saved.
+	 * @param string $original For an edit: the markup before it. '' for new content.
 	 * @return true|WP_Error True when valid. Otherwise code `mody_invalid_blocks`,
 	 *                       with a message the model can act on in a retry.
 	 */
-	public static function validate( string $markup ): true|WP_Error {
+	public static function validate( string $markup, string $original = '' ): true|WP_Error {
 		if ( '' === trim( $markup ) ) {
 			return self::error( 'The response is empty.' );
 		}
@@ -130,12 +137,13 @@ final class BlockValidator {
 			return self::error( 'The response contains no blocks.' );
 		}
 
-		$palette = self::palette();
+		$palette   = self::palette();
+		$unchanged = '' === trim( $original ) ? array() : self::serialized_blocks( parse_blocks( $original ) );
 		foreach ( $blocks as $block ) {
 			if ( null === $block['blockName'] ) {
 				continue; // Whitespace between blocks, checked above.
 			}
-			$result = self::check_block( $block, $palette );
+			$result = self::check_block( $block, $palette, $unchanged );
 			if ( true !== $result ) {
 				return $result;
 			}
@@ -156,13 +164,36 @@ final class BlockValidator {
 	}
 
 	/**
+	 * Every block of some markup, inner blocks included, serialized: the set
+	 * of blocks an edit may keep as they are.
+	 *
+	 * @param array<int, array<string, mixed>> $blocks Parsed blocks.
+	 * @return array<string, true> Serialized block => true.
+	 */
+	private static function serialized_blocks( array $blocks ): array {
+		$set = array();
+		foreach ( $blocks as $block ) {
+			if ( null === $block['blockName'] ) {
+				continue;
+			}
+			$set[ serialize_block( $block ) ] = true;
+			$set                             += self::serialized_blocks( (array) $block['innerBlocks'] );
+		}
+		return $set;
+	}
+
+	/**
 	 * Checks one block and its inner blocks.
 	 *
-	 * @param array<string, mixed> $block   A parsed block.
-	 * @param list<string>         $palette Allowed color slugs.
+	 * @param array<string, mixed> $block     A parsed block.
+	 * @param list<string>         $palette   Allowed color slugs.
+	 * @param array<string, true>  $unchanged Blocks of the original content, serialized (an edit).
 	 * @return true|WP_Error
 	 */
-	private static function check_block( array $block, array $palette ): true|WP_Error {
+	private static function check_block( array $block, array $palette, array $unchanged = array() ): true|WP_Error {
+		if ( $unchanged && isset( $unchanged[ serialize_block( $block ) ] ) ) {
+			return true; // The member's own block, returned as it was.
+		}
 		$name = (string) $block['blockName'];
 
 		if ( ! in_array( $name, self::WHITELIST, true ) ) {
@@ -188,7 +219,7 @@ final class BlockValidator {
 		}
 
 		foreach ( $block['innerBlocks'] as $inner ) {
-			$result = self::check_block( $inner, $palette );
+			$result = self::check_block( $inner, $palette, $unchanged );
 			if ( true !== $result ) {
 				return $result;
 			}

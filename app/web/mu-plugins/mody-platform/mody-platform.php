@@ -112,4 +112,5 @@ add_action( 'wp_abilities_api_init', array( Abilities::class, 'register' ) );
 if ( function_exists( 'wp_ai_client_prompt' ) ) {
 	add_action( 'rest_api_init', array( Agent\ChatController::class, 'register_routes' ) );
 	add_action( 'admin_menu', array( Agent\ChatPage::class, 'register_menu' ) );
+	add_action( 'enqueue_block_editor_assets', array( Agent\EditorBubble::class, 'enqueue' ) ); // The chat bubble in the editors (M3-05).
 }

@@ -40,6 +40,12 @@ final class PageGenerator {
 	/** Seconds per model request. The AI Client's default (30) is short for a full page. */
 	private const TIMEOUT = 60;
 
+	/** Largest answer for an edit: a whole page sent back, plus what is added (M3-06). */
+	private const MAX_EDIT_TOKENS = 8000;
+
+	/** Seconds per model request for a long edit. */
+	private const EDIT_TIMEOUT = 120;
+
 	/** Longest accepted member prompt, in characters. */
 	public const MAX_PROMPT_LENGTH = 2000;
 
@@ -69,40 +75,108 @@ final class PageGenerator {
 			return new WP_Error( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first.', 'mody_cloud' ) );
 		}
 
-		$system   = SystemPrompt::for_page( $profile );
+		$markup = self::ask( $site_id, SystemPrompt::for_page( $profile ), $prompt, '', self::MAX_TOKENS, 'generate_page' );
+		if ( is_wp_error( $markup ) && 'mody_invalid_answers' === $markup->get_error_code() ) {
+			return new WP_Error(
+				'mody_generation_failed',
+				/* translators: %d: number of attempts. */
+				sprintf( __( 'The page could not be generated: the AI returned invalid content %d times.', 'mody_cloud' ), self::MAX_ATTEMPTS ),
+				$markup->get_error_data()
+			);
+		}
+		return $markup;
+	}
+
+	/**
+	 * Changes existing block markup following the owner's instruction (M3-06):
+	 * the selected block in the editor, or the whole content.
+	 *
+	 * Nothing is saved: the result goes back to the editor, where the member
+	 * sees it, can undo it, and saves it. Blocks returned exactly as they
+	 * were pass the validator as the member's own; everything new is checked.
+	 *
+	 * @param int    $site_id     Site whose brand profile is used.
+	 * @param string $markup      The markup as it is in the editor (may be empty).
+	 * @param string $instruction What the owner asked for.
+	 * @param bool   $fragment    True for one selected block, false for the whole content.
+	 * @return string|WP_Error The validated new markup, or `mody_empty_prompt`,
+	 *                         `mody_no_brand_profile`, an AI Client error, `mody_edit_failed`.
+	 */
+	public static function edit_markup( int $site_id, string $markup, string $instruction, bool $fragment ): string|WP_Error {
+		$instruction = trim( mb_substr( sanitize_textarea_field( $instruction ), 0, self::MAX_PROMPT_LENGTH ) );
+		if ( '' === $instruction ) {
+			return new WP_Error( 'mody_empty_prompt', __( 'Say what to change.', 'mody_cloud' ) );
+		}
+		$profile = BrandProfile::for_site( $site_id );
+		if ( null === $profile ) {
+			return new WP_Error( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first.', 'mody_cloud' ) );
+		}
+
+		$prompt = "The site owner's instruction:\n<instruction>\n" . $instruction . "\n</instruction>\n\n"
+			. ( $fragment ? 'The selected block, with its inner blocks:' : 'The whole content:' )
+			. "\n<markup>\n" . $markup . "\n</markup>";
+		// Room for the whole content again, plus what the instruction adds.
+		$tokens = min( self::MAX_EDIT_TOKENS, max( self::MAX_TOKENS, (int) ceil( strlen( $markup ) / 3 ) + 1500 ) );
+
+		$result = self::ask( $site_id, SystemPrompt::for_edit( $profile, $fragment ), $prompt, $markup, $tokens, 'edit_markup' );
+		if ( is_wp_error( $result ) && 'mody_invalid_answers' === $result->get_error_code() ) {
+			return new WP_Error(
+				'mody_edit_failed',
+				/* translators: %d: number of attempts. */
+				sprintf( __( 'The change could not be made: the AI returned invalid content %d times.', 'mody_cloud' ), self::MAX_ATTEMPTS ),
+				$result->get_error_data()
+			);
+		}
+		return $result;
+	}
+
+	/**
+	 * Asks the page writer, repairs and validates its answer, and retries with
+	 * the reason: the loop shared by generation and edits.
+	 *
+	 * @param int    $site_id    Site ID, for the log.
+	 * @param string $system     System prompt (always with the brand, rule 4).
+	 * @param string $prompt     User prompt.
+	 * @param string $original   For an edit: the markup before it (see BlockValidator).
+	 * @param int    $max_tokens Answer size.
+	 * @param string $label      Name in the log.
+	 * @return string|WP_Error Valid markup, an AI Client error, or `mody_invalid_answers`
+	 *                         after MAX_ATTEMPTS invalid answers.
+	 */
+	private static function ask( int $site_id, string $system, string $prompt, string $original, int $max_tokens, string $label ): string|WP_Error {
 		$feedback = '';
 		$problem  = '';
+		$timeout  = $max_tokens > self::MAX_TOKENS ? self::EDIT_TIMEOUT : self::TIMEOUT;
 
 		for ( $attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++ ) {
 			$output = wp_ai_client_prompt( $prompt . $feedback )
 				->using_system_instruction( $system )
 				->using_provider( 'infomaniak' )
 				->using_temperature( 1 === $attempt ? self::TEMPERATURE : self::RETRY_TEMPERATURE )
-				->using_max_tokens( self::MAX_TOKENS )
-				->using_request_options( RequestOptions::fromArray( array( RequestOptions::KEY_TIMEOUT => self::TIMEOUT ) ) )
+				->using_max_tokens( $max_tokens )
+				->using_request_options( RequestOptions::fromArray( array( RequestOptions::KEY_TIMEOUT => $timeout ) ) )
 				->generate_text();
 
 			// A client error (network, auth, timeout) is not something a retry with feedback fixes.
 			if ( is_wp_error( $output ) ) {
-				self::log( $site_id, $attempt, 'AI Client error ' . $output->get_error_code() . ': ' . $output->get_error_message() );
+				self::log( $site_id, $attempt, 'AI Client error ' . $output->get_error_code() . ': ' . $output->get_error_message(), $label );
 				return $output;
 			}
 
 			$markup = self::repair( trim( $output ), $site_id, $attempt );
-			$valid  = BlockValidator::validate( $markup );
+			$valid  = BlockValidator::validate( $markup, $original );
 			if ( true === $valid ) {
 				return $markup;
 			}
 
 			$problem = $valid->get_error_message();
-			self::log( $site_id, $attempt, 'invalid markup: ' . $problem );
-			$feedback = "\n\n(Your previous answer was rejected: " . $problem . ' Return the whole page again, following every output rule.)';
+			self::log( $site_id, $attempt, 'invalid markup: ' . $problem, $label );
+			$feedback = "\n\n(Your previous answer was rejected: " . $problem . ' Return the whole markup again, following every output rule.)';
 		}
 
 		return new WP_Error(
-			'mody_generation_failed',
-			/* translators: %d: number of attempts. */
-			sprintf( __( 'The page could not be generated: the AI returned invalid content %d times.', 'mody_cloud' ), self::MAX_ATTEMPTS ),
+			'mody_invalid_answers',
+			'Invalid answers.',
 			array(
 				'attempts' => self::MAX_ATTEMPTS,
 				'reason'   => $problem,
@@ -225,9 +299,10 @@ final class PageGenerator {
 	 * @param int    $site_id Site ID.
 	 * @param int    $attempt Attempt number.
 	 * @param string $message What went wrong.
+	 * @param string $label   What was running: generate_page or edit_markup.
 	 */
-	private static function log( int $site_id, int $attempt, string $message ): void {
-		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Server log; mody_agent_events arrives with M3.
-		error_log( sprintf( '[mody-platform] generate_page site %d attempt %d/%d: %s', $site_id, $attempt, self::MAX_ATTEMPTS, $message ) );
+	private static function log( int $site_id, int $attempt, string $message, string $label = 'generate_page' ): void {
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Server log; never the prompt or the token.
+		error_log( sprintf( '[mody-platform] %s site %d attempt %d/%d: %s', $label, $site_id, $attempt, self::MAX_ATTEMPTS, $message ) );
 	}
 }

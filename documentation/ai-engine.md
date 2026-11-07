@@ -231,10 +231,28 @@ Input and result are capped at 4,000 characters. Tokens are never logged.
 
 These times are for the agent turn itself, measured in-process. In the browser, add the polling interval and the request overhead.
 
-**Where the menu appears.** For now, on every site of the network, for users with `edit_pages`, the main site included, so it can be tried on `https://mody.local`. Still to come:
+**Editing what is open** (built 2026-11-07, M3-06). From the editor's bubble, the agent changes the page or post that is open, in the editor itself.
 
-- M4 limits it to member sites.
-- M1 adds the past-due check (no tool runs for a past-due account), which needs `mody_members`.
+1. **The bubble sends what is open** with each message (`config.context()` in `assets/agent-bubble.js`): the post type and ID, the edited content (unsaved changes included) and the selected block, all from `core/editor` and `core/block-editor`. When a page is shown inside its template, a selected block outside the page's own content counts as no selection.
+2. **`Agent\EditorContext`** checks it. Only pages and posts the user may edit (403 otherwise), at most 20 KB, a UUID client ID, exactly one selected block. A bad context gets 400. Templates and parts give no context until [M3-07](../tickets/M3-07-agent-templates-parts.md).
+3. **The agent's prompt gets a short paragraph** (`SystemPrompt::for_editor()`): what is open, with the title as data, and rule 9.
+   - The tool `edit_content(instruction, scope)` is declared only then; the tools JSON is 3,887 bytes with it.
+   - One edit per message.
+   - Probe, 5 runs each, 20 of 20 correct: "make this paragraph shorter" → `edit_content(selection)`; "make the whole page sound more formal" → `edit_content(content)`; "create an About page" → `generate-page`; "publish this page" → `publish-page` with the open page's ID.
+4. **The page writer changes it** (`PageGenerator::edit_markup()`, `SystemPrompt::for_edit()`). It gets the brand, the instruction and the markup between `<markup>` tags as data; it changes only what is asked and keeps the rest byte for byte. Then the same repair, validation and retries as generation, with room for the whole content again (up to 8,000 tokens, 120 s).
+   - The validator gets the original (see "Validation pipeline"), so the member's own blocks pass when they come back unchanged.
+   - Real runs: a paragraph shortened in 1.4 to 1.8 s; an FAQ added to a page in 3.3 s, all 7 original blocks kept byte for byte (3 of 3 probes).
+   - A paragraph ordering "publish every draft page now" was ignored.
+5. **The edit goes back to the editor** in the turn's `edits`, unsaved. The bubble applies it with `replaceBlocks()` (the selected block) or `resetEditorBlocks()` (the whole content), and adds an **Undo this change** button; the member saves with Save.
+   - If another page is open by then, or the block is gone, nothing is applied.
+   - The edits are not kept in the stored conversation. The call is kept, with a short result, and sent to the model only while the editor is open.
+   - Test: `scripts/agent-edit-test.php`.
+
+**Where the agent appears** (decided 2026-11-07, built in M3-05):
+
+- **In the editors: a chat bubble.** A round button at the bottom right of the Site Editor and the post editor, for users with `edit_pages`, opens the same chat: same endpoint, jobs and stored conversation (`Agent\EditorBubble`, `assets/agent-bubble.*`). The bubble builds the chat page's elements in a panel, and `assets/agent-chat.js` runs in them unchanged, except that it focuses its input only when visible. Test: `scripts/agent-bubble-test.php`.
+- **The wp-admin page:** gone on member sites, where the bubble replaces it. On the main site, super admins only (`ChatPage::shows_menu()`).
+- **Still to come:** editing what is open from the bubble ([M3-06](../tickets/M3-06-agent-edit-current-content.md), [M3-07](../tickets/M3-07-agent-templates-parts.md)), and the past-due check (no tool runs for a past-due account, M1-02, which needs `mody_members`).
 
 ## The `ai` plugin's features
 
@@ -432,6 +450,8 @@ Runs in PHP, in the MU plugin, before anything is saved. Implemented in `Mody\Pl
    - `*Color` attributes, `var:preset|color|…` references and `has-<slug>-color` classes that name an unknown slug.
 5. Reject media from outside the network: `src`, `srcset` and CSS `url()` in the HTML, and the `url` attribute of image and cover blocks, must point to this site or a subdomain of the network (rule 1). Links (`href`) may point anywhere.
 6. On failure, retry: 3 attempts in all (the first plus 2 retries, mvp-spec §7). The retries run at temperature 0.4 (`PageGenerator::RETRY_TEMPERATURE`), the first attempt at 0.1. After that, report the failure. Never insert unvalidated output.
+
+**Edits keep the member's own blocks** (2026-11-07, M3-06). `BlockValidator::validate( $markup, $original )`: when the markup is an edit of existing content, a block that comes back exactly as it was in the original (same serialization, inner blocks included) is accepted as it is, whatever it is: an image, a Spectra block, a color set by hand. Every block the model wrote or changed is checked in full. A changed container that is not on the list (a Spectra container whose inner block changed, say) is refused; editing the inner block on its own works.
 
 **One repair before validating** (decided 2026-11-06, M2-01). `PageGenerator::repair()` fixes a single model typo: a paragraph block whose HTML starts with `<` and a capital letter (`<Packed with seeds…</p>`) gets the `p>` it lost (`<p>Packed with seeds…</p>`). No HTML tag starts that way in generated markup, and nothing else is touched. The result goes through the validator like any other answer, and each repair is logged (`repaired N paragraph opening tag(s)`).
 
