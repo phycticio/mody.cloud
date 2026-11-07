@@ -43,4 +43,9 @@ In step 2 of the wizard, the member can upload a logo (optional). The new site s
   - at the site limit, the stored file is deleted;
   - over HTTP, as the browser sends it (multipart): 202 in 0.3 s, ready 5.2 s later, with the logo.
 - The main site's attachment count is unchanged after the tests.
+- **Production** (deployed 2026-11-07, commit `3d16b6b`, together with M2-04, after a backup in `backups/2026-11-07-pre-m2-05/`):
+  - the preview renders, with the fixed links, and refuses logged-out visitors (403);
+  - the wizard page loads;
+  - the offline agent test and the Spectra test pass, with no PHP warnings.
+  - The maintainer's own production site, `phycticio.mody.cloud` (created 14:38 UTC with M2-03), finished with a generated page. Its welcome email failed, because production has no SMTP relay yet, and its address does not resolve until the wildcard DNS (M5).
 - **Seen once and not reproduced** (`provisioning-test.php`, "killed at site"): the resumed run made 0 model requests instead of 1, with everything else right. The same case passed in 15 repeated runs and in every later full run. The check now prints the job's result if it fails again.
