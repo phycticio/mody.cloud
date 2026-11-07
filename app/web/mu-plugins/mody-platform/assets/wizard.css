@@ -1,0 +1,201 @@
+/* The brand wizard (Network Admin → Mody → New site). Admin colors only. */
+
+.mody-wizard__form,
+.mody-wizard__status {
+	max-width: 760px;
+}
+
+.mody-wizard__quota {
+	color: #50575e;
+}
+
+.mody-wizard__nav {
+	display: flex;
+	gap: 24px;
+	margin: 16px 0 8px;
+	padding: 0;
+	list-style: none;
+	counter-reset: mody-step;
+}
+
+.mody-wizard__nav li {
+	margin: 0;
+	color: #646970;
+	counter-increment: mody-step;
+}
+
+.mody-wizard__nav li::before {
+	content: counter(mody-step) ". ";
+}
+
+.mody-wizard__nav li.is-current {
+	color: #1d2327;
+	font-weight: 600;
+}
+
+.mody-wizard__nav li.is-done {
+	color: #00a32a;
+}
+
+.mody-wizard__step {
+	padding: 8px 24px 16px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+}
+
+.mody-wizard__field label,
+.mody-wizard__cards legend {
+	display: block;
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.mody-wizard__field input[type="text"],
+.mody-wizard__field textarea {
+	width: 100%;
+	max-width: 520px;
+}
+
+.mody-wizard__address {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	width: 100%;
+	max-width: 520px;
+}
+
+.mody-wizard__address input[type="text"] {
+	flex: 1;
+	text-align: right;
+}
+
+.mody-wizard__cards {
+	margin: 16px 0;
+}
+
+.mody-wizard__cards legend {
+	float: left;
+	width: 100%;
+}
+
+.mody-wizard__card {
+	position: relative;
+	display: inline-flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 200px;
+	margin: 0 12px 12px 0;
+	padding: 12px;
+	vertical-align: top;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.mody-wizard__card input[type="radio"] {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	margin: 0;
+}
+
+.mody-wizard__card:has(input:checked) {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.mody-wizard__card:focus-within {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+
+.mody-wizard__swatches {
+	display: flex;
+	gap: 4px;
+}
+
+.mody-wizard__swatches span {
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.mody-wizard__mock {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 8px;
+	background: #fff;
+	border: 1px solid #f0f0f1;
+}
+
+.mody-wizard__mock-heading {
+	font-size: 15px;
+	font-weight: 700;
+}
+
+.mody-wizard__mock-button {
+	padding: 3px 10px;
+	color: #fff;
+	font-size: 12px;
+	border-radius: 3px;
+}
+
+.mody-wizard__chips .button {
+	margin: 0 6px 6px 0;
+}
+
+.mody-wizard__error {
+	margin: 4px 0 0;
+	color: #d63638;
+}
+
+.mody-wizard__error:empty {
+	display: none;
+}
+
+.mody-wizard__buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.mody-wizard__status {
+	padding: 8px 24px 16px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+}
+
+.mody-wizard__progress {
+	margin-left: 1.5em;
+}
+
+.mody-wizard__progress li {
+	color: #646970;
+}
+
+.mody-wizard__progress li.is-done {
+	color: #00a32a;
+}
+
+.mody-wizard__progress li.is-current {
+	color: #1d2327;
+	font-weight: 600;
+}
+
+.mody-wizard__progress li.is-failed {
+	color: #d63638;
+	font-weight: 600;
+}
+
+.mody-wizard__site {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.mody-wizard__note {
+	padding: 8px 12px;
+}

@@ -6,9 +6,22 @@ Related: [ai-engine.md](ai-engine.md) (how the profile reaches the model), [them
 
 ## Wizard steps
 
-1. **Identity:** name, slogan, mission, vision, tone (`formal`, `friendly`, `technical`).
-2. **Visual:** palette (Mody presets as a suggestion), logo upload, heading font and body font.
-3. **First page:** free prompt. It is generated and published as the home page.
+The briefing's wizard: identity (name, slogan, mission, vision, tone), visual (palette, logo, heading and body fonts) and a first-page prompt. The MVP keeps it to choices ([mvp-spec.md §6](mvp-spec.md#6-brand-wizard)).
+
+**Built 2026-11-06** ([M2-03](../tickets/M2-03-brand-wizard.md)): Network Admin → **Mody** → **New site** (`Wizard\WizardPage`, `assets/wizard.js`, plain script, no build step). Super admins only until M1 grants `mody_access_dashboard` to members.
+
+1. **Your brand:** site name, address (the subdomain, filled in from the name), brand name (the name by default), "What do you do?" in one sentence, and three tone cards that show the same sentence in each tone.
+2. **Your design:** the six preset cards (three swatches and a mini mock each). The logo upload is [M2-05](../tickets/M2-05-wizard-logo.md), and the live preview of header and hero is [M2-04](../tickets/M2-04-wizard-live-preview.md). Fonts are Inter, fixed.
+3. **Your first page:** a description with three suggestion chips, then **Create my site**.
+
+**Create my site** posts the answers to `mody-platform/v1/sites` (`Wizard\WizardController`). The server validates them (`Pipeline::validate()`), and its errors show next to their fields. The site is then created after the response, in the same PHP-FPM worker (as the agent's background jobs do), while the page polls `sites/jobs/<id>` and ticks the steps off. At the end it shows buttons to the site, the Site Editor and the site's dashboard.
+
+- **Try again** (`sites/jobs/<id>/run`): for a failed creation, or one that stopped. It resumes the job where it stopped.
+- **Retry generation** (`sites/jobs/<id>/retry-generation`): for a site that got the fallback page.
+- **One creation at a time per user:** a second one gets 409.
+- **After a reload,** the page picks up the user's unfinished creation from the last day.
+
+Test: `scripts/wizard-test.php` (the page, the endpoint with fake model answers, and over HTTP the page in Network Admin plus one real creation; `-e MODY_TEST_OFFLINE=1` skips that creation).
 
 ## Data schema (custom WordPress table)
 

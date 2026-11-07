@@ -49,6 +49,13 @@ add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_m
 add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\AgentSettings::class, 'save' ) );
 
 /*
+ * Brand wizard (Network Admin → Mody → New site, ticket M2-03): its page and
+ * its REST endpoint, which runs the provisioning pipeline after the response.
+ */
+add_action( 'network_admin_menu', array( Wizard\WizardPage::class, 'register_menu' ) );
+add_action( 'rest_api_init', array( Wizard\WizardController::class, 'register_routes' ) );
+
+/*
  * AI: register Infomaniak AI Services as a provider for the WordPress AI
  * Client (WordPress 7.0+). Core reads the registry on `init` at priority 15
  * (Settings > Connectors), so the provider must be registered before that.

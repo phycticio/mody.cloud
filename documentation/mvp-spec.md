@@ -49,7 +49,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | **Platform admin** | Super admin of the network, plus the Mody market management page and exception handling. |
 | **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
 
-Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. All data shown is scoped to `get_current_user_id()`.
+Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. Since 2026-11-06 (M2-03) the **Mody → New site** wizard checks it; no role has it yet, so only super admins (who pass every capability check) see it until M1 grants it. All data shown is scoped to `get_current_user_id()`.
 
 Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard: `mody.cloud/wp-admin/network/`.
 
@@ -99,7 +99,7 @@ The dashboard is the only place where cross-site actions (create/delete site, bi
 
 **Design principle: the member never types raw values** — no hex codes, no font names, no CSS. Every step is a **choice** from a small number of beautiful, prefilled options, with a live preview. The whole wizard can be completed in three clicks.
 
-Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizard lives under Network Admin → **Mody**, for super admins (decided 2026-11-06, [M2-03](../tickets/M2-03-brand-wizard.md)). Its server side is built: `Provisioning\Pipeline::validate()` and `start()` ([M2-01](../tickets/M2-01-site-provisioning.md)).
+Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizard lives under Network Admin → **Mody**, for super admins (decided 2026-11-06, [M2-03](../tickets/M2-03-brand-wizard.md)). Built 2026-11-06 ([M2-03](../tickets/M2-03-brand-wizard.md)), on top of the provisioning pipeline ([M2-01](../tickets/M2-01-site-provisioning.md)). How it works: [brand-profile.md](brand-profile.md#wizard-steps). The logo upload moved to [M2-05](../tickets/M2-05-wizard-logo.md) (decided 2026-11-06, rule 5).
 
 ### Step 1 — Your brand (identity)
 
@@ -384,7 +384,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 | --- | --- | --- | --- |
 | **M0** | Multisite foundation | 3, 12 | Flip the multisite env switches, add the wildcard to `APP_DOMAINS`, document the network activation step; two subdomain sites reachable over HTTPS locally, both running theme `theme`, owned by one non-super-admin user. |
 | **M1** | Accounts, trial and billing | 4, 5 | Register → Mollie 0.01 checkout → webhook → active trial with dashboard (My sites, Plan & billing). Simulated failed charge → read-only + banner + 60-day deletion job verified. |
-| **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **In progress:** M2-02 (AI engine) and M2-01 (the provisioning pipeline) done 2026-11-06; M2-03 (the wizard) and M2-04 (its live preview) to do. |
+| **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **In progress:** M2-02 (AI engine) and M2-01 (the provisioning pipeline) done 2026-11-06; M2-03 (the wizard) done the same day; M2-04 (its live preview) and M2-05 (the logo upload) to do. |
 | **M3** | Agent | 8 | Chat in wp-admin; all six tools work end-to-end; injection attempts refused and logged; every event in `mody_agent_events`. **Done 2026-11-06** (M3-01 to M3-04), except three items moved on: the plugin toggle tools to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the agent menu to member sites to M4-01. |
 | **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; market page activates listed plugins; every editing entry point lands in the Site Editor. |
 | **M5** | Hardening and launch | all | Production compose (no Xdebug/DB ports), wildcard cert at the upstream, backup/restore drill, security pass (nonces, sanitization, webhook signatures), monitoring via Query Monitor, launch checklist green for 100 founding members. |

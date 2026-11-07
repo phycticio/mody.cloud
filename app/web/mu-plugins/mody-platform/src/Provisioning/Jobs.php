@@ -175,6 +175,36 @@ final class Jobs {
 	}
 
 	/**
+	 * A user's most recent job that is not done, changed in the last day:
+	 * the wizard picks it up again after a reload.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array<string, mixed>|null The job (see get()).
+	 */
+	public static function unfinished_for_user( int $user_id ): ?array {
+		global $wpdb;
+		$table = self::table();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table; indexed.
+		$id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE user_id = %d AND status <> 'done' AND updated_at > %s ORDER BY id DESC LIMIT 1",
+				$user_id,
+				gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS )
+			)
+		);
+		return $id ? self::get( (int) $id ) : null;
+	}
+
+	/**
+	 * Whether a running job stopped being updated: its run was killed.
+	 *
+	 * @param array<string, mixed> $job The job (see get()).
+	 */
+	public static function is_stale( array $job ): bool {
+		return 'running' === $job['status'] && strtotime( $job['updated_at'] . ' UTC' ) < time() - self::STALE_AFTER;
+	}
+
+	/**
 	 * Jobs of a user that have not created their site yet (they count against the quota).
 	 *
 	 * @param int $user_id     User ID.
