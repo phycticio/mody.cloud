@@ -183,7 +183,8 @@
 			return;
 		}
 		const editor = data.select( 'core/editor' );
-		if ( Number( editor.getCurrentPostId() ) !== Number( edit.post_id ) ) {
+		// A page's ID is a number, a template's a string (theme//header).
+		if ( String( editor.getCurrentPostId() ) !== String( edit.post_id ) ) {
 			underReply( element( 'p', 'mody-bubble__note', strings.otherPage ) );
 			return;
 		}

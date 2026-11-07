@@ -58,6 +58,34 @@ final class BlockValidator {
 		'core/post-template',
 	);
 
+	/**
+	 * Also allowed in templates and template parts (M3-07): the theme blocks
+	 * that `templates/` and `parts/` use, which pages never need.
+	 */
+	public const TEMPLATE_BLOCKS = array(
+		'core/template-part',
+		'core/post-content',
+		'core/post-title',
+		'core/post-date',
+		'core/post-excerpt',
+		'core/post-featured-image',
+		'core/post-terms',
+		'core/query-pagination',
+		'core/query-pagination-previous',
+		'core/query-pagination-numbers',
+		'core/query-pagination-next',
+		'core/query-no-results',
+		'core/query-title',
+		'core/term-description',
+		'core/search',
+		'core/navigation-link',
+		'core/navigation-submenu',
+		'core/page-list',
+	);
+
+	/** Blocks a template must keep when it has them: without them, its pages show nothing. */
+	public const TEMPLATE_ESSENTIAL = array( 'core/post-content', 'core/query' );
+
 	/** Used when the theme's palette cannot be read. Matches theme.json. */
 	public const DEFAULT_PALETTE = array( 'primary', 'secondary', 'accent', 'base', 'contrast' );
 
@@ -101,12 +129,17 @@ final class BlockValidator {
 	 * whatever its name or attributes (an image, a Spectra block). Every block
 	 * the model wrote or changed is checked in full.
 	 *
+	 * For a template or template part (M3-07), the theme blocks in
+	 * TEMPLATE_BLOCKS are allowed too, and a template must keep the blocks of
+	 * TEMPLATE_ESSENTIAL it had.
+	 *
 	 * @param string $markup   The markup, exactly as it would be saved.
 	 * @param string $original For an edit: the markup before it. '' for new content.
+	 * @param bool   $template Whether the markup is a template or template part.
 	 * @return true|WP_Error True when valid. Otherwise code `mody_invalid_blocks`,
 	 *                       with a message the model can act on in a retry.
 	 */
-	public static function validate( string $markup, string $original = '' ): true|WP_Error {
+	public static function validate( string $markup, string $original = '', bool $template = false ): true|WP_Error {
 		if ( '' === trim( $markup ) ) {
 			return self::error( 'The response is empty.' );
 		}
@@ -139,17 +172,45 @@ final class BlockValidator {
 
 		$palette   = self::palette();
 		$unchanged = '' === trim( $original ) ? array() : self::serialized_blocks( parse_blocks( $original ) );
+		$allowed   = $template ? array_merge( self::WHITELIST, self::TEMPLATE_BLOCKS ) : self::WHITELIST;
 		foreach ( $blocks as $block ) {
 			if ( null === $block['blockName'] ) {
 				continue; // Whitespace between blocks, checked above.
 			}
-			$result = self::check_block( $block, $palette, $unchanged );
+			$result = self::check_block( $block, $palette, $unchanged, $allowed );
 			if ( true !== $result ) {
 				return $result;
 			}
 		}
 
+		if ( $template && '' !== trim( $original ) ) {
+			$had = self::block_names( parse_blocks( $original ) );
+			$has = self::block_names( $blocks );
+			foreach ( self::TEMPLATE_ESSENTIAL as $essential ) {
+				if ( in_array( $essential, $had, true ) && ! in_array( $essential, $has, true ) ) {
+					return self::error( sprintf( 'Keep the %s block: the pages that use this template show their content through it.', $essential ) );
+				}
+			}
+		}
+
 		return true;
+	}
+
+	/**
+	 * Every block name in parsed blocks, inner blocks included.
+	 *
+	 * @param array<int, array<string, mixed>> $blocks Parsed blocks.
+	 * @return list<string>
+	 */
+	private static function block_names( array $blocks ): array {
+		$names = array();
+		foreach ( $blocks as $block ) {
+			if ( null !== $block['blockName'] ) {
+				$names[] = (string) $block['blockName'];
+			}
+			$names = array_merge( $names, self::block_names( (array) $block['innerBlocks'] ) );
+		}
+		return $names;
 	}
 
 	/**
@@ -188,15 +249,16 @@ final class BlockValidator {
 	 * @param array<string, mixed> $block     A parsed block.
 	 * @param list<string>         $palette   Allowed color slugs.
 	 * @param array<string, true>  $unchanged Blocks of the original content, serialized (an edit).
+	 * @param list<string>         $allowed   Block names allowed (the whitelist, plus TEMPLATE_BLOCKS in templates).
 	 * @return true|WP_Error
 	 */
-	private static function check_block( array $block, array $palette, array $unchanged = array() ): true|WP_Error {
+	private static function check_block( array $block, array $palette, array $unchanged = array(), array $allowed = self::WHITELIST ): true|WP_Error {
 		if ( $unchanged && isset( $unchanged[ serialize_block( $block ) ] ) ) {
 			return true; // The member's own block, returned as it was.
 		}
 		$name = (string) $block['blockName'];
 
-		if ( ! in_array( $name, self::WHITELIST, true ) ) {
+		if ( ! in_array( $name, $allowed, true ) ) {
 			return self::error( sprintf( 'The block "%s" is not allowed. Use only the blocks listed in the instructions.', $name ) );
 		}
 		if ( ! WP_Block_Type_Registry::get_instance()->is_registered( $name ) ) {
@@ -219,7 +281,7 @@ final class BlockValidator {
 		}
 
 		foreach ( $block['innerBlocks'] as $inner ) {
-			$result = self::check_block( $inner, $palette, $unchanged );
+			$result = self::check_block( $inner, $palette, $unchanged, $allowed );
 			if ( true !== $result ) {
 				return $result;
 			}

@@ -247,6 +247,18 @@ These times are for the agent turn itself, measured in-process. In the browser, 
    - If another page is open by then, or the block is gone, nothing is applied.
    - The edits are not kept in the stored conversation. The call is kept, with a short result, and sent to the model only while the editor is open.
    - Test: `scripts/agent-edit-test.php`.
+6. **Templates and template parts** (built 2026-11-07, M3-07). In the Site Editor, the bubble also sends a template (`wp_template`) or a template part (`wp_template_part`, with its area: header, footer). Their IDs are strings (`theme//header`); `EditorContext` checks that the template exists and that the user has `edit_theme_options`.
+   - **The agent's paragraph** says it is the site's layout, so every page that uses it shows a change, and that its blocks can be moved, added or removed only by calling `edit_content`.
+     - That sentence is probed. Without it, "add the tagline under the site title" in the header was declined 2 times in 3 ("I can only change the tagline's text").
+     - An intermediate wording that also said "say so after an edit" made the model answer "Done" with no call, 4 times in 5.
+     - With it, 10 of 10 called `edit_content`, while "change the tagline to …" still picked `update-site-settings` (5 of 5) and "create an About page" `generate-page` (5 of 5).
+   - **The writer** gets two more rules: the theme blocks may be used, and theme blocks (site title, tagline, logo, navigation) carry the site's own data, never typed text. Post-content is never removed.
+   - **The validator's template mode** allows the theme blocks (`BlockValidator::TEMPLATE_BLOCKS`; every template and part of the theme passes it). It refuses an edit that drops `post-content` or the `query` loop a template had.
+   - **Real runs:**
+     - the header got the tagline under the site title, with the logo, title and menu kept (2.3 s);
+     - the footer got a line (3.3 s);
+     - the page template lost its title and kept its content (1.8 s).
+   - Test: `scripts/agent-template-test.php`.
 
 **Where the agent appears** (decided 2026-11-07, built in M3-05):
 
@@ -471,6 +483,8 @@ Runs in PHP, in the MU plugin, before anything is saved. Implemented in `Mody\Pl
    - `*Color` attributes, `var:preset|color|…` references and `has-<slug>-color` classes that name an unknown slug.
 5. Reject media from outside the network: `src`, `srcset` and CSS `url()` in the HTML, and the `url` attribute of image and cover blocks, must point to this site or a subdomain of the network (rule 1). Links (`href`) may point anywhere.
 6. On failure, retry: 3 attempts in all (the first plus 2 retries, mvp-spec §7). The retries run at temperature 0.4 (`PageGenerator::RETRY_TEMPERATURE`), the first attempt at 0.1. After that, report the failure. Never insert unvalidated output.
+
+**Templates** (2026-11-07, M3-07): `BlockValidator::validate( $markup, $original, true )` also allows the theme blocks in `TEMPLATE_BLOCKS` (template-part, post-content, post-title, the query loop's blocks, search, site blocks, navigation links), and refuses an edit that drops a `post-content` or `query` block the template had.
 
 **Edits keep the member's own blocks** (2026-11-07, M3-06). `BlockValidator::validate( $markup, $original )`: when the markup is an edit of existing content, a block that comes back exactly as it was in the original (same serialization, inner blocks included) is accepted as it is, whatever it is: an image, a Spectra block, a color set by hand. Every block the model wrote or changed is checked in full. A changed container that is not on the list (a Spectra container whose inner block changed, say) is refused; editing the inner block on its own works.
 

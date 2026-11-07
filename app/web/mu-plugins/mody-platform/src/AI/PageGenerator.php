@@ -99,10 +99,12 @@ final class PageGenerator {
 	 * @param string $markup      The markup as it is in the editor (may be empty).
 	 * @param string $instruction What the owner asked for.
 	 * @param bool   $fragment    True for one selected block, false for the whole content.
+	 * @param bool   $template    True for a template or template part (M3-07): the theme
+	 *                            blocks are allowed, and post-content must stay.
 	 * @return string|WP_Error The validated new markup, or `mody_empty_prompt`,
 	 *                         `mody_no_brand_profile`, an AI Client error, `mody_edit_failed`.
 	 */
-	public static function edit_markup( int $site_id, string $markup, string $instruction, bool $fragment ): string|WP_Error {
+	public static function edit_markup( int $site_id, string $markup, string $instruction, bool $fragment, bool $template = false ): string|WP_Error {
 		$instruction = trim( mb_substr( sanitize_textarea_field( $instruction ), 0, self::MAX_PROMPT_LENGTH ) );
 		if ( '' === $instruction ) {
 			return new WP_Error( 'mody_empty_prompt', __( 'Say what to change.', 'mody_cloud' ) );
@@ -118,7 +120,7 @@ final class PageGenerator {
 		// Room for the whole content again, plus what the instruction adds.
 		$tokens = min( self::MAX_EDIT_TOKENS, max( self::MAX_TOKENS, (int) ceil( strlen( $markup ) / 3 ) + 1500 ) );
 
-		$result = self::ask( $site_id, SystemPrompt::for_edit( $profile, $fragment ), $prompt, $markup, $tokens, 'edit_markup' );
+		$result = self::ask( $site_id, SystemPrompt::for_edit( $profile, $fragment, $template ), $prompt, $markup, $tokens, 'edit_markup', $template );
 		if ( is_wp_error( $result ) && 'mody_invalid_answers' === $result->get_error_code() ) {
 			return new WP_Error(
 				'mody_edit_failed',
@@ -140,10 +142,11 @@ final class PageGenerator {
 	 * @param string $original   For an edit: the markup before it (see BlockValidator).
 	 * @param int    $max_tokens Answer size.
 	 * @param string $label      Name in the log.
+	 * @param bool   $template   Validate as a template or template part.
 	 * @return string|WP_Error Valid markup, an AI Client error, or `mody_invalid_answers`
 	 *                         after MAX_ATTEMPTS invalid answers.
 	 */
-	private static function ask( int $site_id, string $system, string $prompt, string $original, int $max_tokens, string $label ): string|WP_Error {
+	private static function ask( int $site_id, string $system, string $prompt, string $original, int $max_tokens, string $label, bool $template = false ): string|WP_Error {
 		$feedback = '';
 		$problem  = '';
 		$timeout  = $max_tokens > self::MAX_TOKENS ? self::EDIT_TIMEOUT : self::TIMEOUT;
@@ -164,7 +167,7 @@ final class PageGenerator {
 			}
 
 			$markup = self::repair( trim( $output ), $site_id, $attempt );
-			$valid  = BlockValidator::validate( $markup, $original );
+			$valid  = BlockValidator::validate( $markup, $original, $template );
 			if ( true === $valid ) {
 				return $markup;
 			}

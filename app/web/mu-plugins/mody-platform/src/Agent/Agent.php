@@ -372,7 +372,8 @@ final class Agent {
 
 		++$this->executed;
 		$fragment = 'selection' === $scope;
-		$markup   = PageGenerator::edit_markup( get_current_blog_id(), $fragment ? $selected['markup'] : (string) $this->context['content'], $instruction, $fragment );
+		$template = in_array( $this->context['post_type'], EditorContext::TEMPLATE_TYPES, true );
+		$markup   = PageGenerator::edit_markup( get_current_blog_id(), $fragment ? $selected['markup'] : (string) $this->context['content'], $instruction, $fragment, $template );
 		if ( is_wp_error( $markup ) ) {
 			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, $markup->get_error_code() . ': ' . $markup->get_error_message(), $started );
 			return array(
@@ -383,12 +384,12 @@ final class Agent {
 
 		$this->edited          = true;
 		$this->turn['edits'][] = array(
-			'post_id'   => (int) $this->context['post_id'],
+			'post_id'   => $this->context['post_id'], // A number, or a template's ID (theme//header).
 			'client_id' => $fragment ? $selected['client_id'] : null,
 			'markup'    => $markup,
 		);
 		$response = array(
-			'changed' => $fragment ? 'the selected block' : 'the whole ' . $this->context['post_type'],
+			'changed' => $fragment ? 'the selected block' : 'the whole ' . str_replace( array( 'wp_template_part', 'wp_template' ), array( 'template part', 'template' ), $this->context['post_type'] ),
 			'shown'   => 'The change is shown in the editor now. The owner can undo it, and it is saved only when they save.',
 		);
 		AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, (string) wp_json_encode( $response + array( 'bytes' => strlen( $markup ) ) ), $started );

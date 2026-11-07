@@ -186,7 +186,7 @@ $check( 'a new block outside the list is refused', is_wp_error( BlockValidator::
 echo "\nEditorContext\n";
 $valid = $context( $selected );
 $check( 'a page with a selected paragraph', is_array( $valid ) && 'core/paragraph' === $valid['selected']['name'] && 'Mody edit test page' === $valid['title'] && SystemPrompt::EXAMPLE === $valid['content'], is_array( $valid ) ? $valid['title'] : $message( $valid ) );
-$check( 'nothing sent, or a template: no context', null === EditorContext::from_input( null ) && null === EditorContext::from_input( array() ) && null === EditorContext::from_input( array( 'post_type' => 'wp_template', 'post_id' => 1 ) ) );
+$check( 'nothing sent, or a type the agent does not edit: no context', null === EditorContext::from_input( null ) && null === EditorContext::from_input( array() ) && null === EditorContext::from_input( array( 'post_type' => 'attachment', 'post_id' => 1 ) ) );
 $bad = array(
 	'unknown post'      => array( 'post_type' => 'page', 'post_id' => 999999999 ),
 	'type mismatch'     => array( 'post_type' => 'post', 'post_id' => $page_id ),

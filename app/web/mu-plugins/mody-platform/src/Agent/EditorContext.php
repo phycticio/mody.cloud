@@ -22,8 +22,11 @@ defined( 'ABSPATH' ) || exit;
  */
 final class EditorContext {
 
-	/** Post types the agent may edit from the editor. Templates and parts: M3-07. */
-	public const TYPES = array( 'page', 'post' );
+	/** Post types the agent may edit from the editor (templates and parts since M3-07). */
+	public const TYPES = array( 'page', 'post', 'wp_template', 'wp_template_part' );
+
+	/** Template types: their ID is a string, `theme//slug`. */
+	public const TEMPLATE_TYPES = array( 'wp_template', 'wp_template_part' );
 
 	/** Longest markup accepted, in bytes (a generated page is about 5 KB). */
 	public const MAX_MARKUP = 20000;
@@ -35,9 +38,10 @@ final class EditorContext {
 	 * Checks the context of a chat request.
 	 *
 	 * @param mixed $raw The `context` parameter.
-	 * @return array{post_type: string, post_id: int, title: string, selected: array{client_id: string, name: string, markup: string}|null, content: string}|null|WP_Error
-	 *         Null when there is nothing the agent may edit (no context, a
-	 *         template); a WP_Error (with an HTTP status) for a bad one.
+	 * @return array{post_type: string, post_id: int|string, title: string, area: string, selected: array{client_id: string, name: string, markup: string}|null, content: string}|null|WP_Error
+	 *         Null when there is nothing the agent may edit (no context, another
+	 *         type); a WP_Error (with an HTTP status) for a bad one. A template's
+	 *         post_id is its ID (`theme//header`), and `area` a part's area.
 	 */
 	public static function from_input( $raw ): array|null|WP_Error {
 		if ( ! is_array( $raw ) || ! $raw ) {
@@ -48,13 +52,29 @@ final class EditorContext {
 			return null;
 		}
 
-		$post_id = absint( $raw['post_id'] ?? 0 );
-		$post    = $post_id ? get_post( $post_id ) : null;
-		if ( ! $post || $post->post_type !== $type ) {
-			return new WP_Error( 'mody_bad_context', __( 'The page open in the editor was not found.', 'mody_cloud' ), array( 'status' => 400 ) );
-		}
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return new WP_Error( 'mody_bad_context', __( 'You may not edit the page open in the editor.', 'mody_cloud' ), array( 'status' => 403 ) );
+		$area = '';
+		if ( in_array( $type, self::TEMPLATE_TYPES, true ) ) {
+			// Templates and parts: `theme//slug`, edited with the site's design (M3-07).
+			$post_id  = is_string( $raw['post_id'] ?? null ) ? $raw['post_id'] : '';
+			$template = preg_match( '#^[a-z0-9_-]+//[a-z0-9_-]+$#', $post_id ) ? get_block_template( $post_id, $type ) : null;
+			if ( ! $template ) {
+				return new WP_Error( 'mody_bad_context', __( 'The template open in the editor was not found.', 'mody_cloud' ), array( 'status' => 400 ) );
+			}
+			if ( ! current_user_can( 'edit_theme_options' ) ) {
+				return new WP_Error( 'mody_bad_context', __( 'You may not edit the site\'s templates.', 'mody_cloud' ), array( 'status' => 403 ) );
+			}
+			$title = (string) $template->title;
+			$area  = 'wp_template_part' === $type ? sanitize_key( (string) $template->area ) : '';
+		} else {
+			$post_id = absint( $raw['post_id'] ?? 0 );
+			$post    = $post_id ? get_post( $post_id ) : null;
+			if ( ! $post || $post->post_type !== $type ) {
+				return new WP_Error( 'mody_bad_context', __( 'The page open in the editor was not found.', 'mody_cloud' ), array( 'status' => 400 ) );
+			}
+			if ( ! current_user_can( 'edit_post', $post_id ) ) {
+				return new WP_Error( 'mody_bad_context', __( 'You may not edit the page open in the editor.', 'mody_cloud' ), array( 'status' => 403 ) );
+			}
+			$title = $post->post_title;
 		}
 
 		$content = is_string( $raw['content'] ?? null ) ? $raw['content'] : '';
@@ -80,7 +100,8 @@ final class EditorContext {
 		return array(
 			'post_type' => $type,
 			'post_id'   => $post_id,
-			'title'     => mb_substr( sanitize_text_field( $post->post_title ), 0, 120 ),
+			'title'     => mb_substr( sanitize_text_field( $title ), 0, 120 ),
+			'area'      => $area,
 			'selected'  => $selected,
 			'content'   => $content,
 		);
