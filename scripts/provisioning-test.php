@@ -307,6 +307,7 @@ $admin_base = admin_url();
 $check( 'job recorded on the site', $job_id === (int) get_option( 'mody_provisioning_job' ) );
 $check( 'sample post and page removed', ! get_page_by_path( 'hello-world', OBJECT, 'post' ) && ! get_page_by_path( 'sample-page', OBJECT, 'page' ) );
 $check( 'Global Styles: the Forest preset', array_intersect_key( SiteDesign::colors(), Presets::colors( 'forest' ) ) == Presets::colors( 'forest' ), wp_json_encode( SiteDesign::colors() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+$check( '...the whole style, active as in the Site Editor (M2-06)', 'forest' === SiteDesign::active_preset() );
 $page_id = (int) ( $job['result']['page_id'] ?? 0 );
 $page    = get_post( $page_id );
 $check( 'front page published', $page && 'publish' === $page->post_status && 'page' === get_option( 'show_on_front' ) && $page_id === (int) get_option( 'page_on_front' ) );

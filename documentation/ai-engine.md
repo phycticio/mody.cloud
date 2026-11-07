@@ -140,7 +140,7 @@ How a message runs:
 
 ### Changing the colors
 
-Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "use the Forest preset":
+Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "use the Forest preset". Since 2026-11-07 (M2-06) a **preset** is one of the theme's style variations (`themes/theme/styles/*.json`), and `SiteDesign::apply_preset()` writes it whole: palette, typography, spacing and element styles. That is what the Site Editor does when a style is chosen in Styles → Browse styles, so it shows as the active style (`SiteDesign::active_preset()`), and earlier changes to the styles are replaced (they stay in the revisions). Single colors still patch the palette, as below:
 
 1. The agent first asks, with `ask_user`, whether the new colors are part of the brand: "Yes, they are part of my brand" / "No, only this site's design" (prompt rule 7, decided by the maintainer on 2026-11-06). It skips the question when the member already said so.
 2. With the answer, it calls `mody/update-design` with `brand` true or false. The model converts color names to hex (coral → `#ff7f50`); the server accepts only six-digit hex, or a preset slug. A preset and single colors together, or neither, are refused.

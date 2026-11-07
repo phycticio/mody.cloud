@@ -25,6 +25,7 @@
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\Design\Presets;
+use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Wizard\WizardController;
@@ -171,25 +172,29 @@ $check( 'the quota', (bool) preg_match( '/\d+ of 50 sites used/', $html ) );
 WizardPage::enqueue();
 $settings = (string) implode( '', (array) wp_scripts()->get_data( 'mody-wizard', 'before' ) );
 $check( 'script settings', str_contains( $settings, 'window.modyWizard' ) && str_contains( $settings, wp_json_encode( rest_url( 'mody-platform/v1/sites' ) ) ) && str_contains( $settings, '"pending":null' ) );
-$check( '...the preview\'s address and the presets\' colors', str_contains( $settings, wp_json_encode( WizardPreview::url() ) ) && str_contains( $settings, '"plum":{"primary":"#5b2a86"' ) );
+$check( '...the preview\'s address', str_contains( $settings, wp_json_encode( WizardPreview::url() ) ) );
 $check( 'step 2 has the preview', str_contains( $html, 'id="mody-wizard-preview"' ) );
 
 // Step 2's live preview (M2-04) ---------------------------------------------------------
 
 echo "\nLive preview\n";
 $preview = WizardPreview::html( 'Ogia <script>x</script> Bakery', 'We bake & deliver.', 'plum' );
-preg_match( '/<style id="mody-preview-colors">([^<]+)/', $preview, $css );
+// The preset is the theme's style (M2-06): its colors come from WordPress's own global styles.
+$color_of = static fn( string $html, string $slug ): string => preg_match( '/--wp--preset--color--' . $slug . ':\s*(#[0-9a-f]{6})/i', $html, $m ) ? strtolower( $m[1] ) : '';
 preg_match_all( '/wp-block-navigation-item__label">([^<]+)/', $preview, $nav );
 preg_match_all( '#\s(?:src|href)=["\'](https?:)?//([^/"\']+)#', $preview, $hosts );
 $foreign = array_unique( array_filter( $hosts[2], static fn( $host ) => $host !== get_network()->domain && ! str_ends_with( $host, '.' . get_network()->domain ) ) );
 $check( 'the theme\'s header with the brand name', str_contains( $preview, 'wp-block-site-title' ) && str_contains( $preview, 'Ogia &lt;script&gt;x&lt;/script&gt; Bakery' ) && ! str_contains( $preview, '<script>x</script>' ) );
 $check( '...a hero with the sentence', str_contains( $preview, '<h1 class="wp-block-heading">Ogia' ) && str_contains( $preview, 'We bake &amp; deliver.' ) );
-$check( '...the preset\'s colors', isset( $css[1] ) && str_contains( $css[1], '--wp--preset--color--primary:#5b2a86' ) && str_contains( $css[1], '--wp--preset--color--accent:#d94f8f' ), $css[1] ?? 'no colors' );
+$check( '...the preset\'s style (Plum)', Presets::colors( 'plum' )['primary'] === $color_of( $preview, 'primary' ) && Presets::colors( 'plum' )['accent'] === $color_of( $preview, 'accent' ), $color_of( $preview, 'primary' ) . ' ' . $color_of( $preview, 'accent' ) );
 $check( '...three fixed links, not the main site\'s pages', array( 'Home', 'About', 'Contact' ) === $nav[1], implode( ', ', $nav[1] ) );
 $check( '...nothing from outside the network', ! $foreign, implode( ', ', $foreign ) );
 $check( '...no admin bar, the main site\'s title untouched', ! str_contains( $preview, 'id="wpadminbar"' ) && 'Ogia' !== substr( get_option( 'blogname' ), 0, 4 ) );
-$fallback_css = (string) ( preg_match( '/<style id="mody-preview-colors">([^<]+)/', WizardPreview::html( '', '', 'no-such-preset' ), $m ) ? $m[1] : '' );
-$check( 'unknown preset: the default colors', str_contains( $fallback_css, '--wp--preset--color--primary:' . Presets::colors( Presets::DEFAULT )['primary'] ) );
+// WordPress prints its global styles once per request; a real preview is one request.
+$GLOBALS['wp_styles'] = null;
+$site_colors          = SiteDesign::colors();
+$check( 'unknown preset: the default style', Presets::colors( Presets::DEFAULT )['primary'] === $color_of( WizardPreview::html( '', '', 'no-such-preset' ), 'primary' ) );
+$check( '...and the main site\'s own styles are back after a preview', $site_colors === SiteDesign::colors(), wp_json_encode( SiteDesign::colors() ) );
 
 // 2. The REST endpoint -----------------------------------------------------------------
 
@@ -381,7 +386,7 @@ $preview_url = add_query_arg(
 	WizardPreview::url()
 );
 $shown = $http( 'GET', $preview_url );
-$check( 'the preview, same origin as the wizard', 200 === $shown['code'] && str_contains( $shown['body'], '--wp--preset--color--primary:#2f5d3a' ) && str_contains( $shown['body'], 'Ogia Bakery' ) && wp_parse_url( $preview_url, PHP_URL_HOST ) === wp_parse_url( network_admin_url(), PHP_URL_HOST ), (string) $shown['code'] );
+$check( 'the preview, same origin as the wizard', 200 === $shown['code'] && '#2f5d3a' === $color_of( $shown['body'], 'primary' ) && str_contains( $shown['body'], 'Ogia Bakery' ) && wp_parse_url( $preview_url, PHP_URL_HOST ) === wp_parse_url( network_admin_url(), PHP_URL_HOST ), (string) $shown['code'] );
 $anon = wp_remote_get( $preview_url, array( 'sslverify' => false ) );
 $check( '...refused when logged out', 403 === (int) wp_remote_retrieve_response_code( $anon ), (string) wp_remote_retrieve_response_code( $anon ) );
 

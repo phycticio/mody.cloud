@@ -25,6 +25,17 @@ Tags: full-site-editing, block-patterns, wide-blocks, custom-colors, accessibili
 	outline-offset: 2px;
 }
 
+/*
+ * Headings take the text color of a block that sets one, such as a hero group
+ * with light text on the primary color. theme.json colors headings with
+ * `secondary`, which would otherwise win over the group's color (found
+ * 2026-11-07: dark headings on the primary background). A heading with a color
+ * of its own keeps it: WordPress's has-*-color classes use !important.
+ */
+.has-text-color :is(h1, h2, h3, h4, h5, h6) {
+	color: inherit;
+}
+
 /* Respect the system preference for reduced motion. */
 @media (prefers-reduced-motion: reduce) {
 	*,

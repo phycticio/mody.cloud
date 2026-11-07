@@ -118,8 +118,59 @@ final class SiteDesign {
 		}
 
 		$config['settings']['color']['palette']['theme'] = array_values( $palette );
-		$config['isGlobalStylesUserThemeJSON']           = true;
-		$config['version']                               = $config['version'] ?? WP_Theme_JSON::LATEST_SCHEMA;
+		return self::save_config( $post, $config, $colors );
+	}
+
+	/**
+	 * Applies a Mody preset, one of the theme's style variations (M2-06), to
+	 * the current site: its Global Styles become the variation's settings and
+	 * styles, as when the style is chosen in the Site Editor's Styles. The
+	 * member's earlier changes to the styles are replaced, as there; they stay
+	 * in the revisions. The default preset empties them: the theme's own style.
+	 *
+	 * @param string $slug Preset slug (Presets::slugs()).
+	 * @return true|WP_Error
+	 */
+	public static function apply_preset( string $slug ): bool|WP_Error {
+		$variation = Presets::variation( $slug );
+		if ( null === $variation ) {
+			/* translators: %s: the preset names. */
+			return new WP_Error( 'mody_unknown_preset', sprintf( __( 'There is no such preset. The presets are: %s.', 'mody_cloud' ), Presets::names() ) );
+		}
+
+		wp_clean_theme_json_cache();
+		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+		$post    = $post_id ? get_post( $post_id ) : null;
+		if ( ! $post ) {
+			return new WP_Error( 'mody_global_styles_missing', __( 'The site\'s styles could not be loaded.', 'mody_cloud' ) );
+		}
+
+		return self::save_config( $post, array_filter( $variation ), (array) Presets::colors( $slug ) );
+	}
+
+	/**
+	 * The preset the current site's Global Styles hold unchanged, or null
+	 * once the member has changed them (Presets::active()).
+	 */
+	public static function active_preset(): ?string {
+		wp_clean_theme_json_cache();
+		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+		$post    = $post_id ? get_post( $post_id ) : null;
+		$config  = $post ? json_decode( $post->post_content, true ) : null;
+		return Presets::active( is_array( $config ) ? $config : array() );
+	}
+
+	/**
+	 * Saves a site's Global Styles, then checks that the site shows the colors.
+	 *
+	 * @param \WP_Post             $post   The site's Global Styles post.
+	 * @param array<string, mixed> $config The configuration (settings, styles).
+	 * @param array<string, string> $colors The brand colors the site must show.
+	 * @return true|WP_Error
+	 */
+	private static function save_config( \WP_Post $post, array $config, array $colors ): bool|WP_Error {
+		$config['isGlobalStylesUserThemeJSON'] = true;
+		$config['version']                     = $config['version'] ?? WP_Theme_JSON::LATEST_SCHEMA;
 
 		// Encoded like core's REST controller; kses re-encodes it for users without unfiltered_html.
 		// The after-insert hooks save the revision (wp_save_post_revision_on_insert).
@@ -183,7 +234,7 @@ final class SiteDesign {
 
 		wp_clean_theme_json_cache(); // This site's palette, even after switch_to_blog().
 		$before  = self::colors();
-		$applied = self::apply( $colors );
+		$applied = '' !== $preset ? self::apply_preset( $preset ) : self::apply( $colors );
 		if ( is_wp_error( $applied ) ) {
 			return $applied;
 		}

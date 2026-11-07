@@ -118,16 +118,16 @@ Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizar
 - Fonts are **Inter, fixed, for the MVP** (the picker appears in a later iteration).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
 
-The presets (data-driven in the MU plugin; kept as they are for M2, decided 2026-11-06). Since 2026-11-06 (M3-02) they live in `src/Design/Presets.php`, the single source for the wizard and the agent's `mody/update-design`, with the slugs `mody-teal`, `forest`, `ocean`, `plum`, `graphite` and `sand`:
+The presets (kept as they are for M2, decided 2026-11-06). Since 2026-11-07 (M2-06) they are the theme's style variations: `theme.json` is Mody Teal, and `themes/theme/styles/forest.json`, `graphite.json`, `ocean.json`, `plum.json` and `sand.json` the others. `src/Design/Presets.php` reads them and is the single source for the wizard, provisioning and the agent's `mody/update-design`. The Site Editor lists them under Styles → Browse styles. On 2026-11-07 four colors were darkened, keeping their hue, so every pair passes WCAG AA (theme-development.md, "Contrast of the presets"): Forest, Ocean and Plum's accents, and Sand's primary.
 
 | Preset | Primary | Secondary | Accent |
 | --- | --- | --- | --- |
 | Mody Teal (default) | `#005f6b` | `#333333` | `#b50ba4` |
-| Forest | `#2f5d3a` | `#333333` | `#c77d2e` |
-| Ocean | `#0b4f6c` | `#22333b` | `#4ea8de` |
-| Plum | `#5b2a86` | `#333333` | `#d94f8f` |
+| Forest | `#2f5d3a` | `#333333` | `#9c6224` |
+| Ocean | `#0b4f6c` | `#22333b` | `#2075a9` |
+| Plum | `#5b2a86` | `#333333` | `#c92c75` |
 | Graphite | `#374151` | `#1f2937` | `#005f6b` |
-| Sand | `#9a6b32` | `#333333` | `#0b4f6c` |
+| Sand | `#926630` | `#333333` | `#0b4f6c` |
 
 ### Step 3 — Your first page
 

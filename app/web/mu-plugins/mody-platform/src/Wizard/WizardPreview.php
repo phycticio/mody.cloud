@@ -8,7 +8,6 @@
 namespace Mody\Platform\Wizard;
 
 use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Provisioning\Pipeline;
 
 defined( 'ABSPATH' ) || exit;
@@ -17,17 +16,18 @@ defined( 'ABSPATH' ) || exit;
  * A page on the main site, shown in an iframe in step 2 of the wizard
  * (mvp-spec section 6, ticket M2-04): the theme's header part and a hero
  * with the brand name, the "what do you do?" sentence and a button, in the
- * chosen preset's colors.
+ * chosen preset's style.
  *
  * The URL is `/?mody_wizard_preview=1&brand=…&mission=…&preset=…` on the
- * main site, so it has the wizard's origin: the wizard changes the colors in
- * the iframe directly when another preset is chosen, without a reload.
- * Nothing is saved. Only users who may use the wizard see it.
+ * main site. The preset is one of the theme's style variations (M2-06): for
+ * the preview, it replaces the main site's own Global Styles, so the page
+ * shows what the new site will hold (palette, typography, spacing, element
+ * styles). The wizard reloads it when another preset is chosen, and adds the
+ * logo itself (same origin, M2-05). Nothing is saved. Only users who may use
+ * the wizard see it.
  *
  * What differs from the new site: the navigation shows three fixed links
- * (the main site's pages would be wrong), and the logo is added by the
- * wizard's script (M2-05). The main site's own Global Styles, apart from
- * the three brand colors, also apply; it uses the theme's defaults today.
+ * (the main site's pages would be wrong).
  */
 final class WizardPreview {
 
@@ -74,7 +74,7 @@ final class WizardPreview {
 	public static function html( string $brand, string $mission, string $preset ): string {
 		$brand   = mb_substr( '' !== $brand ? $brand : __( 'Your brand', 'mody_cloud' ), 0, Pipeline::MAX_NAME_LENGTH );
 		$mission = mb_substr( '' !== $mission ? $mission : __( 'What you do, in one sentence.', 'mody_cloud' ), 0, Pipeline::MAX_MISSION_LENGTH );
-		$colors  = Presets::colors( $preset ) ?? Presets::colors( Presets::DEFAULT );
+		$style   = Presets::variation( $preset ) ?? Presets::variation( Presets::DEFAULT );
 
 		$text    = static fn(): string => $brand;
 		$tagline = static fn(): string => $mission;
@@ -86,15 +86,22 @@ final class WizardPreview {
 		add_filter( 'pre_render_block', $nav, 10, 2 );
 		add_filter( 'show_admin_bar', '__return_false' );
 
+		// The chosen style in place of the main site's own Global Styles: what the new site will hold (M2-06).
+		$styles = static fn(): \WP_Theme_JSON_Data => new \WP_Theme_JSON_Data(
+			array(
+				'version'                     => \WP_Theme_JSON::LATEST_SCHEMA,
+				'isGlobalStylesUserThemeJSON' => true,
+			) + array_filter( $style ),
+			'custom'
+		);
+		add_filter( 'wp_theme_json_data_user', $styles );
+		wp_clean_theme_json_cache();
+
 		// Rendered before wp_head(), as block templates are, so their styles are enqueued.
 		$blocks = do_blocks( '<!-- wp:template-part {"slug":"header","theme":"' . Pipeline::THEME . '","area":"header","tagName":"header"} /-->' )
 			. do_blocks( self::hero( $brand, $mission ) );
 
-		$css = ':root{';
-		foreach ( SiteDesign::SLUGS as $slug ) {
-			$css .= SiteDesign::is_hex( $colors[ $slug ] ?? '' ) ? '--wp--preset--color--' . $slug . ':' . $colors[ $slug ] . ';' : '';
-		}
-		$css .= '}html,body{overflow:hidden}';
+		$css = 'html,body{overflow:hidden}';
 
 		ob_start();
 		?>
@@ -104,7 +111,7 @@ final class WizardPreview {
 <meta charset="<?php bloginfo( 'charset' ); ?>">
 <meta name="robots" content="noindex, nofollow">
 <?php wp_head(); ?>
-<style id="mody-preview-colors"><?php echo esc_html( $css ); ?></style>
+<style id="mody-preview"><?php echo esc_html( $css ); ?></style>
 </head>
 <body <?php body_class( 'mody-wizard-preview' ); ?>>
 <div class="wp-site-blocks"><?php echo $blocks; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Rendered blocks. ?></div>
@@ -119,6 +126,8 @@ final class WizardPreview {
 		remove_filter( 'pre_option_site_logo', $none );
 		remove_filter( 'pre_render_block', $nav, 10 );
 		remove_filter( 'show_admin_bar', '__return_false' );
+		remove_filter( 'wp_theme_json_data_user', $styles );
+		wp_clean_theme_json_cache();
 		return $html;
 	}
 

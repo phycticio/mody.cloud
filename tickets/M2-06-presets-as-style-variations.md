@@ -1,6 +1,6 @@
 # M2-06 · The design presets as the theme's style variations
 
-**Milestone:** M2 (follow-up) · **Spec:** documentation/mvp-spec.md §6, §14 · **Status:** todo (decided 2026-11-07; next, before M4-03)
+**Milestone:** M2 (follow-up) · **Spec:** documentation/mvp-spec.md §6, §14 · **Status:** done (2026-11-07; the Site Editor walk-through is the maintainer's)
 
 Asked for by the maintainer on 2026-11-07.
 
@@ -25,3 +25,20 @@ The six presets of the wizard's step 2 (Mody Teal, Forest, Ocean, Plum, Graphite
 - **Typography:** the six styles keep Inter. Members choose their sites' fonts from a repository of free fonts served by the network: [M2-07](M2-07-font-repository.md).
 - **Mody Teal** stays the theme's default (`theme.json`, "Default" in the Site Editor), with no file of its own.
 - **Order:** M2-06, then M4-03.
+
+## Results (2026-11-07, local)
+- **Built:**
+  - `themes/theme/styles/forest.json`, `graphite.json`, `ocean.json`, `plum.json`, `sand.json`, generated from the preset colors. They also declare theme.json's Inter, font sizes, spacing scale and root and element styles, so each can be tuned on its own.
+  - `Design\Presets` reads them through `WP_Theme_JSON_Resolver::get_style_variations()`, with the slug from the title. Its order is the Site Editor's: Mody Teal, then alphabetical.
+  - `SiteDesign::apply_preset()` and `active_preset()`; provisioning's `styles` step and `mody/update-design` with a preset apply the whole style.
+  - The wizard preview renders the chosen style in full (`wp_theme_json_data_user` replaced for the preview) and reloads when the preset changes.
+  - The heading rule in `style.css`.
+- `scripts/style-variations-test.php`:
+  - the files are valid, with five colors and a title, and WordPress lists them;
+  - `Presets` reads them;
+  - on `alpha`: Forest applied; **the Site Editor's REST routes see the site's Global Styles equal to the Forest variation**; a revision is saved; a color changed afterwards leaves no active style; the default empties the Global Styles;
+  - the heading rule is in `style.css`.
+- Provisioning and the agent tests check that the whole style is active. All suites pass, and a real provisioning run passes.
+- **Contrast fixed (approved 2026-11-07).** Four presets failed WCAG AA in one pair each. Forest, Ocean and Plum's accents and Sand's primary were darkened to same-hue shades that pass (`#9c6224`, `#2075a9`, `#c92c75`, `#926630`). Every pair now passes (theme-development.md, "Contrast of the presets").
+- **Not checked by the tests:** the Site Editor's Styles panel in a browser (Browse styles, editing a style per site).
+

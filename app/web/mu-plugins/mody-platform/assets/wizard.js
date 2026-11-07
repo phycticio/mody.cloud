@@ -65,14 +65,15 @@
 
 	const presetValue = () => form.querySelector( '[name=preset]:checked' )?.value || '';
 
-	// Loads the preview page; again only when the brand or the sentence changed.
+	// Loads the preview page with the chosen preset, one of the theme's styles (M2-06);
+	// again only when the brand, the sentence or the preset changed.
 	function loadPreview() {
 		if ( ! preview || ! config.preview ) {
 			return;
 		}
 		const brandName = field( 'brand_name' ).value.trim() || field( 'title' ).value.trim();
 		const mission = field( 'mission' ).value.trim();
-		const key = brandName + '\n' + mission;
+		const key = brandName + '\n' + mission + '\n' + presetValue();
 		if ( key === previewKey ) {
 			paint();
 			return;
@@ -85,24 +86,18 @@
 		preview.src = url.toString();
 	}
 
-	// Sets the chosen preset's colors in the preview, without reloading it.
+	// Adds the chosen logo to the loaded preview, before the site title, as the
+	// Site Logo block shows it (48 px wide). The style itself comes from the server.
 	function paint() {
-		const colors = config.presets && config.presets[ presetValue() ];
-		let root = null;
+		let doc = null;
 		try {
-			root = preview.contentDocument && preview.contentDocument.documentElement;
+			doc = preview.contentDocument;
 		} catch ( e ) {
-			root = null; // Another origin: the colors in the URL stay.
+			doc = null; // Another origin: no logo in the preview.
 		}
-		if ( ! colors || ! root ) {
+		if ( ! doc || ! doc.body ) {
 			return;
 		}
-		Object.keys( colors ).forEach( ( slug ) => {
-			root.style.setProperty( '--wp--preset--color--' + slug, colors[ slug ] );
-		} );
-
-		// The logo before the site title, as the Site Logo block shows it (48 px wide).
-		const doc = preview.contentDocument;
 		const shown = doc.getElementById( 'mody-preview-logo' );
 		if ( shown ) {
 			shown.remove();
@@ -144,7 +139,7 @@
 
 	if ( preview ) {
 		preview.addEventListener( 'load', paint );
-		form.querySelectorAll( '[name=preset]' ).forEach( ( radio ) => radio.addEventListener( 'change', paint ) );
+		form.querySelectorAll( '[name=preset]' ).forEach( ( radio ) => radio.addEventListener( 'change', loadPreview ) );
 	}
 
 	function go( number ) {

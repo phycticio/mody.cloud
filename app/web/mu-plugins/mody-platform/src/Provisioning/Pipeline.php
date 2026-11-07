@@ -564,18 +564,19 @@ final class Pipeline {
 	}
 
 	/**
-	 * Step 5: the preset's colors in the site's Global Styles.
+	 * Step 5: the preset in the site's Global Styles: the theme's style
+	 * variation in full (palette, typography, spacing, element styles), as the
+	 * Site Editor applies it (M2-06). Skipped when the site already holds it.
 	 *
 	 * @param array<string, mixed> $job The job.
 	 * @return array<string, mixed>|WP_Error
 	 */
 	private static function step_styles( array $job ): array|WP_Error {
-		$colors = (array) Presets::colors( $job['input']['preset'] );
-		wp_clean_theme_json_cache();
-		if ( array_intersect_key( SiteDesign::colors(), $colors ) == $colors ) { // phpcs:ignore Universal.Operators.StrictComparisons -- Key order differs.
+		$preset = (string) $job['input']['preset'];
+		if ( SiteDesign::active_preset() === $preset ) {
 			return array();
 		}
-		$applied = SiteDesign::apply( $colors );
+		$applied = SiteDesign::apply_preset( $preset );
 		return is_wp_error( $applied ) ? $applied : array();
 	}
 

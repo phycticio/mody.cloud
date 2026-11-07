@@ -87,7 +87,6 @@ final class WizardPage {
 					'preview'  => WizardPreview::url(),
 					'logoMax'  => WizardController::MAX_LOGO_BYTES,
 					'logoMime' => array_values( Pipeline::LOGO_MIMES ),
-					'presets'  => array_map( static fn( string $slug ): ?array => Presets::colors( $slug ), array_combine( Presets::slugs(), Presets::slugs() ) ),
 					'steps'    => array(
 						'quota'   => __( 'Checking your plan', 'mody_cloud' ),
 						'site'    => __( 'Creating your site', 'mody_cloud' ),

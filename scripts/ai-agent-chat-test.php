@@ -445,7 +445,8 @@ $restore_design();
 $start_colors = $palette();
 $start_brand  = $profile_now();
 
-$check( 'six presets, Mody Teal first', array( 'mody-teal', 'forest', 'ocean', 'plum', 'graphite', 'sand' ) === Presets::slugs() && Presets::DEFAULT === Presets::slugs()[0], Presets::names() );
+// The theme's styles (M2-06): the default, then styles/*.json in the order WordPress lists them.
+$check( 'six presets, Mody Teal first', array( 'mody-teal', 'forest', 'graphite', 'ocean', 'plum', 'sand' ) === Presets::slugs() && Presets::DEFAULT === Presets::slugs()[0], Presets::names() );
 $check( '...each three hex colors', 6 === count( array_filter( array_map( array( Presets::class, 'colors' ), Presets::slugs() ), static fn( $c ) => is_array( $c ) && 3 === count( array_filter( $c, array( SiteDesign::class, 'is_hex' ) ) ) ) ) );
 $default_hex = Presets::colors( Presets::DEFAULT );
 $table_hex   = (array) $wpdb->get_row( 'SELECT DEFAULT(color_primary) AS `primary`, DEFAULT(color_secondary) AS secondary, DEFAULT(color_accent) AS accent FROM ' . BrandProfile::table() . ' LIMIT 1', ARRAY_A ); // phpcs:ignore WordPress.DB
@@ -570,6 +571,7 @@ $now      = $palette();
 $forest   = Presets::colors( 'forest' );
 $check( 'forest, brand yes: palette', array_intersect_key( $now, $forest ) == $forest && $now['base'] === $start_colors['base'] && $now['contrast'] === $start_colors['contrast'], wp_json_encode( array_intersect_key( $now, $forest ) ) ); // phpcs:ignore Universal.Operators.StrictComparisons
 $check( '...brand profile changed too', $forest == $profile_now() && str_contains( (string) $rows[0]['result'], '"brand_profile_updated":true' ), wp_json_encode( $profile_now() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+$check( '...the whole style is active (M2-06)', 'forest' === SiteDesign::active_preset() );
 
 // "false" as a string is a valid boolean for the schema, and means false.
 $result = $design->execute(
