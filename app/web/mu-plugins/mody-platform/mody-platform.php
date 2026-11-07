@@ -49,6 +49,15 @@ add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_m
 add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\AgentSettings::class, 'save' ) );
 
 /*
+ * Member sites (every site but the main one, ticket M4-01): no plugin or
+ * theme changes for members, and pages, patterns and menus open in the Site
+ * Editor. Super admins are not affected.
+ */
+add_filter( 'map_meta_cap', array( Gating\MemberSite::class, 'map_meta_cap' ), 10, 3 );
+add_action( 'load-post.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
+add_action( 'load-post-new.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
+
+/*
  * Brand wizard (Network Admin → Mody → New site, ticket M2-03): its page and
  * its REST endpoint, which runs the provisioning pipeline after the response.
  */

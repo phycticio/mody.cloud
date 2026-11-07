@@ -1,29 +1,39 @@
 # M4-01 · Editor-first redirects + capability gating
 
-**Milestone:** M4 · **Spec:** documentation/mvp-spec.md §9, §10 · **Status:** todo
+**Milestone:** M4 · **Spec:** documentation/mvp-spec.md §9, §10 · **Status:** done (2026-11-07)
 
 ## Goal
 On member sites, every editing entry point lands in the Site Editor, and a member cannot install/upload plugins or themes or switch themes — while keeping full control of everything else.
 
-## Deliverables
-- **Editor redirects** (MU plugin, member sites only — never the main site; spec §9):
-  - `post.php?post=N&action=edit` (page **and** post) → the Site Editor for that item. Pages: `site-editor.php?p=%2Fpage%2FN&canvas=edit`. The `?postType=<type>&postId=N` form without `canvas=edit` lands on the list in WordPress 7.1. Confirm the form for posts.
-  - `post-new.php?post_type=page|post` → `site-editor.php?postType=<type>`.
-- **Capability gating** (capability filter scoped to the member's own sites; spec §10): remove `install_plugins`, `activate_plugins` (replaced by the market page), `switch_themes`, `install_themes`, `delete_themes`, `edit_themes`. `DISALLOW_FILE_EDIT` already network-wide.
-  - Add `mody_manage_market` capability for the market page (M4-02).
-- Keep intact: content, media, site users, settings, Spectra, Global Styles.
-- **`ai` plugin lock-down** (spec decision 13, "Option C", agreed 2026-11-06), on member sites:
-  - members cannot change the plugin's settings (Settings → AI) or its connector approvals;
-  - members get only the curated set of features (which ones is an open question in mvp-spec §8). Which features get the brand context is decided (M3-04, 2026-11-06: the eight writing features), but that is not the curated list;
-  - the plugin's feature toggles and connector approvals are options of each site (`wpai_connector_approvals`), so a new member site has every feature off and nothing approved. Set the curated features on and approve `ai/ai.php` for `infomaniak` on member sites (here or in M2's provisioning), and keep members from changing either;
-  - decide whether the features should refuse on a member site without a brand profile, as the agent does (left open in M3-04: today they work there with no brand context);
-  - the plugin's request log table (`wp_<id>_wpai_request_logs`) does not exist on sites created after the plugin was activated. Every AI request made in such a site's context logs a database error "Table … doesn't exist" (seen 2026-11-07 with provisioned sites). Create the plugin's tables for new sites (here or in M2's provisioning), or switch the logging off on member sites;
-  - MCP access (mcp-adapter) is locked. Spectra's own abilities and MCP server are already off on every site: `SpectraGuard` pins their options to `disabled` (mvp-spec §10, 2026-11-06).
-- `mody` abilities stay reachable for members through the agent. They keep their own permission callbacks.
-- **Agent menu** (moved here from M3-01 on 2026-11-06): the `Mody Agent` page (`src/Agent/ChatPage.php`) and its endpoint appear on every site today, for users with `edit_pages`. Limit them to member sites, and decide whether the main site keeps them for platform admins.
+## Decisions (maintainer, 2026-11-07)
+- **Split:** this ticket covers the redirects and the capability gating. The `ai` plugin lock-down moved to [M4-03](M4-03-ai-plugin-lockdown.md).
+- **Member sites:** every site of the network but the main one. The rules apply to everyone on them **except super admins**, who keep full rights to fix things.
+- **Posts keep the block editor.** WordPress 7.1's Site Editor has routes for pages (`/page/:id`), patterns (`/wp_block/:id`) and navigation menus (`/wp_navigation/:id`), but none for posts. So posts open in `post.php`, the block editor, until the Site Editor supports them.
+- **The agent menu:** instead of limiting the `Mody Agent` page, the maintainer wants the agent as a **chat bubble in the editor**. It should know the page, template or part being edited, and be able to change it. This is a new feature, to be scoped in its own tickets; the page stays as it is until then.
 
-## Acceptance criteria (spec §10)
-- A member-site admin cannot install, upload or switch themes/plugins by any UI or REST path.
-- A member cannot reach a classic block editor for any content type on their site; every editing entry point lands in the Site Editor.
-- Front end and Site Editor are unaffected; media upload still works.
-- On a member site, the member cannot change the `ai` plugin's settings or connector approvals, sees only the curated features, and cannot reach MCP.
+## Deliverables
+- [x] **`Gating\MemberSite`** (`src/Gating/MemberSite.php`), hooked in `mody-platform.php`.
+  - **Capabilities** (`map_meta_cap`): on member sites, users who are not super admins never get the plugin and theme capabilities. Install, upload, activate and deactivate (`activate_plugin` and `deactivate_plugin` included), resume, update, delete, edit; switch, install, upload, update, delete and edit themes. That covers every screen and REST route that checks them. `DISALLOW_FILE_EDIT` was already on network-wide.
+  - **Kept:** content, media, users of their own site, settings, Spectra, Global Styles (`edit_theme_options`).
+  - **`mody_manage_market`**, for the market page (M4-02): a member site's administrators (`manage_options`); nobody on the main site.
+  - **Redirects** (`load-post.php`, `load-post-new.php`, GET only, block theme only):
+    - `post.php?post=N&action=edit` for a page, pattern or navigation menu → the Site Editor with its canvas (`?p=/page/N&canvas=edit`, `/wp_block/N`, `/wp_navigation/N`);
+    - `post-new.php?post_type=page` → the Site Editor's pages (`?p=/page`, which has **Add page**). Patterns go to `/pattern`, menus to `/navigation`;
+    - posts, other post types and other actions (trash, save) stay.
+- [x] `scripts/gating-test.php`.
+- [x] Docs: mvp-spec §9, §10, §13; local-development.md (reaching a subsite from inside the container); AGENTS.md; roadmap.md.
+
+## Acceptance criteria (spec §9, §10)
+- [x] A member-site admin cannot install, upload or switch themes or plugins by any UI or REST path. The capabilities are refused, and the test checks the REST plugins routes (list, install, activate: 403), the plugins screen (403) and a theme switch (no effect).
+- [x] A member cannot reach the block editor for pages, patterns or menus; those entry points land in the Site Editor. **Posts** are the decided exception.
+- [x] Front end and Site Editor are unaffected; media upload still works (`upload_files` kept; every other suite passes).
+
+## Results (2026-11-07, local)
+- `scripts/gating-test.php`, with a test user as administrator of `alpha` (a member site) and of the main site:
+  - **On `alpha`:** the 17 plugin and theme capabilities are refused, 10 others kept, the market capability granted.
+  - **Elsewhere:** on the main site nothing changes; super admins keep everything.
+  - **REST:** the plugins routes refuse with 403.
+  - **Redirect targets:** 8 cases.
+  - **Over HTTP on `alpha`:** editing a page gets 302 to the Site Editor, as does adding a page. A post opens the post editor (200). The plugins screen refuses (403). A theme switch leaves the theme unchanged. A super admin is not redirected.
+- The other suites pass: agent (offline), Spectra, wizard, provisioning, `ai` plugin brand context, page generation.
+- **Testing subsites from the container:** a request to the main host with the subsite's `Host` header reaches the subsite (local-development.md).

@@ -204,10 +204,10 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 - **Brand context in the writing features** (built 2026-11-06, M3-04). The plugin's features build their own system instructions. Through the plugin's `wpai_system_instruction` filter, `PluginBrandContext` appends `SystemPrompt::for_ai_feature()` (one sentence saying the feature's own rules come first, then `brand_context()`). Decided by the maintainer on 2026-11-06:
   - **Which features:** the eight that write text in the site's voice: titles, excerpts, meta descriptions, content resizing, type-ahead, suggested replies, editorial updates and image prompts. Summaries (the plugin asks for neutral text), translation (it keeps the source's voice) and the analysis features (alt text, slugs, block labels, comment analysis, classification, editorial notes, revision summaries) are left as they are. These are exceptions to rule 4, agreed for output that brand tone would only bend.
-  - **Sites without a brand profile:** the features work unchanged, with no brand context. Whether they should refuse there, as the agent does, is decided with M4-01's gating.
+  - **Sites without a brand profile:** the features work unchanged, with no brand context. Whether they should refuse there, as the agent does, is decided with M4-03.
   - Details and the test: [ai-engine.md](ai-engine.md#the-ai-plugins-features).
-- **Curated features.** Members get a curated subset of the plugin's features. **Open question:** which ones. The brand list above is not the curated list: a feature may be offered without the brand (alt text, for example). The plugin's feature toggles and connector approvals are options of each site (2026-11-06), so a new member site starts with every feature off and nothing approved. M2's provisioning or M4-01 has to set them.
-- **Locked configuration.** M4 locks the plugin's settings, its connector approvals and MCP access on member sites ([M4-01](../tickets/M4-01-editor-redirects-gating.md)).
+- **Curated features.** Members get a curated subset of the plugin's features. **Open question:** which ones. The brand list above is not the curated list: a feature may be offered without the brand (alt text, for example). The plugin's feature toggles and connector approvals are options of each site (2026-11-06), so a new member site starts with every feature off and nothing approved. M4-03 sets them.
+- **Locked configuration.** M4 locks the plugin's settings, its connector approvals and MCP access on member sites ([M4-03](../tickets/M4-03-ai-plugin-lockdown.md), split from M4-01 on 2026-11-07).
 - **Cost tracking.** The plugin's request log (its AI Request Logging experiment) is the basis for per-member cost tracking. It hooks core's `wp_ai_client_before/after_generate_result` events, so it records every request made through the AI Client, Mody's own included (from its source, 2026-11-06; not yet seen in a log). It keeps prompt and response previews. Retention is set with `wpai_request_log_retention_days`.
 
 ### Safety and audit
@@ -230,7 +230,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 On **member sites only** (never the main association site):
 
-- `post.php?post=N&action=edit` (page **or** post) → redirects to the Site Editor for that item. For pages that is `site-editor.php?p=%2Fpage%2FN&canvas=edit`. The form `?postType=<type>&postId=N` without `canvas=edit` lands on the list in WordPress 7.1 (`wp-admin/site-editor.php`). Check the form for posts when building M4-01.
+- `post.php?post=N&action=edit` (page **or** post) → redirects to the Site Editor for that item. For pages that is `site-editor.php?p=%2Fpage%2FN&canvas=edit`. The form `?postType=<type>&postId=N` without `canvas=edit` lands on the list in WordPress 7.1 (`wp-admin/site-editor.php`). **Built 2026-11-07 ([M4-01](../tickets/M4-01-editor-redirects-gating.md)), with one decided exception: posts.** WordPress 7.1's Site Editor has routes for pages, patterns (`/wp_block/:id`) and navigation menus (`/wp_navigation/:id`), but none for posts, so posts keep the block editor (`post.php`) until it does (decided by the maintainer on 2026-11-07). Pages, patterns and menus open in the Site Editor; `post-new.php` for pages goes to the Site Editor's pages (`?p=/page`). Member sites are every site but the main one; super admins are not redirected.
 - `post-new.php?post_type=page|post` → redirects to `site-editor.php?postType=<type>`.
 - Templates, parts and styles are already Site-Editor-only (FSE theme).
 - Every link the platform generates (dashboard buttons, agent `open_editor`, emails) uses the Site Editor URL.
@@ -280,6 +280,8 @@ Using them needs its own ticket; until then they stay off.
 - `DISALLOW_FILE_EDIT` is already on network-wide.
 
 Members keep everything else: content, media, users of their own site, settings, Spectra, Global Styles.
+
+**Built 2026-11-07** ([M4-01](../tickets/M4-01-editor-redirects-gating.md)): `Gating\MemberSite` refuses the plugin and theme capabilities (install, upload, activate, deactivate, resume, update, delete, edit; switch, install, upload, update, delete, edit themes) through `map_meta_cap`, on every site but the main one, to everyone but super admins (decided 2026-11-07). It also defines `mody_manage_market`: a member site's administrators, nobody on the main site. The `ai` plugin's lock-down is [M4-03](../tickets/M4-03-ai-plugin-lockdown.md).
 
 **Acceptance criteria:** a member site admin cannot install, upload or switch themes/plugins by any UI or REST path; the market page activates a listed plugin; the front end and editor are unaffected.
 
@@ -386,7 +388,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 | **M1** | Accounts, trial and billing | 4, 5 | Register → Mollie 0.01 checkout → webhook → active trial with dashboard (My sites, Plan & billing). Simulated failed charge → read-only + banner + 60-day deletion job verified. |
 | **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **Done locally 2026-11-07:** M2-02 (AI engine), M2-01 (the provisioning pipeline) and M2-03 (the wizard) on 2026-11-06, M2-04 (its live preview) and M2-05 (the logo upload) on 2026-11-07. Not provable in production yet: new sites there need the wildcard DNS and TLS for `*.mody.cloud` (section 16, question 3; M5). |
 | **M3** | Agent | 8 | Chat in wp-admin; all six tools work end-to-end; injection attempts refused and logged; every event in `mody_agent_events`. **Done 2026-11-06** (M3-01 to M3-04), except three items moved on: the plugin toggle tools to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the agent menu to member sites to M4-01. |
-| **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; market page activates listed plugins; every editing entry point lands in the Site Editor. |
+| **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; market page activates listed plugins; every editing entry point lands in the Site Editor. **In progress:** M4-01 (redirects and gating) done 2026-11-07, posts excepted; M4-02 (market) and M4-03 (the `ai` plugin) to do. |
 | **M5** | Hardening and launch | all | Production compose (no Xdebug/DB ports), wildcard cert at the upstream, backup/restore drill, security pass (nonces, sanitization, webhook signatures), monitoring via Query Monitor, launch checklist green for 100 founding members. |
 
 ## 14. Next iteration (out of MVP, decided direction)

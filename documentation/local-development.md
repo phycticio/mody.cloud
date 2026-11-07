@@ -102,6 +102,8 @@ WP-CLI runs against the network's main site unless it is told otherwise. `./bin/
 ./bin/wp site list                       # network-wide commands need no --site
 ```
 
+**HTTP to a subsite from inside the app container** (tests, 2026-11-07). The container resolves only the main host, so loopback requests to `<slug>.<host>` fail. Request the main host and send the subsite's name as the `Host` header: nginx and WordPress then serve the subsite (`wp_remote_get( 'https://mody.local/wp/wp-admin/…', array( 'headers' => array( 'Host' => 'alpha.mody.local' ), 'sslverify' => false ) )`). `scripts/gating-test.php` uses it.
+
 A literal `--url=...` still passes through. `wp-cli.yml` is **not** read inside the container — WP-CLI finds `wp-config.php` from its working directory — so do not put per-site defaults there. `bin/wp` only greps that file for the container name behind `@$SITE_SLUG`, and the `@mody` alias is what a host-side WP-CLI uses (`wp @mody core version`).
 
 ### Site URLs never carry a port
