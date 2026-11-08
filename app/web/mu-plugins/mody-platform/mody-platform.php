@@ -58,6 +58,17 @@ add_action( 'init', array( Members\Members::class, 'install' ), 1 );
  */
 add_filter( 'user_has_cap', array( Members\Members::class, 'grant_dashboard' ), 10, 3 );
 add_filter( 'mody_site_limit', array( Members\Members::class, 'site_limit' ), 10, 2 );
+add_filter( 'mody_can_create_site', array( Members\Members::class, 'can_create_site' ), 10, 2 ); // No site before the card is verified.
+
+/*
+ * Registration (M1-01, part 2): the `mody/register` block on the main site's
+ * /register/ page, closed until the network option `mody_registration_open`
+ * is set. Members log in to the Mody dashboard.
+ */
+add_action( 'init', array( Members\Registration::class, 'register_block' ) );
+add_action( 'init', array( Members\Registration::class, 'ensure_page' ), 20 );
+add_action( 'template_redirect', array( Members\Registration::class, 'handle' ) );
+add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirect' ), 10, 3 );
 
 /*
  * wp-admin colors (decided 2026-11-08): Ocean is every user's color scheme

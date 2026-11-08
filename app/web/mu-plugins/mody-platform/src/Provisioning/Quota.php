@@ -66,6 +66,17 @@ final class Quota {
 	 * @return true|WP_Error `mody_site_limit_reached` when every site is used.
 	 */
 	public static function can_create_site( int $user_id, int $exclude_job = 0 ): bool|WP_Error {
+		/**
+		 * Filters whether a user may create a site at all, before the count.
+		 * Members\Members refuses accounts whose card is not verified.
+		 *
+		 * @param true|WP_Error $allowed True, or the refusal.
+		 * @param int           $user_id User ID.
+		 */
+		$allowed = apply_filters( 'mody_can_create_site', true, $user_id );
+		if ( is_wp_error( $allowed ) ) {
+			return $allowed;
+		}
 		$limit = self::limit( $user_id );
 		if ( self::used( $user_id, $exclude_job ) < $limit ) {
 			return true;

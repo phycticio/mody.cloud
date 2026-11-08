@@ -10,6 +10,7 @@ namespace Mody\Platform\Wizard;
 use Mody\Platform\Agent\ChatController;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\Design\Presets;
+use Mody\Platform\Members\Members;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Provisioning\Quota;
@@ -74,6 +75,9 @@ final class WizardPage {
 		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 
 		wp_enqueue_style( 'mody-wizard', plugins_url( 'assets/wizard.css', $root . '/mody-platform.php' ), array(), $version( 'wizard.css' ) );
+		if ( Members::payment_pending( get_current_user_id() ) ) {
+			return; // No form, so no script: render() shows the payment step.
+		}
 		wp_enqueue_script( 'mody-wizard', plugins_url( 'assets/wizard.js', $root . '/mody-platform.php' ), array(), $version( 'wizard.js' ), true );
 
 		$pending = Jobs::unfinished_for_user( get_current_user_id() );
@@ -123,10 +127,31 @@ final class WizardPage {
 	}
 
 	/**
+	 * For an account whose card is not verified yet (decided 2026-11-08,
+	 * M1-01 part 2): the payment step instead of the wizard. Part 3 puts the
+	 * Mollie card check here.
+	 */
+	private static function render_payment_pending(): void {
+		?>
+		<div class="wrap mody-wizard">
+			<h1><?php esc_html_e( 'Finish your payment', 'mody_cloud' ); ?></h1>
+			<div class="notice notice-info inline mody-wizard__payment">
+				<p><?php esc_html_e( 'Your account is ready. To start your 30-day trial, confirm your card with a 0.01 EUR check. Then you can create your first site.', 'mody_cloud' ); ?></p>
+				<p><?php esc_html_e( 'Card checks open soon.', 'mody_cloud' ); ?></p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Renders the page.
 	 */
 	public static function render(): void {
 		$user_id = get_current_user_id();
+		if ( Members::payment_pending( $user_id ) ) {
+			self::render_payment_pending();
+			return;
+		}
 		$used    = Quota::used( $user_id );
 		$limit   = Quota::limit( $user_id );
 		$suffix  = '.' . preg_replace( '|^www\.|', '', get_network()->domain );
