@@ -112,6 +112,11 @@ Stored domains are always bare host names — `mody.cloud.local`, `alpha.mody.cl
 
 So requests have to arrive on a standard port. Either the stack's own Nginx owns 443, or **a proxy in front of it does and forwards with the original `Host` header** — which is the setup on the development machine, where an unrelated Nginx Proxy Manager instance owns 80/443/81 and this stack publishes 8091/4435. Both work without any WordPress-side difference: the stack's Nginx terminates TLS itself, so `include fastcgi_params` sets `HTTPS=on` and `is_ssl()` is true either way.
 
+**How the proxy reaches the stack** (changed 2026-11-08). The proxy forwards to `mody_cloud_server:443` over the proxy's own Docker network, `proxy_default`, which `compose.local.yml` adds to the `nginx` service as an external network. Before, it forwarded to `host.docker.internal:4435`. That route left Docker through the Mac's published port, so every request crossed Colima's SSH port forwarder twice. When something loaded the VM (a build, a test run, sshfs traffic), bursts timed out: the editor's ~100 scripts and styles got 504s and it did not open. A 240-request burst took 5.1 s at worst before, and 1.8 s after. The Tamarind stacks (`ti_server`, `tims_server`) were moved the same way. Their `compose.local.yml` files and `COMPOSE_FILE` in their `.env` files are outside this repository.
+- The stack needs the `proxy_default` network to exist, so start the proxy (`docker compose up -d` in `~/web/npm`) before this stack.
+- The proxy hosts were changed in the proxy's database and generated configs (hosts 2, 3, 4), following [architecture.md](architecture.md#production). Backup taken first: `~/web/npm/backups/proxy_data-2026-11-08-pre-direct-upstreams.tar.gz`.
+- **IPv6 lines in `/etc/hosts`.** macOS sends `.local` names to Bonjour, and without an IPv6 entry every lookup waits 5 seconds: 5.0 s for `mody.local`, 0.01 s for `charlie.local`, which has both. Give each `.local` name a `::1` line next to its `127.0.0.1` line, subsites included.
+
 Two consequences worth knowing when a proxy is in front:
 
 - **Reaching `https://<host>:4435` directly no longer works.** The `Host` header then carries `:4435` and you get the signup redirect. Use the proxied host name. To check the stack itself without going through the proxy, override the header: `curl -k --resolve alpha.mody.cloud.local:4435:127.0.0.1 -H "Host: alpha.mody.cloud.local" https://alpha.mody.cloud.local:4435/`.
@@ -166,6 +171,8 @@ Then `colima start`. To start at login: `brew services start colima`. Colima rea
 ```bash
 docker run --rm -v proxy_data:/from -v "$PWD:/to" alpine tar czf /to/proxy_data.tar.gz -C /from .
 ```
+
+**Keep `portForwarder: ssh`.** Colima's `grpc` forwarder (marked experimental in `colima.yaml`) was tried on 2026-11-08. Within minutes, ports 4433 and 4435 stopped answering, and recreating a container hung the Docker daemon until Colima was restarted with `ssh` again. The forwarder's load is lighter now that the proxy reaches the stacks directly.
 
 **Routine.** `colima status` shows the VM, `docker context show` should print `colima`, and `colima stop` stops everything. Containers with `restart: unless-stopped` come back when Colima starts again.
 

@@ -27,6 +27,13 @@ services:
 
             return 301 https://$$host$$request_uri;
         }
+    # The local proxy (Nginx Proxy Manager, Compose project "proxy" in
+    # ~/web/npm) reaches this container on its own network, as
+    # mody_cloud_server:443. Through the Mac's published port every request
+    # crossed Colima's port forwarder twice, and bursts (the editor loads
+    # about a hundred files) timed out with 504s (2026-11-08).
+    networks:
+      proxy: {}
 
   wordpress:
     build:
@@ -51,3 +58,10 @@ services:
     # WP Cron on subsites needs its own answer - see the open question in
     # documentation/architecture.md. Until then, run due jobs explicitly:
     #   ./bin/wp --site=<slug> cron event run --due-now
+
+networks:
+  # The proxy's network. It exists while the proxy's Compose project does
+  # (docker compose up -d in ~/web/npm).
+  proxy:
+    external: true
+    name: proxy_default
