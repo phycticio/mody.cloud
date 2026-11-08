@@ -39,6 +39,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | 12 | Languages | UI English only; generated content language follows the member's prompt. |
 | 13 | Agent actions ("Option C", decided 2026-11-06) | Agent actions are **WordPress abilities** (Abilities API, category `mody`), used by the in-site agent through `using_abilities()` and by MCP clients through mcp-adapter. The brand profile goes into every Mody prompt, and into the `ai` plugin's writing features (through its `wpai_system_instruction` filter; which features, decided 2026-11-06, in section 8). Members get a curated set of `ai` features. M4 locks the plugin's settings, connector approvals and MCP on member sites. The plugin's request log is the basis for per-member cost tracking. Section 8. |
 | 14 | Spectra (decided 2026-11-06) | **Network-activated** platform plugin, not a market toggle. `SpectraGuard` in the MU plugin switches off every part that connects outside Europe (rule 1). A clean `mody/*` block library forked from Spectra's GPL source will replace it (ticket `mody-blocks-from-spectra`). Section 10. |
+| 15 | wp-admin colors (decided 2026-11-08) | **Ocean** is every user's admin color scheme by default: new users get it, and users on WordPress's default (Modern) were moved to it once. Anyone may choose another scheme. The agent chat follows the user's scheme: buttons and borders in its accent, the user's own messages in the second color of its palette. [tickets/admin-colors.md](../tickets/admin-colors.md). |
 
 ## 3. Actors and access model
 

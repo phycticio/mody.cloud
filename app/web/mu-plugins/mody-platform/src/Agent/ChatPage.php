@@ -62,6 +62,7 @@ final class ChatPage {
 		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 
 		wp_enqueue_style( 'mody-agent-chat', plugins_url( 'assets/agent-chat.css', $root . '/mody-platform.php' ), array(), $version( 'agent-chat.css' ) );
+		\Mody\Platform\Admin\AdminColors::add_agent_chat_css(); // The user's messages in their color scheme's second color.
 		wp_enqueue_script( 'mody-agent-chat', plugins_url( 'assets/agent-chat.js', $root . '/mody-platform.php' ), array(), $version( 'agent-chat.js' ), true );
 		wp_add_inline_script( 'mody-agent-chat', 'window.modyAgent = ' . wp_json_encode( self::settings() ) . ';', 'before' );
 	}

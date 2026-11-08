@@ -52,6 +52,15 @@ add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 
 /*
+ * wp-admin colors (decided 2026-11-08): Ocean is every user's color scheme
+ * unless they choose another; users on WordPress's default are moved to it
+ * once. The agent chat's colors follow the user's scheme (Admin\AdminColors).
+ */
+add_filter( 'insert_user_meta', array( Admin\AdminColors::class, 'new_user_scheme' ), 10, 4 );
+add_filter( 'get_user_option_admin_color', array( Admin\AdminColors::class, 'default_scheme' ) );
+add_action( 'init', array( Admin\AdminColors::class, 'migrate' ), 1 );
+
+/*
  * Agent settings (Network Admin > Settings > Mody Agent): event retention.
  */
 add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_menu' ) );

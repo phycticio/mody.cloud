@@ -42,6 +42,7 @@ final class EditorBubble {
 		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 
 		wp_enqueue_style( 'mody-agent-chat', $url( 'agent-chat.css' ), array(), $version( 'agent-chat.css' ) );
+		\Mody\Platform\Admin\AdminColors::add_agent_chat_css(); // The user's messages in their color scheme's second color.
 		wp_enqueue_style( 'mody-agent-bubble', $url( 'agent-bubble.css' ), array( 'mody-agent-chat' ), $version( 'agent-bubble.css' ) );
 		// The bubble builds the elements first; the chat script then runs on them.
 		// wp-data and wp-blocks: what is open, and applying the agent's edits (M3-06).

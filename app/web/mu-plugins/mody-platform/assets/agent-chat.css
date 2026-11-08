@@ -1,4 +1,9 @@
-/* Mody Agent chat in wp-admin. Uses the admin color scheme variables. */
+/*
+ * Mody Agent chat in wp-admin. Follows the user's admin color scheme: buttons
+ * and borders use its accent (--wp-admin-theme-color), the user's messages its
+ * second palette color (--mody-agent-user-message, set inline by
+ * Admin\AdminColors).
+ */
 
 .mody-agent {
 	max-width: 760px;
@@ -26,7 +31,7 @@
 
 .mody-agent__message--user {
 	align-self: flex-end;
-	background: var(--wp-admin-theme-color, #2271b1);
+	background: var(--mody-agent-user-message, var(--wp-admin-theme-color, #2271b1));
 	color: #fff;
 }
 
