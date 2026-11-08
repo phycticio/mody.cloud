@@ -144,8 +144,19 @@ Visitor
 
 ### Deploying
 
+**The deploy strategy** (decided by the maintainer on 2026-11-08):
+1. Commit every change on its own topic branch, never directly on `main`. Name it after the work: `feature/m1-01-registration`, `fix/…`, `docs/…`.
+2. Merge it into `main` locally with `git merge --no-ff`, so the branch stays visible in the history.
+3. Push `main`. The repository's rule asks for pull requests; the maintainer's account bypasses it by choice, and GitHub reports the bypass on every push.
+4. Deploy from `main` with `./bin/deploy --env=prod`.
+
+Only the maintainer asks for a commit, push or deploy. The build needs the Node version in `.nvmrc` (22): a shell on nvm's default Node 20 fails in the JS step, before the server is touched.
+
 ```bash
-git push origin main                   # production deploys only pushed commits from main
+git switch -c feature/<topic>          # 1. a branch per change
+git commit …
+git switch main && git merge --no-ff feature/<topic>   # 2. merge locally
+git push origin main                   # 3. production deploys only pushed commits from main
 ./bin/deploy --env=prod --dry-run      # build, run every check, list what would change
 ./bin/deploy --env=prod                # the same, then type "prod" to sync
 ```
@@ -169,12 +180,12 @@ Decided by the maintainer on 2026-11-04: two US services stay in production unti
 
 | Service | What it does here | Direction for replacing it |
 | --- | --- | --- |
-| Cloudflare | Proxied DNS record for `mody.cloud`. It terminates TLS, sees every request and hides the home connection's IP address. | DNS at Infomaniak with plain records and TLS at the proxy. This goes together with moving off the home connection (see the open question on the production host). |
+| Cloudflare | Proxied DNS records for `mody.cloud` (and `*.mody.cloud`, M5-02). It terminates TLS, sees every request and hides the home connection's IP address. SSL mode "Full (strict)". **One new use, decided by the maintainer on 2026-11-08:** an API token, limited to DNS edits, that Nginx Proxy Manager uses for the Let's Encrypt DNS challenge of the `*.mody.cloud` certificate, so it keeps renewing ([M5-02](../tickets/M5-02-production-member-sites.md)). | DNS at Infomaniak with plain records and TLS at the proxy. This goes together with moving off the home connection (see the open question on the production host). |
 | Wordfence 9.0.2 | Security plugin, network-active, required in `app/composer.json`. It contacts Wordfence's servers for firewall rules, malware signatures and scans. | A European or self-contained security plugin. |
 
 ### Deviations to resolve
 
-These are differences between production and the conventions above. None of them is fixed by a deploy.
+These are differences between production and the conventions above. None of them is fixed by a deploy. The steps for all three, and the decisions they need, are in [tickets/M5-02-production-member-sites.md](../tickets/M5-02-production-member-sites.md) (2026-11-08).
 
 1. **Subsites cannot be reached.** There is no wildcard DNS record, and the NPM certificate and proxy host cover only `mody.cloud`. M2 needs `*.mody.cloud` (DNS, certificate and proxy host, as in [Multisite](#multisite-enabled-m0-01)). `www.mody.cloud` returns a Cloudflare 525 error, because the origin has no certificate for it.
 2. **No outgoing mail.** PHP's `sendmail_path` (`config/php/sendmail.ini`) sends through msmtp to `mailpit:1025`. Mailpit never runs in production, so `wp_mail()` fails, and password resets and notifications are not delivered. Before 2026-11-04, Mailpit captured that mail and discarded it, which was also a loss, only a silent one. M1 needs real delivery for registration and billing emails. That means an EU SMTP relay (for example Infomaniak) configured in the production `.env` and PHP mail settings. Which relay to use is not decided.
