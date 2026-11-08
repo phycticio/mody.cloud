@@ -50,6 +50,14 @@ add_filter( 'wp_theme_json_data_theme', array( Design\Fonts::class, 'theme_fonts
 add_action( 'init', array( Brand\BrandProfile::class, 'install' ), 1 );
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
+add_action( 'init', array( Members\Members::class, 'install' ), 1 );
+
+/*
+ * Member accounts (M1-01, part 1): a `mody_members` row gives the dashboard
+ * capability (mvp-spec section 3) and the plan's site limit (section 4).
+ */
+add_filter( 'user_has_cap', array( Members\Members::class, 'grant_dashboard' ), 10, 3 );
+add_filter( 'mody_site_limit', array( Members\Members::class, 'site_limit' ), 10, 2 );
 
 /*
  * wp-admin colors (decided 2026-11-08): Ocean is every user's color scheme

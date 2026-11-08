@@ -9,6 +9,8 @@ Four tiers. Each fee covers the **real cost** of serving that profile (Hetzner h
 | Patron | `patron` | 50 EUR | 30 | 1,000 | 8 GB |
 | Dedicated VPS | `dedicated_vps` | At cost | Per VPS resources | By consumption | Per VPS |
 
+**The MVP's site counts are different:** a 30-day trial with 3 sites, then Collaborator 3, Member 10 and Patron 50 (mvp-spec decisions 3 and 5, agreed 2026-11-01; mvp-spec wins where they overlap). The table above is the briefing's. The fees are the same, still to confirm before launch (mvp-spec §16, question 6). The MVP's tiers differ only in site count; newsletter sends and disk come later. Built in `Members\Members::PLANS` (M1-01 part 1).
+
 The briefing calls these tiers Colaborador, Socio, Patrono and VPS dedicado. The role slugs are translated from the briefing's Spanish identifiers (**Inference**, change them freely before implementation).
 
 ## Gating logic (pseudocode from the briefing, translated)
@@ -44,4 +46,4 @@ This is pseudocode and not a language decision. The code that enforces it has no
 
 - How disk quotas are measured and enforced is not specified. In Multisite there is a per-site upload quota that could be a starting point (**inference**).
 - Sending caps are enforced on the Infomaniak side. See [newsletter.md](newsletter.md).
-- The `can_create_site` check is the first step of the site creation flow in [brand-profile.md](brand-profile.md#site-creation-flow). Built 2026-11-06 as `Provisioning\Quota::can_create_site()` (M2-01) with a stub until M1 adds `mody_members`: every user may have 3 sites (the trial and Collaborator limit). A user's sites are the network sites they administer (not the main site), plus site creations still on the way. M1 replaces the limit with the plan's (3, 10 or 50) through the `mody_site_limit` filter. The refusal never says "unlimited" (rule 7).
+- The `can_create_site` check is the first step of the site creation flow in [brand-profile.md](brand-profile.md#site-creation-flow). Built 2026-11-06 as `Provisioning\Quota::can_create_site()` (M2-01) with a stub until M1 adds `mody_members`: every user may have 3 sites (the trial and Collaborator limit). A user's sites are the network sites they administer (not the main site), plus site creations still on the way. Since 2026-11-08 (M1-01 part 1), a user with a `mody_members` row gets their plan's limit (3, 3, 10 or 50) through the `mody_site_limit` filter (`Members\Members::site_limit()`). Users without a row keep 3. The refusal never says "unlimited" (rule 7).

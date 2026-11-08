@@ -21,8 +21,9 @@ defined( 'ABSPATH' ) || exit;
  * and a small script that posts the answers to WizardController and follows
  * the job. No JS build step, like the agent chat.
  *
- * Until M1, only super admins open it: no role has CAPABILITY, and super
- * admins pass every capability check. M1 grants it to members (spec section 3).
+ * Members open it: every user with a `mody_members` row has CAPABILITY
+ * (Members\Members, M1-01 part 1), and super admins pass every capability
+ * check (spec section 3).
  */
 final class WizardPage {
 

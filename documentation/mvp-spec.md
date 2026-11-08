@@ -50,7 +50,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | **Platform admin** | Super admin of the network, plus the list of plugins hidden from members and exception handling. |
 | **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
 
-Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. Since 2026-11-06 (M2-03) the **Mody → New site** wizard checks it; no role has it yet, so only super admins (who pass every capability check) see it until M1 grants it. All data shown is scoped to `get_current_user_id()`.
+Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. Since 2026-11-06 (M2-03) the **Mody → New site** wizard checks it. Since 2026-11-08 (M1-01 part 1, `Members\Members::grant_dashboard()`) every user with a `mody_members` row has it, whatever the account's status. Nothing creates rows yet except tests; registration is part 2. Network Admin has no global super-admin check, so such a member opens the Mody pages and sees only the Mody menu (checked over HTTP). All data shown is scoped to `get_current_user_id()`.
 
 Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard: `mody.cloud/wp-admin/network/`.
 
@@ -362,6 +362,12 @@ mody_agent_events (
 
 **Built so far:**
 
+- `mody_members` (2026-11-08, [M1-01](../tickets/M1-01-registration-trial-billing.md) part 1). `Members\Members::install()` creates it on `init` (`mody_members_db_version`). It matches the definition above, with three differences:
+  - an unsigned `bigint(20)` `user_id`;
+  - an index on `status`;
+  - a fifth status, `expired_signup`. Section 4's signup flow uses it for "no payment within 24 hours", while the enum above lists only `expired`, which is kept for "sites deleted after 60 days past due".
+
+  A row gives the dashboard capability and the plan's site limit (3, 3, 10, 50) through `mody_site_limit`.
 - `mody_brand_profiles` (2026-11-06, M2-02). `Brand\BrandProfile::install()` creates it on `init`, through `dbDelta` and a network option holding the schema version (`mody_brand_profiles_db_version`). It matches the definition above, with two additions: IDs are `bigint(20) unsigned` like WordPress's own, and there is an index on `site_id` for the per-site lookup. A site's profile is its newest row.
 - `mody_provisioning_jobs` (2026-11-06, M2-01). `Provisioning\Jobs::install()` creates it the same way (`mody_provisioning_jobs_db_version`). It matches the definition above, with these additions: unsigned `bigint(20)` IDs; a `queued` status (a job not run yet); `input`, the validated wizard answers, and `result`, what the steps produced (`profile_id`, `page_id`, `fallback`, `generation_error`, `email`), both JSON in `LONGTEXT`; indexes on `user_id` and `status`. The `step` enum lists the steps in the order they run (`profile` after `site`).
 - `mody_agent_events` (2026-11-06, M3-01). `Agent\AgentEvents::install()` creates it the same way (`mody_agent_events_db_version`). It matches the definition above, with these additions:
