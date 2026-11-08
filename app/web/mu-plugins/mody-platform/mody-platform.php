@@ -60,7 +60,17 @@ add_filter( 'wp_theme_json_data_theme', array( Design\Fonts::class, 'theme_fonts
  * Network-wide tables (mvp-spec section 11). Creates or updates them only
  * when their version changed.
  */
-add_action( 'init', array( Brand\BrandProfile::class, 'install' ), 1 );
+add_action( 'init', array( Brand\BrandSettings::class, 'migrate' ), 1 ); // Once per network: the old profile table into each site's settings, then dropped (M2-08).
+
+/*
+ * The brand is each site's own WordPress data (M2-08): title, tagline, logo
+ * and icon (Identity), its Global Styles, and two site settings WordPress
+ * lacks, mission and tone, shown on the Identity screen and in Settings →
+ * General.
+ */
+add_action( 'init', array( Brand\BrandSettings::class, 'register' ) );
+add_action( 'admin_init', array( Brand\BrandSettings::class, 'general_fields' ) );
+add_action( 'admin_enqueue_scripts', array( Brand\BrandSettings::class, 'enqueue_identity_fields' ) );
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 add_action( 'init', array( Members\Members::class, 'install' ), 1 );

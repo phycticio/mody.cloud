@@ -27,7 +27,7 @@ use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 
 require_once ABSPATH . 'wp-admin/includes/user.php';
 
@@ -42,22 +42,24 @@ global $wpdb;
 $admins = get_super_admins();
 $admin  = get_user_by( 'login', $admins[0] )->ID;
 wp_set_current_user( $admin );
-BrandProfile::install();
 AgentEvents::install();
 $site_id = get_current_blog_id();
 $events  = AgentEvents::table();
 $mark    = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$events}" ); // phpcs:ignore WordPress.DB
-$fixture = 0;
-if ( null === BrandProfile::for_site( $site_id ) ) {
-	$wpdb->insert( BrandProfile::table(), array( 'user_id' => $admin, 'site_id' => $site_id, 'brand_name' => 'Ogia Bakery', 'mission' => 'We bake sourdough bread for offices in Zurich.', 'tone_of_voice' => 'friendly' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$fixture = (int) $wpdb->insert_id;
+// The brand is the site's own settings (M2-08): a mission for the test when the site has none.
+$saved_brand = array(
+	BrandSettings::MISSION => get_option( BrandSettings::MISSION, '' ),
+	BrandSettings::TONE    => get_option( BrandSettings::TONE, '' ),
+);
+if ( '' === BrandSettings::brand()['mission'] ) {
+	BrandSettings::save( 'We bake sourdough bread for offices in Zurich.', 'friendly' );
 }
 $editor = wp_insert_user( array( 'user_login' => 'modytpl' . wp_generate_password( 6, false, false ), 'user_email' => 'modytpl' . wp_rand() . '@mody.local', 'user_pass' => wp_generate_password( 24 ), 'role' => 'editor' ) );
 register_shutdown_function(
-	static function () use ( $fixture, $events, $mark, $editor ): void {
+	static function () use ( $saved_brand, $events, $mark, $editor ): void {
 		global $wpdb;
-		if ( $fixture ) {
-			$wpdb->delete( BrandProfile::table(), array( 'id' => $fixture ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		foreach ( $saved_brand as $option => $value ) {
+			update_option( $option, $value );
 		}
 		$wpdb->query( $wpdb->prepare( "DELETE FROM {$events} WHERE id > %d", $mark ) ); // phpcs:ignore WordPress.DB
 		is_multisite() ? wpmu_delete_user( $editor ) : wp_delete_user( $editor );

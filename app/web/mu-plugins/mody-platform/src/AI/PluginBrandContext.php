@@ -7,7 +7,6 @@
 
 namespace Mody\Platform\AI;
 
-use Mody\Platform\Brand\BrandProfile;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -15,15 +14,15 @@ defined( 'ABSPATH' ) || exit;
  * Makes the `ai` plugin's writing features write in the site's brand (rule 4).
  *
  * The plugin builds each feature's system instruction itself and passes it
- * through its `wpai_system_instruction` filter. On a site with a brand
- * profile, the features in FEATURES get SystemPrompt::for_ai_feature().
+ * through its `wpai_system_instruction` filter. The features in FEATURES get
+ * SystemPrompt::for_ai_feature(): the brand read from the site's settings
+ * (M2-08), which every site has.
  *
  * Decided 2026-11-06: only the features that write text in the site's voice.
  * Left as they are: summaries (the plugin asks for neutral, non-stylistic
  * text), translation (it must keep the source's voice), and the analysis
  * features (alt text, slugs, block labels, comment analysis, classification,
- * editorial notes, revision summaries). Sites without a brand profile are
- * left as they are too; gating them is M4-01's decision.
+ * editorial notes, revision summaries).
  */
 final class PluginBrandContext {
 
@@ -54,8 +53,6 @@ final class PluginBrandContext {
 			return $instruction;
 		}
 
-		$profile = BrandProfile::for_site( get_current_blog_id() );
-
-		return null === $profile ? $instruction : SystemPrompt::for_ai_feature( $instruction, $profile );
+		return SystemPrompt::for_ai_feature( $instruction ); // Every site has a brand: its settings (M2-08).
 	}
 }

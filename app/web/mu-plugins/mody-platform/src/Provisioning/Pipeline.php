@@ -10,7 +10,7 @@ namespace Mody\Platform\Provisioning;
 use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SpectraLayout;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\SiteEditor;
@@ -59,10 +59,11 @@ final class Pipeline {
 	 * Validates the wizard's answers and queues a job.
 	 *
 	 * @param int                  $user_id The member the site is for.
-	 * @param array<string, mixed> $input   slug, title, mission, prompt, and optionally
-	 *                                      brand_name (default: title), tone (default:
-	 *                                      friendly), preset (default: Presets::DEFAULT),
-	 *                                      logo_id (an image the user uploaded to the main site).
+	 * @param array<string, mixed> $input   slug, title (the brand name, M2-08), mission
+	 *                                      (seeds the tagline and the mission setting),
+	 *                                      prompt, and optionally tone (default: friendly),
+	 *                                      preset (default: Presets::DEFAULT), logo_id (an
+	 *                                      image the user uploaded to the main site).
 	 * @return int|WP_Error The job ID, or `mody_invalid_input` (data: `fields`, field => message),
 	 *                      `mody_site_limit_reached`, `mody_invalid_user`.
 	 */
@@ -114,13 +115,6 @@ final class Pipeline {
 			$errors['title'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_NAME_LENGTH );
 		}
 
-		$brand = sanitize_text_field( $text( 'brand_name' ) );
-		$brand = '' !== $brand ? $brand : $title;
-		if ( mb_strlen( $brand ) > self::MAX_NAME_LENGTH ) {
-			/* translators: %d: maximum number of characters. */
-			$errors['brand_name'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_NAME_LENGTH );
-		}
-
 		$mission = sanitize_text_field( $text( 'mission' ) );
 		if ( '' === $mission ) {
 			$errors['mission'] = __( 'Say in one sentence what you do.', 'mody_cloud' );
@@ -130,7 +124,7 @@ final class Pipeline {
 		}
 
 		$tone = '' !== $text( 'tone' ) ? $text( 'tone' ) : 'friendly';
-		if ( ! in_array( $tone, BrandProfile::TONES, true ) ) {
+		if ( ! in_array( $tone, BrandSettings::TONES, true ) ) {
 			$errors['tone'] = __( 'Choose one of the three tones.', 'mody_cloud' );
 		}
 
@@ -159,7 +153,6 @@ final class Pipeline {
 		return array(
 			'slug'       => $slug,
 			'title'      => $title,
-			'brand_name' => $brand,
 			'mission'    => $mission,
 			'tone'       => $tone,
 			'preset'     => $preset,
@@ -301,10 +294,10 @@ final class Pipeline {
 	}
 
 	/**
-	 * The page published when generation fails: "Hello, I'm {brand}" and the
-	 * mission, in one section (SpectraLayout).
+	 * The page published when generation fails: "Hello, I'm {site title}"
+	 * and the mission, in one section (SpectraLayout).
 	 *
-	 * @param string $brand   Brand name.
+	 * @param string $brand   The site title (the brand name, M2-08).
 	 * @param string $mission What the brand does.
 	 */
 	public static function fallback_markup( string $brand, string $mission ): string {
@@ -430,36 +423,20 @@ final class Pipeline {
 	}
 
 	/**
-	 * Step 3: the brand profile, with the preset's colors as the brand colors.
+	 * Step 3: the brand, in the new site's own settings (M2-08): the logo as
+	 * its site logo, and the mission and tone site settings. The title and
+	 * tagline were set with the site; the preset's colors go to its Global
+	 * Styles in the styles step. Nothing is copied elsewhere.
 	 *
 	 * @param array<string, mixed> $job The job.
 	 * @return array<string, mixed>|WP_Error
 	 */
 	private static function step_profile( array $job ): array|WP_Error {
-		// The logo first, so the profile can record its address (M2-05).
 		$result = empty( $job['input']['logo_id'] ) ? array() : self::copy_logo( $job );
-
-		$existing = BrandProfile::for_site( $job['site_id'] );
-		if ( null !== $existing ) {
-			return array( 'result' => $result + array( 'profile_id' => $existing->id ) );
-		}
-
-		$input   = $job['input'];
-		$colors  = (array) Presets::colors( $input['preset'] );
-		$profile = BrandProfile::insert(
-			$job['user_id'],
-			$job['site_id'],
-			array(
-				'brand_name'      => $input['brand_name'],
-				'mission'         => $input['mission'],
-				'tone_of_voice'   => $input['tone'],
-				'logo_url'        => $result['logo_url'] ?? '',
-				'color_primary'   => $colors['primary'] ?? '',
-				'color_secondary' => $colors['secondary'] ?? '',
-				'color_accent'    => $colors['accent'] ?? '',
-			)
-		);
-		return is_wp_error( $profile ) ? $profile : array( 'result' => $result + array( 'profile_id' => $profile->id ) );
+		switch_to_blog( (int) $job['site_id'] );
+		BrandSettings::save( (string) $job['input']['mission'], (string) $job['input']['tone'] );
+		restore_current_blog();
+		return array( 'result' => $result );
 	}
 
 	/**
@@ -507,7 +484,7 @@ final class Pipeline {
 					array(
 						'post_mime_type' => $mime,
 						/* translators: %s: the brand name. */
-						'post_title'     => sprintf( __( '%s logo', 'mody_cloud' ), $job['input']['brand_name'] ),
+						'post_title'     => sprintf( __( '%s logo', 'mody_cloud' ), $job['input']['title'] ),
 						'post_status'    => 'inherit',
 						'post_author'    => $job['user_id'],
 						'meta_input'     => array( '_mody_provisioning_job' => $job['id'] ),
@@ -611,7 +588,7 @@ final class Pipeline {
 			$fallback = is_wp_error( $markup );
 			if ( $fallback ) {
 				$result['generation_error'] = $markup->get_error_code() . ': ' . $markup->get_error_message();
-				$markup                     = self::fallback_markup( $job['input']['brand_name'], $job['input']['mission'] );
+				$markup                     = self::fallback_markup( $job['input']['title'], $job['input']['mission'] );
 			}
 			$meta = array( '_mody_provisioning_job' => $job['id'] );
 			if ( $fallback ) {

@@ -9,7 +9,6 @@ namespace Mody\Platform\Agent;
 
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\DTO\ModelMessage;
@@ -208,13 +207,8 @@ final class Agent {
 			return $this->turn;
 		}
 
-		$profile = BrandProfile::for_site( get_current_blog_id() );
-		if ( null === $profile ) {
-			return $this->fail( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first, then I can help you.', 'mody_cloud' ) );
-		}
-
 		$editing      = null !== $this->context;
-		$system       = SystemPrompt::for_agent( $profile, self::tool_names() )
+		$system       = SystemPrompt::for_agent( self::tool_names() )
 			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_site_settings'] ?? 'the site settings tool', self::tool_names()['open_editor'] ?? 'the open-editor tool' ) : '' )
 			. ( null !== $this->screen ? "\n\n" . SystemPrompt::for_screen( $this->screen ) : '' );
 		$declarations = self::declarations( $editing );
@@ -249,11 +243,20 @@ final class Agent {
 				$text = self::text_of( $answer );
 				// A reply that narrates the request ("The owner wants to see other designs. This
 				// maps to…") instead of acting or answering: seen in about 1 real run in 20 on
-				// 2026-11-08 (M3-09). Ask once more; the member never sees the narration.
-				if ( ! $this->renarrated && $step < self::MAX_STEPS && self::narrates( $text ) ) {
+				// 2026-11-08 (M3-09). Or a bare offer ("I can help with that."): "I want to change
+				// my logo" got it 5 times in 6 (M2-08). Ask once more; the member never sees either.
+				if ( ! $this->renarrated && $step < self::MAX_STEPS && ( self::narrates( $text ) || self::stalls( $text ) ) ) {
 					$this->renarrated = true;
 					$messages[]       = $answer;
 					$messages[]       = new UserMessage( array( new MessagePart( 'That reply described the request instead of handling it. Handle it now: call the right tool, or answer the owner directly as "you".' ) ) );
+					continue;
+				}
+				// "Done" with no tool run in this turn (rule 2): "Change the slogan to …" got "Done — your
+				// tagline is now …" once in about 8 real runs (M2-08). Ask once more.
+				if ( ! $this->renarrated && $step < self::MAX_STEPS && 0 === $this->executed && self::claims_done( $text ) ) {
+					$this->renarrated = true;
+					$messages[]       = $answer;
+					$messages[]       = new UserMessage( array( new MessagePart( 'You said it is done, but no tool ran in this turn, so nothing changed. Call the tool now, or tell the owner it is not done.' ) ) );
 					continue;
 				}
 				$this->turn['reply'] = $text;
@@ -301,6 +304,25 @@ final class Agent {
 		);
 		return isset( $types[ $target ] ) && $types[ $target ] === $this->context['post_type']
 			&& get_stylesheet() . '//' . sanitize_title( (string) ( $args['template'] ?? '' ) ) === (string) $open;
+	}
+
+	/**
+	 * Whether a reply says the request is done ("Done! …", "Done — …").
+	 *
+	 * @param string $text The model's reply.
+	 */
+	public static function claims_done( string $text ): bool {
+		return (bool) preg_match( '/^\W*done\b/i', trim( $text ) );
+	}
+
+	/**
+	 * Whether a reply is a bare offer that neither acts nor answers, such as
+	 * "I can help with that." or "Sure, I can help you with this!".
+	 *
+	 * @param string $text The model's reply.
+	 */
+	public static function stalls( string $text ): bool {
+		return (bool) preg_match( '/^\W*(?:sure|of course|certainly|absolutely|yes)?[\s,!.]*i can (?:help|do that|do this)(?: you)?(?: with (?:that|this|it))?[.!]?\s*$/i', trim( $text ) );
 	}
 
 	/**

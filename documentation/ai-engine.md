@@ -32,7 +32,7 @@ Page generation sits on top of that (2026-11-06, see [Generating a page](#genera
 ability mody/generate-page   (agent chat, MCP, REST)                  src/Abilities.php
   └─ PageGenerator::create_draft()     saves a draft page, returns its Site Editor URL
        └─ PageGenerator::generate_page( $site_id, $prompt )                 src/AI/PageGenerator.php
-            ├─ BrandProfile::for_site()     no profile → refused, no model call    src/Brand/BrandProfile.php
+            ├─ BrandSettings::brand()       the site's own settings (M2-08)        src/Brand/BrandSettings.php
             ├─ SystemPrompt::for_page()     rules + brand context + few-shot example  src/AI/SystemPrompt.php
             ├─ wp_ai_client_prompt()        temperature 0.1, provider infomaniak, thinking off
             └─ BlockValidator::validate()   retry with the reason, 3 attempts in all  src/AI/BlockValidator.php
@@ -69,7 +69,7 @@ Local setup: put both variables in `.env`, then `docker compose up -d wordpress`
 
 ```php
 $blocks = wp_ai_client_prompt( $user_prompt )
-	->using_system_instruction( $system_prompt ) // Always built from the brand profile (rule 4).
+	->using_system_instruction( $system_prompt ) // Always built with the site's brand (rule 4).
 	->using_temperature( 0.1 )
 	->using_max_tokens( 800 )
 	->generate_text(); // string, or WP_Error on failure.
@@ -80,7 +80,7 @@ $blocks = wp_ai_client_prompt( $user_prompt )
 - **JSON:** `as_json_response( $json_schema )`.
 - If you use `using_model_config()` (for custom options), call it first: the other `using_*` calls add to the configuration it sets.
 - The builder returns `WP_Error` instead of throwing.
-- For page content, do not call the model directly: use `PageGenerator::generate_page()`, which adds the brand profile and the validator (rule 4).
+- For page content, do not call the model directly: use `PageGenerator::generate_page()`, which adds the site's brand and the validator (rule 4).
 
 ## Generating a page
 
@@ -96,7 +96,7 @@ Built 2026-11-06 for M2-02, following "Option C" ([mvp-spec.md](mvp-spec.md#2-de
 How a call runs:
 
 1. The prompt is sanitized and capped at 2,000 characters.
-2. **No brand profile, no call.** `BrandProfile::for_site()` reads the site's row from `mody_brand_profiles`. Without one, the result is `mody_no_brand_profile` and no request leaves the server. The table is created by the MU plugin on `init` (versioned, `dbDelta`), with the schema of [mvp-spec.md §11](mvp-spec.md#11-data-model-new-network-wide-tables-base_prefix).
+2. **The brand is the site's own settings** (M2-08). `BrandSettings::brand()` reads the site title, tagline, and the `mody_mission` and `mody_tone` site settings when the prompt is built. Every site has them, so there is no refusal for a missing brand. Until 2026-11-08 a `mody_brand_profiles` row was required. See [brand-profile.md](brand-profile.md#the-brand-context-the-message-to-the-model).
 3. `SystemPrompt::for_page()` builds the system prompt: the output rules, the brand context and one few-shot example page. `SystemPrompt::brand_context()` is the shared brand part that every future prompt must reuse (the agent in M3, the `ai` plugin's features through `wpai_system_instruction`).
 4. The model is called on the `infomaniak` provider, with temperature 0.1, 4,000 output tokens at most, a 60-second timeout (the AI Client's default is 30) and thinking off.
 5. `BlockValidator::validate()` checks the trimmed answer. If it fails, the model gets the same request plus the reason it was rejected, up to **3 attempts in all** (the first plus 2 retries, mvp-spec §7). After the third failure the result is `mody_generation_failed`, with the last reason in the error data. Nothing is saved.
@@ -120,15 +120,15 @@ First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agen
 | `DELETE /wp-json/mody-platform/v1/chat` | Starts a new conversation. |
 | Network Admin → Settings → **Mody Agent** (`settings.php?page=mody-agent-settings`, `src/Agent/AgentSettings.php`) | Super admins only (`manage_network_options`). How many days events are kept (1 to 3,650, default 90), stored in the network option `mody_agent_settings`. Shows how many events are stored and the oldest one. Saving purges at once. |
 | `Mody\Platform\Agent\Agent::respond( $message, $history )` | The loop, for PHP callers. Runs on the current site, as the current user. |
-| Ability `mody/open-editor` (`src/SiteEditor.php`) | Opens a Site Editor screen (M3-09, 2026-11-08). Input `target` with: `page` (`page_id` or `page_title`; neither for the pages list); `template` (`template`, a slug; none for the list); `part` (`template`, a part's slug such as `header`; none for the parts list); `list` (`list`, a key of `SiteEditor::lists()`, opening the template that shows that list); `styles` (`section`: `overview`, `browse`, `colors`, `palette`, `typography`, `layout`, `blocks`, `revisions`, `stylebook`; or `block`, such as `core/button`); `navigation` (the only menu, or the menus); `patterns`; `home`. Returns `url`, `label` (the button), `place` (what opens, such as "Styles → Colors") and `navigate`. Changes nothing. Pages need `edit_pages` and `edit_post`; everything else `edit_theme_options`. A page title that is not exact still opens the page when only one title partly matches (`SiteEditor::match_page()`: no accents, case or punctuation, without "the" in front or "page" at the end; "the harbour cafe page" opens "Harbour Café"). Several matches are `mody_page_ambiguous`. An unknown page, template, part, list or block is an error. Each error lists what exists, so the model can ask. Public, like `mody/generate-page`. See [Opening Site Editor screens](#opening-site-editor-screens). |
-| Ability `mody/update-design` (`src/Design/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `src/Design/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), plus a required `brand` boolean. Writes the colors to the site's Global Styles; with `brand` true, also to the brand profile row. Returns the old and new colors, `brand_profile_updated`, and the screen that shows them: Styles → Colors, or Browse styles after a preset (M3-09), opened in place in the Site Editor. Needs `edit_theme_options` and a brand profile. Public. See [Changing the colors](#changing-the-colors). |
+| Ability `mody/open-editor` (`src/SiteEditor.php`) | Opens a Site Editor screen (M3-09, 2026-11-08). Input `target` with: `page` (`page_id` or `page_title`; neither for the pages list); `template` (`template`, a slug; none for the list); `part` (`template`, a part's slug such as `header`; none for the parts list); `list` (`list`, a key of `SiteEditor::lists()`, opening the template that shows that list); `styles` (`section`: `overview`, `browse`, `colors`, `palette`, `typography`, `layout`, `blocks`, `revisions`, `stylebook`; or `block`, such as `core/button`); `navigation` (the only menu, or the menus); `patterns`; `home`; `identity` (the site's title, tagline, logo, icon, mission and tone, M2-08; needs `manage_options`). Returns `url`, `label` (the button), `place` (what opens, such as "Styles → Colors") and `navigate`. Changes nothing. Pages need `edit_pages` and `edit_post`; everything else `edit_theme_options`. A page title that is not exact still opens the page when only one title partly matches (`SiteEditor::match_page()`: no accents, case or punctuation, without "the" in front or "page" at the end; "the harbour cafe page" opens "Harbour Café"). Several matches are `mody_page_ambiguous`. An unknown page, template, part, list or block is an error. Each error lists what exists, so the model can ask. Public, like `mody/generate-page`. See [Opening Site Editor screens](#opening-site-editor-screens). |
+| Ability `mody/update-design` (`src/Design/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `src/Design/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), Writes the colors to the site's Global Styles, the only place they live (M2-08: no brand question, no copy). Returns the old and new colors, and the screen that shows them: Styles → Colors, or Browse styles after a preset (M3-09), opened in place in the Site Editor. Needs `edit_theme_options`. Public. See [Changing the colors](#changing-the-colors). |
 | Ability `mody/publish-page` (`src/Site/PagePublisher.php`, M3-03) | Input `page_id` or `page_title` (exact, case-insensitive; a draft with that title first). Publishes a draft or pending page of this site **as it is now**, without the validator. Refuses posts and other types, pages that are published, private, scheduled or in the trash, and an unknown page, whose error lists the site's drafts. Returns `page_id`, `title`, `status` and two buttons: **View** (the page's URL) and the Site Editor. Needs `publish_pages`, and `edit_post` on that page. Public. See [Publishing and site settings](#publishing-and-site-settings). |
-| Ability `mody/update-site-settings` (`src/Site/SiteSettings.php`, M3-03) | Input `title` (at most 120 characters) and/or `tagline` (at most 200). Writes `blogname` and `blogdescription`, nothing else. Returns the old and new values. Needs `manage_options`. Public. |
+| Ability `mody/update-site-settings` (`src/Site/SiteSettings.php`, M3-03, M2-08) | Input `title` (at most 120 characters), `tagline` (at most 200), `mission` (at most 200) and/or `tone` (formal, friendly, technical). Writes `blogname`, `blogdescription` and the site settings `mody_mission` and `mody_tone`, nothing else. Returns the old and new values. Needs `manage_options`. Public. The logo and icon are not here: the agent opens the Identity screen (`mody/open-editor`, target `identity`). |
 
 How a message runs:
 
 1. The message is sanitized and capped at 2,000 characters.
-2. **No brand profile, no call.** Without one, the reply asks the member to complete the brand wizard, the turn is marked `error`, and no request leaves the server. The page also shows a warning banner.
+2. **The brand comes from the site's settings** (M2-08): title, tagline, mission and tone. There is no refusal for a missing brand, and no warning banner.
 3. `SystemPrompt::for_agent()` builds the system prompt: what the agent can do, how it decides (act, ask, decline, answer), its rules, and `brand_context()` (rule 4). The model is called with temperature 0.1, 1,000 output tokens at most and thinking off. It receives the last 10 messages of the conversation, plus the new one. Each earlier reply comes with the abilities it ran, as tool calls with their results ([the conversation](#background-jobs)).
 4. **Tools:** the abilities `mody/generate-page`, `mody/open-editor`, `mody/update-design`, `mody/publish-page` and `mody/update-site-settings` (the model sees them as `wpab__mody__generate-page` and so on), and two plain functions that act on nothing:
    - `ask_user` (`question`, up to four `choices`), which ends the turn with the question;
@@ -167,6 +167,9 @@ Built 2026-11-08 for [M3-09](../tickets/M3-09-agent-navigates-site-editor.md). T
 5. **Two guards in `Agent`, both found in real runs on 2026-11-08:**
    - **Opening what is already open:** an `open-editor` call for the page, template or part open in the editor is refused (`mody_already_open`, logged "refused: already open"). The model then edits it. Without the guard, "add a short FAQ at the end of this page" opened the open page instead of editing it 1 to 2 times in 6, despite rule 10. With it: 14 of 14 probes edited.
    - **A reply that narrates instead of acting:** a reply like "The owner wants to see other designs. This maps to…" (`Agent::narrates()`: it talks about the owner in the third person) is sent back once with "handle it now". The member never sees it. Seen in about 1 real run in 20.
+   - **A bare offer** (M2-08): "I can help with that." and the like (`Agent::stalls()`), sent back the same way. "I want to change my logo" got it 5 times in 6 before the guard, and opened Identity 6 times in 6 after it.
+   - **"Done" with no tool run** (M2-08, rule 2): a reply starting with "Done" when no ability ran in the turn (`Agent::claims_done()`) is sent back once: "no tool ran, so nothing changed". "Change the slogan to …" got "Done — your tagline is now …" once in about 8 runs.
+   - The three share one retry per message.
 6. **Pages** (decided by the maintainer on 2026-11-08).
    - A new draft opens directly in the Site Editor: `mody/generate-page`'s result asks for it (`navigate`), and `Agent::take_link()` switches to the first Site Editor link of such a result.
    - "Edit the … page" opens the page as soon as it is clear. When it is not (no page fits, or several do), rule 9 tells the agent to ask with the likely titles as choices, again if the answer still does not identify one, and never to guess or open another page. Real runs:
@@ -185,10 +188,10 @@ Built 2026-11-08 for [M3-09](../tickets/M3-09-agent-navigates-site-editor.md). T
 
 Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "use the Forest preset". Since 2026-11-07 (M2-06) a **preset** is one of the theme's style variations (`themes/theme/styles/*.json`), and `SiteDesign::apply_preset()` writes it whole: palette, typography, spacing and element styles. That is what the Site Editor does when a style is chosen in Styles → Browse styles, so it shows as the active style (`SiteDesign::active_preset()`), and earlier changes to the styles are replaced (they stay in the revisions). Single colors still patch the palette, as below:
 
-1. The agent first asks, with `ask_user`, whether the new colors are part of the brand: "Yes, they are part of my brand" / "No, only this site's design" (prompt rule 7, decided by the maintainer on 2026-11-06). It skips the question when the member already said so.
-2. With the answer, it calls `mody/update-design` with `brand` true or false. The model converts color names to hex (coral → `#ff7f50`); the server accepts only six-digit hex, or a preset slug. A preset and single colors together, or neither, are refused.
+1. **No brand question** (M2-08, replacing the 2026-11-06 rule). The site's palette is its brand, so the agent calls `mody/update-design` at once. Prompt rule 7 now says the brand is the site's settings and styles.
+2. The model converts color names to hex (coral → `#ff7f50`); the server accepts only six-digit hex, or a preset slug. A preset and single colors together, or neither, are refused.
 3. `SiteDesign::apply()` writes the colors the way WordPress 7.1's Site Editor saves an edited theme color: the **whole theme palette** under `settings.color.palette.theme` of the site's user `wp_global_styles` post (the site's own palette if it has one, else the theme's), with only `primary`, `secondary` and `accent` changed. `base` and `contrast` never change. Pages use palette slugs, so they follow at once. The post is saved like core's REST controller does, so each change is a **Global Styles revision** the member can restore in the Site Editor. For members (no `unfiltered_html` on Multisite), kses re-encodes the JSON, and the colors survive it. The ability then reads the colors back, and fails if they do not show.
-4. With `brand` true, `BrandProfile::update_colors()` writes the same colors to the site's row in `mody_brand_profiles`. The profile's colors never reach a prompt: prompts name palette slugs only (rule 2).
+4. Nothing else is written: no profile keeps a copy of the colors (M2-08). Prompts name palette slugs only (rule 2).
 5. The result carries the old and new colors (logged in `mody_agent_events`) and a **See the new colors** button to the Site Editor's styles.
 
 **The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-03) offers it, and provisioning (M2-01) calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
@@ -245,7 +248,7 @@ Verified on 2026-11-06 over HTTP (`scripts/ai-agent-chat-test.php`), then the ch
 - locally, the POST answered `202`, and the page generation ended 10.5 s later;
 - in production (commit `4093e8e`), the POST answered in 0.2 s, and the generation ended 6.6 s later.
 
-**The conversation** is stored on the server, in a transient per user and site: the last 20 messages, kept for 2 hours after the last one. The client sends only the new message, so it cannot put words in the agent's mouth. Failed turns (no brand profile, model error, timeout) are not stored. Reloading the page shows the conversation; **New conversation** deletes it.
+**The conversation** is stored on the server, in a transient per user and site: the last 20 messages, kept for 2 hours after the last one. The client sends only the new message, so it cannot put words in the agent's mouth. Failed turns (model error, timeout) are not stored. Reloading the page shows the conversation; **New conversation** deletes it.
 
 Each assistant message is stored with the abilities it ran (`calls`): the call ID, the function name, the arguments, and the result as the model saw it, with links already removed. A result over 1,000 bytes of JSON keeps only its scalar fields, so a long page list is dropped. The next turns send these to the model as tool calls with their results, before the reply's text (`Agent::history_messages()`). `ask_user` and `refuse_request` are not stored: the reply's text is the question or the reason. The calls never reach the browser: the checker's `turn` and the chat page's history (`ChatController::display_history()`) leave them out. Since 2026-11-06 (M3-03), see ["Done" without a call](#publishing-and-site-settings).
 
@@ -335,7 +338,7 @@ Built 2026-11-06 for M3-04 (`src/AI/PluginBrandContext.php`, rule 4, [mvp-spec d
 an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/includes/Abilities/*/
   └─ Abstract_Ability::get_system_instruction()     the feature's own rules (+ the plugin's editorial guidelines)
        └─ filter wpai_system_instruction            ( $instruction, $ability_name, $data )
-            └─ PluginBrandContext::filter()          a writing feature, a brand profile → append
+            └─ PluginBrandContext::filter()          a writing feature → append the site's brand
                  └─ SystemPrompt::for_ai_feature()   "the instructions above come first" + brand_context()
 ```
 
@@ -349,7 +352,7 @@ an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/include
   - `ai/image-generation`, `ai/image-import`, `ai/speech-generation`: no system instruction.
 
 - **What is appended:** a blank line, one sentence ("The site you write for has the brand below. The instructions above come first: follow their format, length and language. Where they leave the tone open, use the brand's tone of voice."), then `SystemPrompt::brand_context()`. The sentence matters for the suggested reply, which has its own requested tone. On 2026-11-06 the professional and casual replies to the same comment read clearly differently, both in the brand's voice ("we").
-- **Sites without a brand profile** get the plugin's instruction unchanged (decided 2026-11-06). Whether the features should refuse there, as the agent does, is left to M4-01's gating.
+- **Every site has a brand** since M2-08 (its settings), so every site's writing features get it.
 - **An empty instruction stays empty:** the brand is added to a feature's rules, never in their place.
 - **A new feature** in a plugin update gets no brand until it is added to `FEATURES`. `scripts/ai-plugin-brand-context-test.php` fails on any `ai/` feature it does not know, so the update forces the decision.
 - **The plugin's switches are per site.** Each site has its own feature toggles and connector approvals (the option `wpai_connector_approvals`). A new subsite has every feature off and nothing approved. Locally, `alpha` has no features on: a title generation run there under `switch_to_blog()` fails with "unsupported model", because the connector is not approved for the plugin on that site. Since 2026-11-07 (M4-03) both are pinned on member sites; see "On member sites" below.
@@ -387,7 +390,7 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-smoke-test.php
    ```
 
-3. Run the page generation test. Most of it is offline: the validator against good and broken markup, the refusal without a brand profile (and that no request is sent), and the retry loop, fed fake model answers through the `pre_http_request` filter (broken then valid: one retry; always broken: three attempts, a reported failure, no page inserted). Then it makes one real call through `mody/generate-page`. If the site has no brand profile, the script inserts a fixture row ("Ogia Bakery") and removes it at the end, together with the draft page. Add `-e MODY_TEST_KEEP_PAGE=1` after `docker exec` to keep the draft and print its Site Editor URL.
+3. Run the page generation test. Most of it is offline: the validator against good and broken markup, the brand context read from the site's settings, and the retry loop, fed fake model answers through the `pre_http_request` filter (broken then valid: one retry; always broken: three attempts, a reported failure, no page inserted). Then it makes one real call through `mody/generate-page`. It sets a test site title, mission and tone and puts them back at the end, and removes the draft page. Add `-e MODY_TEST_KEEP_PAGE=1` after `docker exec` to keep the draft and print its Site Editor URL.
 
    ```bash
    docker exec -i -u www-data mody_cloud_app \
@@ -396,15 +399,15 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
 
 4. Run the agent chat test. Most of it is offline:
    - `mody/open-editor` for pages, templates and styles;
-   - the refusal without a brand profile;
+   - the brand context: another site answers with its own title;
    - the loop with fake model answers: a plain answer, a page generation, two tool calls in one answer, `ask_user`, `refuse_request`, unknown tools, the limits, and a model error;
    - the design tool (M3-02):
      - the presets, which must match `theme.json` and the profile table's defaults;
      - the profile's colors;
-     - invalid input (bad hex, color names, unknown presets, `base`, a preset with colors, nothing to change, no `brand`);
-     - permissions (no `edit_theme_options`, logged out), and a site without a brand profile;
+     - invalid input (bad hex, color names, unknown presets, `base`, a preset with colors, nothing to change, and `brand`, which is no longer a property);
+     - permissions (no `edit_theme_options`, logged out);
      - the ask-then-update flow: a single color with brand no, and a preset with brand yes. It checks the palette, the CSS variables, the profile row, the button, the result sent back and the logged event, that the post has the Site Editor's shape, and that a revision is saved;
-     - `brand` as the string `"false"`, and a save through kses;
+     - a save through kses;
    - publishing and the site settings (M3-03):
      - `mody/publish-page`'s refusals, each with its code: nothing given, an unknown ID or title, a post, a published page (by ID and by title), a private page, a page in the trash, an extra property. Nothing changes, and the "not found" error lists the drafts;
      - permissions: no `publish_pages`, no `edit_post` on that page, logged out;
@@ -429,9 +432,9 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
    - It sends "Change the tagline to …", and checks the tagline, and that the title did not change.
    - It sends "Delete all pages" and "Show me the database".
    - It asks which design presets there are, and expects all six names.
-   - It sends "Make the primary color coral", then answers "only this site". Then it sends "Use the Forest preset" and answers "part of my brand". Each must ask first, then change the palette, and change the profile only for the brand answer.
+   - It sends "Make the primary color coral", then "Use the Forest preset". Each must change the palette at once, with no question (M2-08), and open the matching Styles screen.
 
-   Pages, events and a fixture brand profile created by the test are removed at the end. The statuses of the site's other pages, the site title and tagline, the site's Global Styles, the revisions the test made and the profile's colors are restored, and so is the user's conversation. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip the real requests, or `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
+   Pages and events created by the test are removed at the end. The statuses of the site's other pages, the site title, tagline, mission and tone, the site's Global Styles and the revisions the test made are restored, and so is the user's conversation. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip the real requests, or `-e MODY_TEST_KEEP_PAGE=1` to keep the generated draft.
 
    ```bash
    docker exec -i -u www-data mody_cloud_app \
@@ -439,7 +442,7 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
    ```
 
 5. Run the `ai` plugin brand context test (M3-04, see [The `ai` plugin's features](#the-ai-plugins-features)):
-   - the filter on a site without a brand profile: every feature unchanged;
+   - another site's own brand: its title in the filter's output;
    - the filter with a profile: the eight writing features get the brand, the other features, an empty instruction, other abilities and a non-string value stay unchanged, and there are no hex colors;
    - every `ai/` feature the plugin registers, with its real instruction: brand or no brand as decided, and a failure for any feature the test does not know;
    - title generation with a fake model answer: one request, whose system message has the plugin's rules and the brand. The same run on a site without a profile sends no brand, but is skipped when the plugin is not set up on that site (locally, `alpha`);
@@ -452,7 +455,7 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-plugin-brand-context-test.php
    ```
 
-6. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site uses the fixture brand profile "Ogia Bakery" (row 6 of `wp_mody_brand_profiles`). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. On `alpha.mody.local` and `beta.mody.local`, which have no brand profile, the page shows a warning banner and the agent refuses without calling the model.
+6. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site's brand is its settings (title "Mody Cloud", the bakery mission and tone). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. Every site has its brand in its settings, so the agent answers on `alpha.mody.local` and `beta.mody.local` too (M2-08).
 
 7. In wp-admin (`https://mody.local/wp/wp-admin/`):
    - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.
@@ -544,7 +547,7 @@ Decided by the maintainer on 2026-11-07: **every part of a generated layout is a
 - Validate the output with a parser before inserting it. Retry if it is broken.
 - Write the system prompt and every instruction to the model in English (project language rule, see [constraints.md](constraints.md)). The language of the generated page content is an open question, see [brand-profile.md](brand-profile.md#open-questions).
 
-The system prompt is assembled from the brand profile on every call. Use the theme's named colors, never loose hex values. See [brand-profile.md](brand-profile.md#message-to-the-model).
+The system prompt is assembled with the site's brand (its settings) on every call. Use the theme's named colors, never loose hex values. See [brand-profile.md](brand-profile.md#the-brand-context-the-message-to-the-model).
 
 How `SystemPrompt::for_page()` applies these rules:
 

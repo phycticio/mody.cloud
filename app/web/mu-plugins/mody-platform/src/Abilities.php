@@ -8,6 +8,7 @@
 namespace Mody\Platform;
 
 use Mody\Platform\AI\PageGenerator;
+use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Site\PagePublisher;
@@ -37,7 +38,7 @@ final class Abilities {
 			self::CATEGORY,
 			array(
 				'label'       => __( 'Mody Cloud', 'mody_cloud' ),
-				'description' => __( 'Actions of the Mody Cloud agent on a member site, always faithful to the site\'s brand profile.', 'mody_cloud' ),
+				'description' => __( 'Actions of the Mody Cloud agent on a member site, always faithful to the site\'s brand: its settings and styles.', 'mody_cloud' ),
 			)
 		);
 	}
@@ -54,7 +55,7 @@ final class Abilities {
 			'mody/generate-page',
 			array(
 				'label'               => __( 'Generate page', 'mody_cloud' ),
-				'description'         => __( 'Generates a new page from a description, in the site\'s brand identity, and saves it as a draft. Returns the page ID and the Site Editor link to review and publish it. Needs the site\'s brand profile.', 'mody_cloud' ),
+				'description'         => __( 'Generates a new page from a description, in the site\'s brand identity, and saves it as a draft. Returns the page ID and the Site Editor link to review and publish it.', 'mody_cloud' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -185,7 +186,7 @@ final class Abilities {
 			array(
 				'label'               => __( 'Update the design', 'mody_cloud' ),
 				/* translators: %s: the preset names. */
-				'description'         => sprintf( __( 'Changes the site\'s colors: a Mody design preset (%s), or new primary, secondary or accent colors as hex codes. Needs the brand profile.', 'mody_cloud' ), implode( ', ', array_column( Presets::all(), 'name' ) ) ),
+				'description'         => sprintf( __( 'Changes the site\'s colors: a Mody design preset (%s), or new primary, secondary or accent colors as hex codes.', 'mody_cloud' ), implode( ', ', array_column( Presets::all(), 'name' ) ) ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -197,12 +198,7 @@ final class Abilities {
 						'primary'   => $color,
 						'secondary' => $color,
 						'accent'    => $color,
-						'brand'     => array(
-							'type'        => 'boolean',
-							'description' => __( 'True if the owner said the colors are part of their brand: the brand profile changes too.', 'mody_cloud' ),
-						),
 					),
-					'required'             => array( 'brand' ),
 					'additionalProperties' => false,
 				),
 				'output_schema'       => array(
@@ -219,13 +215,12 @@ final class Abilities {
 								),
 							),
 						),
-						'brand_profile_updated' => array( 'type' => 'boolean' ),
 						'url'                   => array( 'type' => 'string' ),
 						'label'                 => array( 'type' => 'string' ),
 						'place'                 => array( 'type' => 'string' ),
 						'navigate'              => array( 'type' => 'boolean' ),
 					),
-					'required'   => array( 'colors', 'brand_profile_updated', 'url', 'label' ),
+					'required'   => array( 'colors', 'url', 'label' ),
 				),
 				'execute_callback'    => array( SiteDesign::class, 'update' ),
 				'permission_callback' => array( SiteDesign::class, 'can_update' ),
@@ -300,7 +295,7 @@ final class Abilities {
 			'mody/update-site-settings',
 			array(
 				'label'               => __( 'Update site settings', 'mody_cloud' ),
-				'description'         => __( 'Changes the site title, the tagline, or both.', 'mody_cloud' ),
+				'description'         => __( 'Changes the site\'s identity: title, tagline, mission, tone.', 'mody_cloud' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -313,6 +308,14 @@ final class Abilities {
 							'type'      => 'string',
 							'maxLength' => SiteSettings::FIELDS['tagline']['max'],
 						),
+						'mission' => array(
+							'type'      => 'string',
+							'maxLength' => SiteSettings::FIELDS['mission']['max'],
+						),
+						'tone'    => array(
+							'type' => 'string',
+							'enum' => BrandSettings::TONES,
+						),
 					),
 					'additionalProperties' => false,
 				),
@@ -321,6 +324,8 @@ final class Abilities {
 					'properties' => array(
 						'title'   => $change,
 						'tagline' => $change,
+						'mission' => $change,
+						'tone'    => $change,
 					),
 				),
 				'execute_callback'    => array( SiteSettings::class, 'update' ),

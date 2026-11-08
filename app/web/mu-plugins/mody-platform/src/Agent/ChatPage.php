@@ -7,7 +7,6 @@
 
 namespace Mody\Platform\Agent;
 
-use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\Gating\MemberSite;
 
 defined( 'ABSPATH' ) || exit;
@@ -117,9 +116,6 @@ final class ChatPage {
 		?>
 		<div class="wrap mody-agent">
 			<h1><?php esc_html_e( 'Mody Agent', 'mody_cloud' ); ?></h1>
-			<?php if ( null === BrandProfile::for_site( get_current_blog_id() ) ) : ?>
-				<div class="notice notice-warning inline"><p><?php esc_html_e( 'This site has no brand profile yet. The agent needs it to write in your brand: complete the brand wizard first.', 'mody_cloud' ); ?></p></div>
-			<?php endif; ?>
 
 			<div id="mody-agent-log" class="mody-agent__log" role="log" aria-live="polite"></div>
 

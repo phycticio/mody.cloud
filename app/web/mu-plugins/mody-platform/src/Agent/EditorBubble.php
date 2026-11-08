@@ -7,7 +7,6 @@
 
 namespace Mody\Platform\Agent;
 
-use Mody\Platform\Brand\BrandProfile;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -74,7 +73,6 @@ final class EditorBubble {
 		$settings['openParam']          = self::OPEN_PARAM;
 		$settings['chips']              = ChatPage::chips();
 		$settings['maxLength']          = Agent::MAX_MESSAGE_LENGTH;
-		$settings['hasProfile']         = null !== BrandProfile::for_site( get_current_blog_id() );
 		$settings['strings']['open']      = __( 'Ask Mody', 'mody_cloud' );
 		$settings['strings']['close']     = __( 'Close', 'mody_cloud' );
 		$settings['strings']['title']     = __( 'Mody', 'mody_cloud' );
@@ -82,7 +80,6 @@ final class EditorBubble {
 		$settings['strings']['send']      = __( 'Send', 'mody_cloud' );
 		$settings['strings']['message']   = __( 'Message', 'mody_cloud' );
 		$settings['strings']['hint']      = __( 'For example: make this paragraph shorter, or create an About page', 'mody_cloud' );
-		$settings['strings']['profile']   = __( 'This site has no brand profile yet. The agent needs it to write in your brand: complete the brand wizard first.', 'mody_cloud' );
 		$settings['strings']['undo']      = __( 'Undo this change', 'mody_cloud' );
 		$settings['strings']['otherPage'] = __( 'Another page is open now, so the change was not applied. Open the page again and ask once more.', 'mody_cloud' );
 		$settings['strings']['blockGone'] = __( 'The selected block is no longer there, so the change was not applied.', 'mody_cloud' );

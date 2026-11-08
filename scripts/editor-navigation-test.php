@@ -27,7 +27,7 @@
  */
 
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\SiteEditor;
 use Mody\Platform\Agent\Agent;
 
@@ -158,6 +158,8 @@ $menus  = get_posts(
 $result = $run( array( 'target' => 'navigation' ) );
 $check( 'navigation: the only menu, or the menus', is_array( $result ) && ( 1 === count( $menus ) ? '/wp_navigation/' . $menus[0] : '/navigation' ) === ( $query( $result )['p'] ?? '' ), count( $menus ) . ' menu(s): ' . ( is_array( $result ) ? $result['place'] : $code( $result ) ) );
 $check( 'patterns and the start screen', '/pattern' === ( $query( $run( array( 'target' => 'patterns' ) ) )['p'] ?? '' ) && '/' === ( $query( $run( array( 'target' => 'home' ) ) )['p'] ?? '' ) );
+$result = $run( array( 'target' => 'identity' ) );
+$check( 'identity: the Identity screen (M2-08)', is_array( $result ) && '/identity' === ( $query( $result )['p'] ?? '' ) && 'the Identity screen' === $result['place'] && $result['navigate'], is_array( $result ) ? $result['url'] : $code( $result ) );
 $result = $run( array( 'target' => 'page' ) );
 $check( 'pages and templates lists, as before, now in place', is_array( $result ) && $result['navigate'] && '/page' === ( $query( $result )['p'] ?? '' ) && '/template' === ( $query( $run( array( 'target' => 'template' ) ) )['p'] ?? '' ) );
 
@@ -298,6 +300,7 @@ $check(
 	) && 'the Site Editor\'s start screen' === $named( array( 'p' => '' ) ),
 	$named( array( 'p' => '/wp_template/' . $theme . '//index' ) )
 );
+$check( 'the Identity screen', 'the Identity screen' === $named( array( 'p' => '/identity' ) ) );
 $check( 'a block type\'s styles', str_ends_with( $named( array( 'p' => '/styles', 'section' => '/blocks/core%2Fheading' ) ), '→ Heading' ), $named( array( 'p' => '/styles', 'section' => '/blocks/core%2Fheading' ) ) );
 $check( 'refused: not a route, too long; a bad section dropped', null === SiteEditor::screen_from_input( array( 'p' => 'javascript:alert(1)' ) ) && null === SiteEditor::screen_from_input( array( 'p' => '/' . str_repeat( 'a', 250 ) ) ) && '' === SiteEditor::screen_from_input( array( 'p' => '/styles', 'section' => '<b>' ) )['section'] && null === SiteEditor::screen_from_input( 'x' ) );
 $check( 'the prompt line', str_contains( SystemPrompt::for_screen( SiteEditor::screen_from_input( array( 'p' => '/styles', 'section' => '/colors' ) ) ), 'and Styles → Colors is open right now. Only when they ask for this very screen, do not open it again' ) );
@@ -305,9 +308,9 @@ $check( 'the prompt line', str_contains( SystemPrompt::for_screen( SiteEditor::s
 // 4. The prompt ---------------------------------------------------------------------
 
 echo "\nThe prompt\n";
-$profile = BrandProfile::for_site( get_current_blog_id() );
-$prompt  = $profile ? SystemPrompt::for_agent( $profile, Agent::tool_names() ) : '';
-$check( 'the targets explained', str_contains( $prompt, 'Targets: page' ) && str_contains( $prompt, 'list (list: a key from "Lists on this site"' ) && str_contains( $prompt, 'browse for the style presets' ), $profile ? '' : 'no brand profile on this site' );
+$prompt = SystemPrompt::for_agent( Agent::tool_names() );
+$check( 'the targets explained, identity included (M2-08)', str_contains( $prompt, 'Targets: page' ) && str_contains( $prompt, 'list (list: a key from "Lists on this site"' ) && str_contains( $prompt, 'browse for the style presets' ) && str_contains( $prompt, 'identity (the site\'s title, tagline, logo, icon, mission and tone)' ) );
+$check( 'rule 7: the brand is the site\'s settings and styles, no brand question', str_contains( $prompt, '7. The site\'s brand is its WordPress settings and its styles' ) && ! str_contains( $prompt, 'part of my brand' ) );
 $check( 'rule 9: open the screen when the owner does not say how', str_contains( $prompt, '9. When the owner wants to change something without saying how' ) );
 $archive = SiteEditor::lists()['category']['template_title'] ?? '';
 $check( 'the site\'s lists, with counts and templates', str_contains( $prompt, '- post: the latest posts, on the front page (' ) && str_contains( $prompt, 'published). Template: Index.' ) && str_contains( $prompt, '- category: the posts of each category (' ) && '' !== $archive && str_contains( $prompt, 'Template: ' . $archive . '.' ), $archive );
@@ -326,7 +329,7 @@ $editor = wp_insert_user(
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 $cleanup[] = static fn() => wpmu_delete_user( $editor );
 wp_set_current_user( $editor );
-$check( 'an editor: pages yes; styles, parts, lists no', SiteEditor::can_open( array( 'target' => 'page' ) ) && ! SiteEditor::can_open( array( 'target' => 'styles' ) ) && ! SiteEditor::can_open( array( 'target' => 'part' ) ) && ! SiteEditor::can_open( array( 'target' => 'list' ) ) );
+$check( 'an editor: pages yes; styles, parts, lists, identity no', SiteEditor::can_open( array( 'target' => 'page' ) ) && ! SiteEditor::can_open( array( 'target' => 'styles' ) ) && ! SiteEditor::can_open( array( 'target' => 'part' ) ) && ! SiteEditor::can_open( array( 'target' => 'list' ) ) && ! SiteEditor::can_open( array( 'target' => 'identity' ) ) );
 wp_set_current_user( 0 );
 $check( 'logged out: nothing', ! SiteEditor::can_open( array( 'target' => 'page' ) ) && is_wp_error( $run( array( 'target' => 'home' ) ) ) );
 
@@ -339,6 +342,30 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 
 echo "\nReal requests (the start screen of the Site Editor; paced)\n";
 wp_set_current_user( get_user_by( 'login', $admins[0] )->ID );
+// The identity settings the agent may change (M2-08): put them back at the end.
+$saved_identity = array(
+	'blogdescription'      => get_option( 'blogdescription' ),
+	BrandSettings::MISSION => get_option( BrandSettings::MISSION, '' ),
+	BrandSettings::TONE    => get_option( BrandSettings::TONE, '' ),
+);
+$cleanup[]      = static function () use ( $saved_identity ): void {
+	foreach ( $saved_identity as $option => $value ) {
+		update_option( $option, $value );
+	}
+};
+// A named color now changes the palette at once (M2-08): put the site's styles back at the end.
+$styles_id      = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+$styles_content = (string) get_post( $styles_id )->post_content;
+$revisions      = wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) );
+$cleanup[]      = static function () use ( $styles_id, $styles_content, $revisions ): void {
+	if ( (string) get_post( $styles_id )->post_content !== $styles_content ) {
+		wp_update_post( wp_slash( array( 'ID' => $styles_id, 'post_content' => $styles_content ) ), true, false ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing
+	}
+	foreach ( array_diff( wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) ), $revisions ) as $revision ) {
+		wp_delete_post_revision( $revision );
+	}
+	wp_clean_theme_json_cache();
+};
 $opened = static function ( string $text, array $screen = array( 'p' => '/' ), array $history = array() ): array {
 	usleep( 700000 ); // Infomaniak's rate limit.
 	$start = microtime( true );
@@ -405,8 +432,31 @@ if ( $created ) {
 }
 $check( 'a new page opens directly', $created && str_starts_with( $result['place'], 'the page "' ), $result['place'] . ' | ' . $result['detail'] );
 
+// The brand is the site's settings and styles (M2-08): no brand question, Identity for the logo.
 $result = $opened( 'Make the primary color coral' );
-$check( 'regression: a named color still asks about the brand first', null === $result['args'] && 2 === count( $result['choices'] ), $result['detail'] );
+$design = null;
+foreach ( $result['turn']['calls'] ?? array() as $made_call ) {
+	if ( str_ends_with( (string) $made_call['name'], 'update-design' ) ) {
+		$design = (array) $made_call['args'];
+	}
+}
+$check( 'a named color changes at once, no brand question, Colors opens', null !== $design && ! $result['choices'] && 'Styles → Colors' === $result['place'], ( null === $design ? 'no update-design' : wp_json_encode( $design ) ) . ' | ' . $result['detail'] );
+$result = $opened( 'I want to change my logo' );
+$check( '"I want to change my logo": the Identity screen', 'identity' === ( $result['args']['target'] ?? '' ) && 'the Identity screen' === $result['place'], $result['detail'] );
+$settings_args  = static function ( array $turn ): ?array {
+	foreach ( $turn['calls'] ?? array() as $made_call ) {
+		if ( str_ends_with( (string) $made_call['name'], 'update-site-settings' ) ) {
+			return (array) $made_call['args'];
+		}
+	}
+	return null;
+};
+$result = $opened( 'Change the slogan to Fresh bread every morning' );
+$args   = $settings_args( $result['turn'] );
+$check( '"Change the slogan to …": the tagline setting', null !== $args && 'Fresh bread every morning' === ( $args['tagline'] ?? '' ) && 'Fresh bread every morning' === BrandSettings::brand()['tagline'], wp_json_encode( $args ) . ' | ' . $result['detail'] );
+$result = $opened( 'We now also bake for schools, please update what we do' );
+$args   = $settings_args( $result['turn'] );
+$check( '"We now also bake for schools…": the mission setting', null !== $args && isset( $args['mission'] ) && str_contains( strtolower( BrandSettings::brand()['mission'] ), 'school' ), wp_json_encode( $args ) . ' | ' . $result['detail'] );
 $result = $opened(
 	'I want to change the colors of the site',
 	array(

@@ -18,12 +18,12 @@
  *    site is ready. Add `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip
  *    the creation (the page check still runs).
  *
- * Sites, jobs, brand profiles and the user created by the test are removed
+ * Sites, jobs and the user created by the test are removed
  * at the end. Emails are captured, not sent. Never prints the token.
  */
 
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Provisioning\Jobs;
@@ -44,13 +44,12 @@ global $wpdb;
 $admins = get_super_admins();
 $admin  = get_user_by( 'login', $admins[0] )->ID;
 wp_set_current_user( $admin );
-BrandProfile::install();
 Jobs::install();
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $slug   = static fn( string $name ): string => 'modywiz' . $name . $suffix;
 $mark   = (int) $wpdb->get_var( 'SELECT COALESCE(MAX(id), 0) FROM ' . Jobs::table() ); // phpcs:ignore WordPress.DB
 
-// Everything the test creates is removed at the end: the jobs after $mark, their sites and profiles.
+// Everything the test creates is removed at the end: the jobs after $mark and their sites.
 $extra_sites = array();
 $member      = wp_insert_user(
 	array(
@@ -64,7 +63,6 @@ $cleanup = static function () use ( $mark, &$extra_sites ): void {
 	global $wpdb;
 	$sites = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( 'SELECT site_id FROM ' . Jobs::table() . ' WHERE id > %d AND site_id IS NOT NULL', $mark ) ) ); // phpcs:ignore WordPress.DB
 	foreach ( array_unique( array_merge( $sites, $extra_sites ) ) as $site_id ) {
-		$wpdb->delete( BrandProfile::table(), array( 'site_id' => $site_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		if ( get_site( $site_id ) ) {
 			wp_delete_site( $site_id );
 		}
@@ -156,17 +154,17 @@ $rest = static function ( string $method, string $path, array $body = array(), a
 echo "Page\n";
 $check( 'super admins may use it', user_can( $admin, WizardPage::CAPABILITY ) );
 $check( 'other users may not (until M1)', ! user_can( $member, WizardPage::CAPABILITY ) );
-$check( 'tones are the profile\'s', array_keys( WizardPage::tones() ) === BrandProfile::TONES );
+$check( 'tones are the brand settings\'', array_keys( WizardPage::tones() ) === BrandSettings::TONES );
 ob_start();
 WizardPage::render();
 $html = (string) ob_get_clean();
 preg_match_all( '/name="preset" value="([a-z-]+)"/', $html, $presets );
 preg_match_all( '/name="tone" value="([a-z]+)"/', $html, $tones );
-$fields = array_filter( array( 'title', 'slug', 'brand_name', 'mission', 'prompt' ), static fn( $f ) => str_contains( $html, 'name="' . $f . '"' ) );
+$fields = array_filter( array( 'title', 'slug', 'mission', 'prompt' ), static fn( $f ) => str_contains( $html, 'name="' . $f . '"' ) );
 $check( 'three steps', 3 === substr_count( $html, 'class="mody-wizard__step"' ) && 2 === substr_count( $html, 'data-step="2" hidden' ) + substr_count( $html, 'data-step="3" hidden' ) );
-$check( 'every field', 5 === count( $fields ), implode( ', ', $fields ) );
+$check( 'every field, and no brand name (the site name is the brand, M2-08)', 4 === count( $fields ) && ! str_contains( $html, 'name="brand_name"' ), implode( ', ', $fields ) );
 $check( 'six preset cards, the default checked', Presets::slugs() === $presets[1] && preg_match( '/value="' . Presets::DEFAULT . '" +checked/', $html ), implode( ', ', $presets[1] ) );
-$check( 'three tone cards, friendly checked', BrandProfile::TONES === $tones[1] && preg_match( '/value="friendly" +checked/', $html ) );
+$check( 'three tone cards, friendly checked', BrandSettings::TONES === $tones[1] && preg_match( '/value="friendly" +checked/', $html ) );
 $check( 'the address ends with the network domain', str_contains( $html, '<span>.' . get_network()->domain . '</span>' ) );
 $check( 'the quota', (bool) preg_match( '/\d+ of 50 sites used/', $html ) );
 WizardPage::enqueue();
@@ -224,7 +222,14 @@ $check(
 	(string) ( $view['site']['url'] ?? 'no site' )
 );
 $check( '...no fallback', false === ( $view['fallback'] ?? null ) && false === ( $view['retrying'] ?? null ) );
-$check( '...the Plum preset', BrandProfile::for_site( (int) Jobs::get( (int) $view['job'] )['site_id'] )?->colors == Presets::colors( 'plum' ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+$made = (int) ( Jobs::get( (int) $view['job'] )['site_id'] ?? 0 );
+switch_to_blog( $made );
+wp_clean_theme_json_cache();
+$made_colors = SiteDesign::colors();
+$made_brand  = BrandSettings::brand();
+restore_current_blog();
+$check( '...the Plum preset, in its Global Styles', Presets::colors( 'plum' ) == $made_colors, wp_json_encode( $made_colors ) ); // phpcs:ignore Universal.Operators.StrictComparisons
+$check( '...its brand in its own settings', '' !== $made_brand['name'] && '' !== $made_brand['mission'] && $made_brand['mission'] === $made_brand['tagline'], wp_json_encode( $made_brand ) );
 $job_id = (int) ( $view['job'] ?? 0 );
 $out    = $rest( 'GET', '/jobs/' . $job_id );
 $check( 'GET the job', 200 === $out['code'] && $out['data'] == $view, (string) $out['code'] ); // phpcs:ignore Universal.Operators.StrictComparisons
@@ -432,7 +437,7 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	}
 	$check( '...followed until the site is ready', 'done' === ( $view['status'] ?? '' ) && ! empty( $view['site']['url'] ), sprintf( '%s after %d polls, %.1fs, %s', $view['status'] ?? '?', $polls, microtime( true ) - $start, ( $view['fallback'] ?? false ) ? 'fallback page' : 'generated page' ) );
 	$site = (int) ( Jobs::get( (int) ( $view['job'] ?? 0 ) )['site_id'] ?? 0 );
-	$check( '...with the logo sent along', $site && (int) get_blog_option( $site, 'site_logo' ) > 0 && '' !== (string) BrandProfile::for_site( $site )?->logo_url, (string) BrandProfile::for_site( $site )?->logo_url );
+	$check( '...with the logo sent along, as its site logo', $site && (int) get_blog_option( $site, 'site_logo' ) > 0, (string) get_blog_option( $site, 'site_logo' ) );
 }
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

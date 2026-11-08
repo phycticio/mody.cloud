@@ -7,14 +7,16 @@
 
 namespace Mody\Platform\Site;
 
+use Mody\Platform\Brand\BrandSettings;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Changes the site title and tagline (documentation/mvp-spec.md section 8,
- * ticket M3-03). Nothing else: the allowlist is fixed here, and the ability's
- * schema refuses any other property.
+ * Changes the site's identity settings (documentation/mvp-spec.md section 8,
+ * tickets M3-03 and M2-08): the title (the brand name), the tagline, and the
+ * mission and tone site settings (BrandSettings). Nothing else: the allowlist
+ * is fixed here, and the ability's schema refuses any other property.
  */
 final class SiteSettings {
 
@@ -27,6 +29,14 @@ final class SiteSettings {
 		'tagline' => array(
 			'option' => 'blogdescription',
 			'max'    => 200,
+		),
+		'mission' => array(
+			'option' => BrandSettings::MISSION,
+			'max'    => BrandSettings::MAX_MISSION,
+		),
+		'tone'    => array(
+			'option' => BrandSettings::TONE,
+			'max'    => 20,
 		),
 	);
 
@@ -41,7 +51,7 @@ final class SiteSettings {
 	 * A setting as the member reads it. WordPress stores these options
 	 * HTML-escaped (sanitize_option()).
 	 *
-	 * @param string $field `title` or `tagline`.
+	 * @param string $field A FIELDS key.
 	 */
 	public static function get( string $field ): string {
 		return wp_specialchars_decode( (string) get_option( self::FIELDS[ $field ]['option'], '' ), ENT_QUOTES );
@@ -51,7 +61,7 @@ final class SiteSettings {
 	 * Execute callback of mody/update-site-settings. Input already validated
 	 * against the ability's schema.
 	 *
-	 * @param mixed $input `title` and/or `tagline`.
+	 * @param mixed $input `title`, `tagline`, `mission` and/or `tone`.
 	 * @return array<string, array{old: string, new: string}>|WP_Error The old and new values.
 	 */
 	public static function update( $input ): array|WP_Error {
@@ -63,7 +73,11 @@ final class SiteSettings {
 			}
 		}
 		if ( ! $values ) {
-			return new WP_Error( 'mody_no_settings', __( 'Give a new site title, a new tagline, or both.', 'mody_cloud' ) );
+			return new WP_Error( 'mody_no_settings', __( 'Give a new site title, tagline, mission or tone.', 'mody_cloud' ) );
+		}
+		if ( isset( $values['tone'] ) && ! in_array( $values['tone'], BrandSettings::TONES, true ) ) {
+			/* translators: %s: the tones. */
+			return new WP_Error( 'mody_unknown_tone', sprintf( __( 'The tone must be one of: %s.', 'mody_cloud' ), implode( ', ', BrandSettings::TONES ) ) );
 		}
 		if ( isset( $values['title'] ) && '' === $values['title'] ) {
 			return new WP_Error( 'mody_empty_title', __( 'The site title cannot be empty.', 'mody_cloud' ) );

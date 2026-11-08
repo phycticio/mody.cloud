@@ -62,9 +62,6 @@
 	header.append( title, reset, close );
 	panel.append( header );
 
-	if ( ! config.hasProfile ) {
-		panel.append( element( 'p', 'mody-bubble__notice', strings.profile ) );
-	}
 
 	const log = element( 'div', 'mody-agent__log' );
 	log.id = 'mody-agent-log';

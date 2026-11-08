@@ -36,7 +36,7 @@ final class WizardPage {
 
 	/**
 	 * The tone cards: the same sentence written in each tone (mvp-spec section 6).
-	 * The keys are BrandProfile::TONES.
+	 * The keys are BrandSettings::TONES.
 	 *
 	 * @return array<string, array{0: string, 1: string}> Tone => name, sample sentence.
 	 */
@@ -194,11 +194,6 @@ final class WizardPage {
 						<label for="mody-slug"><?php esc_html_e( 'Address', 'mody_cloud' ); ?></label>
 						<span class="mody-wizard__address"><input type="text" id="mody-slug" name="slug" maxlength="63" autocomplete="off" spellcheck="false" required><span><?php echo esc_html( $suffix ); ?></span></span>
 						<?php $error( 'slug' ); ?>
-					</p>
-					<p class="mody-wizard__field">
-						<label for="mody-brand"><?php esc_html_e( 'Brand name', 'mody_cloud' ); ?></label>
-						<input type="text" id="mody-brand" name="brand_name" maxlength="<?php echo (int) Pipeline::MAX_NAME_LENGTH; ?>" autocomplete="off">
-						<?php $error( 'brand_name' ); ?>
 					</p>
 					<p class="mody-wizard__field">
 						<label for="mody-mission"><?php esc_html_e( 'What do you do?', 'mody_cloud' ); ?></label>

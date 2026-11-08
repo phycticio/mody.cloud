@@ -29,7 +29,6 @@ use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SpectraLayout;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\Provisioning\Pipeline;
 
 $failures = 0;
@@ -125,10 +124,7 @@ $tally = static function ( string $markup ) use ( $containers, $shape ): string 
 $kinds = array_map( static fn( $box ) => $shape( $box['attrs'] ), $containers( SystemPrompt::EXAMPLE ) );
 $check( '...it shows every shape', ! array_diff( array_keys( $recipe ), $kinds ), $tally( SystemPrompt::EXAMPLE ) );
 $check( '...and passes the validator', true === BlockValidator::validate( SystemPrompt::EXAMPLE ) );
-$main_profile = BrandProfile::for_site( get_main_site_id() );
-if ( $main_profile ) {
-	$check( 'the page and edit prompts carry the layout rules', str_contains( SystemPrompt::for_page( $main_profile ), SpectraLayout::rules() ) && str_contains( SystemPrompt::for_edit( $main_profile, false ), SpectraLayout::rules() ) && str_contains( SystemPrompt::for_edit( $main_profile, true, true ), SpectraLayout::rules() ) );
-}
+$check( 'the page and edit prompts carry the layout rules', str_contains( SystemPrompt::for_page(), SpectraLayout::rules() ) && str_contains( SystemPrompt::for_edit( false ), SpectraLayout::rules() ) && str_contains( SystemPrompt::for_edit( true, true ), SpectraLayout::rules() ) );
 $fallback = Pipeline::fallback_markup( 'Ogia Bakery', 'We bake bread.' );
 $check( 'the fallback page is one section', true === BlockValidator::validate( $fallback ) && ! $layout_problems( $fallback ), implode( '; ', $layout_problems( $fallback ) ) );
 
@@ -286,12 +282,7 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed (offline).\n";
 	return;
 }
-$site_id = get_main_site_id();
-if ( null === BrandProfile::for_site( $site_id ) ) {
-	echo "\nThe main site has no brand profile: real runs skipped.\n";
-	echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";
-	return;
-}
+$site_id = get_main_site_id(); // Its brand is its settings (M2-08): every site has one.
 echo "\nReal generations (main site)\n";
 $requests = 0;
 add_action(

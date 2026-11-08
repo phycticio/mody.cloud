@@ -62,7 +62,7 @@ All pairs the theme actually uses pass WCAG AA for normal text (4.5:1).
 - **Spacing presets:** `20` to `80` (0.5 rem up to 8 rem). Templates use `var:preset|spacing|NN`.
 - **Layout:** content width 720px, wide 1200px, root-padding-aware alignments.
 
-When a member's brand profile is applied, `color_primary`, `color_secondary` and `color_accent` override the `primary`, `secondary` and `accent` values. See [brand-profile.md](brand-profile.md#data-schema-custom-wordpress-table) for the mapping and [architecture.md](architecture.md#open-questions) for the open question about doing it per site.
+Each site's own Global Styles override `primary`, `secondary` and `accent` (the preset chosen in the wizard, then Styles → Colors or the agent). The site's palette is its brand (M2-08): no copy of the colors is kept anywhere else. See [brand-profile.md](brand-profile.md).
 
 **Contrast of the presets** (checked 2026-11-07, WCAG AA needs 4.5:1).
 
@@ -83,7 +83,7 @@ All pairs pass. The candidate colors failed four times. Forest's accent (`#c77d2
 - Layout is Spectra containers, never core groups, columns or covers (the bare `main` landmark aside), and never around `post-content` (see Structure).
 - No Elementor or similar builders. No Astra. No external fonts, scripts or CDNs.
 - Styles go in `theme.json` first. `style.css` is only for what `theme.json` cannot express. One such rule (2026-11-07): headings inside a block that sets a text color take that color (`.has-text-color :is(h1, …, h6) { color: inherit }`). Otherwise theme.json's `secondary` heading color wins, and a hero's heading stays dark on the primary color. A heading with its own color class keeps it.
-- Keep `functions.php` small. Platform logic (tiers, brand profile, agent) does not belong in the theme.
+- Keep `functions.php` small. Platform logic (tiers, the brand settings, agent) does not belong in the theme.
 - Text domain is `mody_cloud`. It differs from the directory name (`theme`), so `functions.php` loads translations explicitly. Wrap user-facing PHP strings with WordPress i18n functions. Text in HTML templates is plain and editable in the Site Editor.
 - Code comments, documentation and commit messages are written in English (rule 8 in [constraints.md](constraints.md)). Do not write Spanish into code or templates.
 - **JavaScript and CSS go through `@wordpress/scripts`.**

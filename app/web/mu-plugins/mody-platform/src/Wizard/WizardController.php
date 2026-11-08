@@ -61,7 +61,6 @@ final class WizardController {
 				'args'                => array(
 					'slug'       => $string( 63, true ),
 					'title'      => $string( 500, true ),
-					'brand_name' => $string( 500 ),
 					'mission'    => $string( 1000, true ),
 					'tone'       => $string( 20 ),
 					'preset'     => $string( 40 ),
@@ -137,7 +136,7 @@ final class WizardController {
 			);
 		}
 
-		$input = array_intersect_key( $request->get_params(), array_flip( array( 'slug', 'title', 'brand_name', 'mission', 'tone', 'preset', 'prompt' ) ) );
+		$input = array_intersect_key( $request->get_params(), array_flip( array( 'slug', 'title', 'mission', 'tone', 'preset', 'prompt' ) ) );
 
 		// The answers first, so a logo is not stored for a request that fails anyway.
 		$valid = Pipeline::validate( $input, wp_get_current_user() );
