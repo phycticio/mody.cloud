@@ -1,22 +1,29 @@
 # M5-01 · Hardening, production and launch checklist
 
-**Milestone:** M5 · **Spec:** documentation/mvp-spec.md §15 · **Status:** todo
+**Milestone:** M5 · **Spec:** documentation/mvp-spec.md §15 · **Status:** todo. Refreshed 2026-11-08: items that were already done or stale were updated, and the wildcard DNS and TLS, `home` and mail moved to [M5-02](M5-02-production-member-sites.md).
 
 ## Goal
-The platform is launch-ready for 100 founding members: production-safe compose, TLS for wildcard subdomains, backups, and a security pass over everything the MVP added.
+The platform is launch-ready for 100 founding members: member sites reachable in production, backups proven, and a security pass over everything the MVP added.
+
+## Already done
+- **Production compose** (2026-11-04): the server runs `compose.yml` with `compose.prod.yml` from the sample. Only nginx's HTTP port is published; Xdebug and MariaDB publish nothing; Mailpit never starts (architecture.md, Host). There is no agent service any more: the AI runs in PHP since 2026-11-04.
+- **Deploys** (2026-11-04): `./bin/deploy --env=prod`, with checks, from pushed commits on `main` only.
+- **No updates from wp-admin** (2026-11-08): [updates-through-composer-only.md](updates-through-composer-only.md).
 
 ## Deliverables
-- **Production compose:** use `compose.prod.yml.sample` (no Xdebug 9003, no published MariaDB 3306); fix its stale Tamarind server names; confirm the agent service has no published ports in prod.
-- **Wildcard TLS:** production front end terminates a wildcard cert for `*.mody.cloud` (infra task — spec §16.3). Local stays on mkcert wildcard.
-- **Real mail:** replace Mailpit/MSMTP with the production SMTP relay (spec §16.2 — provider to confirm: Infomaniak Mail or self-hosted).
-- **Backup/restore drill:** full DB + uploads backup, restore into a clean stack, verify one member site end-to-end.
-- **Security pass** over M1–M4 code:
-  - All endpoints: nonce + capability checks; all inputs sanitized (wizard fields, chat relay, market toggles).
-  - Mollie webhook signature verification + idempotency replay test.
-  - Agent tools: capability checks on every call; `INFOMANIAK_API_KEY` only in the server `.env`, never in the database, logs or prompts.
-  - No secrets in repo/logs/prompts (constraint 6); `.env` untracked.
-- **Monitoring:** Query Monitor (existing) wired for the main site; error log at `app/logs/debug.log`; a simple "system health" dashboard page for platform admins (site count, past-due count, failed jobs).
-- **Stale cleanup** (after launch is stable): remove/replace the Tamarind leftovers listed in `local-development.md` "Known stale items" (`bin/migrate-*`, `bin/build`, ofelia labels, `.github/workflows/*`, `app/assets/`, `test.md`).
+- **[M5-02](M5-02-production-member-sites.md):** member sites in production (wildcard DNS and certificate, the proxy host), `home` without `/wp`, and real mail through an EU SMTP relay.
+- **The production host** (architecture.md, Open questions): stay on the laptop with the USB disk, or move to a European VPS (Hetzner, Infomaniak) before launch. Replacing Cloudflare depends on it.
+- **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule, which does not exist yet.
+- **WP-Cron on subsites** (architecture.md, Open questions), if M1 has not settled it already.
+- **Security pass** over M1 to M4:
+  - **Endpoints:** nonce and capability checks on the wizard REST routes (`mody-platform/v1/sites`), the agent chat endpoint and its jobs, and the `mody/*` abilities' permission callbacks (REST and MCP). Inputs sanitized: the wizard fields, the logo upload, chat messages.
+  - **Mollie:** the webhook's verification and the idempotency replay test (M1-01 part 3).
+  - **Plugins on member sites:** the M4-02 rules (hidden plugins by every path) and the `ai` plugin's lock-down (M4-03).
+  - **Secrets:** `INFOMANIAK_API_KEY`, the Mollie keys and the SMTP password only in the server `.env`, never in the database, logs or prompts (rule 6). `.env` untracked.
+- **Monitoring:** Query Monitor is a dev requirement and never reaches production, so it is not the answer here. What is left:
+  - the error log at `app/logs/debug.log`;
+  - a simple system health page for super admins: site count, past-due count, failed provisioning jobs, agent errors from `mody_agent_events`.
+- **Stale cleanup** (after launch is stable): the Tamarind leftovers listed in local-development.md, "Known stale items". `bin/build` is current and not on that list.
 
 ## Acceptance (launch checklist)
 - [ ] Fresh machine: `cp sample.env .env`, certs, `docker compose up`, core install, multisite activation — the site is usable (documented in local-development.md).
