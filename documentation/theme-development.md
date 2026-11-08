@@ -15,16 +15,23 @@ app/web/themes/theme/
 ├── templates/
 │   ├── index.html     # fallback and blog index
 │   ├── page.html      # title + content
-│   ├── page-blank.html# custom template: no title, full width (for generated landing pages)
+│   ├── page-blank.html# custom template: no title, the content full width (for generated pages)
 │   ├── single.html    # post
 │   ├── archive.html
 │   ├── search.html
 │   └── 404.html
 ├── parts/
-│   ├── header.html    # site logo, site title, navigation
-│   └── footer.html    # site title and tagline on the contrast background
+│   ├── header.html    # a band (container) with a row: site logo, site title, navigation
+│   └── footer.html    # a band on the contrast background with a row: site title, tagline
 └── styles/            # style variations: the Mody presets (forest, graphite, ocean, plum, sand)
 ```
+
+**Layout: Spectra containers** (decided 2026-11-08, the same system as generated pages, [ai-engine.md](ai-engine.md#layout-spectra-containers)).
+- **Parts:** the header and footer are each a full-width band (`align` full, content at the wide width through `layout.contentSize`) holding one flex row. The bands' padding is smaller on phones, and the footer's row becomes a column there. The menu fills the header row and collapses to its overlay on phones.
+- **Templates:** `main` is a bare core group, `{"tagName":"main"}`, a landmark with no layout of its own. Everything visible inside it is a container (the title of `page` and `single`, the content of `index`, `archive`, `search` and `404`) or `post-content`.
+- **`post-content` is never inside a container.** Spectra's editor counts a container as a root only when no Spectra block is above it. Wrapped, every generated page's sections would lose their root flag and full width in the Site Editor.
+- **Written as the editor saves them:** each container has `variationSelected`, a fixed `spectraId` (`spectra-mody-…`, unique across the theme), and on roots `isBlockRootParent` and `align`. Opening a template in the Site Editor therefore changes nothing. In attribute JSON, `--` is written `\u002d\u002d` (WordPress's serializer does that), as in `var(\u002d\u002dwp\u002d\u002dstyle\u002d\u002dglobal\u002d\u002dwide-size)`.
+- **Checked by** `scripts/spectra-layout-test.php` (valid, layout in containers, post-content outside them, nothing for the editor to change, unique IDs) and `scripts/agent-template-test.php`.
 
 **`styles/`: the Mody design presets as style variations** (2026-11-07, M2-06). `forest.json`, `graphite.json`, `ocean.json`, `plum.json` and `sand.json`, each a full theme.json (version 3) with a `title`.
 - **Contents:** the five palette slugs, the font sizes, the spacing scale, and the root and element styles (links, headings, buttons). Today they differ only in colors; each file can be tuned on its own.
@@ -73,6 +80,7 @@ All pairs pass. The candidate colors failed four times. Forest's accent (`#c77d2
 ## Rules
 
 - The serialized block format in `templates/` and `parts/` is the same format the agent generates ([ai-engine.md](ai-engine.md)). Keep markup valid: block comment JSON must parse, blocks must be balanced, saved HTML must match the attributes.
+- Layout is Spectra containers, never core groups, columns or covers (the bare `main` landmark aside), and never around `post-content` (see Structure).
 - No Elementor or similar builders. No Astra. No external fonts, scripts or CDNs.
 - Styles go in `theme.json` first. `style.css` is only for what `theme.json` cannot express. One such rule (2026-11-07): headings inside a block that sets a text color take that color (`.has-text-color :is(h1, …, h6) { color: inherit }`). Otherwise theme.json's `secondary` heading color wins, and a hero's heading stays dark on the primary color. A heading with its own color class keeps it.
 - Keep `functions.php` small. Platform logic (tiers, brand profile, agent) does not belong in the theme.

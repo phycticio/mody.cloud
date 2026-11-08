@@ -39,5 +39,10 @@ In the Site Editor, the bubble's agent can also change the template or template 
 - `agent-edit-test.php` (real) and every other suite pass.
 - **Not checked by the tests:** applying the edit in a real Site Editor. Open the header part in the Site Editor (Patterns → Header, or a template), open the bubble, and ask "add the tagline under the site title".
 
+## Follow-up (2026-11-08)
+- The header request started failing (declined 3 times in 4) with the prompt unchanged. The agent's paragraph now gives an outline of the part's blocks, says that theme blocks show the site's data by themselves (with this request as the example), names `update-site-settings` for the words, and says whether the site has a tagline. Measured 59 of 60 over six requests; details in [ai-engine.md](../documentation/ai-engine.md#the-agent), item 6.
+- The agent accepts its own tools under the abilities' prefix (`wpab__mody__edit_content`).
+- `agent-template-test.php` sets a tagline for the header request and restores it, and checks that with none the agent asks what it should say.
+
 ## Note
 - **Editing a page shows its template around it:** blocks of the template there (the header, say) count as no selection, as in M3-06. To change the header, open the header part or a template.

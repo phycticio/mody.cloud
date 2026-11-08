@@ -252,6 +252,20 @@ These times are for the agent turn itself, measured in-process. In the browser, 
      - That sentence is probed. Without it, "add the tagline under the site title" in the header was declined 2 times in 3 ("I can only change the tagline's text").
      - An intermediate wording that also said "say so after an edit" made the model answer "Done" with no call, 4 times in 5.
      - With it, 10 of 10 called `edit_content`, while "change the tagline to …" still picked `update-site-settings` (5 of 5) and "create an About page" `generate-page` (5 of 5).
+   - **Reworked on 2026-11-08**, when the same wording got the header request declined 3 times in 4 ("I can't move or add blocks in the header myself"; the agent's prompt had not changed). The agent could not see what the part holds. Its paragraph now also gives:
+     - an outline of the blocks (`SystemPrompt::outline()`, names only, such as `container (container (site-logo, site-title, navigation))`);
+     - that theme blocks show the site's data by themselves, so adding or moving them needs no text, with "add the tagline under the site title" as the example;
+     - that only the words of the title and tagline are settings, changed with `update-site-settings` (named);
+     - whether the site has a tagline, without its words.
+     - **Measured** (6 requests, 5 runs each, twice, paced): 59 of 60. Adding the tagline, moving the logo, a footer line and removing the page title called `edit_content`; changing the tagline called `update-site-settings`; "create an About page" called `generate-page`. The one miss was a question through `ask_user`. With no tagline set, the agent asks what it should say.
+     - **Wordings that failed**, so they are not tried again:
+       - a tool description listing everything it can do: 0 of 10 for the header;
+       - the title's and tagline's words in the prompt: questions about their wording, or about the main site's title;
+       - nothing about the tagline: "Done" with no tool call when asked to change it, 5 of 6;
+       - "call it without asking for confirmation": the same false "Done";
+       - "never by saying so" after the settings tool: moving the logo went to `open-editor`, 0 of 6.
+   - **Prefixed names:** the model sometimes calls `wpab__mody__edit_content`, copying the abilities' prefix (5 calls in 6 in one probe). `Agent::handle()` accepts the prefix on its own three tools (`edit_content`, `ask_user`, `refuse_request`).
+   - **Rate limit:** a burst of a few hundred probe requests got HTTP 429 from Infomaniak ("rate limit level 1"). It lifted within minutes. Pace probes; production shares the account.
    - **The writer** gets two more rules: the theme blocks may be used, and theme blocks (site title, tagline, logo, navigation) carry the site's own data, never typed text. Post-content is never removed.
    - **The validator's template mode** allows the theme blocks (`BlockValidator::TEMPLATE_BLOCKS`; every template and part of the theme passes it). It refuses an edit that drops `post-content` or the `query` loop a template had.
    - **Real runs:**
@@ -472,7 +486,7 @@ Decided by the maintainer on 2026-11-07: **every part of a generated layout is a
 - **What Spectra's editor sets, set first** (`SpectraLayout::normalize()`, after validation): `variationSelected` on every container (without it the editor shows the layout picker instead of the content), and on a root container (no Spectra block above it) `isBlockRootParent` and `align` full. A fragment edit sets only `variationSelected`; the editor sets the rest when it places the block.
 - **IDs** (`SpectraLayout::with_ids()`): content saved without passing through the editor (`PageGenerator::insert_page()`, the provisioning retry) gets a `spectraId` per Spectra block, in Spectra's format. Without one, Spectra makes a new ID on every page view and cannot cache the block's CSS.
 - **Measured on 2026-11-07** (`scripts/spectra-layout-test.php`): 3 of 3 real pages valid on the first request (4.8 to 6.2 s) and laid out as the recipe says; a real whole-page edit added a section with a row of three. The model tends to copy the example's structure (a row of three and a row of two) when the request fits it, and adapts it otherwise (a contact page got one row of two). Rendered on a member site: the sections full width with constrained content, the row 3 columns, then 2 on tablets and 1 on phones, the section padding smaller on phones.
-- **Not adopted:** the theme's own templates and parts still use core groups. Converting them is a separate decision.
+- **The theme too** (decided 2026-11-08): the header and footer parts and every template use Spectra containers, see [theme-development.md](theme-development.md#structure). `post-content` is never inside a container, so the page's own sections stay roots in the editor.
 - **Later:** when our own `mody/*` blocks replace Spectra ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)), `spectra/container` and its `style` states must migrate too.
 
 ## Master prompt rules

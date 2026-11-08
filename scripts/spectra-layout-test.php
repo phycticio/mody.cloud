@@ -12,7 +12,10 @@
  * 2. The validator: a container saves no HTML; a new page refuses group,
  *    columns, column and container attributes outside the recipe, while edits
  *    and templates keep them; media and colors are checked in containers too.
- * 3. normalize() and with_ids(): what Spectra's editor sets on load.
+ * 3. normalize() and with_ids(): what Spectra's editor sets on load. The
+ *    theme's templates and parts: valid, their layout in containers (the
+ *    bare main landmark aside), post-content never inside a container, and
+ *    nothing for the editor to change.
  * 4. Rendered on a member site: sections full width with constrained content,
  *    rows of 3 columns that become 2 on tablets and 1 on phones, and the
  *    section padding smaller on phones.
@@ -176,6 +179,54 @@ $with_ids = SpectraLayout::with_ids( SystemPrompt::EXAMPLE );
 $ids      = array_map( static fn( $b ) => (string) ( $b['attrs']['spectraId'] ?? '' ), $containers( $with_ids ) );
 $check( 'with_ids: one ID per container, unique, Spectra\'s format', count( $ids ) === count( array_unique( $ids ) ) && ! array_filter( $ids, static fn( $id ) => ! preg_match( '/^spectra-[0-9a-z]+-[0-9a-z]{6}$/', $id ) ), count( $ids ) . ' IDs' );
 $check( '...kept on a second pass, and still valid', SpectraLayout::with_ids( $with_ids ) === $with_ids && true === BlockValidator::validate( $with_ids ) );
+
+// 3b. The theme's templates and parts (2026-11-08) ----------------------------------------------
+
+echo "\nThe theme\n";
+$theme_dir = get_theme_root( 'theme' ) . '/theme';
+$problems  = array();
+$theme_ids = array();
+$flatten   = static function ( array $blocks, array $above ) use ( &$flatten ): array {
+	$out = array();
+	foreach ( $blocks as $block ) {
+		if ( null === $block['blockName'] ) {
+			continue;
+		}
+		$out[] = array( $block, $above );
+		$out   = array_merge( $out, $flatten( $block['innerBlocks'], array_merge( $above, array( $block['blockName'] ) ) ) );
+	}
+	return $out;
+};
+foreach ( array_merge( glob( "$theme_dir/templates/*.html" ), glob( "$theme_dir/parts/*.html" ) ) as $file ) {
+	$name    = basename( dirname( $file ) ) . '/' . basename( $file );
+	$content = (string) file_get_contents( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	if ( true !== BlockValidator::validate( $content, '', true ) ) {
+		$problems[] = "$name: invalid";
+	}
+	if ( SpectraLayout::normalize( $content ) !== $content ) {
+		$problems[] = "$name: the editor would change its containers";
+	}
+	foreach ( $flatten( parse_blocks( $content ), array() ) as list( $block, $above ) ) {
+		$block_name = (string) $block['blockName'];
+		if ( 'core/group' === $block_name && array( 'tagName' => 'main' ) !== $block['attrs'] ) {
+			$problems[] = "$name: a core group that is not the bare main landmark";
+		}
+		if ( in_array( $block_name, array( 'core/columns', 'core/column', 'core/cover' ), true ) ) {
+			$problems[] = "$name: $block_name";
+		}
+		if ( 'core/post-content' === $block_name && in_array( SpectraLayout::BLOCK, $above, true ) ) {
+			$problems[] = "$name: post-content inside a container";
+		}
+		if ( SpectraLayout::BLOCK === $block_name ) {
+			$theme_ids[] = (string) ( $block['attrs']['spectraId'] ?? '' );
+			if ( ! in_array( SpectraLayout::BLOCK, $above, true ) && ! isset( $block['attrs']['style']['@mobile'] ) ) {
+				$problems[] = "$name: a root container with no phone settings";
+			}
+		}
+	}
+}
+$check( 'templates and parts: valid, layout in containers', ! $problems, implode( '; ', array_slice( $problems, 0, 3 ) ) );
+$check( '...one fixed spectraId per container, unique', count( $theme_ids ) > 0 && ! in_array( '', $theme_ids, true ) && count( $theme_ids ) === count( array_unique( $theme_ids ) ), count( $theme_ids ) . ' containers' );
 
 // 4. Rendered on a member site ----------------------------------------------------------------------
 

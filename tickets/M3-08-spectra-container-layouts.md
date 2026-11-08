@@ -1,6 +1,6 @@
 # M3-08 · Generated layouts are Spectra containers
 
-**Milestone:** M3 (follow-up) · **Spec:** documentation/ai-engine.md ("Layout: Spectra containers"), mvp-spec §7, §8 · **Status:** done (2026-11-07; the browser walk-through is the maintainer's)
+**Milestone:** M3 (follow-up) · **Spec:** documentation/ai-engine.md ("Layout: Spectra containers"), mvp-spec §7, §8 · **Status:** done (2026-11-07; the theme's templates and parts 2026-11-08; the browser walk-through is the maintainer's)
 
 Asked for by the maintainer on 2026-11-07: "Every layout should use the spectra/container block with corresponding responsive settings. That way we make it consistent on all sites. Everything that is part of the layout should be a Spectra container."
 
@@ -55,8 +55,6 @@ The page writer (new pages, edits, templates and parts) builds every section, ro
 
 ## Notes
 - **The model copies the example's structure** (a row of three, a row of two) when the request fits it, and adapts it otherwise (a contact page got one row of two).
-- **`agent-template-test.php`'s real header request is failing (3 in 4 runs).** The agent answers "I can't move or add blocks in the header myself" instead of calling `edit_content`.
-  - This is not caused by this ticket: the agent's prompt and tools are unchanged, and the failure comes before the page writer runs.
-  - The same wording passed 10 of 10 on the same day (M3-07). The footer and page-template requests still pass.
-- **The theme's templates and parts still use core groups.** Converting them to containers is a separate decision.
+- **The header decline** ("I can't move or add blocks in the header myself", 3 in 4 runs on 2026-11-07, with the agent's prompt unchanged): fixed on 2026-11-08 in the agent's editor paragraph. Since then it gets 59 of 60 across six requests, measured twice. See [ai-engine.md](../documentation/ai-engine.md#the-agent), item 6, and M3-07.
+- **The theme's templates and parts** were converted to containers on 2026-11-08 (decided by the maintainer), see [theme-development.md](../documentation/theme-development.md#structure).
 - **Spectra's CSS writes one invalid declaration** for a row's gap (`gap: var:preset|spacing|40`). Browsers ignore it, and valid gap rules for each device are emitted next to it.

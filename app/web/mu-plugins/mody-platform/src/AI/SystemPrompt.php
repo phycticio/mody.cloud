@@ -221,9 +221,10 @@ PROMPT;
 	 * and the tool that changes it. Appended to the agent's prompt.
 	 *
 	 * @param array<string, mixed> $context EditorContext::from_input(): post_type, post_id, title, selected.
-	 * @param string               $tool    The function name of the edit tool.
+	 * @param string               $tool     The function name of the edit tool.
+	 * @param string               $settings The function name of the site settings tool (title, tagline).
 	 */
-	public static function for_editor( array $context, string $tool ): string {
+	public static function for_editor( array $context, string $tool, string $settings = 'the site settings tool' ): string {
 		$area     = (string) ( $context['area'] ?? '' );
 		$type     = match ( $context['post_type'] ) {
 			'post'             => 'post',
@@ -233,10 +234,16 @@ PROMPT;
 		};
 		$selected = empty( $context['selected'] ) ? '' : sprintf( ', with a %s block selected', str_replace( 'core/', '', (string) $context['selected']['name'] ) );
 		// Probed 2026-11-07: without the second sentence, "add the tagline under the site title" in
-		// the header was declined 2 times in 3 ("I can only change the tagline's text").
+		// the header was declined 2 times in 3 ("I can only change the tagline's text"). On 2026-11-08
+		// it was declined again ("the tagline isn't a block in the header"): the agent could not see
+		// what the part holds. The outline shows it, and the last sentence says which tool does what.
 		$layout   = in_array( $context['post_type'], array( 'wp_template', 'wp_template_part' ), true )
 			? ' It is part of the site\'s layout: every page that uses it shows a change.'
-				. ' Its blocks (the site title, tagline, logo, menu, page title, text) can be moved, added or removed only by calling ' . $tool . '.'
+				. ' Its blocks now: ' . self::outline( parse_blocks( (string) ( $context['content'] ?? '' ) ) ) . '.'
+				. ' Theme blocks show the site\'s data by themselves: site-title the site title, site-tagline the tagline, site-logo the logo, navigation the menu.'
+				. ' Adding, moving or removing any block here, these included, is done only by calling ' . $tool . ' with the owner\'s words; no text is needed (for "add the tagline under the site title", call ' . $tool . ' at once).'
+				. ' Only the words of the site title and tagline are settings, changed with ' . $settings . '.'
+				. self::site_texts()
 			: '';
 
 		return sprintf(
@@ -250,6 +257,37 @@ PROMPT;
 			$tool,
 			$layout
 		);
+	}
+
+	/**
+	 * Whether the site has a tagline, for the agent in a template. Its words
+	 * are left out: given them, the agent asked about their wording instead of
+	 * editing; told nothing, it assumed there was none (probed 2026-11-08).
+	 */
+	private static function site_texts(): string {
+		return '' === trim( (string) get_bloginfo( 'description' ) ) ? ' The site has no tagline yet.' : ' The site has a tagline.';
+	}
+
+	/**
+	 * A short outline of parsed blocks for the agent: their names without the
+	 * core/ and spectra/ prefixes, inner blocks in parentheses
+	 * ("container (site-logo, site-title, navigation)"). Text is left out: the
+	 * agent only needs to know what is there.
+	 *
+	 * @param array<int, array<string, mixed>> $blocks Parsed blocks.
+	 */
+	private static function outline( array $blocks ): string {
+		$parts = array();
+		foreach ( $blocks as $block ) {
+			if ( null === $block['blockName'] ) {
+				continue;
+			}
+			$name    = str_replace( array( 'core/', 'spectra/' ), '', (string) $block['blockName'] );
+			$inner   = self::outline( (array) $block['innerBlocks'] );
+			$parts[] = '' === $inner || 'none' === $inner ? $name : $name . ' (' . $inner . ')';
+		}
+		$outline = implode( ', ', $parts );
+		return '' === $outline ? 'none' : ( mb_strlen( $outline ) > 400 ? mb_substr( $outline, 0, 400 ) . '…' : $outline );
 	}
 
 	/**

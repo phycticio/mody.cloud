@@ -201,7 +201,7 @@ final class Agent {
 
 		$editing      = null !== $this->context;
 		$system       = SystemPrompt::for_agent( $profile, self::tool_names() )
-			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT ) : '' );
+			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_site_settings'] ?? 'the site settings tool' ) : '' );
 		$declarations = self::declarations( $editing );
 		$resolver     = new Resolver( ...array_values( self::ABILITIES ) );
 		$messages     = self::history_messages( $history, $editing );
@@ -265,6 +265,13 @@ final class Agent {
 		$name    = (string) $call->getName();
 		$args    = is_array( $call->getArgs() ) ? $call->getArgs() : array();
 		$started = microtime( true );
+
+		// The model sometimes gives these tools the abilities' prefix (wpab__mody__edit_content,
+		// 5 calls in 6 on 2026-11-08). They are the same tools.
+		$plain = (string) preg_replace( '/^wpab__mody__/', '', $name );
+		if ( in_array( $plain, array( self::ASK_USER, self::REFUSE, self::EDIT_CONTENT ), true ) ) {
+			$name = $plain;
+		}
 
 		if ( self::ASK_USER === $name ) {
 			$question = sanitize_text_field( (string) ( $args['question'] ?? '' ) );
@@ -519,7 +526,7 @@ final class Agent {
 		if ( $editing ) {
 			$declarations[] = new FunctionDeclaration(
 				self::EDIT_CONTENT,
-				'Changes what the owner has open in the editor, following their instruction; the change is shown in the editor, unsaved.',
+				'Changes what the owner has open in the editor, following their instruction: its text, its blocks and their order. The change is shown in the editor, unsaved.',
 				array(
 					'type'       => 'object',
 					'properties' => array(

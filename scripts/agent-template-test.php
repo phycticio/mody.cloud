@@ -14,8 +14,9 @@
  *    area; unknown or malformed IDs (400); users without edit_theme_options (403).
  * 3. The agent with fake answers: the header part, its prompt, the edit with
  *    the template's ID; a writer that keeps removing post-content.
- * 4. Real requests: the tagline in the header, a line in the footer, the
- *    title out of the page template; the agent's tool choice, probed. Add
+ * 4. Real requests: the tagline in the header (with a tagline set for the
+ *    test; without one the agent asks what it should say), a line in the
+ *    footer, the title out of the page template. Add
  *    `-e MODY_TEST_OFFLINE=1` after `docker exec` to skip them.
  *
  * Nothing is saved: edits go back to the editor. A fixture brand profile and
@@ -166,7 +167,7 @@ foreach ( array_merge( glob( $theme . '/templates/*.html' ), glob( $theme . '/pa
 }
 $check( 'every template and part of the theme passes', ! $bad, $bad ? implode( ', ', $bad ) : '' );
 $check( 'page mode refuses theme blocks (the page template)', is_wp_error( BlockValidator::validate( trim( $page->content ) ) ) );
-$without_content = str_replace( '<!-- wp:post-content {"layout":{"type":"constrained"}} /-->', '', $page->content );
+$without_content = (string) preg_replace( '/<!-- wp:post-content [^>]*\/-->/', '', $page->content );
 $out             = BlockValidator::validate( $without_content, $page->content, true );
 $check( 'an edit that drops post-content is refused', is_wp_error( $out ) && str_contains( $out->get_error_message(), 'core/post-content' ), $message( $out ) );
 $no_query = preg_replace( '#<!-- wp:query .*<!-- /wp:query -->#s', '', $index->content );
@@ -203,7 +204,13 @@ $turn     = Agent::respond( 'Add the tagline under the site title', array(), $ct
 $edit     = $turn['edits'][0] ?? array();
 $check( 'header part: the edit with the template\'s ID', 'theme//header' === ( $edit['post_id'] ?? '' ) && array_key_exists( 'client_id', $edit ) && null === $edit['client_id'] && trim( $tagline ) === $edit['markup'] && str_contains( $edit['markup'], 'wp:site-tagline' ), (string) ( $edit['post_id'] ?? 'no edit' ) );
 $check( '...the agent knew it is the layout', str_contains( $system_of( $requests[0] ?? array() ), 'editing the header template part "Header" (ID theme//header)' ) && str_contains( $system_of( $requests[0] ?? array() ), 'every page that uses it' ) );
+$check( '...saw its blocks, and whether there is a tagline', str_contains( $system_of( $requests[0] ?? array() ), 'Its blocks now: container (container (site-logo, site-title, navigation))' ) && str_contains( $system_of( $requests[0] ?? array() ), 'site-tagline the tagline' ) && ( '' !== trim( (string) get_option( 'blogdescription' ) ) ) !== str_contains( $system_of( $requests[0] ?? array() ), 'The site has no tagline yet.' ) );
 $check( '...the writer got the template rules', str_contains( $system_of( $requests[1] ?? array() ), 'never remove post-content' ) && str_contains( $system_of( $requests[1] ?? array() ), '<brand>' ) );
+// The model sometimes prefixes the agent's own tools like the abilities (2026-11-08).
+$fakes    = array( array( array( 'wpab__mody__' . Agent::EDIT_CONTENT, array( 'instruction' => 'Add the tagline under the site title' ) ) ), $tagline, 'Done.' );
+$requests = array();
+$turn     = Agent::respond( 'Add the tagline under the site title', array(), $ctx( $header ) );
+$check( 'a prefixed tool name (wpab__mody__edit_content) still edits', 'theme//header' === ( $turn['edits'][0]['post_id'] ?? '' ), (string) ( $turn['edits'][0]['post_id'] ?? 'no edit' ) );
 
 $fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Remove everything' ) ) ), $without_content, $without_content, $without_content, 'That did not work.' );
 $requests = array();
@@ -229,9 +236,17 @@ $real  = static function ( string $text, ?array $context ) use ( &$requests ): a
 	return $turn + array( 'secs' => sprintf( '%.1fs, %d request(s)', microtime( true ) - $start, count( $requests ) ) );
 };
 
+// The agent sees the site's tagline (2026-11-08): with none, the right answer is a question.
+$saved_tagline = (string) get_option( 'blogdescription' );
+register_shutdown_function( static fn() => update_option( 'blogdescription', $saved_tagline ) );
+update_option( 'blogdescription', '' );
+$turn = $real( 'Add the site tagline under the site title', $ctx( $header ) );
+$check( 'header, no tagline set: the agent asks what it says', ! ( $turn['edits'] ?? array() ) && str_ends_with( trim( (string) $turn['reply'] ), '?' ), mb_substr( (string) $turn['reply'], 0, 70 ) . ', ' . $turn['secs'] );
+update_option( 'blogdescription', 'Sourdough for offices in Zurich' );
 $turn  = $real( 'Add the site tagline under the site title', $ctx( $header ) );
 $names = $names_in( (string) ( $turn['edits'][0]['markup'] ?? '' ) );
 $check( 'header: the tagline added, title, logo and menu kept', in_array( 'core/site-tagline', $names, true ) && ! array_diff( array( 'core/site-title', 'core/site-logo', 'core/navigation' ), $names ), implode( ', ', array_unique( $names ) ) . ', ' . $turn['secs'] );
+update_option( 'blogdescription', $saved_tagline );
 
 $turn   = $real( 'Add a short line at the bottom of the footer: Made with care in Zurich', $ctx( $footer ) );
 $markup = (string) ( $turn['edits'][0]['markup'] ?? '' );
