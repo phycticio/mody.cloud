@@ -1,6 +1,6 @@
 # M4-02 · Plugins on member sites: core's Plugins screen, minus a hidden list
 
-**Milestone:** M4 · **Spec:** documentation/mvp-spec.md §7, §8, §10, §11, §16.5 (updated with each part) · **Status:** in progress: part A1 done 2026-11-08; A2 and B to do. Redesigned 2026-11-08: a first design was built locally the same day (a Mody market page and Redirection). It is replaced, and was never committed or deployed; see "First design" at the end.
+**Milestone:** M4 · **Spec:** documentation/mvp-spec.md §7, §8, §10, §11, §16.5 (updated with each part) · **Status:** in progress: part A1 done and deployed 2026-11-08; A2 and B to do, postponed by the maintainer the same day (order in [next-steps.md](next-steps.md)). Redesigned 2026-11-08: a first design was built locally the same day (a Mody market page and Redirection). It is replaced, and was never committed or deployed; see "First design" at the end.
 
 ## Goal
 Every plugin installed through Composer appears on each member site's own Plugins screen (`/wp/wp-admin/plugins.php`), and members activate and deactivate it for their site there. The plugin market is no longer a page members use: it is the list of installed plugins members **never see**, kept by super admins. Members still cannot install, upload, update, delete or edit plugins. All plugins are free.

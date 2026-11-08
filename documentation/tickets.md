@@ -11,6 +11,7 @@ The tickets are part of the codebase so that **every agent can see what everyone
 | Thing | Location |
 | --- | --- |
 | Ticket definitions (the durable record) | `tickets/` at the repository root |
+| The ordered list of next steps | [`tickets/next-steps.md`](../tickets/next-steps.md). Update it when a ticket is finished or the order changes. |
 | Planning and tracking of in-progress work | The GitHub project board |
 
 ## Conventions
