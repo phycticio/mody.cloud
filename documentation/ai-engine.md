@@ -122,6 +122,7 @@ First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agen
 | `Mody\Platform\Agent\Agent::respond( $message, $history )` | The loop, for PHP callers. Runs on the current site, as the current user. |
 | Ability `mody/open-editor` (`src/SiteEditor.php`) | Opens a Site Editor screen (M3-09, 2026-11-08). Input `target` with: `page` (`page_id` or `page_title`; neither for the pages list); `template` (`template`, a slug; none for the list); `part` (`template`, a part's slug such as `header`; none for the parts list); `list` (`list`, a key of `SiteEditor::lists()`, opening the template that shows that list); `styles` (`section`: `overview`, `browse`, `colors`, `palette`, `typography`, `layout`, `blocks`, `revisions`, `stylebook`; or `block`, such as `core/button`); `navigation` (the only menu, or the menus); `patterns`; `home`; `identity` (the site's title, tagline, logo, icon, mission and tone, M2-08; needs `manage_options`). Returns `url`, `label` (the button), `place` (what opens, such as "Styles → Colors") and `navigate`. Changes nothing. Pages need `edit_pages` and `edit_post`; everything else `edit_theme_options`. A page title that is not exact still opens the page when only one title partly matches (`SiteEditor::match_page()`: no accents, case or punctuation, without "the" in front or "page" at the end; "the harbour cafe page" opens "Harbour Café"). Several matches are `mody_page_ambiguous`. An unknown page, template, part, list or block is an error. Each error lists what exists, so the model can ask. Public, like `mody/generate-page`. See [Opening Site Editor screens](#opening-site-editor-screens). |
 | Ability `mody/update-design` (`src/Design/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `src/Design/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), Writes the colors to the site's Global Styles, the only place they live (M2-08: no brand question, no copy). Returns the old and new colors, and the screen that shows them: Styles → Colors, or Browse styles after a preset (M3-09), opened in place in the Site Editor. Needs `edit_theme_options`. Public. See [Changing the colors](#changing-the-colors). |
+| Ability `mody/update-styles` (`src/Design/SiteStyles.php`, M3-10 part A, 2026-11-08) | Input `changes`: a partial theme.json object (`styles`, `settings`), merged into the site's Global Styles behind a guard. Returns `changed` (path, old, new) and the Styles screen that shows it, opened in place. Needs `edit_theme_options`. Public. **Not offered to the agent until part B.** See [Changing the styles](#changing-the-styles). |
 | Ability `mody/publish-page` (`src/Site/PagePublisher.php`, M3-03) | Input `page_id` or `page_title` (exact, case-insensitive; a draft with that title first). Publishes a draft or pending page of this site **as it is now**, without the validator. Refuses posts and other types, pages that are published, private, scheduled or in the trash, and an unknown page, whose error lists the site's drafts. Returns `page_id`, `title`, `status` and two buttons: **View** (the page's URL) and the Site Editor. Needs `publish_pages`, and `edit_post` on that page. Public. See [Publishing and site settings](#publishing-and-site-settings). |
 | Ability `mody/update-site-settings` (`src/Site/SiteSettings.php`, M3-03, M2-08) | Input `title` (at most 120 characters), `tagline` (at most 200), `mission` (at most 200) and/or `tone` (formal, friendly, technical). Writes `blogname`, `blogdescription` and the site settings `mody_mission` and `mody_tone`, nothing else. Returns the old and new values. Needs `manage_options`. Public. The logo and icon are not here: the agent opens the Identity screen (`mody/open-editor`, target `identity`). |
 
@@ -195,6 +196,22 @@ Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "u
 5. The result carries the old and new colors (logged in `mody_agent_events`) and a **See the new colors** button to the Site Editor's styles.
 
 **The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-03) offers it, and provisioning (M2-01) calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
+
+### Changing the styles
+
+Built 2026-11-08 for [M3-10](../tickets/M3-10-agent-edits-global-styles.md) part A (`Design\SiteStyles`, ability `mody/update-styles`). The rest of the site's styles, beside the presets and three brand colors of `mody/update-design`: font sizes, heading and link styles, button shapes, spacing, widths, element and block styles, the palette's five colors and the member's own presets. The ticket's Results have the details.
+
+1. **A merge patch** of the site's user Global Styles: objects key by key, `null` removes a key, and preset lists merge by slug.
+2. **The guard** refuses the whole change when any part is refused, and says why:
+   - only six style groups (color, typography, spacing, border, shadow, dimensions), in styles, elements and blocks;
+   - only the palette, font sizes, font families, spacing sizes and the two layout widths in settings;
+   - no CSS and no URLs;
+   - the theme's preset slugs stay, and the member's own presets are free;
+   - styles name colors by palette slug, and hex is accepted only in the palette;
+   - fonts only from the site's Font Library.
+3. **Saved like `mody/update-design`** (`SiteDesign::save()`): a revision, kses for members, then read back. Preset references are stored as `var(--wp--preset--…)`, the form kses keeps.
+4. **The result** lists each change (path, old, new) and opens the matching Styles screen in place (M3-09).
+5. **Next:** part B offers it to the agent, with a compact map of the paths in the system prompt and the tools JSON measured (see [Prompt size](#prompt-size)). Part C adds `mody/undo-styles`.
 
 ### Publishing and site settings
 

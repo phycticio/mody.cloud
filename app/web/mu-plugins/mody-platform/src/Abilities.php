@@ -11,6 +11,7 @@ use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
+use Mody\Platform\Design\SiteStyles;
 use Mody\Platform\Site\PagePublisher;
 use Mody\Platform\Site\SiteSettings;
 
@@ -226,6 +227,59 @@ final class Abilities {
 				'permission_callback' => array( SiteDesign::class, 'can_update' ),
 				'meta'                => array(
 					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		/*
+		 * M3-10 part A (2026-11-08): every other part of the site's styles.
+		 * Not offered to the agent until part B, which measures the tools
+		 * JSON with it (ai-engine.md, "Prompt size").
+		 */
+		wp_register_ability(
+			'mody/update-styles',
+			array(
+				'label'               => __( 'Update the styles', 'mody_cloud' ),
+				'description'         => __( 'Changes the site\'s styles: `changes` is a partial theme.json object (styles, settings) merged into them.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'changes' => array( 'type' => 'object' ),
+					),
+					'required'             => array( 'changes' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'changed'  => array(
+							'type'  => 'array',
+							'items' => array(
+								'type'       => 'object',
+								'properties' => array(
+									'path' => array( 'type' => 'string' ),
+									'old'  => array( 'type' => 'string' ),
+									'new'  => array( 'type' => 'string' ),
+								),
+							),
+						),
+						'url'      => array( 'type' => 'string' ),
+						'label'    => array( 'type' => 'string' ),
+						'place'    => array( 'type' => 'string' ),
+						'navigate' => array( 'type' => 'boolean' ),
+					),
+					'required'   => array( 'changed', 'url', 'label' ),
+				),
+				'execute_callback'    => array( SiteStyles::class, 'update' ),
+				'permission_callback' => array( SiteStyles::class, 'can_update' ),
+				'meta'                => array(
+					'public'      => true, // REST and MCP; the agent from part B.
 					'annotations' => array(
 						'readonly'    => false,
 						'destructive' => false,
