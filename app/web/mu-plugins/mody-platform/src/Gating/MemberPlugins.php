@@ -36,8 +36,8 @@ defined( 'ABSPATH' ) || exit;
 final class MemberPlugins {
 
 	/**
-	 * The platform's own plugins, never shown to members: Spectra (network-active,
-	 * decision 14), the `ai` plugin and its companions (curated and locked by
+	 * The platform's own plugins, never shown to members: Spectra (a MU plugin
+	 * since M3-11, listed for any leftover copy in plugins/), the `ai` plugin and its companions (curated and locked by
 	 * M4-03; mcp-adapter would open MCP on a member's site), Wordfence, and the
 	 * dev tools Query Monitor and User Switching (never in production). Listed
 	 * even when network-active, in case that changes.

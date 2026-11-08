@@ -78,9 +78,9 @@ docker compose restart nginx
 ./bin/wp --site=alpha theme activate theme
 ./bin/wp --site=beta  theme activate theme
 
-# 7. Spectra is network-active (mvp-spec decision 14). The MU plugin's
-#    SpectraGuard switches off its non-European connections; check it.
-./bin/wp plugin activate spectra-blocks --network
+# 7. Spectra is a MU plugin (mvp-spec decision 14, M3-11): Composer installs
+#    it into app/web/mu-plugins/spectra-blocks/, nothing to activate. The MU
+#    plugin's SpectraGuard switches off its non-European connections; check it.
 docker exec -i -u www-data mody_cloud_app wp --path=/var/www/html/wp --url=https://mody.local \
   eval-file - < scripts/spectra-guard-test.php
 

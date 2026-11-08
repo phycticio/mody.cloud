@@ -126,7 +126,7 @@ $installed = array_keys( get_plugins() );
 $hidden    = array_values( array_filter( $installed, array( MemberPlugins::class, 'is_hidden' ) ) );
 $visible   = array_values( array_diff( $installed, $hidden ) );
 $platform  = 'mcp-adapter/mcp-adapter.php';                // Installed everywhere, not network-active.
-$network   = 'spectra-blocks/spectra-blocks.php';          // Network-active everywhere.
+$network   = 'ai/ai.php';                                  // Network-active everywhere (Spectra is a MU plugin since M3-11).
 
 // 1. The rule ----------------------------------------------------------------------
 
@@ -136,6 +136,7 @@ $platform_files = array_filter( $installed, static fn( $file ): bool => in_array
 $check( 'every installed platform plugin is hidden', ! array_diff( $platform_files, $hidden ), implode( ', ', array_map( array( MemberPlugins::class, 'slug' ), $hidden ) ) );
 $check( 'network-active plugins are hidden', ! array_diff( array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) ), $hidden ) );
 $check( 'mcp-adapter is installed and not network-active', in_array( $platform, $installed, true ) && ! is_plugin_active_for_network( $platform ) );
+$check( 'Spectra is a MU plugin: never on a Plugins screen (M3-11)', Mody\Platform\Spectra\SpectraLoader::is_must_use() && ! is_plugin_active_for_network( 'spectra-blocks/spectra-blocks.php' ) );
 $can = static fn( int $user_id, int $site_id, string $cap, string $file = '' ): bool => '' === $file ? user_can_for_site( $user_id, $site_id, $cap ) : user_can_for_site( $user_id, $site_id, $cap, $file );
 $check( 'member: the Plugins screen and bulk actions', $can( $member, $site, 'activate_plugins' ) && $can( $member, $site, 'deactivate_plugins' ) );
 $check( 'member: switch the fixture on and off', $can( $member, $site, 'activate_plugin', $fixture ) && $can( $member, $site, 'deactivate_plugin', $fixture ) );
@@ -263,7 +264,7 @@ $crafted = static fn( string $action, string $file ): array => $http( $host, $sc
 $out     = $crafted( 'activate', $platform );
 $check( 'crafted Activate for mcp-adapter: refused', str_contains( $out['body'], 'Sorry, you are not allowed to activate this plugin.' ) && ! in_array( $platform, $active_on( $site ), true ), (string) $out['code'] );
 $out = $crafted( 'deactivate', $network );
-$check( 'crafted Deactivate for Spectra: refused', str_contains( $out['body'], 'Sorry, you are not allowed to deactivate this plugin.' ) && is_plugin_active_for_network( $network ), (string) $out['code'] );
+$check( 'crafted Deactivate for the ai plugin (network-active): refused', str_contains( $out['body'], 'Sorry, you are not allowed to deactivate this plugin.' ) && is_plugin_active_for_network( $network ), (string) $out['code'] );
 wp_set_current_user( 0 );
 unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
 $out = $http( $host, $screen, $cookie( $editor ) );

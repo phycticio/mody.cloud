@@ -38,6 +38,9 @@
     },
     "extra": {
         "installer-paths": {
+            "web/mu-plugins/{$name}/": [
+                "wpackagist-plugin/spectra-blocks"
+            ],
             "web/plugins/{$name}/": [
                 "type:wordpress-plugin"
             ],
