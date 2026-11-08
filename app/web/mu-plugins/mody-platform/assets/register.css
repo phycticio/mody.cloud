@@ -1,0 +1,80 @@
+/*
+ * The registration form on the main site (Members\Registration, M1-01 part 2).
+ * Colors and spacing come from the theme's presets; no loose values.
+ */
+
+.mody-register {
+	display: grid;
+	gap: var(--wp--preset--spacing--40, 1.5rem);
+	max-width: 40rem;
+}
+
+.mody-register__field {
+	display: grid;
+	gap: 0.35rem;
+	margin: 0;
+}
+
+.mody-register label,
+.mody-register legend {
+	font-weight: 600;
+}
+
+.mody-register input[type="text"],
+.mody-register input[type="email"],
+.mody-register input[type="password"] {
+	border: 1px solid currentColor;
+	border-radius: 4px;
+	font: inherit;
+	padding: 0.6rem 0.75rem;
+}
+
+.mody-register__hint,
+.mody-register__note {
+	font-size: var(--wp--preset--font-size--small, 0.875rem);
+	margin: 0;
+}
+
+.mody-register__plans {
+	border: 0;
+	display: grid;
+	gap: var(--wp--preset--spacing--30, 1rem);
+	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+	margin: 0;
+	padding: 0;
+}
+
+.mody-register__plans legend {
+	margin-bottom: 0.5rem;
+	padding: 0;
+}
+
+.mody-register__plan {
+	border: 1px solid currentColor;
+	border-radius: 6px;
+	cursor: pointer;
+	display: grid;
+	font-weight: 400;
+	gap: 0.25rem;
+	padding: var(--wp--preset--spacing--30, 1rem);
+}
+
+.mody-register__plan:has(input:checked) {
+	border-color: var(--wp--preset--color--primary);
+	box-shadow: 0 0 0 2px var(--wp--preset--color--primary);
+}
+
+.mody-register__plan:has(input:focus-visible) {
+	outline: 2px solid var(--wp--preset--color--accent);
+	outline-offset: 2px;
+}
+
+.mody-register__plan-name {
+	font-weight: 600;
+}
+
+.mody-register__error {
+	color: var(--wp--preset--color--accent);
+	font-weight: 600;
+	margin: 0;
+}

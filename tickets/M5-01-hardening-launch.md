@@ -18,6 +18,7 @@ The platform is launch-ready for 100 founding members: member sites reachable in
 - **Security pass** over M1 to M4:
   - **Endpoints:** nonce and capability checks on the wizard REST routes (`mody-platform/v1/sites`), the agent chat endpoint and its jobs, and the `mody/*` abilities' permission callbacks (REST and MCP). Inputs sanitized: the wizard fields, the logo upload, chat messages.
   - **Mollie:** the webhook's verification and the idempotency replay test (M1-01 part 3).
+  - **The registration form** (M1-01 part 2): it has no rate limit and no spam check yet. Decide both before setting `mody_registration_open` in production.
   - **Plugins on member sites:** the M4-02 rules (hidden plugins by every path) and the `ai` plugin's lock-down (M4-03).
   - **Secrets:** `INFOMANIAK_API_KEY`, the Mollie keys and the SMTP password only in the server `.env`, never in the database, logs or prompts (rule 6). `.env` untracked.
 - **Monitoring:** Query Monitor is a dev requirement and never reaches production, so it is not the answer here. What is left:
