@@ -40,7 +40,7 @@ app/web/themes/theme/
 - **Where they appear:** in the Site Editor under Styles → Browse styles. Choosing one writes it into the site's own Global Styles, editable per site.
 - **The single source:** the wizard, provisioning and the agent's `mody/update-design` read them through `Mody\Platform\Design\Presets`, so a new file is a new preset everywhere.
 
-Not included yet: `patterns/` (add PHP or HTML patterns there and WordPress registers them), `languages/` and `screenshot.png`.
+Not included yet: `languages/` and `screenshot.png`. **No `patterns/` folder (decided 2026-11-08):** every site's patterns are the Mody collection in the MU plugin (`mody-platform/patterns/collection.json`, [the design market](../tickets/design-market-themes-patterns.md)), not the theme. New patterns go through `scripts/import-patterns.php` and `Design\PatternImport`, so they use palette slugs, the theme's fonts and local placeholder images.
 
 ## Design tokens
 
