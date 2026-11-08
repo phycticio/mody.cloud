@@ -1049,7 +1049,7 @@ if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
 	$others = array_filter( $page_statuses, static fn( $st, $id ) => $status( $id ) !== $st, ARRAY_FILTER_USE_BOTH );
 	$args   = array_values( array_filter( $turn['events'], static fn( $row ) => 'mody/publish-page' === $row['tool'] ) )[0]['args'] ?? 'no call';
 	$check( '"Publish it": published', 'publish' === $status( $created ) && ! $others, "page $created, $args" . ( $others ? ', also changed: ' . implode( ', ', array_keys( $others ) ) : '' ) . $asked . ', ' . $turn['secs'] );
-	$check( '...view and edit buttons', array( get_permalink( $created ), SiteEditor::page_url( $created ) ) === array_column( $turn['actions'], 'url' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+	$check( '...view and edit buttons', array( get_permalink( $created ), EditorBubble::open_url( SiteEditor::page_url( $created ) ) ) === array_column( $turn['actions'], 'url' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
 	$check( '...no calls sent to the client', ! array_key_exists( 'calls', $turn ) );
 }
 
@@ -1101,7 +1101,7 @@ foreach ( $design_runs as list( $text, $choice, $brand ) ) {
 	$changed = $brand ? Presets::colors( 'forest' ) : array( 'primary' => strtolower( (string) ( $args['primary'] ?? '' ) ) );
 	$check( '...then updates', $call && array_intersect_key( $now, $changed ) == $changed && $start_colors['primary'] !== $now['primary'], ( $call ? $call['args'] : 'no call' ) . ', ' . $turn['secs'] ); // phpcs:ignore Universal.Operators.StrictComparisons
 	$check( $brand ? '...brand profile changed' : '...brand profile unchanged', $brand ? Presets::colors( 'forest' ) == $profile_now() : $start_brand === $profile_now(), wp_json_encode( $profile_now() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
-	$check( '...button and reply', SiteEditor::url( '/styles' ) === ( $turn['actions'][0]['url'] ?? '' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+	$check( '...button and reply', EditorBubble::open_url( SiteEditor::url( '/styles' ) ) === ( $turn['actions'][0]['url'] ?? '' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
 }
 $restore_design();
 
