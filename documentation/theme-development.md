@@ -61,6 +61,7 @@ All pairs the theme actually uses pass WCAG AA for normal text (4.5:1).
 - **Font sizes:** `small`, `medium`, `large`, `x-large`, `xx-large`, fluid between viewport sizes.
 - **Spacing presets:** `20` to `80` (0.5 rem up to 8 rem). Templates use `var:preset|spacing|NN`.
 - **Layout:** content width 720px, wide 1200px, root-padding-aware alignments.
+- **The theme's preset slugs are fixed on member sites** (M3-10, decided 2026-11-08). Members change the values of the palette's five colors, the five font sizes and the seven spacing sizes, in Styles or through the agent (`mody/update-styles`), but never add or remove these slugs. Their own presets go in the custom origin. Templates, patterns and generated pages use these slugs, so renaming or removing one in `theme.json` breaks every site that uses it.
 
 Each site's own Global Styles override `primary`, `secondary` and `accent` (the preset chosen in the wizard, then Styles → Colors or the agent). The site's palette is its brand (M2-08): no copy of the colors is kept anywhere else. See [brand-profile.md](brand-profile.md).
 

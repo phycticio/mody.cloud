@@ -203,7 +203,7 @@ foreach ( PluginBrandContext::FEATURES as $name ) {
 }
 $check( 'filter: writing features get the brand', ! $wrong, $wrong ? implode( ', ', $wrong ) : count( PluginBrandContext::FEATURES ) . ' features' );
 $out = apply_filters( 'wpai_system_instruction', 'Rules.', 'ai/title-generation', array() );
-$check( '...brand name, tone and <brand> tags', str_contains( $out, '<brand>' ) && str_contains( $out, $profile->brand_name ) && str_contains( $out, 'Tone of voice:' ) );
+$check( '...brand name, tone and <brand> tags', str_contains( $out, '<brand>' ) && str_contains( $out, BrandSettings::brand()['name'] ) && str_contains( $out, 'Tone of voice:' ) );
 $check( '...the feature\'s rules come first', str_contains( $out, 'The instructions above come first' ) );
 $check( '...no hex colors', ! preg_match( '/#[0-9a-f]{3,6}\b/i', $out ) );
 $changed = array();
@@ -265,7 +265,7 @@ if ( isset( $run['skip'] ) ) {
 	$check( 'one model request', 1 === count( $run['requests'] ), count( $run['requests'] ) . ' request(s)' );
 	$check( 'the fake title comes back', ! is_wp_error( $result ) && 'Fresh sourdough for Zurich offices' === ( $result['title'] ?? '' ), is_wp_error( $result ) ? $result->get_error_message() : (string) ( $result['title'] ?? '' ) );
 	$check( 'system message: the plugin\'s rules', str_contains( $system, 'title suggestions' ) );
-	$check( 'system message: the brand', str_contains( $system, '<brand>' ) && str_contains( $system, $profile->brand_name ) );
+	$check( 'system message: the brand', str_contains( $system, '<brand>' ) && str_contains( $system, BrandSettings::brand()['name'] ) );
 	$check( 'user message: the content', str_contains( (string) wp_json_encode( $run['requests'][0]['messages'] ?? array() ), 'delivers it to offices in Zurich' ) );
 }
 

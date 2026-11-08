@@ -81,19 +81,11 @@ final class SiteDesign {
 			$colors[ $slug ] = strtolower( $hex );
 		}
 
-		// The resolver keeps its data in static properties, which switch_to_blog() does not reset.
-		wp_clean_theme_json_cache();
-		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
-		$post    = $post_id ? get_post( $post_id ) : null;
-		if ( ! $post ) {
-			return new WP_Error( 'mody_global_styles_missing', __( 'The site\'s styles could not be loaded.', 'mody_cloud' ) );
+		$loaded = self::user_styles();
+		if ( is_wp_error( $loaded ) ) {
+			return $loaded;
 		}
-
-		// Unreadable content counts as empty, as it does for the resolver and core's REST controller.
-		$config = json_decode( $post->post_content, true );
-		if ( ! is_array( $config ) || empty( $config['isGlobalStylesUserThemeJSON'] ) ) {
-			$config = array();
-		}
+		list( $post, $config ) = $loaded;
 
 		// The site's own palette if it has one (Site Editor edits), else the theme's.
 		$palette = $config['settings']['color']['palette']['theme'] ?? null;
@@ -140,15 +132,12 @@ final class SiteDesign {
 			return new WP_Error( 'mody_unknown_preset', sprintf( __( 'There is no such preset. The presets are: %s.', 'mody_cloud' ), Presets::names() ) );
 		}
 
-		wp_clean_theme_json_cache();
-		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
-		$post    = $post_id ? get_post( $post_id ) : null;
-		if ( ! $post ) {
-			return new WP_Error( 'mody_global_styles_missing', __( 'The site\'s styles could not be loaded.', 'mody_cloud' ) );
+		$loaded = self::user_styles();
+		if ( is_wp_error( $loaded ) ) {
+			return $loaded;
 		}
-
-		$current = json_decode( $post->post_content, true );
-		$fonts   = is_array( $current ) ? ( $current['settings']['typography']['fontFamilies'] ?? null ) : null;
+		list( $post, $current ) = $loaded;
+		$fonts                  = $current['settings']['typography']['fontFamilies'] ?? null;
 		if ( is_array( $fonts ) && $fonts ) {
 			$variation['settings']['typography']['fontFamilies'] = $fonts;
 		}
@@ -168,14 +157,37 @@ final class SiteDesign {
 	}
 
 	/**
-	 * Saves a site's Global Styles, then checks that the site shows the colors.
+	 * The current site's user Global Styles: the post and its configuration.
+	 * Also for SiteStyles (M3-10).
+	 *
+	 * @return array{0: \WP_Post, 1: array<string, mixed>}|WP_Error
+	 */
+	public static function user_styles(): array|WP_Error {
+		// The resolver keeps its data in static properties, which switch_to_blog() does not reset.
+		wp_clean_theme_json_cache();
+		$post_id = WP_Theme_JSON_Resolver::get_user_global_styles_post_id();
+		$post    = $post_id ? get_post( $post_id ) : null;
+		if ( ! $post ) {
+			return new WP_Error( 'mody_global_styles_missing', __( 'The site\'s styles could not be loaded.', 'mody_cloud' ) );
+		}
+
+		// Unreadable content counts as empty, as it does for the resolver and core's REST controller.
+		$config = json_decode( $post->post_content, true );
+		if ( ! is_array( $config ) || empty( $config['isGlobalStylesUserThemeJSON'] ) ) {
+			$config = array();
+		}
+		return array( $post, $config );
+	}
+
+	/**
+	 * Saves a site's Global Styles the way the Site Editor does: a revision,
+	 * kses for users without unfiltered_html. Also for SiteStyles (M3-10).
 	 *
 	 * @param \WP_Post             $post   The site's Global Styles post.
 	 * @param array<string, mixed> $config The configuration (settings, styles).
-	 * @param array<string, string> $colors The brand colors the site must show.
 	 * @return true|WP_Error
 	 */
-	private static function save_config( \WP_Post $post, array $config, array $colors ): bool|WP_Error {
+	public static function save( \WP_Post $post, array $config ): bool|WP_Error {
 		$config['isGlobalStylesUserThemeJSON'] = true;
 		$config['version']                     = $config['version'] ?? WP_Theme_JSON::LATEST_SCHEMA;
 
@@ -193,6 +205,22 @@ final class SiteDesign {
 		wp_clean_theme_json_cache();
 		if ( is_wp_error( $saved ) ) {
 			return new WP_Error( 'mody_global_styles_not_saved', __( 'The site\'s styles could not be saved. Please try again.', 'mody_cloud' ) );
+		}
+		return true;
+	}
+
+	/**
+	 * Saves a site's Global Styles, then checks that the site shows the colors.
+	 *
+	 * @param \WP_Post             $post   The site's Global Styles post.
+	 * @param array<string, mixed> $config The configuration (settings, styles).
+	 * @param array<string, string> $colors The brand colors the site must show.
+	 * @return true|WP_Error
+	 */
+	private static function save_config( \WP_Post $post, array $config, array $colors ): bool|WP_Error {
+		$saved = self::save( $post, $config );
+		if ( is_wp_error( $saved ) ) {
+			return $saved;
 		}
 
 		// What the site shows now must be what was asked for.
