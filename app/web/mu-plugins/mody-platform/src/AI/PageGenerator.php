@@ -213,6 +213,10 @@ final class PageGenerator {
 			'title'    => get_the_title( $page_id ),
 			'status'   => 'draft',
 			'edit_url' => self::site_editor_url( $page_id ),
+			// The new draft opens at once in the Site Editor (decided 2026-11-08, M3-09); elsewhere a button.
+			/* translators: %s: page title. */
+			'place'    => sprintf( __( 'the page "%s"', 'mody_cloud' ), get_the_title( $page_id ) ),
+			'navigate' => true,
 		);
 	}
 

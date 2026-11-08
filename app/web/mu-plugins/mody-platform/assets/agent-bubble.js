@@ -212,8 +212,80 @@
 		underReply( row );
 	}
 
+	// The Site Editor: one page whose screen is in the URL (?p=…&section=…&canvas=…).
+	function inSiteEditor() {
+		return /\/site-editor\.php$/.test( window.location.pathname );
+	}
+
+	// Where the owner is, sent with each message (M3-09).
+	config.screen = () => {
+		if ( ! inSiteEditor() ) {
+			return null;
+		}
+		const query = new URLSearchParams( window.location.search );
+		return {
+			p: query.get( 'p' ) || '/',
+			section: query.get( 'section' ) || '',
+			canvas: query.get( 'canvas' ) || '',
+		};
+	};
+
+	// Switches the Site Editor to another screen in place (M3-09). Its router listens
+	// to the browser's history, as Back and Forward do: push the URL, with the state
+	// shape its history library keeps, then tell it with a popstate event. The chat
+	// stays open, and unsaved changes stay in the editor (Save lists them all).
+	function navigate( url ) {
+		let target;
+		try {
+			target = new URL( url, window.location.href );
+		} catch ( e ) {
+			return false;
+		}
+		if ( ! inSiteEditor() || target.origin !== window.location.origin || ! /\/site-editor\.php$/.test( target.pathname ) ) {
+			return false;
+		}
+		target.searchParams.delete( config.openParam || 'mody-chat' );
+		if ( target.search === window.location.search ) {
+			return true; // Already there.
+		}
+		const state = window.history.state || {};
+		const idx = Number.isInteger( state.idx ) ? state.idx + 1 : 0;
+		window.history.pushState( { usr: null, key: Math.random().toString( 36 ).slice( 2, 10 ), idx }, '', window.location.pathname + target.search );
+		window.dispatchEvent( new PopStateEvent( 'popstate', { state: window.history.state } ) );
+		return true;
+	}
+
+	// The turn's screen to open: in the Site Editor it opens now, and its button gives
+	// way to a note with Go back. Elsewhere the button stays (decided 2026-11-08).
+	function openScreen( actions ) {
+		const action = actions.filter( ( item ) => item && item.navigate ).pop();
+		if ( ! action || ! navigate( action.url ) ) {
+			return;
+		}
+		const replies = log.querySelectorAll( '.mody-agent__message--assistant' );
+		const last = replies[ replies.length - 1 ];
+		if ( last ) {
+			last.querySelectorAll( '.mody-agent__actions a' ).forEach( ( link ) => {
+				if ( link.getAttribute( 'href' ) === action.url ) {
+					link.remove();
+				}
+			} );
+		}
+		const row = element( 'div', 'mody-agent__actions mody-bubble__opened' );
+		row.append( element( 'span', 'mody-bubble__note', strings.opened.replace( '%s', action.place || '' ) ) );
+		const back = element( 'button', 'button mody-bubble__back', strings.back );
+		back.type = 'button';
+		back.addEventListener( 'click', () => {
+			window.history.back();
+			back.disabled = true;
+		} );
+		row.append( back );
+		underReply( row );
+	}
+
 	document.addEventListener( 'mody-agent:turn', ( event ) => {
 		( ( event.detail && event.detail.edits ) || [] ).forEach( apply );
+		openScreen( ( event.detail && event.detail.actions ) || [] );
 	} );
 
 	// Open on load: after an agent button (?mody-chat=open), after a reload if it was

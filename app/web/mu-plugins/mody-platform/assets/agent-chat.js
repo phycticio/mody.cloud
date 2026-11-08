@@ -192,6 +192,11 @@
 		if ( context ) {
 			body.context = context;
 		}
+		// In the Site Editor's bubble: the screen the owner is on (M3-09).
+		const screen = 'function' === typeof config.screen ? config.screen() : null;
+		if ( screen ) {
+			body.screen = screen;
+		}
 		converse( text, () => request( 'POST', body ) );
 	}
 

@@ -111,6 +111,17 @@ final class Agent {
 	 */
 	private ?array $context = null;
 
+	/**
+	 * Where the owner is in the Site Editor (SiteEditor::screen_from_input()),
+	 * or null outside it (ticket M3-09).
+	 *
+	 * @var array{p: string, section: string, canvas: bool}|null
+	 */
+	private ?array $screen = null;
+
+	/** Whether a narrating reply was already sent back once in this turn (narrates()). */
+	private bool $renarrated = false;
+
 	/** Whether edit_content ran in this turn: one edit per message. */
 	private bool $edited = false;
 
@@ -157,14 +168,17 @@ final class Agent {
 	 *                                                          assistant message may carry its `calls`.
 	 * @param array<string, mixed>|null                $context What is open in the editor, already
 	 *                                                          checked (EditorContext::from_input()).
+	 * @param array<string, mixed>|null                $screen  Where the owner is in the Site Editor,
+	 *                                                          checked (SiteEditor::screen_from_input()).
 	 * @return array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array<string, mixed>>, calls: list<array<string, mixed>>}
 	 *         `error` is true when the agent could not answer (no brand profile, model unavailable).
 	 *         `edits` are changes for the editor. `calls` are the abilities run, to store
 	 *         with the reply as context: not for the client.
 	 */
-	public static function respond( string $message, array $history = array(), ?array $context = null ): array {
+	public static function respond( string $message, array $history = array(), ?array $context = null, ?array $screen = null ): array {
 		$agent          = new self( trim( mb_substr( sanitize_textarea_field( $message ), 0, self::MAX_MESSAGE_LENGTH ) ) );
 		$agent->context = $context;
+		$agent->screen  = $screen;
 		return $agent->run( $history );
 	}
 
@@ -201,7 +215,8 @@ final class Agent {
 
 		$editing      = null !== $this->context;
 		$system       = SystemPrompt::for_agent( $profile, self::tool_names() )
-			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_site_settings'] ?? 'the site settings tool' ) : '' );
+			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_site_settings'] ?? 'the site settings tool', self::tool_names()['open_editor'] ?? 'the open-editor tool' ) : '' )
+			. ( null !== $this->screen ? "\n\n" . SystemPrompt::for_screen( $this->screen ) : '' );
 		$declarations = self::declarations( $editing );
 		$resolver     = new Resolver( ...array_values( self::ABILITIES ) );
 		$messages     = self::history_messages( $history, $editing );
@@ -231,7 +246,17 @@ final class Agent {
 			$answer = $result->toMessage();
 			$calls  = self::calls_of( $answer );
 			if ( ! $calls ) {
-				$this->turn['reply'] = self::text_of( $answer );
+				$text = self::text_of( $answer );
+				// A reply that narrates the request ("The owner wants to see other designs. This
+				// maps to…") instead of acting or answering: seen in about 1 real run in 20 on
+				// 2026-11-08 (M3-09). Ask once more; the member never sees the narration.
+				if ( ! $this->renarrated && $step < self::MAX_STEPS && self::narrates( $text ) ) {
+					$this->renarrated = true;
+					$messages[]       = $answer;
+					$messages[]       = new UserMessage( array( new MessagePart( 'That reply described the request instead of handling it. Handle it now: call the right tool, or answer the owner directly as "you".' ) ) );
+					continue;
+				}
+				$this->turn['reply'] = $text;
 				break;
 			}
 
@@ -252,6 +277,40 @@ final class Agent {
 
 		AgentEvents::log( $this->input, null, null, $this->turn['reply'], $this->started );
 		return $this->turn + array( 'calls' => $this->calls );
+	}
+
+	/**
+	 * Whether an open-editor call asks for the document open in the editor:
+	 * the same page, or the same template or part.
+	 *
+	 * @param array<string, mixed> $args The call's arguments.
+	 */
+	private function opens_what_is_open( array $args ): bool {
+		if ( null === $this->context ) {
+			return false;
+		}
+		$target = (string) ( $args['target'] ?? 'page' );
+		$open   = $this->context['post_id'];
+		if ( 'page' === $target && 'page' === $this->context['post_type'] ) {
+			return (int) ( $args['page_id'] ?? 0 ) === (int) $open
+				|| ( '' !== (string) ( $args['page_title'] ?? '' ) && 0 === strcasecmp( (string) $args['page_title'], (string) $this->context['title'] ) );
+		}
+		$types = array(
+			'template' => 'wp_template',
+			'part'     => 'wp_template_part',
+		);
+		return isset( $types[ $target ] ) && $types[ $target ] === $this->context['post_type']
+			&& get_stylesheet() . '//' . sanitize_title( (string) ( $args['template'] ?? '' ) ) === (string) $open;
+	}
+
+	/**
+	 * Whether a reply talks about the owner in the third person, as the model's
+	 * own reasoning does, instead of to them. Replies address the owner as "you".
+	 *
+	 * @param string $text The model's reply.
+	 */
+	public static function narrates( string $text ): bool {
+		return (bool) preg_match( '/^\W*the owner\b|\bthe owner (wants|is asking|asks|asked|would like)\b/i', $text );
 	}
 
 	/**
@@ -320,6 +379,16 @@ final class Agent {
 			return array(
 				'error' => sprintf( 'The page asked for could not be published, so no other page is published in this turn. Nothing was run. Call %s and ask the owner which page to publish, with the drafts\' titles as choices.', self::ASK_USER ),
 				'code'  => 'mody_publish_needs_answer',
+			);
+		}
+
+		// Opening what is already open (M3-09). Probed 2026-11-08: "add a short FAQ at the end of
+		// this page" opened the open page instead of editing it 1 to 2 times in 6, despite rule 10.
+		if ( 'mody/open-editor' === $ability && $this->opens_what_is_open( (array) $args ) ) {
+			AgentEvents::log( $this->input, $ability, $args, 'refused: already open', $started );
+			return array(
+				'error' => sprintf( 'This is already open in the editor, so nothing was opened. To change it, call %s with the owner\'s instruction.', self::EDIT_CONTENT ),
+				'code'  => 'mody_already_open',
 			);
 		}
 
@@ -432,7 +501,12 @@ final class Agent {
 			'edit_url' => $edit_label,
 		);
 
-		$shown = 0;
+		// Screens the Site Editor switches to in place (M3-09, decided 2026-11-08).
+		$navigate = ! empty( $response['navigate'] );
+		unset( $response['navigate'] );
+
+		$shown  = 0;
+		$switch = false;
 		foreach ( $links as $key => $label ) {
 			$url = (string) ( $response[ $key ] ?? '' );
 			if ( '' === $url || ! ( str_starts_with( $url, admin_url() ) || str_starts_with( $url, home_url( '/' ) ) ) ) {
@@ -440,17 +514,28 @@ final class Agent {
 			}
 			// Admin links (the Site Editor) open in the same tab, with the chat bubble open
 			// there (decided 2026-11-07); front-end links open in a new tab.
-			$admin                   = str_starts_with( $url, admin_url() );
-			$this->turn['actions'][] = array(
+			$admin  = str_starts_with( $url, admin_url() );
+			$action = array(
 				'label'  => sanitize_text_field( $label ),
 				'url'    => esc_url_raw( $admin ? EditorBubble::open_url( $url ) : $url ),
 				'editor' => $admin,
 			);
+			// In the Site Editor, the bubble opens this screen in place instead of showing the
+			// button: the first Site Editor link of a result that asks for it (`url` for
+			// mody/open-editor and mody/update-design, `edit_url` for a new page).
+			if ( $navigate && ! $switch && str_starts_with( $url, admin_url( 'site-editor.php' ) ) ) {
+				$action['navigate'] = true;
+				$action['place']    = sanitize_text_field( (string) ( $response['place'] ?? '' ) );
+				$switch             = true;
+			}
+			$this->turn['actions'][] = $action;
 			unset( $response[ $key ] );
 			++$shown;
 		}
 
-		if ( $shown ) {
+		if ( $switch ) {
+			$response['link'] = 'Opened for the owner: in the Site Editor the screen switches now, elsewhere they get a button below your reply.';
+		} elseif ( $shown ) {
 			$response['link'] = 1 === $shown ? 'Shown to the owner as a button below your reply.' : 'Shown to the owner as buttons below your reply.';
 		}
 		return $response;

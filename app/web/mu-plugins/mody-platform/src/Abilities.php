@@ -84,6 +84,8 @@ final class Abilities {
 							'enum' => array( 'draft' ),
 						),
 						'edit_url' => array( 'type' => 'string' ),
+						'place'    => array( 'type' => 'string' ),
+						'navigate' => array( 'type' => 'boolean' ),
 					),
 					'required'   => array( 'page_id', 'title', 'status', 'edit_url' ),
 				),
@@ -104,30 +106,39 @@ final class Abilities {
 			'mody/open-editor',
 			array(
 				'label'               => __( 'Open the editor', 'mody_cloud' ),
-				'description'         => __( 'Returns the Site Editor link for a page (by ID or exact title), a template of the theme (by slug, such as front-page or page) or the site\'s global styles (colors and fonts). Without a page or template, it links to the list. Changes nothing.', 'mody_cloud' ),
+				// Short on purpose (ai-engine.md, "Prompt size"): the targets are explained in SystemPrompt::for_agent().
+				'description'         => __( 'Opens a Site Editor screen for the owner. Changes nothing.', 'mody_cloud' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
 					'properties'           => array(
 						'target'     => array(
-							'type'        => 'string',
-							'description' => __( 'What to open.', 'mody_cloud' ),
-							'enum'        => SiteEditor::TARGETS,
+							'type' => 'string',
+							'enum' => SiteEditor::TARGETS,
 						),
 						'page_id'    => array(
-							'type'        => 'integer',
-							'description' => __( 'Page ID, for target "page".', 'mody_cloud' ),
-							'minimum'     => 1,
+							'type'    => 'integer',
+							'minimum' => 1,
 						),
 						'page_title' => array(
-							'type'        => 'string',
-							'description' => __( 'Exact page title, for target "page" when the ID is unknown.', 'mody_cloud' ),
-							'maxLength'   => 200,
+							'type'      => 'string',
+							'maxLength' => 200,
 						),
 						'template'   => array(
-							'type'        => 'string',
-							'description' => __( 'Template slug, for target "template".', 'mody_cloud' ),
-							'maxLength'   => 100,
+							'type'      => 'string',
+							'maxLength' => 100,
+						),
+						'list'       => array(
+							'type'      => 'string',
+							'maxLength' => 60,
+						),
+						'section'    => array(
+							'type' => 'string',
+							'enum' => array_keys( SiteEditor::SECTIONS ),
+						),
+						'block'      => array(
+							'type'      => 'string',
+							'maxLength' => 100,
 						),
 					),
 					'required'             => array( 'target' ),
@@ -136,10 +147,13 @@ final class Abilities {
 				'output_schema'       => array(
 					'type'       => 'object',
 					'properties' => array(
-						'target'  => array( 'type' => 'string' ),
-						'url'     => array( 'type' => 'string' ),
-						'label'   => array( 'type' => 'string' ),
-						'page_id' => array( 'type' => 'integer' ),
+						'target'   => array( 'type' => 'string' ),
+						'url'      => array( 'type' => 'string' ),
+						'label'    => array( 'type' => 'string' ),
+						'place'    => array( 'type' => 'string' ),
+						'navigate' => array( 'type' => 'boolean' ),
+						'page_id'  => array( 'type' => 'integer' ),
+						'template' => array( 'type' => 'string' ),
 					),
 					'required'   => array( 'target', 'url', 'label' ),
 				),
@@ -208,6 +222,8 @@ final class Abilities {
 						'brand_profile_updated' => array( 'type' => 'boolean' ),
 						'url'                   => array( 'type' => 'string' ),
 						'label'                 => array( 'type' => 'string' ),
+						'place'                 => array( 'type' => 'string' ),
+						'navigate'              => array( 'type' => 'boolean' ),
 					),
 					'required'   => array( 'colors', 'brand_profile_updated', 'url', 'label' ),
 				),
