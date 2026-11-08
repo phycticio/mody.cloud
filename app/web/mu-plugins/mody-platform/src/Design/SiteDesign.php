@@ -260,11 +260,16 @@ final class SiteDesign {
 			);
 		}
 
+		// The editor shows the result (M3-09, decided 2026-11-08): Colors after a color
+		// change, Browse styles (with the preset active) after a preset.
+		$screen = SiteEditor::styles_screen( '' !== $preset ? 'browse' : 'colors' );
 		return ( '' !== $preset ? array( 'preset' => $preset ) : array() ) + array(
 			'colors'                => $changes,
 			'brand_profile_updated' => $brand,
-			'url'                   => SiteEditor::url( '/styles' ),
+			'url'                   => $screen['url'],
 			'label'                 => __( 'See the new colors', 'mody_cloud' ),
+			'place'                 => $screen['place'],
+			'navigate'              => true,
 		);
 	}
 }

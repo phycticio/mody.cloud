@@ -6,6 +6,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 
 ## Waiting on the maintainer
 - **The SMTP relay** ([M5-02](M5-02-production-member-sites.md), step 6). The answer on 2026-11-08 was cut off ("SMTP relay: Let"). I build the mail hook once the relay is named.
+- **The browser check of [M3-09](M3-09-agent-navigates-site-editor.md)** (built 2026-11-08, uncommitted on `feature/m3-09-navigate-site-editor`): the steps in its Results, plus "create a page", where the new draft opens. Then commit, merge and deploy when you say so.
 - **Inputs for M1:**
   - the Mollie test keys in `.env` (M1-01 part 3);
   - the WP-Cron decision (part 5 and M1-02; architecture.md, Open questions);

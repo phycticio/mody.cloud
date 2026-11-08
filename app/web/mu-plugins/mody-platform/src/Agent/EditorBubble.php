@@ -86,6 +86,9 @@ final class EditorBubble {
 		$settings['strings']['undo']      = __( 'Undo this change', 'mody_cloud' );
 		$settings['strings']['otherPage'] = __( 'Another page is open now, so the change was not applied. Open the page again and ask once more.', 'mody_cloud' );
 		$settings['strings']['blockGone'] = __( 'The selected block is no longer there, so the change was not applied.', 'mody_cloud' );
+		/* translators: %s: a Site Editor screen, such as "Styles → Colors". */
+		$settings['strings']['opened'] = __( 'Opened %s.', 'mody_cloud' );
+		$settings['strings']['back']   = __( 'Go back', 'mody_cloud' );
 		return $settings;
 	}
 }

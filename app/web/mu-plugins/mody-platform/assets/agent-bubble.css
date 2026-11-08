@@ -125,3 +125,16 @@
 .mody-bubble__undo:disabled {
 	opacity: 0.6;
 }
+
+/* A screen the agent opened in the Site Editor (M3-09): the note, then Go back. */
+.mody-bubble__opened {
+	align-items: center;
+}
+
+.mody-bubble__opened .mody-bubble__note {
+	margin: 0;
+}
+
+.mody-bubble__back:disabled {
+	opacity: 0.6;
+}

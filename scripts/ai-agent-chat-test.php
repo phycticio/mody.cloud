@@ -44,6 +44,7 @@ use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\AgentSettings;
 use Mody\Platform\Agent\EditorBubble;
+use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandProfile;
@@ -332,7 +333,7 @@ if ( $new_page ) {
 }
 $tool_reply = $tool_messages( $requests[2] ?? array() )[0]['content'] ?? '';
 $check( 'generate page: draft saved', $new_page && 'draft' === get_post_status( $new_page ), "page $new_page" );
-$check( '...button to the Site Editor', EditorBubble::open_url( SiteEditor::page_url( $new_page ) ) === ( $turn['actions'][0]['url'] ?? '' ) && true === ( $turn['actions'][0]['editor'] ?? null ), $turn['actions'][0]['label'] ?? '' );
+$check( '...the new draft opens in place (M3-09)', EditorBubble::open_url( SiteEditor::page_url( $new_page ) ) === ( $turn['actions'][0]['url'] ?? '' ) && true === ( $turn['actions'][0]['editor'] ?? null ) && true === ( $turn['actions'][0]['navigate'] ?? null ) && str_starts_with( (string) ( $turn['actions'][0]['place'] ?? '' ), 'the page "' ), ( $turn['actions'][0]['place'] ?? '' ) . ' / ' . ( $turn['actions'][0]['label'] ?? '' ) );
 $check( '...3 requests (agent, page, agent)', 3 === count( $requests ), count( $requests ) . ' request(s)' );
 $check( '...result sent back without the URL', str_contains( $tool_reply, '"page_id":' . $new_page ) && ! str_contains( $tool_reply, 'site-editor' ), mb_strimwidth( $tool_reply, 0, 80, '...' ) );
 $check( '...tool call logged', array( 'mody/generate-page' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['args'], 'An about page' ) && null !== $rows[0]['duration_ms'], $rows ? "args {$rows[0]['args']}, {$rows[0]['duration_ms']} ms" : '' );
@@ -399,6 +400,61 @@ $check( 'unknown tools: not run', 2 === count( $sent ) && 2 === substr_count( wp
 $check( '...nothing deleted', (int) array_sum( (array) wp_count_posts( 'page' ) ) === $pages_before );
 $check( '...logged as refused', array( 'delete_all_pages', 'wpab__core__get-site-info' ) === $tools_of( $rows ) && 'refused: unknown tool' === $rows[0]['result'], implode( ', ', $tools_of( $rows ) ) );
 
+// A reply that narrates instead of acting (M3-09): sent back once, never shown.
+$fakes    = array(
+	'The owner wants to see other designs. This maps to the style presets.',
+	array(
+		array(
+			$names['open_editor'],
+			array(
+				'target'  => 'styles',
+				'section' => 'browse',
+			),
+		),
+	),
+	'The style presets are open now.',
+);
+$requests = array();
+$turn     = Agent::respond( 'Show me other designs' );
+$since();
+$check( 'a narrating reply: asked once more, then it acts', 3 === count( $requests ) && 'The style presets are open now.' === $turn['reply'] && 'Styles → Browse styles' === ( $turn['actions'][0]['place'] ?? '' ), count( $requests ) . ' requests: ' . $turn['reply'] );
+$fakes    = array( 'The owner wants a page.', 'The owner wants a page, still.' );
+$requests = array();
+$turn     = Agent::respond( 'Hello again' );
+$since();
+$check( '...only once per message', 2 === count( $requests ) && 'The owner wants a page, still.' === $turn['reply'], count( $requests ) . ' requests' );
+
+// Opening what is already open in the editor (M3-09): refused, so the model edits instead.
+$open_ctx = EditorContext::from_input(
+	array(
+		'post_type' => 'page',
+		'post_id'   => $page_id,
+		'content'   => (string) get_post_field( 'post_content', $page_id ),
+	)
+);
+$fakes    = array(
+	array(
+		array(
+			$names['open_editor'],
+			array(
+				'target'  => 'page',
+				'page_id' => $page_id,
+			),
+		),
+	),
+	'Tell me what to add.',
+);
+$requests = array();
+$turn     = Agent::respond( 'Add a short FAQ at the end of this page', array(), $open_ctx );
+$rows     = $since();
+$sent     = (string) wp_json_encode( $tool_messages( $requests[1] ?? array() ) );
+$check( 'opening the page that is open: refused, nothing opened', ! $turn['actions'] && str_contains( $sent, 'mody_already_open' ) && in_array( 'refused: already open', array_column( $rows, 'result' ), true ), count( $turn['actions'] ) . ' action(s)' );
+$fakes    = array( array( array( $names['open_editor'], array( 'target' => 'styles' ) ) ), 'Done.' );
+$requests = array();
+$turn     = Agent::respond( 'Open the styles', array(), $open_ctx );
+$since();
+$check( '...another screen still opens from the editor', 'Styles' === ( $turn['actions'][0]['place'] ?? '' ) );
+
 $styles   = array( $names['open_editor'], array( 'target' => 'styles' ) );
 $fakes    = array_fill( 0, 5, array( $styles, $styles ) );
 $requests = array();
@@ -427,6 +483,7 @@ $turn     = Agent::respond( 'Open the styles twice' );
 $since();
 $check( 'model error after a tool: says so', $turn['error'] && str_contains( $turn['reply'], 'may already be done' ), $turn['reply'] );
 $check( '...buttons kept, once each', array( EditorBubble::open_url( SiteEditor::url( '/styles' ) ) ) === array_column( $turn['actions'], 'url' ), count( $turn['actions'] ) . ' button(s)' );
+$check( '...a screen to open in place, named', true === ( $turn['actions'][0]['navigate'] ?? null ) && 'Styles' === ( $turn['actions'][0]['place'] ?? '' ), wp_json_encode( $turn['actions'][0] ?? null ) );
 
 // 4. Design: mody/update-design ---------------------------------------------
 
@@ -545,7 +602,8 @@ $sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
 $check( '...brand no: primary changed', '#ff7f50' === $now['primary'] && '#ff7f50' === $css_color( 'primary' ), 'palette ' . $now['primary'] . ', CSS ' . $css_color( 'primary' ) );
 $check( '...other colors unchanged', array_diff_key( $now, array( 'primary' => 1 ) ) === array_diff_key( $start_colors, array( 'primary' => 1 ) ) );
 $check( '...profile unchanged', $start_brand === $profile_now(), wp_json_encode( $profile_now() ) );
-$check( '...button to see the colors', EditorBubble::open_url( SiteEditor::url( '/styles' ) ) === ( $turn['actions'][0]['url'] ?? '' ), $turn['actions'][0]['label'] ?? 'no button' );
+$colors_screen = SiteEditor::styles_screen( 'colors' );
+$check( '...Styles → Colors, opened in place (M3-09)', EditorBubble::open_url( $colors_screen['url'] ) === ( $turn['actions'][0]['url'] ?? '' ) && true === ( $turn['actions'][0]['navigate'] ?? null ) && $colors_screen['place'] === ( $turn['actions'][0]['place'] ?? '' ), ( $turn['actions'][0]['place'] ?? 'no screen' ) . ' ' . ( $turn['actions'][0]['url'] ?? '' ) );
 $check( '...old and new sent back, no URL', str_contains( $sent, '"old":"' . $start_colors['primary'] . '"' ) && str_contains( $sent, '"new":"#ff7f50"' ) && str_contains( $sent, '"brand_profile_updated":false' ) && ! str_contains( $sent, 'site-editor' ), mb_strimwidth( $sent, 0, 90, '...' ) );
 $check( '...logged with old and new', array( 'mody/update-design' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], '"new":"#ff7f50"' ) && str_contains( (string) $rows[0]['args'], '"brand":false' ) );
 $stored = json_decode( $styles_now(), true );
@@ -1101,7 +1159,8 @@ foreach ( $design_runs as list( $text, $choice, $brand ) ) {
 	$changed = $brand ? Presets::colors( 'forest' ) : array( 'primary' => strtolower( (string) ( $args['primary'] ?? '' ) ) );
 	$check( '...then updates', $call && array_intersect_key( $now, $changed ) == $changed && $start_colors['primary'] !== $now['primary'], ( $call ? $call['args'] : 'no call' ) . ', ' . $turn['secs'] ); // phpcs:ignore Universal.Operators.StrictComparisons
 	$check( $brand ? '...brand profile changed' : '...brand profile unchanged', $brand ? Presets::colors( 'forest' ) == $profile_now() : $start_brand === $profile_now(), wp_json_encode( $profile_now() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
-	$check( '...button and reply', EditorBubble::open_url( SiteEditor::url( '/styles' ) ) === ( $turn['actions'][0]['url'] ?? '' ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+	$screen = SiteEditor::styles_screen( $brand ? 'browse' : 'colors' ); // M3-09: a preset shows Browse styles, a color Colors.
+	$check( '...the screen opens, and the reply', EditorBubble::open_url( $screen['url'] ) === ( $turn['actions'][0]['url'] ?? '' ) && true === ( $turn['actions'][0]['navigate'] ?? null ) && ! str_contains( $turn['reply'], 'http' ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
 }
 $restore_design();
 
