@@ -2,11 +2,11 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-08, after M1-01 part 2 (the registration page) and the certificate decision.
+**Last updated:** 2026-11-08, after the design market was merged.
 
 ## Waiting on the maintainer
 - **The SMTP relay** ([M5-02](M5-02-production-member-sites.md), step 6). The answer on 2026-11-08 was cut off ("SMTP relay: Let"). I build the mail hook once the relay is named.
-- **The browser check of [M3-09](M3-09-agent-navigates-site-editor.md)** (built 2026-11-08, uncommitted on `feature/m3-09-navigate-site-editor`): the steps in its Results, plus "create a page", where the new draft opens. Then commit, merge and deploy when you say so.
+- **The browser check of [M3-09](M3-09-agent-navigates-site-editor.md)** (built 2026-11-08, merged in `9df71d8`): the steps in its Results, plus "create a page", where the new draft opens. The maintainer chose to deploy it with M2-08 before this check.
 - **Inputs for M1:**
   - the Mollie test keys in `.env` (M1-01 part 3);
   - the WP-Cron decision (part 5 and M1-02; architecture.md, Open questions);
@@ -26,6 +26,11 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 3. **[M5-02](M5-02-production-member-sites.md) step 6: SMTP in production.** It needs the relay.
 4. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
 5. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**
+
+## Tech debt
+- **[The design market](design-market-themes-patterns.md):** the patterns part was built and merged on 2026-11-08 (the Mody collection, 63 patterns). Still open:
+  - which Mody themes members see;
+  - the findings in the ticket: placeholder labels on covers, "Powered by WordPress" credits, two gradient patterns left out, patterns adapted to the brand by the agent.
 
 ## Set aside
 - **[M4-02](M4-02-plugin-market.md) parts A2 and B.** Pick them up with the first plugin offered to members.

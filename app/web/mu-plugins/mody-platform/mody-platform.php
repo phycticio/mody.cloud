@@ -35,6 +35,19 @@ spl_autoload_register(
 Spectra\SpectraGuard::boot();
 
 /*
+ * The design market (built 2026-11-08): every site's patterns are the Mody
+ * collection (patterns/collection.json), rewritten from WordPress.org's
+ * Pattern Directory and core's patterns; nothing is fetched from
+ * WordPress.org. Placeholder images are served here, before the rest of
+ * WordPress runs.
+ */
+Design\Patterns::serve_placeholder();
+add_filter( 'should_load_remote_block_patterns', '__return_false' );
+add_action( 'after_setup_theme', array( Design\Patterns::class, 'remove_core_patterns' ), 20 );
+add_action( 'rest_api_init', array( Design\Patterns::class, 'register' ), 5 );
+add_filter( 'rest_pre_dispatch', array( Design\Patterns::class, 'refuse_directory' ), 10, 3 );
+
+/*
  * The Font Library (rule 1): no Google Fonts collection (core registers it on
  * `init` at priority 10), the Mody fonts collection instead, and the theme's
  * Inter served from this plugin (M2-07).
