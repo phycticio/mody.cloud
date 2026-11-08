@@ -29,7 +29,7 @@ defined( 'ABSPATH' ) || exit;
 final class SiteEditor {
 
 	/** What mody/open-editor can open. */
-	public const TARGETS = array( 'page', 'template', 'part', 'list', 'styles', 'navigation', 'patterns', 'home' );
+	public const TARGETS = array( 'page', 'template', 'part', 'list', 'styles', 'navigation', 'patterns', 'home', 'identity' );
 
 	/**
 	 * Styles screens: key => `section` path. Additional CSS is left out:
@@ -117,8 +117,9 @@ final class SiteEditor {
 	}
 
 	/**
-	 * Permission callback of mody/open-editor: pages need `edit_pages`,
-	 * everything else `edit_theme_options`.
+	 * Permission callback of mody/open-editor: pages need `edit_pages`, the
+	 * Identity screen `manage_options` (site settings), everything else
+	 * `edit_theme_options`.
 	 *
 	 * @param mixed $input The ability input.
 	 */
@@ -127,6 +128,9 @@ final class SiteEditor {
 			return false;
 		}
 		$target = is_array( $input ) ? (string) ( $input['target'] ?? 'page' ) : 'page';
+		if ( 'identity' === $target ) {
+			return current_user_can( 'manage_options' ); // Site settings (M2-08).
+		}
 		return 'page' === $target ? current_user_can( 'edit_pages' ) : current_user_can( 'edit_theme_options' );
 	}
 
@@ -163,6 +167,9 @@ final class SiteEditor {
 				return self::open_navigation();
 			case 'patterns':
 				return self::result( 'patterns', self::url( '/pattern' ), __( 'Open the patterns', 'mody_cloud' ), __( 'the Patterns screen', 'mody_cloud' ) );
+			case 'identity':
+				// The site's title, tagline, logo, icon, mission and tone (M2-08).
+				return self::result( 'identity', self::url( '/identity' ), __( 'Open Identity', 'mody_cloud' ), __( 'the Identity screen', 'mody_cloud' ) );
 			case 'home':
 				return self::result( 'home', self::url( '/' ), __( 'Open the Site Editor', 'mody_cloud' ), __( 'the Site Editor\'s start screen', 'mody_cloud' ) );
 		}
@@ -436,6 +443,7 @@ final class SiteEditor {
 			'/template'   => __( 'the Templates list', 'mody_cloud' ),
 			'/pattern'    => __( 'the Patterns screen', 'mody_cloud' ),
 			'/navigation' => __( 'the Navigation screen', 'mody_cloud' ),
+			'/identity'   => __( 'the Identity screen', 'mody_cloud' ),
 		);
 		if ( isset( $lists[ $p ] ) ) {
 			return $lists[ $p ];

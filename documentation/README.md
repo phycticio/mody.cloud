@@ -24,7 +24,7 @@ Coding agents and developers: read the document that matches the work **before**
 | [local-development.md](local-development.md) | Running or debugging the stack, using `bin/` scripts, or hitting a script that looks broken | First run, commands, environment variables, known stale items | n/a |
 | [theme-development.md](theme-development.md) | Editing templates, parts, `theme.json`, palette, fonts or styles | The FSE theme scaffold and how to extend it | 1, 2, 4 |
 | [ai-engine.md](ai-engine.md) | Building or changing the AI agent: model calls, prompts, block whitelist, validation | Model, provider, block serialization, master prompt rules, first task | 3, 4, 12 |
-| [brand-profile.md](brand-profile.md) | Working on the wizard, the `mody_brand_profiles` table, prompt assembly or site creation | Wizard, schema, coherent generation, site creation flow | 6, 7 |
+| [brand-profile.md](brand-profile.md) | Working on the wizard, the brand (each site's own settings and styles), prompt assembly or site creation | Wizard, where the brand lives, the brand context, site creation flow | 6, 7 |
 | [membership-tiers.md](membership-tiers.md) | Working on quotas, roles, site limits or dedicated VPS thresholds | Tiers, gating logic, dedicated VPS rules | 5 |
 | [newsletter.md](newsletter.md) | Working on newsletter sending, sending caps or opt-in | Infomaniak Newsletter integration | 9 |
 | [roadmap.md](roadmap.md) | Choosing what to work on next, or checking milestone status | Milestones and the first concrete step | 10, 12 |

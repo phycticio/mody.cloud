@@ -23,7 +23,7 @@
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
@@ -34,7 +34,6 @@ $message  = static fn( $result ): string => is_wp_error( $result ) ? $result->ge
 
 $admins = get_super_admins();
 wp_set_current_user( get_user_by( 'login', $admins[0] )->ID );
-BrandProfile::install();
 
 // 1. Validator --------------------------------------------------------------
 
@@ -140,51 +139,31 @@ $last_user_text = static function () use ( &$requests ): string {
 	return is_array( $content ) ? (string) ( $content[0]['text'] ?? '' ) : (string) $content;
 };
 
-// 2. No brand profile -------------------------------------------------------
+// 2. The brand: the site's own settings (M2-08) ---------------------------------
 
-echo "\nBrand profile\n";
-$without = 0;
-foreach ( get_sites( array( 'fields' => 'ids' ) ) as $id ) {
-	if ( null === BrandProfile::for_site( (int) $id ) ) {
-		$without = (int) $id;
-		break;
-	}
-}
-$without  = $without ? $without : PHP_INT_MAX;
-$requests = array();
-$result   = PageGenerator::generate_page( $without, 'A home page for my business.' );
-$check( 'refused without a brand profile', is_wp_error( $result ) && 'mody_no_brand_profile' === $result->get_error_code(), $message( $result ) . " (site $without)" );
-$check( 'no model request made', 0 === count( $requests ), count( $requests ) . ' request(s)' );
-
-// Fixture profile for this site, unless it has a real one.
+echo "\nThe brand (the site's settings)\n";
 global $wpdb;
-$site_id    = get_current_blog_id();
-$fixture_id = 0;
-if ( null === BrandProfile::for_site( $site_id ) ) {
-	$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		BrandProfile::table(),
-		array(
-			'user_id'       => get_current_user_id(),
-			'site_id'       => $site_id,
-			'brand_name'    => 'Ogia Bakery',
-			'mission'       => 'We bake sourdough bread for offices in Zurich.',
-			'tone_of_voice' => 'friendly',
-		)
-	);
-	$fixture_id = (int) $wpdb->insert_id;
-}
+$site_id     = get_current_blog_id();
+$saved_brand = array(
+	'blogname'             => get_option( 'blogname' ),
+	BrandSettings::MISSION => get_option( BrandSettings::MISSION, '' ),
+	BrandSettings::TONE    => get_option( BrandSettings::TONE, '' ),
+);
 register_shutdown_function(
-	static function () use ( $fixture_id ): void {
-		global $wpdb;
-		if ( $fixture_id ) {
-			$wpdb->delete( BrandProfile::table(), array( 'id' => $fixture_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	static function () use ( $saved_brand ): void {
+		foreach ( $saved_brand as $option => $value ) {
+			update_option( $option, $value );
 		}
 	}
 );
-$profile = BrandProfile::for_site( $site_id );
-$check( 'profile loaded', null !== $profile, $profile ? $profile->brand_name . ( $fixture_id ? ' (test fixture)' : '' ) : '' );
-$system = $profile ? SystemPrompt::for_page( $profile ) : '';
-$check( 'system prompt carries the brand', str_contains( $system, '<brand>' ) && str_contains( $system, (string) $profile?->brand_name ), strlen( $system ) . ' characters' );
+update_option( 'blogname', 'Ogia Bakery & Co' );
+BrandSettings::save( 'We bake sourdough bread for offices in Zurich.', 'technical' );
+$system = SystemPrompt::for_page();
+$check( 'the prompt reads the site title, mission and tone, decoded', str_contains( $system, '<brand>' ) && str_contains( $system, 'Name: Ogia Bakery & Co' ) && str_contains( $system, 'What the brand does: We bake sourdough bread' ) && str_contains( $system, 'Tone of voice: Technical' ), strlen( $system ) . ' characters' );
+update_option( 'blogname', 'Ogia Bakery' );
+BrandSettings::save( 'We bake sourdough bread for offices in Zurich.', 'friendly' );
+$check( '...and follows a change at once, with nothing to sync', str_contains( SystemPrompt::for_page(), 'Name: Ogia Bakery' . "\n" ) && str_contains( SystemPrompt::for_page(), 'Tone of voice: Friendly' ) );
+$check( 'no logo in the prompt (decision 4)', ! str_contains( $system, 'Logo:' ) );
 
 // 3. Retries with fake answers ----------------------------------------------
 

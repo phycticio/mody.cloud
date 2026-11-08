@@ -21,14 +21,14 @@
  *    after `docker exec` to skip it, or `-e MODY_TEST_KEEP_SITE=1` to keep
  *    the site it creates (it belongs to the first super admin).
  *
- * Sites, users, jobs and brand profiles created by the test are removed at the
+ * Sites, users and jobs created by the test are removed at the
  * end. Emails are captured, not sent. Never prints the token.
  */
 
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Provisioning\Jobs;
@@ -50,7 +50,6 @@ global $wpdb;
 $admins = get_super_admins();
 $admin  = get_user_by( 'login', $admins[0] );
 wp_set_current_user( $admin->ID );
-BrandProfile::install();
 Jobs::install();
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $slugs  = static fn( string $name ): string => 'modytest' . $name . $suffix;
@@ -68,7 +67,6 @@ register_shutdown_function(
 			$created['sites'] = array_diff( $created['sites'], array( $created['keep'] ) );
 		}
 		foreach ( array_unique( $created['sites'] ) as $site_id ) {
-			$wpdb->delete( BrandProfile::table(), array( 'site_id' => $site_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			if ( get_site( $site_id ) ) {
 				wp_delete_site( $site_id );
 			}
@@ -187,9 +185,8 @@ $sites_at = static fn( string $slug ): array => get_sites(
 		'fields' => 'ids',
 	)
 );
-$profiles = static function ( int $site_id ): int {
-	global $wpdb;
-	return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . BrandProfile::table() . ' WHERE site_id = %d', $site_id ) ); // phpcs:ignore WordPress.DB
+$profiles = static function ( int $site_id ): int { // The brand settings written (M2-08): 1 or 0.
+	return '' !== (string) get_blog_option( $site_id, BrandSettings::MISSION, '' ) ? 1 : 0;
 };
 $job_pages = static function ( int $site_id, int $job_id ): array {
 	switch_to_blog( $site_id );
@@ -253,7 +250,7 @@ $out = Pipeline::validate(
 );
 $check(
 	'defaults and cleaning',
-	! is_wp_error( $out ) && 'ogiatest' === $out['slug'] && 'Ogia Bakery' === $out['title'] && 'Ogia Bakery' === $out['brand_name']
+	! is_wp_error( $out ) && 'ogiatest' === $out['slug'] && 'Ogia Bakery' === $out['title'] && ! isset( $out['brand_name'] )
 		&& 'friendly' === $out['tone'] && Presets::DEFAULT === $out['preset'] && 'We bake bread.' === $out['mission'],
 	$message( $out )
 );
@@ -319,8 +316,12 @@ $check( '...without the template title', PageGenerator::TEMPLATE === get_page_te
 $check( '...by the member', $page && $member === (int) $page->post_author );
 $home = home_url( '/' );
 restore_current_blog();
-$profile = BrandProfile::for_site( $site_id );
-$check( 'brand profile', $profile && 'Ogia Bakery' === $profile->brand_name && 'friendly' === $profile->tone && Presets::colors( 'forest' ) == $profile->colors, $profile ? wp_json_encode( $profile->colors ) : 'none' ); // phpcs:ignore Universal.Operators.StrictComparisons
+switch_to_blog( $site_id );
+wp_clean_theme_json_cache();
+$made_brand  = BrandSettings::brand();
+$made_colors = \Mody\Platform\Design\SiteDesign::colors();
+restore_current_blog();
+$check( 'the brand, in the site\'s own settings and styles (M2-08)', 'Ogia Bakery' === $made_brand['name'] && 'friendly' === $made_brand['tone'] && '' !== $made_brand['mission'] && Presets::colors( 'forest' ) == $made_colors, wp_json_encode( $made_brand ) ); // phpcs:ignore Universal.Operators.StrictComparisons
 $check( 'one model request, with the brand', 1 === count( $requests ) && str_contains( (string) wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ), count( $requests ) . ' request(s)' );
 $welcome = $mails_to( $member_email );
 $check( 'one welcome email', 1 === count( $welcome ) && str_contains( $welcome[0]['message'], $home ) && str_contains( $welcome[0]['message'], $admin_base . 'site-editor.php' ) && str_contains( $welcome[0]['message'], 'mody-chat=open' ), count( $welcome ) . ' email(s)' );
@@ -541,7 +542,7 @@ $site_url  = 'https://' . Pipeline::domain( $slug ) . $logo_path;
 $check( 'the site gets the logo', ! is_wp_error( $job ) && 'done' === $job['status'] && 1 === count( $logos ) && $logos[0] === $logo_id && $on_disk, $site_url );
 $check( '...in its own media library', str_contains( $logo_path, '/uploads/sites/' . $site_id . '/' ) && 'image/png' === $logo_mime, $logo_mime );
 $check( '...shown in the header', str_contains( $header, 'wp-block-site-logo' ) && str_contains( $header, wp_basename( $logo_url ) ) );
-$check( '...recorded in the profile, on the site\'s host', $site_url === BrandProfile::for_site( $site_id )?->logo_url && $site_url === ( $job['result']['logo_url'] ?? '' ), (string) BrandProfile::for_site( $site_id )?->logo_url );
+$check( '...its address on the site\'s host, in the job', $site_url === ( $job['result']['logo_url'] ?? '' ), (string) ( $job['result']['logo_url'] ?? '' ) );
 $check( '...and the upload on the main site removed', ! $source_left );
 
 // Killed in the profile step, after the copy: one logo.
@@ -565,7 +566,7 @@ $wpdb->query( $wpdb->prepare( 'UPDATE ' . Jobs::table() . ' SET updated_at = DAT
 $job     = $run( $job_id );
 $fakes   = null;
 $site_id = is_array( $job ) ? (int) $job['site_id'] : 0;
-$check( 'killed after the copy, resumed: one logo', ! is_wp_error( $job ) && 'done' === $job['status'] && 1 === count( $site_logos( $site_id, $job_id ) ) && '' !== (string) BrandProfile::for_site( $site_id )?->logo_url, count( $site_logos( $site_id, $job_id ) ) . ' logo(s)' );
+$check( 'killed after the copy, resumed: one logo', ! is_wp_error( $job ) && 'done' === $job['status'] && 1 === count( $site_logos( $site_id, $job_id ) ) && (int) get_blog_option( $site_id, 'site_logo' ) > 0, count( $site_logos( $site_id, $job_id ) ) . ' logo(s)' );
 
 // The upload vanished before the run: the site is created without a logo.
 $source = $make_logo( $member );

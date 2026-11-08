@@ -8,11 +8,10 @@
  *   docker exec -i -u www-data mody_cloud_app \
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-plugin-brand-context-test.php
  *
- * 1. No brand profile: the `wpai_system_instruction` filter leaves every
- *    feature's instruction unchanged, and so does a title generation with a
- *    fake model answer.
- * 2. With a brand profile: the writing features get the brand, everything
- *    else is unchanged (other features, empty instructions, other values).
+ * 1. Every site has its own brand, its settings (M2-08): on another site of
+ *    the network, the writing features get that site's title.
+ * 2. The writing features get the brand, everything else is unchanged
+ *    (other features, empty instructions, other values).
  * 3. Every `ai/` feature the plugin registers, with its real instruction: the
  *    writing ones carry the brand, the others don't. A feature this test does
  *    not know fails it, so a plugin update that adds one needs a decision.
@@ -21,17 +20,15 @@
  * 5. One real title generation. Add `-e MODY_TEST_OFFLINE=1` after
  *    `docker exec` to skip it.
  *
- * 1, 4 and 5 need the plugin's title generation feature, with the infomaniak
- * connector approved. They are skipped, with a note, when it is not. Both are
- * options of each site, so the run in 1, on another site of the network, is
- * often skipped (locally, alpha has no features on).
- * If the site has no brand profile, a fixture row is inserted and removed at
- * the end. Never prints the token.
+ * 4 and 5 need the plugin's title generation feature, with the infomaniak
+ * connector approved. They are skipped, with a note, when it is not.
+ * If the site has no mission, a test one is set and removed at the end.
+ * Never prints the token.
  */
 
 use Mody\Platform\AI\PluginBrandContext;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
@@ -45,7 +42,6 @@ $note     = static function ( string $label, string $why ): void {
 global $wpdb;
 $admins = get_super_admins();
 wp_set_current_user( get_user_by( 'login', $admins[0] )->ID );
-BrandProfile::install();
 $site_id = get_current_blog_id();
 
 // What the plugin's features are expected to do. Brand-aware ones must be exactly
@@ -159,72 +155,49 @@ $generate = static function ( ?string $fake ) use ( $title, $content, &$requests
 	);
 };
 
-// 1. No brand profile -------------------------------------------------------
+// 1. Every site has its own brand (M2-08) -------------------------------------
 
-echo "\nNo brand profile\n";
-$without = 0;
-foreach ( get_sites( array( 'fields' => 'ids' ) ) as $id ) {
-	if ( null === BrandProfile::for_site( (int) $id ) ) {
-		$without = (int) $id;
-		break;
-	}
-}
-if ( $without ) {
-	switch_to_blog( $without );
-	$changed = array();
-	foreach ( array_keys( $expected ) as $name ) {
-		if ( 'Rules.' !== apply_filters( 'wpai_system_instruction', 'Rules.', $name, array() ) ) {
-			$changed[] = $name;
-		}
-	}
-	$check( 'filter: every feature unchanged', ! $changed, $changed ? implode( ', ', $changed ) : "site $without" );
-
-	$run = $generate( 'Fresh sourdough for Zurich offices' );
-	if ( ! isset( $run['skip'] ) && ! $run['requests'] && is_wp_error( $run['result'] ) ) {
-		// The plugin's feature switches and connector approvals are options of each site.
-		$run['skip'] = "no model request on site $without (" . $run['result']->get_error_message() . ' The plugin\'s features and connector approvals are set per site.)';
-	}
-	if ( isset( $run['skip'] ) ) {
-		$note( 'title generation: no brand sent', $run['skip'] );
-	} else {
-		$system = $system_of( $run['requests'][0] ?? array() );
-		$check( 'title generation: no brand sent', '' !== $system && ! str_contains( $system, '<brand>' ) && str_contains( $system, 'title suggestions' ), is_wp_error( $run['result'] ) ? $run['result']->get_error_message() : '' );
-	}
+echo "\nEach site's own brand\n";
+$other = (int) ( get_sites(
+	array(
+		'site__not_in' => array( $site_id ),
+		'fields'       => 'ids',
+		'number'       => 1,
+	)
+)[0] ?? 0 );
+if ( $other ) {
+	switch_to_blog( $other );
+	$title = BrandSettings::brand()['name'];
+	$out   = apply_filters( 'wpai_system_instruction', 'Rules.', PluginBrandContext::FEATURES[0], array() );
 	restore_current_blog();
+	$check( 'another site: its own title in the brand', str_contains( $out, '<brand>' ) && str_contains( $out, 'Name: ' . $title ), "site $other: $title" );
 } else {
-	$note( 'no brand profile', 'every site has a brand profile' );
+	$note( 'another site', 'this network has one site' );
 }
 
-// Fixture brand profile, unless the site has one.
-$fixture_id = 0;
-if ( null === BrandProfile::for_site( $site_id ) ) {
-	$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		BrandProfile::table(),
-		array(
-			'user_id'       => get_current_user_id(),
-			'site_id'       => $site_id,
-			'brand_name'    => 'Ogia Bakery',
-			'mission'       => 'We bake sourdough bread for offices in Zurich.',
-			'tone_of_voice' => 'friendly',
-		)
-	);
-	$fixture_id = (int) $wpdb->insert_id;
-	register_shutdown_function(
-		static function () use ( $fixture_id ): void {
-			global $wpdb;
-			$wpdb->delete( BrandProfile::table(), array( 'id' => $fixture_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+// The main site: a test mission when it has none.
+$saved_brand = array(
+	BrandSettings::MISSION => get_option( BrandSettings::MISSION, '' ),
+	BrandSettings::TONE    => get_option( BrandSettings::TONE, '' ),
+);
+register_shutdown_function(
+	static function () use ( $saved_brand ): void {
+		foreach ( $saved_brand as $option => $value ) {
+			update_option( $option, $value );
 		}
-	);
+	}
+);
+if ( '' === BrandSettings::brand()['mission'] ) {
+	BrandSettings::save( 'We bake sourdough bread for offices in Zurich.', 'friendly' );
 }
-$profile = BrandProfile::for_site( $site_id );
 
-// 2. The filter, with a brand profile ---------------------------------------
+// 2. The filter -------------------------------------------------------------
 
-echo "\nWith a brand profile ({$profile->brand_name}" . ( $fixture_id ? ', fixture' : '' ) . ")\n";
+echo "\nThe filter (" . BrandSettings::brand()['name'] . ")\n";
 $wrong = array();
 foreach ( PluginBrandContext::FEATURES as $name ) {
 	$out = apply_filters( 'wpai_system_instruction', 'Rules.', $name, array() );
-	if ( SystemPrompt::for_ai_feature( 'Rules.', $profile ) !== $out || ! str_starts_with( $out, "Rules.\n\n" ) ) {
+	if ( SystemPrompt::for_ai_feature( 'Rules.' ) !== $out || ! str_starts_with( $out, "Rules.\n\n" ) ) {
 		$wrong[] = $name;
 	}
 }

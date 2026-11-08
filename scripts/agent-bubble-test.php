@@ -21,7 +21,6 @@
 
 use Mody\Platform\Agent\ChatPage;
 use Mody\Platform\Agent\EditorBubble;
-use Mody\Platform\Brand\BrandProfile;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/screen.php';
@@ -96,16 +95,12 @@ echo "\nSettings\n";
 $settings = EditorBubble::settings();
 $page     = ChatPage::settings();
 $check( 'the chat page\'s settings', $settings['endpoint'] === $page['endpoint'] && $settings['interval'] === $page['interval'] && array_intersect_key( $settings['strings'], $page['strings'] ) === $page['strings'] );
-$check( '...plus the bubble\'s', true === $settings['bubble'] && ChatPage::chips() === $settings['chips'] && isset( $settings['strings']['open'], $settings['strings']['profile'] ) );
+$check( '...plus the bubble\'s', true === $settings['bubble'] && ChatPage::chips() === $settings['chips'] && isset( $settings['strings']['open'] ) );
 $check( 'screens open in place: the strings', isset( $settings['strings']['opened'], $settings['strings']['back'] ) && str_contains( $settings['strings']['opened'], '%s' ) );
 $script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-bubble.js' );
 $check( '...the script: pushState, popstate, the screen sent', str_contains( $script, 'history.pushState' ) && str_contains( $script, "new PopStateEvent( 'popstate'" ) && str_contains( $script, 'config.screen' ) && str_contains( (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-chat.js' ), 'body.screen' ) );
 $check( 'agent buttons open the editor with the chat open', 'mody-chat' === $settings['openParam'] && str_ends_with( EditorBubble::open_url( admin_url( 'site-editor.php?p=%2Fstyles' ) ), '&mody-chat=open' ) );
-$check( '...brand profile: here yes', ( null !== BrandProfile::for_site( $main ) ) === $settings['hasProfile'], wp_json_encode( $settings['hasProfile'] ) );
-switch_to_blog( $site );
-$no_profile = EditorBubble::settings()['hasProfile'];
-restore_current_blog();
-$check( '...on a site without one: no', ( null !== BrandProfile::for_site( $site ) ) === $no_profile, wp_json_encode( $no_profile ) );
+$check( 'no brand gate: every site has its brand in its settings (M2-08)', ! array_key_exists( 'hasProfile', $settings ) && ! isset( $settings['strings']['profile'] ) );
 
 // 3. Where it loads -----------------------------------------------------------------
 

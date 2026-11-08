@@ -7,7 +7,6 @@
 
 namespace Mody\Platform\AI;
 
-use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\SiteEditor;
 use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WP_Error;
@@ -58,10 +57,10 @@ final class PageGenerator {
 	 * The blocks are validated against the registry of the current request,
 	 * so call this on the target site (core blocks are registered everywhere).
 	 *
-	 * @param int    $site_id Site (blog) ID whose brand profile is used.
+	 * @param int    $site_id Site (blog) ID whose brand (its settings) is used.
 	 * @param string $prompt  The member's description of the page.
 	 * @return string|WP_Error Validated markup, or an error: `mody_empty_prompt`,
-	 *                         `mody_no_brand_profile`, an AI Client error, or
+	 *                         an AI Client error, or
 	 *                         `mody_generation_failed` after MAX_ATTEMPTS invalid answers.
 	 */
 	public static function generate_page( int $site_id, string $prompt ): string|WP_Error {
@@ -70,12 +69,8 @@ final class PageGenerator {
 			return new WP_Error( 'mody_empty_prompt', __( 'Describe the page you want.', 'mody_cloud' ) );
 		}
 
-		$profile = BrandProfile::for_site( $site_id );
-		if ( null === $profile ) {
-			return new WP_Error( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first.', 'mody_cloud' ) );
-		}
 
-		$markup = self::ask( $site_id, SystemPrompt::for_page( $profile ), $prompt, '', self::MAX_TOKENS, 'generate_page' );
+		$markup = self::ask( $site_id, self::on_site( $site_id, static fn() => SystemPrompt::for_page() ), $prompt, '', self::MAX_TOKENS, 'generate_page' );
 		if ( is_wp_error( $markup ) && 'mody_invalid_answers' === $markup->get_error_code() ) {
 			return new WP_Error(
 				'mody_generation_failed',
@@ -95,23 +90,19 @@ final class PageGenerator {
 	 * sees it, can undo it, and saves it. Blocks returned exactly as they
 	 * were pass the validator as the member's own; everything new is checked.
 	 *
-	 * @param int    $site_id     Site whose brand profile is used.
+	 * @param int    $site_id     Site whose brand (its settings) is used.
 	 * @param string $markup      The markup as it is in the editor (may be empty).
 	 * @param string $instruction What the owner asked for.
 	 * @param bool   $fragment    True for one selected block, false for the whole content.
 	 * @param bool   $template    True for a template or template part (M3-07): the theme
 	 *                            blocks are allowed, and post-content must stay.
 	 * @return string|WP_Error The validated new markup, or `mody_empty_prompt`,
-	 *                         `mody_no_brand_profile`, an AI Client error, `mody_edit_failed`.
+	 *                         an AI Client error, `mody_edit_failed`.
 	 */
 	public static function edit_markup( int $site_id, string $markup, string $instruction, bool $fragment, bool $template = false ): string|WP_Error {
 		$instruction = trim( mb_substr( sanitize_textarea_field( $instruction ), 0, self::MAX_PROMPT_LENGTH ) );
 		if ( '' === $instruction ) {
 			return new WP_Error( 'mody_empty_prompt', __( 'Say what to change.', 'mody_cloud' ) );
-		}
-		$profile = BrandProfile::for_site( $site_id );
-		if ( null === $profile ) {
-			return new WP_Error( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first.', 'mody_cloud' ) );
 		}
 
 		$prompt = "The site owner's instruction:\n<instruction>\n" . $instruction . "\n</instruction>\n\n"
@@ -120,7 +111,7 @@ final class PageGenerator {
 		// Room for the whole content again, plus what the instruction adds.
 		$tokens = min( self::MAX_EDIT_TOKENS, max( self::MAX_TOKENS, (int) ceil( strlen( $markup ) / 3 ) + 1500 ) );
 
-		$result = self::ask( $site_id, SystemPrompt::for_edit( $profile, $fragment, $template ), $prompt, $markup, $tokens, 'edit_markup', $template );
+		$result = self::ask( $site_id, self::on_site( $site_id, static fn() => SystemPrompt::for_edit( $fragment, $template ) ), $prompt, $markup, $tokens, 'edit_markup', $template );
 		if ( is_wp_error( $result ) && 'mody_invalid_answers' === $result->get_error_code() ) {
 			return new WP_Error(
 				'mody_edit_failed',
@@ -218,6 +209,23 @@ final class PageGenerator {
 			'place'    => sprintf( __( 'the page "%s"', 'mody_cloud' ), get_the_title( $page_id ) ),
 			'navigate' => true,
 		);
+	}
+
+	/**
+	 * Builds a system prompt on a site: the brand context reads that site's
+	 * settings (M2-08), and site creation calls from another site.
+	 *
+	 * @param int      $site_id Site (blog) ID.
+	 * @param callable $build   Returns the prompt.
+	 */
+	private static function on_site( int $site_id, callable $build ): string {
+		if ( $site_id === get_current_blog_id() ) {
+			return (string) $build();
+		}
+		switch_to_blog( $site_id );
+		$prompt = (string) $build();
+		restore_current_blog();
+		return $prompt;
 	}
 
 	/**

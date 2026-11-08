@@ -7,7 +7,6 @@
 
 namespace Mody\Platform\Design;
 
-use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\SiteEditor;
 use WP_Error;
 use WP_Theme_JSON;
@@ -214,15 +213,12 @@ final class SiteDesign {
 	 * Execute callback of mody/update-design. Input already validated against
 	 * the ability's schema.
 	 *
-	 * @param mixed $input `preset`, or `primary`, `secondary`, `accent`; and `brand`.
+	 * @param mixed $input `preset`, or `primary`, `secondary`, `accent`. The site's
+	 *                     palette is its brand (M2-08): nothing else is written.
 	 * @return array<string, mixed>|WP_Error The old and new colors, and a link to see them.
 	 */
 	public static function update( $input ): array|WP_Error {
-		$input   = is_array( $input ) ? $input : array();
-		$profile = BrandProfile::for_site( get_current_blog_id() );
-		if ( null === $profile ) {
-			return new WP_Error( 'mody_no_brand_profile', __( 'This site has no brand profile yet. Complete the brand wizard first.', 'mody_cloud' ) );
-		}
+		$input = is_array( $input ) ? $input : array();
 
 		$preset = (string) ( $input['preset'] ?? '' );
 		$colors = array_intersect_key( $input, array_flip( self::SLUGS ) );
@@ -247,11 +243,6 @@ final class SiteDesign {
 			return $applied;
 		}
 
-		$brand = rest_sanitize_boolean( $input['brand'] ?? false ); // "false" is a valid boolean for the schema.
-		if ( $brand && ! BrandProfile::update_colors( $profile->id, $colors ) ) {
-			return new WP_Error( 'mody_brand_profile_not_updated', __( 'The site\'s colors changed, but the brand profile could not be updated. Please try again.', 'mody_cloud' ) );
-		}
-
 		$changes = array();
 		foreach ( $colors as $slug => $hex ) {
 			$changes[ $slug ] = array(
@@ -265,7 +256,6 @@ final class SiteDesign {
 		$screen = SiteEditor::styles_screen( '' !== $preset ? 'browse' : 'colors' );
 		return ( '' !== $preset ? array( 'preset' => $preset ) : array() ) + array(
 			'colors'                => $changes,
-			'brand_profile_updated' => $brand,
 			'url'                   => $screen['url'],
 			'label'                 => __( 'See the new colors', 'mody_cloud' ),
 			'place'                 => $screen['place'],

@@ -57,11 +57,12 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 ```text
 Member ──▶ WordPress (accounts, wizard, site panel)
               │  stores        ┌──────────────────────┐
-              ├──────────────▶ │ mody_brand_profiles  │  brand profile
+              ├──────────────▶ │ each site's settings │  the brand (M2-08)
+              │                │ and Global Styles    │
               │                └──────────┬───────────┘
               │ site creation / "add page"│
               ▼                           ▼
-        Agent (MU plugin, WP AI Client) ─ SYSTEM(brand profile) + USER ─▶ Infomaniak AI (Switzerland)
+        Agent (MU plugin, WP AI Client) ─ SYSTEM(the site's brand) + USER ─▶ Infomaniak AI (Switzerland)
               │                                                  Qwen/Qwen3.8-27B-FP8
               │ ◀──────────── serialized Gutenberg blocks ───────┘
               ▼

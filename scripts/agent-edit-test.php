@@ -28,7 +28,7 @@ use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandProfile;
+use Mody\Platform\Brand\BrandSettings;
 
 require_once ABSPATH . 'wp-admin/includes/user.php';
 
@@ -43,26 +43,28 @@ global $wpdb;
 $admins = get_super_admins();
 $admin  = get_user_by( 'login', $admins[0] )->ID;
 wp_set_current_user( $admin );
-BrandProfile::install();
 AgentEvents::install();
 $site_id = get_current_blog_id();
 $events  = AgentEvents::table();
 $mark    = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$events}" ); // phpcs:ignore WordPress.DB
 
-$fixture_id = 0;
-if ( null === BrandProfile::for_site( $site_id ) ) {
-	$wpdb->insert( BrandProfile::table(), array( 'user_id' => $admin, 'site_id' => $site_id, 'brand_name' => 'Ogia Bakery', 'mission' => 'We bake sourdough bread for offices in Zurich.', 'tone_of_voice' => 'friendly' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$fixture_id = (int) $wpdb->insert_id;
+// The brand is the site's own settings (M2-08): a mission for the test when the site has none.
+$saved_brand = array(
+	BrandSettings::MISSION => get_option( BrandSettings::MISSION, '' ),
+	BrandSettings::TONE    => get_option( BrandSettings::TONE, '' ),
+);
+if ( '' === BrandSettings::brand()['mission'] ) {
+	BrandSettings::save( 'We bake sourdough bread for offices in Zurich.', 'friendly' );
 }
 $chat_key   = 'mody_agent_chat_' . $admin;
 $saved_chat = get_transient( $chat_key );
 $page_id    = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'draft', 'post_title' => 'Mody edit test page', 'post_content' => wp_slash( SystemPrompt::EXAMPLE ), 'post_author' => $admin ) );
 $contrib    = wp_insert_user( array( 'user_login' => 'modyedit' . wp_generate_password( 6, false, false ), 'user_email' => 'modyedit' . wp_rand() . '@mody.local', 'user_pass' => wp_generate_password( 24 ), 'role' => 'contributor' ) );
 register_shutdown_function(
-	static function () use ( $fixture_id, $events, $mark, $page_id, $contrib, $chat_key, $saved_chat ): void {
+	static function () use ( $saved_brand, $events, $mark, $page_id, $contrib, $chat_key, $saved_chat ): void {
 		global $wpdb;
-		if ( $fixture_id ) {
-			$wpdb->delete( BrandProfile::table(), array( 'id' => $fixture_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		foreach ( $saved_brand as $option => $value ) {
+			update_option( $option, $value );
 		}
 		$wpdb->query( $wpdb->prepare( "DELETE FROM {$events} WHERE id > %d", $mark ) ); // phpcs:ignore WordPress.DB
 		wp_delete_post( $page_id, true );

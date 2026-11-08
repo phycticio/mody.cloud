@@ -19,7 +19,7 @@
 
 	const field = ( name ) => form.elements.namedItem( name );
 	const steps = Array.from( form.querySelectorAll( '[data-step]' ) );
-	const stepOf = { title: 1, slug: 1, brand_name: 1, mission: 1, tone: 1, preset: 2, logo: 2, prompt: 3 };
+	const stepOf = { title: 1, slug: 1, mission: 1, tone: 1, preset: 2, logo: 2, prompt: 3 };
 	const required = { title: 1, slug: 1, mission: 1, prompt: 3 };
 	let poller = null;
 	let retried = false; // A Retry generation was asked for on this page.
@@ -71,7 +71,7 @@
 		if ( ! preview || ! config.preview ) {
 			return;
 		}
-		const brandName = field( 'brand_name' ).value.trim() || field( 'title' ).value.trim();
+		const brandName = field( 'title' ).value.trim(); // The site name is the brand name (M2-08).
 		const mission = field( 'mission' ).value.trim();
 		const key = brandName + '\n' + mission + '\n' + presetValue();
 		if ( key === previewKey ) {
@@ -194,10 +194,9 @@
 		} );
 	} );
 
-	// The address and the brand name follow the site name until edited.
+	// The address follows the site name until edited.
 	const title = field( 'title' );
 	const slug = field( 'slug' );
-	const brand = field( 'brand_name' );
 	const toSlug = ( text ) =>
 		text
 			.normalize( 'NFD' )
@@ -209,16 +208,10 @@
 		if ( ! slug.dataset.edited ) {
 			slug.value = toSlug( title.value );
 		}
-		if ( ! brand.dataset.edited ) {
-			brand.value = title.value;
-		}
 	} );
 	slug.addEventListener( 'input', () => {
 		slug.dataset.edited = '1';
 		slug.value = slug.value.toLowerCase().replace( /[^a-z0-9]/g, '' );
-	} );
-	brand.addEventListener( 'input', () => {
-		brand.dataset.edited = '1';
 	} );
 
 	form.querySelectorAll( '[data-prompt]' ).forEach( ( chip ) => {
@@ -272,7 +265,7 @@
 		const submit = form.querySelector( '[type=submit]' );
 		submit.disabled = true;
 		const answers = new FormData();
-		[ 'title', 'slug', 'brand_name', 'mission', 'prompt' ].forEach( ( name ) => {
+		[ 'title', 'slug', 'mission', 'prompt' ].forEach( ( name ) => {
 			answers.append( name, field( name ).value.trim() );
 		} );
 		answers.append( 'tone', form.querySelector( '[name=tone]:checked' )?.value || '' );

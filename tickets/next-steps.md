@@ -2,7 +2,7 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-08, after the design market was merged.
+**Last updated:** 2026-11-08, after the design market and M2-08 were merged.
 
 ## Waiting on the maintainer
 - **The SMTP relay** ([M5-02](M5-02-production-member-sites.md), step 6). The answer on 2026-11-08 was cut off ("SMTP relay: Let"). I build the mail hook once the relay is named.
@@ -21,11 +21,12 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 - **Docker Desktop's uninstall** ([move-local-docker-to-colima.md](move-local-docker-to-colima.md), part F).
 
 ## Queue
-1. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
-2. **[M1-01](M1-01-registration-trial-billing.md) part 3: Mollie card verification and webhook.** It needs the test keys.
-3. **[M5-02](M5-02-production-member-sites.md) step 6: SMTP in production.** It needs the relay.
-4. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
-5. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**
+1. **[M3-10](M3-10-agent-edits-global-styles.md): the agent edits every part of the site's styles.** Decided 2026-11-08: a new `mody/update-styles` beside `mody/update-design`, `mody/undo-styles`, and five fixed palette slugs plus the member's own custom colors. Next.
+2. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
+3. **[M1-01](M1-01-registration-trial-billing.md) part 3: Mollie card verification and webhook.** It needs the test keys.
+4. **[M5-02](M5-02-production-member-sites.md) step 6: SMTP in production.** It needs the relay.
+5. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
+6. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**
 
 ## Tech debt
 - **[The design market](design-market-themes-patterns.md):** the patterns part was built and merged on 2026-11-08 (the Mody collection, 63 patterns). Still open:

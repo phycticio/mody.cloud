@@ -37,7 +37,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | 10 | Newsletter | Out of MVP scope (confirmed). |
 | 11 | Member dashboard | Custom "Mody" menu in the **Network Admin** (`/wp-admin/network/`). |
 | 12 | Languages | UI English only; generated content language follows the member's prompt. |
-| 13 | Agent actions ("Option C", decided 2026-11-06) | Agent actions are **WordPress abilities** (Abilities API, category `mody`), used by the in-site agent through `using_abilities()` and by MCP clients through mcp-adapter. The brand profile goes into every Mody prompt, and into the `ai` plugin's writing features (through its `wpai_system_instruction` filter; which features, decided 2026-11-06, in section 8). Members get a curated set of `ai` features. M4 locks the plugin's settings, connector approvals and MCP on member sites. The plugin's request log is the basis for per-member cost tracking. Section 8. |
+| 13 | Agent actions ("Option C", decided 2026-11-06) | Agent actions are **WordPress abilities** (Abilities API, category `mody`), used by the in-site agent through `using_abilities()` and by MCP clients through mcp-adapter. The site's brand (its settings, M2-08) goes into every Mody prompt, and into the `ai` plugin's writing features (through its `wpai_system_instruction` filter; which features, decided 2026-11-06, in section 8). Members get a curated set of `ai` features. M4 locks the plugin's settings, connector approvals and MCP on member sites. The plugin's request log is the basis for per-member cost tracking. Section 8. |
 | 14 | Spectra (decided 2026-11-06) | **Network-activated** platform plugin, not a market toggle. `SpectraGuard` in the MU plugin switches off every part that connects outside Europe (rule 1). A clean `mody/*` block library forked from Spectra's GPL source will replace it (ticket `mody-blocks-from-spectra`). Section 10. |
 | 15 | wp-admin colors (decided 2026-11-08) | **Ocean** is every user's admin color scheme by default: new users get it, and users on WordPress's default (Modern) were moved to it once. Anyone may choose another scheme. The agent chat follows the user's scheme: buttons and borders in its accent, the user's own messages in the second color of its palette. [tickets/admin-colors.md](../tickets/admin-colors.md). |
 
@@ -143,7 +143,7 @@ The presets (kept as they are for M2, decided 2026-11-06). Since 2026-11-07 (M2-
 ### What happens behind the scenes
 
 - Preset colors are written to the site's **Global Styles** as the `primary` / `secondary` / `accent` palette overrides; generated content always references the *slugs*, never the hex (constraint 2/3).
-- Name + one sentence + tone form the brand profile row and the **system prompt of every future generation** (constraint 4).
+- Name (the site title), one sentence (the tagline and the mission setting) and tone (a site setting) are the site's brand and the **system prompt of every future generation** (constraint 4). Since 2026-11-08 they live in the site's own settings (M2-08).
 - The step-3 prompt is the user prompt for the home page generation.
 
 **Acceptance criteria**
@@ -162,10 +162,10 @@ Runs **in-process** in the MU plugin (no REST, no Application Passwords — that
 | --- | --- |
 | 1 `quota` | `can_create_site()` (section 4) and slug uniqueness (network-wide). |
 | 2 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. Built: created public, with the theme, the tagline and `https://` addresses already set; WordPress's sample post and page removed. |
-| 3 `profile` | Save the brand profile row (network-wide table, `base_prefix`), with the preset's colors as the brand colors. |
+| 3 `profile` | The brand in the site's own settings (M2-08): the logo as `site_logo`, and the `mody_mission` and `mody_tone` site settings. The title and tagline were set with the site, the colors go to Global Styles in step 5. (Until 2026-11-08: a brand profile row.) |
 | 4 `theme` | Activate theme `theme` on the new site. Spectra is network-active already (section 10). Built: the theme is set in step 2 and checked here. **No plugin is switched on** (decided 2026-11-08, M4-02): new sites start lean, and members switch plugins on from their Plugins screen or through the agent. |
 | 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. Built: the whole preset (`SiteDesign::apply_preset()`, M2-06); Inter is the theme's default, served by the network (M2-07). |
-| 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. Built: `PageGenerator::generate_page()` in the new site's context; the page uses the theme's untitled template (`page-blank`); `Pipeline::retry_generation()` is the retry. The layout, the fallback page's too, is Spectra containers (2026-11-07, [ai-engine.md](ai-engine.md#layout-spectra-containers)). |
+| 6 `page` | Call the agent (WordPress AI Client): SYSTEM = the site's brand (its settings), USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. Built: `PageGenerator::generate_page()` in the new site's context; the page uses the theme's untitled template (`page-blank`); `Pipeline::retry_generation()` is the retry. The layout, the fallback page's too, is Spectra containers (2026-11-07, [ai-engine.md](ai-engine.md#layout-spectra-containers)). |
 | 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). Built: sent at most once; a failed email does not fail the job. |
 
 Newsletter domain registration (old step 8) is **post-MVP**.
@@ -188,7 +188,7 @@ Built 2026-11-06 as the first slice of M3-01: the chat page, the endpoint, the l
 - **The agent in the editor** (asked for by the maintainer on 2026-11-07). A chat bubble at the bottom right of the Site Editor and the post editor ([M3-05](../tickets/M3-05-agent-editor-bubble.md), built 2026-11-07). It knows what is open and edits it in the editor, undoable and saved only with Save ([M3-06](../tickets/M3-06-agent-edit-current-content.md), built 2026-11-07, for pages and posts), including templates and parts ([M3-07](../tickets/M3-07-agent-templates-parts.md), built 2026-11-07). On member sites the bubble replaces the wp-admin page; on the main site super admins keep the page.
 - **Endpoint:** the page posts to the MU plugin's REST endpoint `mody-platform/v1/chat` (logged-in user + nonce). Each message is a background job (decided 2026-11-06): the POST answers at once with a job ID, the turn runs after the response, and the page polls a checker (`GET …/chat/jobs/<id>`) until it is done. No cron involved. See [ai-engine.md, "Background jobs"](ai-engine.md#background-jobs).
 - **Settings:** Network Admin → Settings → Mody Agent, super admins only: how many days agent events are kept (default 90).
-- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt from the site's brand profile, calls the model through `wp_ai_client_prompt()` with the `mody` abilities offered as tools (declared the way core's `using_abilities()` does, decision 13), executes the tool calls in PHP through core's ability resolver, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
+- **Agent loop** (in the MU plugin, decided 2026-11-04, replacing the Python agent service): assembles the system prompt with the site's brand (its settings, M2-08), calls the model through `wp_ai_client_prompt()` with the `mody` abilities offered as tools (declared the way core's `using_abilities()` does, decision 13), executes the tool calls in PHP through core's ability resolver, and returns the final message plus any actions. See [ai-engine.md](ai-engine.md).
 - **Model:** `Qwen/Qwen3.8-27B-FP8` via Infomaniak AI Services (`https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, all identifiers from environment variables). Native function calling (verified on Infomaniak 2026-11-04). Low temperature (0.1).
 
 ### Tools (all executed server-side, all guarded)
@@ -198,11 +198,11 @@ Each acting tool is an ability in the `mody` category (decision 13). Its permiss
 | Tool | Ability | Arguments | Effect | Guard |
 | --- | --- | --- | --- | --- |
 | `generate_page` | `mody/generate-page` (built 2026-11-06) | `prompt`, `title?` | Brand-profile generation → validator → **draft** page. Returns the page ID and its Site Editor URL; in the Site Editor the new draft opens at once (decided 2026-11-08, M3-09), elsewhere it is a button. The validated markup is saved directly and never passes back through the model. Publishing and the front page belong to the caller: provisioning (section 7), and otherwise the member, **on demand** (decided 2026-11-06): by asking the agent (`mody/publish-page`, below) or with the Site Editor's Publish button. |
-| `publish_page` | `mody/publish-page` (built 2026-11-06, M3-03) | `page_id` or `page_title` | Publishes a draft or pending page **as it is now**, without the validator (the member may have edited it by hand; the Publish button does not validate either). Only when the member's message asks for it, never in the same turn as a generation unless the message asked for both; after a draft, the agent says it can be published but never asks "shall I publish it?". Returns the page and two buttons: View and the Site Editor. | `publish_pages`, and `edit_post` on the page. Refuses other post types, and pages already published, private, scheduled or in the trash. | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
-| `update_design` | `mody/update-design` (built 2026-11-06, M3-02) | `preset` (one of the six presets of section 6, decided 2026-11-06) or `{primary, secondary, accent}`, plus `brand` | Patches the site Global Styles (the theme palette, as the Site Editor saves it; each change is a revision). Before calling it, the agent asks whether the colors are part of the brand; if they are (`brand` true), the brand profile's colors change too (decided 2026-11-06). Returns the old and new colors and a button to see them. | Hex regex; maps to palette slugs only (`base` and `contrast` never change). `edit_theme_options`. Requires a brand profile. |
+| `publish_page` | `mody/publish-page` (built 2026-11-06, M3-03) | `page_id` or `page_title` | Publishes a draft or pending page **as it is now**, without the validator (the member may have edited it by hand; the Publish button does not validate either). Only when the member's message asks for it, never in the same turn as a generation unless the message asked for both; after a draft, the agent says it can be published but never asks "shall I publish it?". Returns the page and two buttons: View and the Site Editor. | `publish_pages`, and `edit_post` on the page. Refuses other post types, and pages already published, private, scheduled or in the trash. | `edit_pages`. Quota-independent. The site's brand is its settings (M2-08), which every site has. Validator pipeline mandatory. |
+| `update_design` | `mody/update-design` (built 2026-11-06, M3-02) | `preset` (one of the six presets of section 6, decided 2026-11-06) or `{primary, secondary, accent}` | Patches the site Global Styles (the theme palette, as the Site Editor saves it; each change is a revision). The palette is the site's brand: no brand question, no copy anywhere else (M2-08). Returns the old and new colors and opens Styles → Colors, or Browse styles for a preset. | Hex regex; maps to palette slugs only (`base` and `contrast` never change). `edit_theme_options`. |
 | `open_editor` | `mody/open-editor` (built 2026-11-06; every screen since 2026-11-08, M3-09) | `target` (`page` \| `template` \| `part` \| `list` \| `styles` \| `navigation` \| `patterns` \| `home`), `page_id?`, `page_title?`, `template?`, `list?`, `section?`, `block?` | Opens a Site Editor screen (no mutation). In the Site Editor the bubble switches to it in place; elsewhere it is a button. The model never sees the URL. A `list` opens the template that really shows it (the site's registered post types and taxonomies, through the template hierarchy). A page opens by its exact title, or by a partial one when only one page fits; otherwise the agent asks with the likely titles until one is picked. | URL built from the real site URL. Pages: `edit_pages` and `edit_post`. Everything else: `edit_theme_options`. Opening what is already open in the editor is refused |
 | `activate_plugin` / `deactivate_plugin` | `mody/activate-plugin` / `mody/deactivate-plugin` (proposed, M4-02 part B) | `plugin` (slug or name) | Switches a plugin on or off on this site, with core's `activate_plugin()` / `deactivate_plugins()` | Core's `activate_plugin` / `deactivate_plugin` capability on the plugin: the same rule as the Plugins screen, so hidden plugins are refused and never named |
-| `update_site_settings` | `mody/update-site-settings` (built 2026-11-06, M3-03) | `title?` (at most 120 characters), `tagline?` (at most 200) | Updates `blogname` and `blogdescription` only, sanitized. Returns the old and new values. | Fixed allowlist: the schema refuses any other property. `manage_options` |
+| `update_site_settings` | `mody/update-site-settings` (built 2026-11-06, M3-03; mission and tone since 2026-11-08, M2-08) | `title?` (at most 120 characters), `tagline?` (at most 200), `mission?` (at most 200), `tone?` (formal, friendly, technical) | Updates the site's identity settings: `blogname`, `blogdescription`, `mody_mission`, `mody_tone`, sanitized. Returns the old and new values. The logo and icon are changed on the Identity screen, which `open_editor` opens (target `identity`). | Fixed allowlist: the schema refuses any other property. `manage_options` |
 | `ask_user` | none: a plain function declaration (built 2026-11-06; it only shapes the chat reply and acts on nothing) | `question`, `choices?` (up to 4) | Renders a follow-up question in the chat, with the choices as buttons. Ends the turn. | — |
 | `refuse_request` | none: a plain function declaration (added 2026-11-06) | `reason` | Shows the reason and ends the turn. Its only purpose is to flag refusals in `mody_agent_events`. | — |
 
@@ -212,7 +212,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 - **Brand context in the writing features** (built 2026-11-06, M3-04). The plugin's features build their own system instructions. Through the plugin's `wpai_system_instruction` filter, `PluginBrandContext` appends `SystemPrompt::for_ai_feature()` (one sentence saying the feature's own rules come first, then `brand_context()`). Decided by the maintainer on 2026-11-06:
   - **Which features:** the eight that write text in the site's voice: titles, excerpts, meta descriptions, content resizing, type-ahead, suggested replies, editorial updates and image prompts. Summaries (the plugin asks for neutral text), translation (it keeps the source's voice) and the analysis features (alt text, slugs, block labels, comment analysis, classification, editorial notes, revision summaries) are left as they are. These are exceptions to rule 4, agreed for output that brand tone would only bend.
-  - **Sites without a brand profile:** the features work unchanged, with no brand context. Whether they should refuse there, as the agent does, is decided with M4-03.
+  - **Every site has a brand** (its settings, M2-08), so every site's writing features get it.
   - Details and the test: [ai-engine.md](ai-engine.md#the-ai-plugins-features).
 - **Curated features** (decided 2026-11-07, built in [M4-03](../tickets/M4-03-ai-plugin-lockdown.md)). Members get every text feature: on-demand writing, type-ahead, comments, organizing. Image generation, text to speech, the developer tools and two experiments stay off. The switches and the connector approval are pinned on member sites, so a new site works at once and members cannot change them ([ai-engine.md](ai-engine.md#on-member-sites)).
 - **Locked configuration.** The plugin's settings, connector approvals and MCP access are locked on member sites: its screens and routes refused to members, its values pinned (built 2026-11-07, [M4-03](../tickets/M4-03-ai-plugin-lockdown.md)).
@@ -220,14 +220,14 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 ### Safety and audit
 
-- Every request logs the site's brand profile as system prompt (constraint 4) — there is no code path that calls the model without it.
+- Every request carries the site's brand (its settings) in the system prompt (constraint 4) — there is no code path that calls the model without it.
 - Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration), and so is every chat request with its reply (built 2026-11-06).
 - A past-due account gets no tool execution (read-only, section 4). Not built yet: it needs `mody_members` (M1).
 - Tools run in-process with the member's capabilities checked on every call (the ability's permission callback). There is no internal endpoint or shared secret (constraint 6).
 
 **Acceptance criteria**
 
-- "Make the primary color coral" → the agent asks whether the color is part of the brand → Global Styles updated (and the brand profile, if it is), preview link offered, event logged. The same for "use the Forest preset".
+- "Make the primary color coral" → Global Styles updated at once (no brand question, M2-08), Styles → Colors opened, event logged. The same for "use the Forest preset" (Browse styles).
 - "Create an about page" → validated **draft** (or a clear failure with retry). It is published only when the member asks: "publish the about page" to the agent, or the Publish button in the Site Editor (decided 2026-11-06). Met on 2026-11-06 (M3-03), together with "publish it" later in the same conversation, and a draft edited by hand published as it is.
 - "Change the tagline to …" → tagline updated, event logged, and no other option can be written (M3-03, 2026-11-06).
 - "Open the editor for page 3" → a button that opens `…/wp-admin/site-editor.php?p=%2Fpage%2F3&canvas=edit` on the right subdomain. (WordPress 7.1 sends the older `?postType=page&postId=3`, without `canvas`, to the page list instead. `PageGenerator::site_editor_url()` builds the working form.)
@@ -325,21 +325,9 @@ mody_members (
   updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-mody_brand_profiles (           -- see brand-profile.md
-  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id         BIGINT NOT NULL,
-  site_id         BIGINT NOT NULL,
-  brand_name      VARCHAR(120) NOT NULL,
-  mission         TEXT,          -- the one sentence
-  tone_of_voice   ENUM('formal','friendly','technical') DEFAULT 'friendly',
-  color_primary   VARCHAR(7) DEFAULT '#005f6b',
-  color_secondary VARCHAR(7) DEFAULT '#333333',
-  color_accent    VARCHAR(7) DEFAULT '#b50ba4',
-  logo_url        VARCHAR(255),
-  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY user_site (user_id, site_id)
-);
+-- mody_brand_profiles was dropped on 2026-11-08 (M2-08): a site's brand is its own
+-- WordPress settings (title, tagline, logo, icon, and the site settings mody_mission
+-- and mody_tone) and its Global Styles. See brand-profile.md.
 
 mody_provisioning_jobs (
   id         BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -375,7 +363,7 @@ mody_agent_events (
   - a fifth status, `expired_signup`. Section 4's signup flow uses it for "no payment within 24 hours", while the enum above lists only `expired`, which is kept for "sites deleted after 60 days past due".
 
   A row gives the dashboard capability and the plan's site limit (3, 3, 10, 50) through `mody_site_limit`. Table version 2 (part 2, 2026-11-08) adds `next_plan` (`collaborator`, `member` or `patron`). It holds the plan chosen at signup while `plan` is `trial`, then a plan change for the next billing date. It was not in the definition above (**Inference**, to review).
-- `mody_brand_profiles` (2026-11-06, M2-02). `Brand\BrandProfile::install()` creates it on `init`, through `dbDelta` and a network option holding the schema version (`mody_brand_profiles_db_version`). It matches the definition above, with two additions: IDs are `bigint(20) unsigned` like WordPress's own, and there is an index on `site_id` for the per-site lookup. A site's profile is its newest row.
+- ~~`mody_brand_profiles`~~ (2026-11-06, M2-02): dropped on 2026-11-08 by `Brand\BrandSettings::migrate()`, which first moved each site's mission and tone into its settings (M2-08).
 - `mody_provisioning_jobs` (2026-11-06, M2-01). `Provisioning\Jobs::install()` creates it the same way (`mody_provisioning_jobs_db_version`). It matches the definition above, with these additions: unsigned `bigint(20)` IDs; a `queued` status (a job not run yet); `input`, the validated wizard answers, and `result`, what the steps produced (`profile_id`, `page_id`, `fallback`, `generation_error`, `email`), both JSON in `LONGTEXT`; indexes on `user_id` and `status`. The `step` enum lists the steps in the order they run (`profile` after `site`).
 - `mody_agent_events` (2026-11-06, M3-01). `Agent\AgentEvents::install()` creates it the same way (`mody_agent_events_db_version`). It matches the definition above, with these additions:
   - `duration_ms` (section 8 asks for the duration);
