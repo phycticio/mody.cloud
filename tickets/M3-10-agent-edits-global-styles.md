@@ -1,6 +1,6 @@
 # M3-10 · The agent edits every part of the site's styles (its theme.json, stored per site)
 
-**Milestone:** M3 · **Spec:** documentation/ai-engine.md ("Changing the colors", "Opening Site Editor screens", "Prompt size"), documentation/theme-development.md (design tokens) · **Status:** planned and decided 2026-11-08; **part A built 2026-11-08** (Results below), parts B and C to do; builds on [M2-08](M2-08-brand-profile-wordpress-settings.md) (the brand is the site's settings and styles).
+**Milestone:** M3 · **Spec:** documentation/ai-engine.md ("Changing the colors", "Opening Site Editor screens", "Prompt size"), documentation/theme-development.md (design tokens) · **Status:** planned and decided 2026-11-08; **parts A and B built 2026-11-08** (Results below), part C to do; builds on [M2-08](M2-08-brand-profile-wordpress-settings.md) (the brand is the site's settings and styles).
 
 ## The goal (maintainer, 2026-11-08)
 > The goal of the agent in the sites is that the users are able to edit every part of their theme.json database stored per site, and all changes are managed there.
@@ -78,6 +78,40 @@ Each site's design is its **Global Styles**: the user `wp_global_styles` post of
   - removing with `null`, and the no-change case.
   All 23 suites pass offline.
 - **Fixed on the way:** `scripts/ai-plugin-brand-context-test.php` still read `$profile->brand_name` from the profile removed in M2-08. Two of its checks compared with an empty string, so they always passed. They now use the site's title.
+
+### Part B (built 2026-11-08)
+- **The agent offers `mody/update-styles`** (`Agent::ABILITIES`, placeholder `%8$s`).
+  - Its declaration is now one shorter sentence and one property: 286 bytes.
+  - The tools JSON went from 3,572 to 3,859 bytes, under the test's 4,000.
+- **The prompt** (`SystemPrompt::styles_context()`, from `SiteStyles::overview()`, about 2,600 characters):
+  - **The site's styles now, by path:** the theme's raw styles with the owner's changes merged over them, grouped by node (`styles`, `styles.elements.button`…). The values are shown the way the agent writes them (`var:preset|color|accent`). This list is also the map of what can change, so no separate map is needed. The widths come from `settings.layout`.
+  - **The presets:** the palette and the owner's own colors, font sizes, spacing sizes, and the fonts it can use. Those are the theme's, the active ones and the installed ones; any other font must be installed first.
+  - **How to write a change:** merged, `null` removes the owner's change, colors as palette slugs, sizes as presets or CSS sizes, `clamp()` above the presets, the palette's five slugs only recolored, the owner's own colors added and removed. Two examples.
+- **Rule 7:** when the owner says how a style should change, the agent calls the tool without asking whether it is part of the brand. Presets and the three brand colors go to `mody/update-design`, any other style to `mody/update-styles`. It changes only the styles asked for. A vague style wish gets `ask_user` with up to four concrete changes.
+- **Real runs** (section 7 of `scripts/site-styles-test.php`; `-e MODY_TEST_RUNS=3` repeats them):
+  - **The cases:** the ticket's phrases, plus a font that is not installed ("Use Fraunces for the headings"), a vague wish ("Make my site look more modern") and a brand color ("Make the primary color coral", still `mody/update-design`).
+  - **How they run:** on a member site, as a member, each from the site's own styles, checked on what was saved.
+  - **The first prompt:** 40 of 40 in four runs.
+  - **The two changes below:** 20 of 20 after each.
+  - **What the agent did:**
+    - **Headings:** h1 to h3 bigger, as `clamp()` since the hint; fixed rem sizes before it.
+    - **Lora:** the heading element, with Lora activated from the Font Library.
+    - **Fraunces (not installed):** the tool refused it, the agent opened Styles → Typography and said to install it there.
+    - **Links:** `elements.link.color.text` in accent.
+    - **Buttons:** `elements.button.border.radius` 999px.
+    - **Space:** `spacing.blockGap` raised to the 60 preset.
+    - **Width:** content 840px, and also wide 1320px, every time. Not asked for, but it keeps wide content wider than normal content. Accepted.
+    - **Warm white:** `base` recolored to `#fdf8f0`.
+    - **More modern:** a question with choices, nothing saved.
+- **Two prompt changes after measuring:**
+  - **`clamp()` for font sizes above the presets.** "Make the headings bigger" had set h1 to a fixed 3.5rem (56px on phones too). The theme's presets are fluid.
+  - **The tagline in the editor context.** A real run of `scripts/agent-template-test.php` found that "add the tagline under the site title", in a header on a site with no tagline, added an empty tagline block 2 to 3 times in 4 instead of asking.
+    - **Why:** the longer prompt diluted a cue the agent had to infer. Without the styles block it asked 3 times in 4; on `main` every time (1 of 3 failed only on the reply's format).
+    - **Narrowing rule 7** to styles did not help.
+    - **The fix:** the editor context now says to ask what the tagline should say before adding one. After it, the agent asked 7 times in 7.
+- **Checked:**
+  - all 23 suites offline;
+  - for real: `editor-navigation-test` (twice), `ai-agent-chat-test`, `agent-edit-test` and `agent-template-test` (3 of 3 after the fix; 1 run in 7 failed another check of it).
 
 ## Acceptance criteria
 - Each example phrase changes the site's Global Styles post as asked, as a revision, with the matching Styles screen opened.
