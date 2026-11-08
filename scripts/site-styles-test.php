@@ -16,14 +16,19 @@
  * 4. Fonts only from the Font Library: an installed family is activated.
  * 5. The guard: everything refused leaves the styles and revisions unchanged.
  * 6. Removing a style (null) and a change that changes nothing.
+ * 7. The agent, for real (part B): the ticket's phrases, each from the site's
+ *    own styles, checked on what was saved. Paced for Infomaniak's rate limit;
+ *    `-e MODY_TEST_RUNS=3` repeats them, `-e MODY_TEST_OFFLINE=1` skips them.
  *
  * The site's Global Styles, their revisions, the test fonts and users are
  * put back. No model call.
  */
 
+use Mody\Platform\Agent\Agent;
 use Mody\Platform\Design\Fonts;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Design\SiteStyles;
+use Mody\Platform\SiteEditor;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -279,6 +284,99 @@ $check( 'the same change again: nothing to do', is_wp_error( $result ) && 'mody_
 $result = $run( array( 'styles' => array( 'elements' => array( 'link' => null ) ) ) );
 $check( 'null removes a style: the theme\'s shows again', is_array( $result ) && ! isset( $config()['styles']['elements']['link'] ), $detail( $result ) );
 $check( '...empty parents are pruned, other elements stay', isset( $config()['styles']['elements']['heading'] ) );
+
+// 7. The agent, for real (part B) ---------------------------------------------------------------
+
+if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
+	echo "\nThe agent: real requests skipped (MODY_TEST_OFFLINE is set)\n";
+} else {
+	$runs  = max( 1, (int) getenv( 'MODY_TEST_RUNS' ) );
+	$reset = static function () use ( $styles_id, $saved, $admin, $users ): void {
+		wp_set_current_user( $admin );
+		wp_update_post( wp_slash( array( 'ID' => $styles_id, 'post_content' => $saved ) ) );
+		wp_clean_theme_json_cache();
+		wp_set_current_user( $users['administrator'] );
+	};
+	$reset();
+	$base = SiteStyles::overview();
+	// A size in rem: a preset of the site, a CSS size, or a clamp()'s largest value.
+	$rem  = static function ( string $value, array $overview ): float {
+		if ( preg_match( '/(?:font-size|spacing)(?:--|\|)([a-z0-9-]+)/', $value, $m ) ) {
+			$value = (string) ( ( $overview['font_sizes'] + $overview['spacing'] )[ $m[1] ] ?? '0' );
+		}
+		if ( preg_match( '/clamp\([^,]+,[^,]+,\s*([^)]+)\)/', $value, $m ) ) {
+			$value = $m[1];
+		}
+		if ( str_contains( $value, '%' ) ) {
+			return 1000.0;
+		}
+		return preg_match( '/([\d.]+)\s*(rem|em|px)?/', $value, $m ) ? ( 'px' === ( $m[2] ?? '' ) ? (float) $m[1] / 16 : (float) $m[1] ) : 0.0;
+	};
+	$grew = static function ( array $paths, array $now ) use ( $rem, $base ): bool {
+		foreach ( $paths as $path ) {
+			if ( isset( $now['styles'][ $path ] ) && $rem( $now['styles'][ $path ], $now ) > $rem( (string) ( $base['styles'][ $path ] ?? '0' ), $base ) ) {
+				return true;
+			}
+		}
+		return false;
+	};
+	$light_warm = static function ( string $hex ) use ( $base ): bool {
+		list( $r, $g, $b ) = array_map( 'hexdec', str_split( ltrim( $hex, '#' ), 2 ) + array( '0', '0', '0' ) );
+		return 3 === count( array( $r, $g, $b ) ) && min( $r, $g, $b ) >= 0xd8 && $r >= $b && strtolower( $hex ) !== $base['palette']['base'];
+	};
+	$ask = static function ( string $text ) use ( $reset ): array {
+		$reset();
+		usleep( 1500000 ); // Infomaniak's rate limit (429 after bursts).
+		$start = microtime( true );
+		$turn  = Agent::respond( $text, array(), null, SiteEditor::screen_from_input( array( 'p' => '/' ) ) );
+		$calls = array();
+		foreach ( $turn['calls'] ?? array() as $made ) {
+			$calls[] = preg_replace( '/^wpab__mody__/', '', (string) $made['name'] ) . ' ' . wp_json_encode( $made['args'], JSON_UNESCAPED_SLASHES );
+		}
+		wp_clean_theme_json_cache();
+		return array(
+			'turn'   => $turn,
+			'now'    => SiteStyles::overview(),
+			'calls'  => implode( ' ; ', $calls ),
+			'place'  => (string) ( array_values( array_filter( $turn['actions'] ?? array(), static fn( $a ) => ! empty( $a['navigate'] ) ) )[0]['place'] ?? '' ),
+			'detail' => sprintf( '%s | %s | %.1fs', mb_strimwidth( implode( ' ; ', $calls ), 0, 170, '…' ), mb_strimwidth( (string) $turn['reply'], 0, 70, '…' ), microtime( true ) - $start ),
+		);
+	};
+	$same = static fn( array $now ): bool => $now['styles'] === $base['styles'] && $now['palette'] === $base['palette'] && $now['layout'] === $base['layout'];
+	$cases = array(
+		'Make the headings bigger'                => static fn( $r ) => $grew( array( 'elements.h1.typography.fontSize', 'elements.h2.typography.fontSize', 'elements.h3.typography.fontSize' ), $r['now'] ),
+		'Use Lora for headings'                   => static fn( $r ) => str_contains( (string) ( $r['now']['styles']['elements.heading.typography.fontFamily'] ?? '' ), 'font-family|lora' ),
+		'Use Fraunces for the headings'           => static fn( $r ) => $same( $r['now'] ) && ( 1 === preg_match( '/install|Font Library/i', (string) $r['turn']['reply'] ) || 'Styles → Typography' === $r['place'] ),
+		'Links in the accent color'               => static fn( $r ) => 'var:preset|color|accent' === ( $r['now']['styles']['elements.link.color.text'] ?? '' ),
+		'Round the buttons'                       => static fn( $r ) => $grew( array( 'elements.button.border.radius', 'blocks.core/button.border.radius' ), $r['now'] ),
+		'More space between sections'             => static fn( $r ) => $grew( array_values( array_filter( array_keys( $r['now']['styles'] ), static fn( $p ) => str_contains( $p, 'spacing' ) && ! str_starts_with( $p, 'elements.button' ) ) ), $r['now'] ),
+		'A wider content area'                    => static fn( $r ) => $rem( $r['now']['layout']['contentSize'], $r['now'] ) > $rem( $base['layout']['contentSize'], $base ),
+		'Make the background a warm white'        => static fn( $r ) => ( $light_warm( $r['now']['palette']['base'] ) && array_diff_key( $r['now']['palette'], array( 'base' => 1 ) ) === array_diff_key( $base['palette'], array( 'base' => 1 ) ) )
+			|| ( preg_match( '/color\|([a-z0-9-]+)$/', (string) ( $r['now']['styles']['color.background'] ?? '' ), $m ) && $light_warm( (string) ( $r['now']['custom'][ $m[1] ] ?? '#000000' ) ) ),
+		'Make my site look more modern'           => static fn( $r ) => $same( $r['now'] ) && ( $r['turn']['choices'] || str_starts_with( $r['place'], 'Styles' ) ),
+		'Make the primary color coral'            => static fn( $r ) => str_contains( $r['calls'], 'update-design' ) && '#ff7f50' === $r['now']['palette']['primary'],
+	);
+	$passed = array_fill_keys( array_keys( $cases ), 0 );
+	for ( $run = 1; $run <= $runs; $run++ ) {
+		echo "\nThe agent (real requests, paced), run $run of $runs\n";
+		foreach ( $cases as $text => $ok ) {
+			$result = $ask( $text );
+			$good   = (bool) $ok( $result );
+			$passed[ $text ] += $good ? 1 : 0;
+			$check( '"' . $text . '"', $good, $result['detail'] );
+			if ( getenv( 'MODY_TEST_VERBOSE' ) && $good ) {
+				printf( "     %s\n", $result['detail'] );
+			}
+		}
+	}
+	if ( $runs > 1 ) {
+		echo "\nPassed, of $runs runs:\n";
+		foreach ( $passed as $text => $count ) {
+			printf( "  %d/%d  %s\n", $count, $runs, $text );
+		}
+	}
+	$reset();
+}
 
 restore_current_blog();
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

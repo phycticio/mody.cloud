@@ -16,7 +16,9 @@
  * 4. Design (ticket M3-02): the presets, mody/update-design's validation and
  *    permissions, and the ask-then-update flow with fake answers, brand yes
  *    and no, with a preset and a single color: the Global Styles palette and
- *    the brand profile row, changed or not (offline).
+ *    the brand profile row, changed or not; mody/update-styles (M3-10): the
+ *    site's styles in the prompt, a change saved through the agent with its
+ *    screen, a refused change (offline).
  * 5. Publish and site settings (ticket M3-03): mody/publish-page's refusals and
  *    permissions, publishing by title with two buttons, a hand-edited draft
  *    published as it is; mody/update-site-settings' sanitizing, refusals and
@@ -300,7 +302,7 @@ $turn     = Agent::respond( 'What can you do?' );
 $rows     = $since();
 $sent     = array_column( array_column( $requests[0]['tools'] ?? array(), 'function' ), 'name' );
 $check( 'plain answer', 'I can create pages and open the editor.' === $turn['reply'] && ! $turn['actions'] && ! $turn['error'], $turn['reply'] );
-$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 7 === count( $sent ), implode( ', ', $sent ) );
+$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 8 === count( $sent ), implode( ', ', $sent ) );
 $check( '...tools JSON size', strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) < 4000, strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) . ' bytes (see ai-engine.md "Prompt size")' );
 $check( '...brand in the system prompt', str_contains( wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ) && 'system' === ( $requests[0]['messages'][0]['role'] ?? '' ) );
 $check( '...temperature 0.1', 0.1 === (float) ( $requests[0]['temperature'] ?? 0 ) );
@@ -515,7 +517,7 @@ $check( '...each three hex colors', 6 === count( array_filter( array_map( array(
 $default_hex = Presets::colors( Presets::DEFAULT );
 $check( '...default = theme.json', array_intersect_key( $theme_colors, $default_hex ) == $default_hex, wp_json_encode( $default_hex ) ); // phpcs:ignore Universal.Operators.StrictComparisons
 // The site's palette is its brand (M2-08): no brand question, nothing kept elsewhere.
-$check( 'agent prompt: colors change at once, no brand question, no hex in the brand', str_contains( $system, $names['update_design'] ) && str_contains( $system, 'without asking whether they are part of the brand' ) && ! str_contains( $system, 'part of my brand' ) && ! preg_match( '/#[0-9a-f]{6}/i', SystemPrompt::brand_context() ) );
+$check( 'agent prompt: colors change at once, no brand question, no hex in the brand', str_contains( $system, $names['update_design'] ) && str_contains( $system, 'without asking whether it is part of the brand' ) && ! str_contains( $system, 'part of my brand' ) && ! preg_match( '/#[0-9a-f]{6}/i', SystemPrompt::brand_context() ) );
 
 $design = wp_get_ability( 'mody/update-design' );
 $invalid = array(
@@ -575,6 +577,44 @@ $check( '...logged with old and new', array( 'mody/update-design' ) === $tools_o
 $stored = json_decode( $styles_now(), true );
 $check( '...stored like the Site Editor', count( $theme_colors ) === count( $stored['settings']['color']['palette']['theme'] ?? array() ) && ! empty( $stored['isGlobalStylesUserThemeJSON'] ), 'settings.color.palette.theme, ' . count( $stored['settings']['color']['palette']['theme'] ?? array() ) . ' entries' );
 $check( '...a Global Styles revision', count( wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) ) ) > count( $revisions ) );
+
+// Any other style (M3-10 part B): mody/update-styles, with the site's styles in the prompt.
+$restore_design();
+$check( 'agent prompt: update-styles, the styles by path, presets and fonts', str_contains( $system, $names['update_styles'] ) && str_contains( $system, 'styles.elements.button: color.background var:preset|color|primary' ) && str_contains( $system, 'settings.layout: contentSize ' ) && str_contains( $system, 'Fonts: inter' ) && str_contains( $system, 'base ' . $start_colors['base'] ) );
+$check( '...vague wishes are asked about, with concrete choices', str_contains( $system, 'When a style wish is vague' ) );
+$fakes    = array(
+	array(
+		array(
+			$names['update_styles'],
+			array( 'changes' => array( 'styles' => array( 'elements' => array( 'link' => array( 'color' => array( 'text' => 'var:preset|color|accent' ) ) ) ) ) ),
+		),
+	),
+	'Done: links are now in the accent color.',
+);
+$requests = array();
+$turn     = Agent::respond( 'Links in the accent color' );
+$rows     = $since();
+$sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
+$stored   = json_decode( $styles_now(), true );
+$check( 'links in accent: saved through the agent', 'var(--wp--preset--color--accent)' === ( $stored['styles']['elements']['link']['color']['text'] ?? '' ) && ! $turn['error'], wp_json_encode( $stored['styles'] ?? null ) );
+$check( '...Styles → Colors, opened in place', true === ( $turn['actions'][0]['navigate'] ?? null ) && 'Styles → Colors' === ( $turn['actions'][0]['place'] ?? '' ), ( $turn['actions'][0]['place'] ?? 'no screen' ) );
+$check( '...the change sent back, no URL', str_contains( $sent, 'styles.elements.link.color.text' ) && ! str_contains( $sent, 'site-editor' ), mb_strimwidth( $sent, 0, 120, '...' ) );
+$check( '...logged', array( 'mody/update-styles' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], 'styles.elements.link.color.text' ) );
+$fakes    = array(
+	array(
+		array(
+			$names['update_styles'],
+			array( 'changes' => array( 'styles' => array( 'css' => 'body{display:none}' ) ) ),
+		),
+	),
+	'I could not do that: custom CSS cannot be changed.',
+);
+$requests = array();
+$before   = $styles_now();
+$turn     = Agent::respond( 'Add this CSS: body{display:none}' );
+$sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
+$check( '...a refused change: nothing saved, the reason sent back', $before === $styles_now() && str_contains( $sent, 'Nothing was saved' ) && ! $turn['actions'], mb_strimwidth( $sent, 0, 120, '...' ) );
+$restore_design();
 
 // A preset.
 $fakes  = array(

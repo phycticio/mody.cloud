@@ -198,6 +198,70 @@ final class SiteStyles {
 		);
 	}
 
+	/**
+	 * What the agent needs to change the styles from what is there (part B):
+	 * the styles the site shows (the theme's, with the owner's changes over
+	 * them), its presets, the fonts it can use and the two widths.
+	 *
+	 * @return array{styles: array<string, string>, palette: array<string, string>, custom: array<string, string>, font_sizes: array<string, string>, spacing: array<string, string>, fonts: list<string>, layout: array<string, string>}
+	 */
+	public static function overview(): array {
+		$loaded = SiteDesign::user_styles();
+		$user   = is_wp_error( $loaded ) ? array() : $loaded[1];
+		$theme  = WP_Theme_JSON_Resolver::get_theme_data()->get_raw_data();
+		$styles = array();
+		foreach ( self::flatten( self::merge( (array) ( $theme['styles'] ?? array() ), self::normalize( (array) ( $user['styles'] ?? array() ) ) ), 'styles' ) as $path => $value ) {
+			if ( is_scalar( $value ) ) {
+				// Shown as the agent writes them: var:preset|color|accent.
+				$styles[ substr( $path, 7 ) ] = (string) preg_replace( '/var\(--wp--preset--(' . self::REF_TYPES . ')--([a-z0-9-]+)\)/', 'var:preset|$1|$2', (string) $value );
+			}
+		}
+
+		$list = static function ( string $path, string $value_key, string $origin ) use ( $user ): array {
+			list( $group, $key ) = explode( '.', $path );
+			$entries             = $user['settings'][ $group ][ $key ][ $origin ] ?? ( 'theme' === $origin ? self::theme_presets( $path ) : array() );
+			$out                 = array();
+			foreach ( (array) $entries as $entry ) {
+				if ( is_array( $entry ) && isset( $entry['slug'] ) ) {
+					$out[ (string) $entry['slug'] ] = (string) ( $entry[ $value_key ] ?? '' );
+				}
+			}
+			return $out;
+		};
+
+		$fonts = array_merge(
+			array_keys( $list( 'typography.fontFamilies', 'name', 'theme' ) ),
+			array_keys( $list( 'typography.fontFamilies', 'name', 'custom' ) ),
+			wp_list_pluck(
+				get_posts(
+					array(
+						'post_type'      => 'wp_font_family',
+						'post_status'    => 'publish',
+						'posts_per_page' => 30,
+						'orderby'        => 'title',
+						'order'          => 'ASC',
+					)
+				),
+				'post_name'
+			)
+		);
+
+		$layout = array();
+		foreach ( self::LAYOUT as $key ) {
+			$layout[ $key ] = (string) ( $user['settings']['layout'][ $key ] ?? $theme['settings']['layout'][ $key ] ?? '' );
+		}
+
+		return array(
+			'styles'     => $styles,
+			'palette'    => $list( 'color.palette', 'color', 'theme' ),
+			'custom'     => $list( 'color.palette', 'color', 'custom' ),
+			'font_sizes' => $list( 'typography.fontSizes', 'size', 'theme' ) + $list( 'typography.fontSizes', 'size', 'custom' ),
+			'spacing'    => $list( 'spacing.spacingSizes', 'size', 'theme' ) + $list( 'spacing.spacingSizes', 'size', 'custom' ),
+			'fonts'      => array_values( array_unique( $fonts ) ),
+			'layout'     => $layout,
+		);
+	}
+
 	/*
 	 * Settings.
 	 */

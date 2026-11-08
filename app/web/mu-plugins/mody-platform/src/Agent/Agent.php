@@ -45,6 +45,7 @@ final class Agent {
 		'update_design'        => 'mody/update-design',
 		'publish_page'         => 'mody/publish-page',
 		'update_site_settings' => 'mody/update-site-settings',
+		'update_styles'        => 'mody/update-styles', // M3-10 part B.
 	);
 
 	/** Plain function: shows a follow-up question in the chat. Acts on nothing. */
