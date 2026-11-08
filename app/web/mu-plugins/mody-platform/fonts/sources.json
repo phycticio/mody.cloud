@@ -1,0 +1,197 @@
+{
+	"inter": {
+		"repository": "https://github.com/rsms/inter",
+		"commit": "353b61b9f4430d5f420d56605a6e7993e0941470",
+		"license": "LICENSE.txt",
+		"files": [
+			{
+				"file": "InterVariable.woff2",
+				"from": "docs/font-files/InterVariable.woff2",
+				"bytes": 352240
+			},
+			{
+				"file": "InterVariable-Italic.woff2",
+				"from": "docs/font-files/InterVariable-Italic.woff2",
+				"bytes": 387976
+			}
+		]
+	},
+	"ibm-plex-sans": {
+		"repository": "https://github.com/IBM/plex",
+		"commit": "48e8676114c04f29033b4b53da4ec579f8846297",
+		"license": "LICENSE.txt",
+		"files": [
+			{
+				"file": "IBMPlexSansVar-Roman.woff2",
+				"from": "packages/plex-sans-variable/fonts/complete/woff2/IBM Plex Sans Var-Roman.woff2",
+				"bytes": 230368
+			},
+			{
+				"file": "IBMPlexSansVar-Italic.woff2",
+				"from": "packages/plex-sans-variable/fonts/complete/woff2/IBM Plex Sans Var-Italic.woff2",
+				"bytes": 262364
+			}
+		]
+	},
+	"work-sans": {
+		"repository": "https://github.com/weiweihuanghuang/Work-Sans",
+		"commit": "b35c81086186162164947bd39574683073d9b268",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "WorkSans-Regular.woff2",
+				"from": "fonts/webfonts/WorkSans-Regular.woff2",
+				"bytes": 71988
+			},
+			{
+				"file": "WorkSans-Italic.woff2",
+				"from": "fonts/webfonts/WorkSans-Italic.woff2",
+				"bytes": 66376
+			},
+			{
+				"file": "WorkSans-SemiBold.woff2",
+				"from": "fonts/webfonts/WorkSans-SemiBold.woff2",
+				"bytes": 76560
+			},
+			{
+				"file": "WorkSans-Bold.woff2",
+				"from": "fonts/webfonts/WorkSans-Bold.woff2",
+				"bytes": 76284
+			}
+		]
+	},
+	"space-grotesk": {
+		"repository": "https://github.com/floriankarsten/space-grotesk",
+		"commit": "03507d024a01282884232081fc6011c09ff4e849",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "SpaceGrotesk-Variable.woff2",
+				"from": "docs/assets/fonts/SpaceGrotesk[wght].woff2",
+				"bytes": 52028
+			}
+		]
+	},
+	"lora": {
+		"repository": "https://github.com/cyrealtype/Lora-Cyrillic",
+		"commit": "2d53b449b60e185b39f671b44fded83e0910ad30",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "Lora-Variable.woff2",
+				"from": "fonts/webfonts/Lora[wght].woff2",
+				"bytes": 84272
+			},
+			{
+				"file": "Lora-Italic-Variable.woff2",
+				"from": "fonts/webfonts/Lora-Italic[wght].woff2",
+				"bytes": 92248
+			}
+		]
+	},
+	"merriweather": {
+		"repository": "https://github.com/SorkinType/Merriweather",
+		"commit": "4481226b336843648b5b2ee64f75737f262ded15",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "Merriweather-Regular.woff2",
+				"from": "fonts/webfonts/Merriweather-Regular.woff2",
+				"bytes": 77200
+			},
+			{
+				"file": "Merriweather-Italic.woff2",
+				"from": "fonts/webfonts/Merriweather-Italic.woff2",
+				"bytes": 78052
+			},
+			{
+				"file": "Merriweather-Bold.woff2",
+				"from": "fonts/webfonts/Merriweather-Bold.woff2",
+				"bytes": 77204
+			},
+			{
+				"file": "Merriweather-BoldItalic.woff2",
+				"from": "fonts/webfonts/Merriweather-BoldItalic.woff2",
+				"bytes": 77972
+			}
+		]
+	},
+	"eb-garamond": {
+		"repository": "https://github.com/octaviopardo/EBGaramond12",
+		"commit": "106a4a6d377987459ae5e68673a4570f13b957fb",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "EBGaramond-Regular.woff2",
+				"from": "fonts/webfonts/EBGaramond-Regular.woff2",
+				"bytes": 214188
+			},
+			{
+				"file": "EBGaramond-Italic.woff2",
+				"from": "fonts/webfonts/EBGaramond-Italic.woff2",
+				"bytes": 211016
+			},
+			{
+				"file": "EBGaramond-Bold.woff2",
+				"from": "fonts/webfonts/EBGaramond-Bold.woff2",
+				"bytes": 239264
+			}
+		]
+	},
+	"playfair": {
+		"repository": "https://github.com/clauseggers/Playfair",
+		"commit": "b869b3a82f7188b4e790f9ef1ebe2d11630bde8f",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "Playfair-Variable.woff2",
+				"from": "fonts/VF-WOFF2/PlayfairRomanVF.woff2",
+				"bytes": 652036
+			}
+		]
+	},
+	"fraunces": {
+		"repository": "https://github.com/undercasetype/Fraunces",
+		"commit": "7ccdec31c6028118dce3e47fe864e3744460371d",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "Fraunces-Regular.woff2",
+				"from": "fonts/webfonts/Fraunces72pt-Regular.woff2",
+				"bytes": 39684
+			},
+			{
+				"file": "Fraunces-Italic.woff2",
+				"from": "fonts/webfonts/Fraunces72pt-Italic.woff2",
+				"bytes": 45316
+			},
+			{
+				"file": "Fraunces-SemiBold.woff2",
+				"from": "fonts/webfonts/Fraunces72pt-SemiBold.woff2",
+				"bytes": 41620
+			},
+			{
+				"file": "Fraunces-Bold.woff2",
+				"from": "fonts/webfonts/Fraunces72pt-Bold.woff2",
+				"bytes": 41292
+			}
+		]
+	},
+	"jetbrains-mono": {
+		"repository": "https://github.com/JetBrains/JetBrainsMono",
+		"commit": "19371302b95d218af43299bce79ddbddd0bc364d",
+		"license": "OFL.txt",
+		"files": [
+			{
+				"file": "JetBrainsMono-Variable.woff2",
+				"from": "fonts/archives/variable/JetBrainsMono[wght].woff2",
+				"bytes": 114020
+			},
+			{
+				"file": "JetBrainsMono-Italic-Variable.woff2",
+				"from": "fonts/archives/variable/JetBrainsMono-Italic[wght].woff2",
+				"bytes": 125596
+			}
+		]
+	}
+}

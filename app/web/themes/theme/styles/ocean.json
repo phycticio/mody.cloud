@@ -33,13 +33,6 @@
 			]
 		},
 		"typography": {
-			"fontFamilies": [
-				{
-					"slug": "inter",
-					"name": "Inter",
-					"fontFamily": "Inter, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
-				}
-			],
 			"fontSizes": [
 				{
 					"slug": "small",

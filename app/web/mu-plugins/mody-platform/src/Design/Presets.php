@@ -130,13 +130,19 @@ final class Presets {
 	 * The preset a site's Global Styles hold, if they hold one unchanged:
 	 * its settings and styles are exactly a variation's, or empty for the
 	 * default. Null once the member has changed something, as the Site
-	 * Editor then shows no style as active.
+	 * Editor then shows no style as active. The site's font families (fonts
+	 * installed from the Font Library) do not count: presets define none (M2-07).
 	 *
 	 * @param array<string, mixed> $config The site's Global Styles (decoded post content).
 	 */
 	public static function active( array $config ): ?string {
+		$settings = (array) ( $config['settings'] ?? array() );
+		unset( $settings['typography']['fontFamilies'] );
+		if ( isset( $settings['typography'] ) && ! $settings['typography'] ) {
+			unset( $settings['typography'] );
+		}
 		$current = array(
-			'settings' => (array) ( $config['settings'] ?? array() ),
+			'settings' => $settings,
 			'styles'   => (array) ( $config['styles'] ?? array() ),
 		);
 		foreach ( self::slugs() as $slug ) {

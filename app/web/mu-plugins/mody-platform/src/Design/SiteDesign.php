@@ -127,6 +127,9 @@ final class SiteDesign {
 	 * styles, as when the style is chosen in the Site Editor's Styles. The
 	 * member's earlier changes to the styles are replaced, as there; they stay
 	 * in the revisions. The default preset empties them: the theme's own style.
+	 * The fonts the member installed from the Font Library stay active (the
+	 * site's `settings.typography.fontFamilies`, which presets do not define,
+	 * M2-07); the Site Editor's own style switch drops them.
 	 *
 	 * @param string $slug Preset slug (Presets::slugs()).
 	 * @return true|WP_Error
@@ -145,6 +148,11 @@ final class SiteDesign {
 			return new WP_Error( 'mody_global_styles_missing', __( 'The site\'s styles could not be loaded.', 'mody_cloud' ) );
 		}
 
+		$current = json_decode( $post->post_content, true );
+		$fonts   = is_array( $current ) ? ( $current['settings']['typography']['fontFamilies'] ?? null ) : null;
+		if ( is_array( $fonts ) && $fonts ) {
+			$variation['settings']['typography']['fontFamilies'] = $fonts;
+		}
 		return self::save_config( $post, array_filter( $variation ), (array) Presets::colors( $slug ) );
 	}
 

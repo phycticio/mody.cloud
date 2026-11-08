@@ -18,7 +18,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 - Custom domains per site, Caddy sidecar, domain resale (Caddy is the decided future approach; no code now).
 - Newsletter / Infomaniak sending caps (confirmed out of scope).
 - Dedicated VPS tier, per-tier resource quotas (storage, upload size), analytics.
-- Fonts other than Inter; style variations beyond the six presets.
+- A font step in the wizard (members install fonts in the Site Editor since M2-07); style variations beyond the six presets.
 - Multi-language UI (rule 8: English everywhere).
 
 ## 2. Decisions recorded (2026-11-01 review)
@@ -113,9 +113,9 @@ Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizar
 ### Step 2 — Your design (visual)
 
 - **Six curated Mody presets**, shown as cards: preset name, three swatches (primary / secondary / accent), and a mini mock (a heading + a button rendered in those colors). Selecting one updates a **live preview** of the site header and hero below.
-- **Style variations** (decided 2026-11-07, [M2-06](../tickets/M2-06-presets-as-style-variations.md)): the six presets become the theme's style variations (`themes/theme/styles/*.json`), shown in the Site Editor's Styles and editable per site; the wizard reads them. **Typography:** members choose fonts from a repository of free fonts served by the network ([M2-07](../tickets/M2-07-font-repository.md)); the styles keep Inter. Core's Google Fonts collection is removed from the Font Library on every site (rule 1, 2026-11-07).
+- **Style variations** (decided 2026-11-07, [M2-06](../tickets/M2-06-presets-as-style-variations.md)): the six presets become the theme's style variations (`themes/theme/styles/*.json`), shown in the Site Editor's Styles and editable per site; the wizard reads them. **Typography** (built 2026-11-07, [M2-07](../tickets/M2-07-font-repository.md)): members install fonts in the Site Editor's Font Library from the Mody fonts collection, ten free families (SIL OFL) served by the network from the MU plugin; the styles keep the theme's Inter, which is now real Inter. Core's Google Fonts collection is removed from the Font Library on every site (rule 1, 2026-11-07).
 - **Logo upload** — optional drag & drop into the media library. Built 2026-11-07 as a file field ([M2-05](../tickets/M2-05-wizard-logo.md)): PNG, JPEG, GIF or WebP, at most 2 MB, shown in the live preview; the pipeline copies it into the new site's media library as its site logo.
-- Fonts are **Inter, fixed, for the MVP** (the picker appears in a later iteration).
+- The wizard sets no font: every site starts with **Inter**. Members change fonts later in the Site Editor (Styles → Typography), from the Mody fonts collection (M2-07).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
 
 The presets (kept as they are for M2, decided 2026-11-06). Since 2026-11-07 (M2-06) they are the theme's style variations: `theme.json` is Mody Teal, and `themes/theme/styles/forest.json`, `graphite.json`, `ocean.json`, `plum.json` and `sand.json` the others. `src/Design/Presets.php` reads them and is the single source for the wizard, provisioning and the agent's `mody/update-design`. The Site Editor lists them under Styles → Browse styles. On 2026-11-07 four colors were darkened, keeping their hue, so every pair passes WCAG AA (theme-development.md, "Contrast of the presets"): Forest, Ocean and Plum's accents, and Sand's primary.
@@ -158,7 +158,7 @@ Runs **in-process** in the MU plugin (no REST, no Application Passwords — that
 | 2 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. Built: created public, with the theme, the tagline and `https://` addresses already set; WordPress's sample post and page removed. |
 | 3 `profile` | Save the brand profile row (network-wide table, `base_prefix`), with the preset's colors as the brand colors. |
 | 4 `theme` | Activate theme `theme` and the market plugins on the new site. Spectra is network-active already (section 10). Built: the theme is set in step 2 and checked here; the market plugins come with M4-02. |
-| 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. Built: the palette (`SiteDesign::apply()`); Inter is the theme's default. |
+| 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. Built: the whole preset (`SiteDesign::apply_preset()`, M2-06); Inter is the theme's default, served by the network (M2-07). |
 | 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. Built: `PageGenerator::generate_page()` in the new site's context; the page uses the theme's untitled template (`page-blank`); `Pipeline::retry_generation()` is the retry. |
 | 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). Built: sent at most once; a failed email does not fail the job. |
 
@@ -398,7 +398,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 - **Custom domains per site + Caddy sidecar** (ACME; DNS-instruction flow: member requests → platform replies with exact records → cron verifies → cert → activate). No domain resale yet.
 - **Newsletter** (Infomaniak, per-tier sending caps) per [newsletter.md](newsletter.md).
 - **Dedicated VPS** tier; per-tier resource quotas (storage, upload size, AI volume).
-- Font choice (locally served `fontFace`), style variations, more presets.
+- A font choice in the wizard, more presets. (Fonts in the Site Editor and the presets as style variations are built: M2-06, M2-07.)
 - Analytics (EU-hosted, GDPR-coherent, undecided).
 
 ## 15. Risks and mitigations

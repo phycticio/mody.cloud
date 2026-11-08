@@ -27,7 +27,8 @@ app/web/themes/theme/
 ```
 
 **`styles/`: the Mody design presets as style variations** (2026-11-07, M2-06). `forest.json`, `graphite.json`, `ocean.json`, `plum.json` and `sand.json`, each a full theme.json (version 3) with a `title`.
-- **Contents:** the five palette slugs, the typography (Inter, the font sizes), the spacing scale, and the root and element styles (links, headings, buttons). Today they differ only in colors; each file can be tuned on its own.
+- **Contents:** the five palette slugs, the font sizes, the spacing scale, and the root and element styles (links, headings, buttons). Today they differ only in colors; each file can be tuned on its own.
+- **No font families** (M2-07): a variation that lists them replaces the theme's list, and Inter's font faces with it. The styles use the theme's Inter; members add fonts from the Font Library.
 - **The default:** `theme.json` itself is the sixth preset, Mody Teal ("Default" in the Site Editor).
 - **Where they appear:** in the Site Editor under Styles → Browse styles. Choosing one writes it into the site's own Global Styles, editable per site.
 - **The single source:** the wizard, provisioning and the agent's `mody/update-design` read them through `Mody\Platform\Design\Presets`, so a new file is a new preset everywhere.
@@ -48,7 +49,8 @@ The palette is the briefing's visual identity. Default palette, gradients and du
 
 All pairs the theme actually uses pass WCAG AA for normal text (4.5:1).
 
-- **Typography:** `Inter` first, then a system stack. No font files are bundled and nothing loads from a CDN (sovereignty and GDPR). To really serve Inter, add the files under `assets/fonts/` and declare them with `fontFace` in `theme.json`. Members will choose fonts from a repository of free fonts served by the network ([M2-07](../tickets/M2-07-font-repository.md)). Core's Google Fonts collection is removed from the Font Library on every site (`Design\Fonts`, 2026-11-07, rule 1).
+- **Typography:** `Inter` first, then a system stack. Nothing loads from a CDN (sovereignty and GDPR). Since M2-07 ([ticket](../tickets/M2-07-font-repository.md)) it is real Inter: the MU plugin serves the files (`mody-platform/fonts/inter/`) and gives the theme's `inter` family its `fontFace` through the `wp_theme_json_data_theme` filter (`Design\Fonts::theme_fonts()`), so `theme.json` itself declares no files.
+- **More fonts: the Font Library.** Members install fonts in the Site Editor (Styles → Typography → Fonts) from the **Mody fonts** collection: ten free families (SIL OFL) whose files live in the MU plugin (`mody-platform/fonts/<slug>/`, with each license and `fonts/sources.json`, the commit each file came from). Installing copies the files into the site's own font directory. Core's Google Fonts collection is removed on every site (rule 1). The list is `Design\Fonts::FAMILIES`; test `scripts/font-library-test.php`.
 - **Font sizes:** `small`, `medium`, `large`, `x-large`, `xx-large`, fluid between viewport sizes.
 - **Spacing presets:** `20` to `80` (0.5 rem up to 8 rem). Templates use `var:preset|spacing|NN`.
 - **Layout:** content width 720px, wide 1200px, root-padding-aware alignments.
