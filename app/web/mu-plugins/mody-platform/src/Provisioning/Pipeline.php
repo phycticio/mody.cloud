@@ -9,6 +9,7 @@ namespace Mody\Platform\Provisioning;
 
 use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\AI\PageGenerator;
+use Mody\Platform\AI\SpectraLayout;
 use Mody\Platform\Brand\BrandProfile;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
@@ -271,7 +272,7 @@ final class Pipeline {
 					array(
 						'ID'           => $page_id,
 						'post_title'   => PageGenerator::first_heading( $markup ),
-						'post_content' => $markup,
+						'post_content' => SpectraLayout::with_ids( $markup ), // As insert_page() saves it.
 					)
 				),
 				true
@@ -300,7 +301,8 @@ final class Pipeline {
 	}
 
 	/**
-	 * The page published when generation fails: "Hello, I'm {brand}" and the mission.
+	 * The page published when generation fails: "Hello, I'm {brand}" and the
+	 * mission, in one section (SpectraLayout).
 	 *
 	 * @param string $brand   Brand name.
 	 * @param string $mission What the brand does.
@@ -308,8 +310,10 @@ final class Pipeline {
 	public static function fallback_markup( string $brand, string $mission ): string {
 		/* translators: %s: the brand name. */
 		$heading = sprintf( __( 'Hello, I\'m %s', 'mody_cloud' ), $brand );
-		return "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $heading ) . "</h1>\n<!-- /wp:heading -->\n\n"
-			. "<!-- wp:paragraph -->\n<p>" . esc_html( $mission ) . "</p>\n<!-- /wp:paragraph -->";
+		return '<!-- wp:spectra/container ' . SpectraLayout::SECTION . " -->\n"
+			. "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $heading ) . "</h1>\n<!-- /wp:heading -->\n\n"
+			. "<!-- wp:paragraph -->\n<p>" . esc_html( $mission ) . "</p>\n<!-- /wp:paragraph -->\n"
+			. '<!-- /wp:spectra/container -->';
 	}
 
 	/**

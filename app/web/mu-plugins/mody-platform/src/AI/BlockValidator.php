@@ -21,6 +21,9 @@ defined( 'ABSPATH' ) || exit;
  * 2. Every block is on the whitelist AND registered on this site.
  * 3. Colors are palette slugs only. No hex, rgb() or named colors.
  * 4. Media (src, srcset, url) stay on this network. Nothing loads from a third party (rule 1).
+ * 5. Layout is Spectra containers (SpectraLayout, 2026-11-07): a container
+ *    saves no HTML of its own, and a new page uses no group, columns or
+ *    column block and no container attribute outside the recipe.
  *
  * What PHP cannot check: whether each block's HTML matches what its save
  * function in the editor would produce. A mismatch shows as "unexpected or
@@ -30,8 +33,9 @@ final class BlockValidator {
 
 	/**
 	 * Blocks the model may use. documentation/ai-engine.md, "Initial block whitelist",
-	 * plus the child blocks that its parents need: button, list-item, social-link.
-	 * Spectra blocks are added once Spectra is installed and their names are confirmed.
+	 * plus the child blocks that its parents need: button, list-item, social-link,
+	 * and Spectra's container, the layout block (2026-11-07). group, columns and
+	 * column stay for existing content and templates; new pages may not use them.
 	 */
 	public const WHITELIST = array(
 		'core/paragraph',
@@ -56,7 +60,29 @@ final class BlockValidator {
 		'core/site-tagline',
 		'core/query',
 		'core/post-template',
+		'spectra/container',
 	);
+
+	/** Layout blocks a new page may not use: its layout is Spectra containers (SpectraLayout). */
+	public const REPLACED_BY_CONTAINER = array( 'core/group', 'core/columns', 'core/column' );
+
+	/** Blocks whose save is their inner blocks only: their own HTML must be empty. */
+	private const NO_OWN_HTML = array( 'spectra/container' );
+
+	/**
+	 * The container attributes a new page may use (SpectraLayout's recipe), and
+	 * where: top-level keys, keys of `style` and of its `@tablet` and `@mobile`
+	 * states, and keys of `layout`.
+	 */
+	private const CONTAINER_KEYS = array(
+		'attrs'  => array( 'variationSelected', 'htmlTag', 'align', 'isBlockRootParent', 'backgroundColor', 'textColor', 'style', 'layout', 'anchor', 'spectraId', 'metadata' ),
+		'style'  => array( 'spacing', 'layout', '@tablet', '@mobile' ),
+		'state'  => array( 'spacing', 'layout' ),
+		'layout' => array( 'type', 'columnCount', 'minimumColumnWidth', 'orientation', 'justifyContent', 'verticalAlignment', 'flexWrap', 'columnSpan', 'rowSpan', 'selfStretch', 'flexSize' ),
+	);
+
+	/** HTML elements a container may render as. */
+	private const CONTAINER_TAGS = array( 'div', 'section', 'header', 'footer', 'main', 'article', 'aside' );
 
 	/**
 	 * Also allowed in templates and template parts (M3-07): the theme blocks
@@ -173,11 +199,12 @@ final class BlockValidator {
 		$palette   = self::palette();
 		$unchanged = '' === trim( $original ) ? array() : self::serialized_blocks( parse_blocks( $original ) );
 		$allowed   = $template ? array_merge( self::WHITELIST, self::TEMPLATE_BLOCKS ) : self::WHITELIST;
+		$new_page  = ! $template && '' === trim( $original );
 		foreach ( $blocks as $block ) {
 			if ( null === $block['blockName'] ) {
 				continue; // Whitespace between blocks, checked above.
 			}
-			$result = self::check_block( $block, $palette, $unchanged, $allowed );
+			$result = self::check_block( $block, $palette, $unchanged, $allowed, $new_page );
 			if ( true !== $result ) {
 				return $result;
 			}
@@ -250,9 +277,10 @@ final class BlockValidator {
 	 * @param list<string>         $palette   Allowed color slugs.
 	 * @param array<string, true>  $unchanged Blocks of the original content, serialized (an edit).
 	 * @param list<string>         $allowed   Block names allowed (the whitelist, plus TEMPLATE_BLOCKS in templates).
+	 * @param bool                 $new_page  A new page: its layout must follow SpectraLayout's recipe.
 	 * @return true|WP_Error
 	 */
-	private static function check_block( array $block, array $palette, array $unchanged = array(), array $allowed = self::WHITELIST ): true|WP_Error {
+	private static function check_block( array $block, array $palette, array $unchanged = array(), array $allowed = self::WHITELIST, bool $new_page = false ): true|WP_Error {
 		if ( $unchanged && isset( $unchanged[ serialize_block( $block ) ] ) ) {
 			return true; // The member's own block, returned as it was.
 		}
@@ -263,6 +291,18 @@ final class BlockValidator {
 		}
 		if ( ! WP_Block_Type_Registry::get_instance()->is_registered( $name ) ) {
 			return self::error( sprintf( 'The block "%s" is not available on this site.', $name ) );
+		}
+		if ( $new_page && in_array( $name, self::REPLACED_BY_CONTAINER, true ) ) {
+			return self::error( sprintf( 'Do not use the "%s" block. Every section, row and column is a spectra/container, as the layout rules say.', $name ) );
+		}
+		if ( in_array( $name, self::NO_OWN_HTML, true ) && '' !== trim( (string) $block['innerHTML'] ) ) {
+			return self::error( sprintf( 'The %s block saves no HTML of its own: between its opening and closing comments write only its inner blocks, with no <div> or text. Found: "%s".', $name, self::excerpt( trim( (string) $block['innerHTML'] ), 0 ) ) );
+		}
+		if ( $new_page && SpectraLayout::BLOCK === $name ) {
+			$result = self::check_container( (array) $block['attrs'] );
+			if ( true !== $result ) {
+				return $result;
+			}
 		}
 
 		$result = self::check_attributes( $name, (array) $block['attrs'], $palette );
@@ -281,13 +321,92 @@ final class BlockValidator {
 		}
 
 		foreach ( $block['innerBlocks'] as $inner ) {
-			$result = self::check_block( $inner, $palette, $unchanged, $allowed );
+			$result = self::check_block( $inner, $palette, $unchanged, $allowed, $new_page );
 			if ( true !== $result ) {
 				return $result;
 			}
 		}
 
 		return true;
+	}
+
+	/**
+	 * A container of a new page uses only the recipe's attributes
+	 * (SpectraLayout): no backgrounds, overlays, links, shadows or sizes of
+	 * its own, and spacing only from the theme's spacing presets.
+	 *
+	 * @param array<string, mixed> $attrs The container's attributes.
+	 * @return true|WP_Error
+	 */
+	private static function check_container( array $attrs ): true|WP_Error {
+		$extra = array_diff( array_keys( $attrs ), self::CONTAINER_KEYS['attrs'] );
+		if ( $extra ) {
+			return self::error( sprintf( 'The spectra/container attribute "%s" is not part of the layout rules. Use only the attributes given there for sections, rows and columns.', (string) reset( $extra ) ) );
+		}
+		if ( isset( $attrs['htmlTag'] ) && ! in_array( $attrs['htmlTag'], self::CONTAINER_TAGS, true ) ) {
+			return self::error( sprintf( 'A spectra/container cannot be a <%s>. Sections use "htmlTag":"section"; rows and columns have no htmlTag.', is_scalar( $attrs['htmlTag'] ) ? (string) $attrs['htmlTag'] : '?' ) );
+		}
+		if ( isset( $attrs['align'] ) && ! in_array( $attrs['align'], array( 'full', 'wide' ), true ) ) {
+			return self::error( 'A section\'s "align" is "full".' );
+		}
+		$style = $attrs['style'] ?? array();
+		if ( ! is_array( $style ) ) {
+			return self::error( 'The "style" of a spectra/container must be an object, as in the layout rules.' );
+		}
+		$states = array( 'style' => $style );
+		foreach ( array( '@tablet', '@mobile' ) as $state ) {
+			if ( isset( $style[ $state ] ) ) {
+				if ( ! is_array( $style[ $state ] ) || array_diff( array_keys( $style[ $state ] ), self::CONTAINER_KEYS['state'] ) ) {
+					return self::error( sprintf( 'In a spectra/container, "%s" may hold only "spacing" and "layout", as in the layout rules.', $state ) );
+				}
+				$states[ $state ] = $style[ $state ];
+			}
+		}
+		$extra = array_diff( array_keys( $style ), self::CONTAINER_KEYS['style'] );
+		if ( $extra ) {
+			return self::error( sprintf( 'The spectra/container style "%s" is not part of the layout rules. Containers set only spacing and layout.', (string) reset( $extra ) ) );
+		}
+		$spacing_slugs = self::spacing_slugs();
+		foreach ( $states as $where => $state ) {
+			foreach ( (array) ( $state['spacing'] ?? array() ) as $property => $value ) {
+				if ( ! in_array( $property, array( 'padding', 'margin', 'blockGap' ), true ) ) {
+					return self::error( sprintf( 'The spacing "%s" of a spectra/container is not part of the layout rules.', $property ) );
+				}
+				foreach ( is_array( $value ) ? $value : array( $value ) as $side ) {
+					$preset = is_string( $side ) && str_starts_with( $side, 'var:preset|spacing|' ) && in_array( substr( $side, strlen( 'var:preset|spacing|' ) ), $spacing_slugs, true );
+					if ( ! $preset && '0' !== $side ) {
+						return self::error( sprintf( 'The %s in "%s" of a spectra/container must be a spacing preset such as "var:preset|spacing|40" (presets: %s).', $property, $where, implode( ', ', $spacing_slugs ) ) );
+					}
+				}
+			}
+		}
+		$layouts = array( $attrs['layout'] ?? array() );
+		foreach ( $states as $state ) {
+			$layouts[] = $state['layout'] ?? array();
+		}
+		foreach ( $layouts as $layout ) {
+			if ( ! is_array( $layout ) || array_diff( array_keys( $layout ), self::CONTAINER_KEYS['layout'] ) ) {
+				return self::error( 'The "layout" of a spectra/container may hold only the keys given in the layout rules (type, columnCount, minimumColumnWidth).' );
+			}
+			if ( isset( $layout['type'] ) && ! in_array( $layout['type'], array( 'constrained', 'grid', 'flex' ), true ) ) {
+				return self::error( 'A section\'s layout type is "constrained" and a row\'s is "grid".' );
+			}
+			if ( isset( $layout['columnCount'] ) && ( ! is_int( $layout['columnCount'] ) || $layout['columnCount'] < 1 || $layout['columnCount'] > 4 ) ) {
+				return self::error( 'A row has 1 to 4 columns: "columnCount" is a number from 1 to 4.' );
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Slugs of the theme's spacing presets.
+	 *
+	 * @return list<string>
+	 */
+	public static function spacing_slugs(): array {
+		$sizes = wp_get_global_settings( array( 'spacing', 'spacingSizes', 'theme' ) );
+		$slugs = is_array( $sizes ) ? array_values( array_map( 'strval', array_column( $sizes, 'slug' ) ) ) : array();
+		return $slugs ? $slugs : array( '20', '30', '40', '50', '60', '70', '80' );
 	}
 
 	/**
@@ -324,7 +443,7 @@ final class BlockValidator {
 			if ( true !== $result ) {
 				return $result;
 			}
-			if ( 'url' === $key && in_array( $name, array( 'core/image', 'core/cover' ), true ) ) {
+			if ( 'url' === $key && in_array( $name, array( 'core/image', 'core/cover', 'spectra/container' ), true ) ) {
 				$result = self::check_media_url( $value, $name );
 				if ( true !== $result ) {
 					return $result;

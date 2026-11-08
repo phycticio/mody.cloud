@@ -41,7 +41,7 @@ Rule 5: each task should fit in about 2 hours. If one does not, split it.
    - colors only as palette slugs (no hex defaults);
    - local assets only.
 4. **Validator and agent:** add the `mody/*` blocks (with their children and wrapper tags) to `BlockValidator::WHITELIST`. Add them to the prompt's block list and a few-shot example if the agent should use them.
-5. **Migration:**
+5. **Migration:** since 2026-11-07 every generated layout is `spectra/container` ([M3-08](M3-08-spectra-container-layouts.md)), so a `mody/container` must render the same attributes: `layout` (constrained, grid with `columnCount`, flex), `style.spacing`, the per-device values in `style["@tablet"]` and `style["@mobile"]`, `align`, `htmlTag`, `backgroundColor` and `textColor` as palette slugs, and `isBlockRootParent`. `SpectraLayout`, the validator and the prompts change with it.
    - editor transforms from `spectra/*` to `mody/*`;
    - a WP-CLI command that rewrites saved content across the network (`parse_blocks()`, rename, `serialize_blocks()`), with a dry run.
 6. **Remove Spectra:**

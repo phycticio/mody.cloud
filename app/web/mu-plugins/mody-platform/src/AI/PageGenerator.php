@@ -84,7 +84,7 @@ final class PageGenerator {
 				$markup->get_error_data()
 			);
 		}
-		return $markup;
+		return is_wp_error( $markup ) ? $markup : SpectraLayout::normalize( $markup );
 	}
 
 	/**
@@ -129,7 +129,7 @@ final class PageGenerator {
 				$result->get_error_data()
 			);
 		}
-		return $result;
+		return is_wp_error( $result ) ? $result : SpectraLayout::normalize( $result, $fragment );
 	}
 
 	/**
@@ -248,6 +248,8 @@ final class PageGenerator {
 	 * theme has it: generated pages start with their own level-1 heading, and
 	 * the default page template would show the title a second time.
 	 *
+	 * Spectra blocks get their `spectraId` here (SpectraLayout::with_ids()).
+	 *
 	 * @param string               $markup Block markup, already validated.
 	 * @param array<string, mixed> $args   wp_insert_post() arguments that replace the defaults:
 	 *                                     a draft by the current user, titled with the first
@@ -263,7 +265,7 @@ final class PageGenerator {
 		$defaults = array(
 			'post_type'    => 'page',
 			'post_status'  => 'draft',
-			'post_content' => $markup,
+			'post_content' => SpectraLayout::with_ids( $markup ), // Saved without the editor, which would give them.
 			'post_author'  => get_current_user_id(),
 		);
 		if ( isset( wp_get_theme()->get_page_templates( null, 'page' )[ self::TEMPLATE ] ) ) {

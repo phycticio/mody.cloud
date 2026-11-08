@@ -43,6 +43,8 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 	printf( "%-4s %-48s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
 };
 $message  = static fn( $result ): string => is_wp_error( $result ) ? $result->get_error_code() . ': ' . $result->get_error_message() : '';
+// Saved pages carry a spectraId per Spectra block (SpectraLayout::with_ids()).
+$without_ids = static fn( string $content ): string => (string) preg_replace( '/,"spectraId":"spectra-[0-9a-z-]+"/', '', $content );
 
 global $wpdb;
 $admins = get_super_admins();
@@ -311,7 +313,7 @@ $check( '...the whole style, active as in the Site Editor (M2-06)', 'forest' ===
 $page_id = (int) ( $job['result']['page_id'] ?? 0 );
 $page    = get_post( $page_id );
 $check( 'front page published', $page && 'publish' === $page->post_status && 'page' === get_option( 'show_on_front' ) && $page_id === (int) get_option( 'page_on_front' ) );
-$check( '...the generated markup, as validated', $page && SystemPrompt::EXAMPLE === $page->post_content );
+$check( '...the generated markup, as validated, with Spectra IDs', $page && SystemPrompt::EXAMPLE === $without_ids( $page->post_content ) && str_contains( $page->post_content, '"spectraId"' ) );
 $check( '...titled with its heading', $page && 'Bikes repaired while you work' === $page->post_title, $page ? $page->post_title : '' );
 $check( '...without the template title', PageGenerator::TEMPLATE === get_page_template_slug( $page_id ) );
 $check( '...by the member', $page && $member === (int) $page->post_author );
@@ -435,7 +437,7 @@ switch_to_blog( $job['site_id'] );
 $page = get_post( (int) $job['result']['page_id'] );
 $meta = get_post_meta( $page->ID, '_mody_fallback', true );
 restore_current_blog();
-$check( 'retry replaces the fallback page', ! is_wp_error( $retry ) && false === $retry['result']['fallback'] && SystemPrompt::EXAMPLE === $page->post_content && 'Bikes repaired while you work' === $page->post_title && '' === $meta, $message( $retry ) );
+$check( 'retry replaces the fallback page', ! is_wp_error( $retry ) && false === $retry['result']['fallback'] && SystemPrompt::EXAMPLE === $without_ids( $page->post_content ) && str_contains( $page->post_content, '"spectraId"' ) && 'Bikes repaired while you work' === $page->post_title && '' === $meta, $message( $retry ) );
 $again = Pipeline::retry_generation( $job_id );
 $check( '...and only once', is_wp_error( $again ) && 'mody_nothing_to_retry' === $again->get_error_code() );
 remove_filter( 'mody_site_limit', $raise_limit, 10 );
