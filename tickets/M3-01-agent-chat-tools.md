@@ -53,7 +53,7 @@ Details: documentation/ai-engine.md, "The agent".
 - **[M3-02](M3-02-agent-design-tool.md) · Agent design tool:** `mody/update-design` for the palette colors and the six presets. Decided: the agent first asks whether the color is part of the brand. If it is, the brand profile's colors change too. *Done 2026-11-06.*
 - **[M3-03](M3-03-agent-publish-site-settings.md) · Publish and site settings:** `mody/publish-page` when the member asks, and `mody/update-site-settings` (title, tagline). Done 2026-11-06.
 - **[M3-04](M3-04-ai-plugin-brand-context.md) · Brand context in the `ai` plugin** (`wpai_system_instruction`): the eight writing features get the brand. *Done 2026-11-06.*
-- **Moved to other tickets:** the market plugin toggles to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the menu to member sites to M4-01.
+- **Moved to other tickets:** the market plugin toggles to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the menu to member sites to M4-01. (M4-02 was redesigned on 2026-11-08: no table; members switch plugins on core's Plugins screen, and the agent's tools follow the same rule.)
 
 ## Decided 2026-11-06, built the same day
 - **Who sees the events:** only the maintainer, for now (a one-person project). There is no viewer: events are read in the database.

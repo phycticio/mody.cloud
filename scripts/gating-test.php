@@ -10,20 +10,25 @@
  * A test user is made administrator of a member site (the first site that is
  * not the main one) and of the main site.
  *
- * 1. Capabilities: on the member site it loses every plugin and theme
- *    capability and keeps the rest; on the main site nothing changes;
- *    super admins keep everything; the market capability.
- * 2. REST: the plugins routes refuse it on the member site.
+ * 1. Capabilities: on the member site it loses the blocked plugin and theme
+ *    capabilities (install, upload, update, delete, edit; themes) and keeps
+ *    the rest, the Plugins screen included (M4-02); on the main site
+ *    nothing changes; super admins keep everything.
+ * 2. REST: installing a plugin is refused on the member site, and a
+ *    platform plugin's route answers as if it were not installed.
  * 3. Redirect targets: pages, patterns and menus go to the Site Editor;
  *    posts and other actions stay.
  * 4. Over HTTP on the member site (a request to this host with the member
  *    site's Host header): editing a page and adding one land in the Site
- *    Editor, a post opens the post editor, the plugins screen refuses, a
- *    theme switch does nothing; a super admin is not redirected.
+ *    Editor, a post opens the post editor, the Plugins screen opens (M4-02;
+ *    scripts/member-plugins-test.php has the details), the plugin install
+ *    screen refuses, a theme switch does nothing; a super admin is not
+ *    redirected.
  *
  * The user, the page and the post made here are removed at the end. No model call.
  */
 
+use Mody\Platform\Gating\MemberPlugins;
 use Mody\Platform\Gating\MemberSite;
 use Mody\Platform\SiteEditor;
 
@@ -86,7 +91,7 @@ $granted = array_filter( MemberSite::BLOCKED_CAPS, static fn( $cap ) => $can( $s
 $check( 'no plugin or theme capability', ! $granted, $granted ? implode( ', ', $granted ) : count( MemberSite::BLOCKED_CAPS ) . ' refused' );
 $missing = array_filter( $kept, static fn( $cap ) => ! $can( $site, $user, $cap ) );
 $check( '...the rest kept: content, media, users, settings, styles', ! $missing, $missing ? implode( ', ', $missing ) : implode( ', ', $kept ) );
-$check( '...the market (M4-02)', $can( $site, $user, MemberSite::MARKET_CAP ) );
+$check( '...and the Plugins screen (M4-02)', $can( $site, $user, 'activate_plugins' ) );
 $super = array_filter( array( 'switch_themes', 'activate_plugins', 'install_plugins' ), static fn( $cap ) => ! $can( $site, $admin, $cap ) );
 $check( 'super admins keep everything', ! $super, $super ? implode( ', ', $super ) : '' );
 
@@ -94,9 +99,9 @@ echo "\nCapabilities (main site)\n";
 $with = array_map( static fn( $cap ) => $can( $main, $user, $cap ), MemberSite::BLOCKED_CAPS );
 remove_filter( 'map_meta_cap', array( MemberSite::class, 'map_meta_cap' ), 10 );
 $without = array_map( static fn( $cap ) => $can( $main, $user, $cap ), MemberSite::BLOCKED_CAPS );
-add_filter( 'map_meta_cap', array( MemberSite::class, 'map_meta_cap' ), 10, 3 );
+add_filter( 'map_meta_cap', array( MemberSite::class, 'map_meta_cap' ), 10, 4 );
 $check( 'unchanged by the rules', $with === $without, 'switch_themes: ' . wp_json_encode( $with[ array_search( 'switch_themes', MemberSite::BLOCKED_CAPS, true ) ] ) );
-$check( '...no market there', ! $can( $main, $user, MemberSite::MARKET_CAP ) && ! $can( $main, $admin, MemberSite::MARKET_CAP ) );
+$check( '...no Plugins screen for the member there', ! $can( $main, $user, 'activate_plugins' ) );
 
 // 2. REST ---------------------------------------------------------------------
 
@@ -107,13 +112,13 @@ $list    = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/plugins' ) )->ge
 $install = new WP_REST_Request( 'POST', '/wp/v2/plugins' );
 $install->set_param( 'slug', 'hello-dolly' );
 $install = rest_do_request( $install )->get_status();
-$plugin  = array_key_first( get_plugins() );
+$plugin  = array_key_first( array_filter( get_plugins(), static fn( $file ) => MemberPlugins::is_hidden( (string) $file ), ARRAY_FILTER_USE_KEY ) );
 $toggle  = new WP_REST_Request( 'PUT', '/wp/v2/plugins/' . preg_replace( '/\.php$/', '', (string) $plugin ) );
 $toggle->set_param( 'status', 'active' );
 $toggle = rest_do_request( $toggle )->get_status();
 wp_set_current_user( $admin );
 restore_current_blog();
-$check( 'plugins: list, install, activate refused', 403 === $list && 403 === $install && 403 === $toggle, "$list, $install, $toggle" );
+$check( 'plugins: install refused, a platform plugin not found', 403 === $install && 404 === $toggle && 200 === $list, "install $install, " . $plugin . " $toggle, list $list" );
 
 // 3. Redirect targets -------------------------------------------------------------
 
@@ -177,7 +182,9 @@ $check( 'add a page: the Site Editor\'s pages', 302 === $out['code'] && str_cont
 $out = $get( $admin_path . 'post.php?post=' . $post_id . '&action=edit', $as_member );
 $check( 'edit a post: the post editor', 200 === $out['code'], (string) $out['code'] );
 $out = $get( $admin_path . 'plugins.php', $as_member );
-$check( 'the plugins screen refuses', 403 === $out['code'], (string) $out['code'] );
+$check( 'the Plugins screen opens (M4-02)', 200 === $out['code'], (string) $out['code'] );
+$out = $get( $admin_path . 'plugin-install.php', $as_member );
+$check( 'the plugin install screen refuses', in_array( $out['code'], array( 403, 500 ), true ), $out['code'] . ' (core\'s wp_die() without a status is 500)' );
 $out = $get( $admin_path . 'themes.php?action=activate&stylesheet=twentytwentyfive', $as_member );
 $check( 'a theme switch does nothing', $theme === get_blog_option( $site, 'stylesheet' ), $out['code'] . ', theme ' . get_blog_option( $site, 'stylesheet' ) );
 $out = $get( $admin_path . 'post.php?post=' . $page_id . '&action=edit', $as_admin );

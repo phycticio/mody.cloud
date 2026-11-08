@@ -2,6 +2,8 @@
 
 **Milestone:** M4 · **Spec:** documentation/mvp-spec.md §9, §10 · **Status:** done (2026-11-07)
 
+> **Changed by [M4-02](M4-02-plugin-market.md)** (part A1, 2026-11-08). Members now get core's Plugins screen on their own site, and activate and deactivate every plugin that is not hidden. Installing, uploading, updating, deleting and editing plugins, and every theme capability, stay refused as built here. `mody_manage_market` was dropped. `scripts/gating-test.php` was updated: the Plugins screen opens, the plugin install screen refuses, and a platform plugin's REST route answers 404.
+
 ## Goal
 On member sites, every editing entry point lands in the Site Editor, and a member cannot install/upload plugins or themes or switch themes — while keeping full control of everything else.
 

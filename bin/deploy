@@ -226,6 +226,9 @@ FILTER=(
   --exclude='.git/'
   --exclude='.DS_Store'
   --exclude='node_modules/'
+  # The fixture plugin scripts/member-plugins-test.php creates and removes,
+  # in case a run was killed before removing it (M4-02).
+  --exclude='/app/web/plugins/mody-test-plugin/'
   # The allowlist.
   --include='/app/'
   --include='/bin/'

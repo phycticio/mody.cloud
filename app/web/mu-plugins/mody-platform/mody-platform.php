@@ -67,11 +67,16 @@ add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_m
 add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\AgentSettings::class, 'save' ) );
 
 /*
- * Member sites (every site but the main one, ticket M4-01): no plugin or
- * theme changes for members, and pages, patterns and menus open in the Site
- * Editor. Super admins are not affected.
+ * Member sites (every site but the main one, ticket M4-01): no plugin
+ * installs or theme changes for members, and pages, patterns and menus open
+ * in the Site Editor. Super admins are not affected. Members switch plugins
+ * on core's Plugins screen, which never shows them the hidden ones (M4-02).
  */
-add_filter( 'map_meta_cap', array( Gating\MemberSite::class, 'map_meta_cap' ), 10, 3 );
+add_filter( 'map_meta_cap', array( Gating\MemberSite::class, 'map_meta_cap' ), 10, 4 );
+add_filter( 'all_plugins', array( Gating\MemberPlugins::class, 'filter_screen' ) );
+add_filter( 'pre_update_option_active_plugins', array( Gating\MemberPlugins::class, 'keep_hidden' ), 10, 2 ); // Any code path, e.g. Spectra's onboarding API.
+add_filter( 'rest_pre_dispatch', array( Gating\MemberPlugins::class, 'refuse_rest_item' ), 10, 3 );
+add_filter( 'rest_request_after_callbacks', array( Gating\MemberPlugins::class, 'filter_rest_list' ), 10, 3 );
 add_action( 'load-post.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
 add_action( 'load-post-new.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
 

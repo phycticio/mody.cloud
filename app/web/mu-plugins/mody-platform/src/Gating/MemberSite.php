@@ -18,11 +18,14 @@ defined( 'ABSPATH' ) || exit;
  * rules apply to everyone there except super admins, who keep full rights
  * to fix things.
  *
- * - **Plugins and themes:** no install, upload, activation, update, edit or
+ * - **Plugins and themes:** no install, upload, update, delete, edit or
  *   theme switch, through any screen or REST route, because the
- *   capabilities themselves are refused. Plugins come from the market page
- *   (M4-02, `mody_manage_market`). Content, media, users, settings, Spectra
- *   and Global Styles stay.
+ *   capabilities themselves are refused. Content, media, users, settings,
+ *   Spectra and Global Styles stay.
+ * - **Plugins on core's Plugins screen** (M4-02, decided 2026-11-08):
+ *   members activate and deactivate, for their own site, every installed
+ *   plugin that is not hidden (MemberPlugins). Core's network switch for
+ *   that screen ("Enable administration menus: Plugins") is not needed.
  * - **Editor first:** pages, patterns and navigation menus open in the Site
  *   Editor. WordPress 7.1's Site Editor has no route for posts, so posts
  *   keep the block editor (post.php), decided 2026-11-07.
@@ -33,10 +36,6 @@ final class MemberSite {
 	public const BLOCKED_CAPS = array(
 		'install_plugins',
 		'upload_plugins',
-		'activate_plugins',
-		'activate_plugin',
-		'deactivate_plugins',
-		'deactivate_plugin',
 		'resume_plugin',
 		'update_plugins',
 		'delete_plugins',
@@ -50,8 +49,14 @@ final class MemberSite {
 		'resume_theme',
 	);
 
-	/** Who may use the plugin market (M4-02): a member site's administrators. */
-	public const MARKET_CAP = 'mody_manage_market';
+	/**
+	 * The Plugins screen and its bulk actions: allowed to a member site's
+	 * administrators (who hold `activate_plugins`), without core's network switch.
+	 */
+	public const PLUGIN_SCREEN_CAPS = array( 'activate_plugins', 'deactivate_plugins' );
+
+	/** Switching one plugin (single, bulk and REST all check it): allowed for visible plugins only. */
+	public const PLUGIN_CAPS = array( 'activate_plugin', 'deactivate_plugin' );
 
 	/** Post types the Site Editor edits: their route for one item, and their list. */
 	private const ROUTES = array(
@@ -79,22 +84,34 @@ final class MemberSite {
 	}
 
 	/**
-	 * Filters `map_meta_cap`: refuses the plugin and theme capabilities to
-	 * members on member sites, and maps the market capability.
+	 * Filters `map_meta_cap`, for members on member sites: refuses the
+	 * blocked plugin and theme capabilities, opens the Plugins screen, and
+	 * allows switching a plugin only when it is not hidden.
 	 *
 	 * @param string[] $caps    The primitive capabilities required.
 	 * @param string   $cap     The capability checked.
 	 * @param int      $user_id The user.
+	 * @param mixed[]  $args    Extra arguments: the plugin file, for activate_plugin and deactivate_plugin.
 	 * @return string[]
 	 */
-	public static function map_meta_cap( $caps, $cap, $user_id ) {
-		if ( self::MARKET_CAP === $cap ) {
-			return self::is_member_site() ? array( 'manage_options' ) : array( 'do_not_allow' );
+	public static function map_meta_cap( $caps, $cap, $user_id, $args = array() ) {
+		$blocked = in_array( $cap, self::BLOCKED_CAPS, true );
+		$screen  = in_array( $cap, self::PLUGIN_SCREEN_CAPS, true );
+		$plugin  = in_array( $cap, self::PLUGIN_CAPS, true );
+		if ( ( ! $blocked && ! $screen && ! $plugin ) || ! self::applies_to( (int) $user_id ) ) {
+			return $caps;
 		}
-		if ( in_array( $cap, self::BLOCKED_CAPS, true ) && self::applies_to( (int) $user_id ) ) {
+		if ( $blocked ) {
 			return array( 'do_not_allow' );
 		}
-		return $caps;
+		if ( $plugin ) {
+			$file = isset( $args[0] ) && is_string( $args[0] ) ? $args[0] : '';
+			if ( '' === $file || MemberPlugins::is_hidden( $file ) ) {
+				return array( 'do_not_allow' );
+			}
+		}
+		// Core adds manage_network_plugins unless the network's Plugins menu switch is on.
+		return array( 'activate_plugins' );
 	}
 
 	/**

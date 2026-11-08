@@ -32,7 +32,7 @@ sed -i '' 's/^WORDPRESS_ALLOW_MULTISITE=true/WORDPRESS_ALLOW_MULTISITE=false/;
 mkdir -p app/logs && touch app/logs/debug.log && chmod 666 app/logs/debug.log
 docker compose up -d --build
 ./bin/version 7.0 --no-backup              # downloads WordPress core into app/wp (use WORDPRESS_VERSION)
-./bin/composer install                     # installs Query Monitor (dev) and composer/installers
+./bin/composer install                     # installs Query Monitor and User Switching (dev) and composer/installers
 ./bin/wp core install --url="https://mody.cloud.local" --title="Mody Cloud" \
   --admin_user=admin --admin_email=admin@mody.cloud --admin_password=password --skip-email
 ./bin/wp theme activate theme
@@ -228,7 +228,7 @@ The stack scripts came from an earlier project (Tamarind Intelligence). The prev
 
 | Item | Problem |
 | --- | --- |
-| `config/bin/install.config`, `config/bin/build.config` | `install.config` lists plugins (`redirection`, `ultimate-addons-for-gutenberg`) that `app/composer.json` does not require. Composer has the current Spectra instead (`spectra-blocks`); `ultimate-addons-for-gutenberg` is now "Spectra Legacy". `build.config` is an empty placeholder that `bin/build` still sources. |
+| `config/bin/install.config`, `config/bin/build.config` | `install.config` lists plugins (`redirection`, `ultimate-addons-for-gutenberg`) that `app/composer.json` does not require. Redirection was briefly in Composer as a market seed and was dropped on 2026-11-08 (M4-02). Composer has the current Spectra instead (`spectra-blocks`); `ultimate-addons-for-gutenberg` is now "Spectra Legacy". `build.config` is an empty placeholder that `bin/build` still sources. |
 | `bin/install` | Calls `./bin/db import` (needs a database dump). Use the first-run steps above, or `--no-build` and expect the import to fail. |
 | `bin/migrate-*`, `bin/subscription-migration-local-env`, `config/bin/db.config` | Tamarind data-migration tooling. `db.config` now maps only `mody.cloud` to `mody.local`. `bin/wp` also forwards `TAMARIND_MIGRATION_*` variables. |
 | `compose.yml` | Ofelia labels for `wp tamarind newsletters run-due`. No Ofelia service is defined, so they do nothing. |

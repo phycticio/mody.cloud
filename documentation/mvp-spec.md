@@ -10,8 +10,8 @@ A self-serve, European-sovereign WordPress Multisite platform:
 2. At the end of the trial the selected monthly plan is charged (5/15/50 EUR for 3/10/50 sites). All tiers have the **same benefits**; the only MVP difference is the number of sites.
 3. The member creates sites (subdomains) through a short **choice-based brand wizard**; each site is provisioned automatically: FSE theme `theme` + Spectra, per-site Global Styles from the chosen preset, and an AI-generated home page.
 4. Everything is edited in the **native Site Editor** (Appearance → Editor). Every edit entry point — dashboard, agent, emails — links to the Site Editor URL.
-5. The **agent** (Qwen via Infomaniak AI Services) is the encouraged control channel: change a color, generate a page, activate a market plugin, open the editor for a page, and so on. It decides by itself whether to act, hand over to the editor, or ask a follow-up question.
-6. Members have **full control of their site** except: no plugin/theme upload, no theme switching, no file editing — only the curated (free) Mody market.
+5. The **agent** (Qwen via Infomaniak AI Services) is the encouraged control channel: change a color, generate a page, switch a plugin on, open the editor for a page, and so on. It decides by itself whether to act, hand over to the editor, or ask a follow-up question.
+6. Members have **full control of their site** except: no plugin/theme install or upload, no theme switching, no file editing. They switch on, for their own site, the (free) plugins the platform installs, on core's Plugins screen; platform plugins and any a super admin hides never appear there (section 10).
 
 **Non-goals (next iteration, deliberately):**
 
@@ -31,7 +31,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | 4 | Expired accounts | Past-due sites go **read-only with a banner**; billing retried daily; after **60 days** the sites are deleted. |
 | 5 | Tier site counts | **3 / 10 / 50**. More sites than that is a dedicated-VPS conversation. |
 | 6 | Custom domains | Per **site** (not per page), **next iteration**. Caddy sidecar is the decided mechanism. No domain resale yet. |
-| 7 | Plugin market | Membership: TBD (seed: Redirection; Spectra is network-active instead, decision 14). **Everything is preinstalled via Composer; members only activate.** All plugins free. |
+| 7 | Plugin market | **Everything is preinstalled via Composer; members only activate**, on core's Plugins screen of their own site (redesigned 2026-11-08). Every installed plugin appears there unless hidden: platform plugins always (fixed in code), and any plugin a super admin hides. **No plugin is offered yet**: Redirection, the first seed, was dropped on 2026-11-08 (it came from the old stack). Spectra is network-active instead (decision 14). All plugins free. Each plugin is checked against rule 1 before it goes into Composer. New sites get none switched on. Section 10. |
 | 8 | Editor redirect | **All** content editing (pages and posts) redirects to the Site Editor on member sites. |
 | 9 | Brand wizard | Choice-based, no raw inputs (section 6). |
 | 10 | Newsletter | Out of MVP scope (confirmed). |
@@ -47,7 +47,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | --- | --- |
 | **Prospect** | Public pages on the main site (association site, site 1): landing, register. |
 | **Member** | One network-wide WordPress account (shared login, cookies cover all subdomains via `COOKIE_DOMAIN`). Is `administrator` of each own subdomain site. Sees the custom **Mody** menu in the Network Admin: dashboard, new site, billing. |
-| **Platform admin** | Super admin of the network, plus the Mody market management page and exception handling. |
+| **Platform admin** | Super admin of the network, plus the list of plugins hidden from members and exception handling. |
 | **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
 
 Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. Since 2026-11-06 (M2-03) the **Mody → New site** wizard checks it; no role has it yet, so only super admins (who pass every capability check) see it until M1 grants it. All data shown is scoped to `get_current_user_id()`.
@@ -158,7 +158,7 @@ Runs **in-process** in the MU plugin (no REST, no Application Passwords — that
 | 1 `quota` | `can_create_site()` (section 4) and slug uniqueness (network-wide). |
 | 2 `site` | `wpmu_create_blog(slug, slug.mody.cloud, '/', user_id)`; member added as `administrator` of the new site. Built: created public, with the theme, the tagline and `https://` addresses already set; WordPress's sample post and page removed. |
 | 3 `profile` | Save the brand profile row (network-wide table, `base_prefix`), with the preset's colors as the brand colors. |
-| 4 `theme` | Activate theme `theme` and the market plugins on the new site. Spectra is network-active already (section 10). Built: the theme is set in step 2 and checked here; the market plugins come with M4-02. |
+| 4 `theme` | Activate theme `theme` on the new site. Spectra is network-active already (section 10). Built: the theme is set in step 2 and checked here. **No plugin is switched on** (decided 2026-11-08, M4-02): new sites start lean, and members switch plugins on from their Plugins screen or through the agent. |
 | 5 `styles` | Write the site's **Global Styles** (`wp_global_styles`) with the preset palette and fonts. Built: the whole preset (`SiteDesign::apply_preset()`, M2-06); Inter is the theme's default, served by the network (M2-07). |
 | 6 `page` | Call the agent (WordPress AI Client): SYSTEM = brand profile, USER = step-3 prompt → model → **validator** (balanced blocks, valid JSON, whitelist from the live block registry, palette slugs only) → publish as front page. Up to 2 retries; on final failure publish a fallback "Hello, I'm {brand}" page and surface a **Retry generation** action. Built: `PageGenerator::generate_page()` in the new site's context; the page uses the theme's untitled template (`page-blank`); `Pipeline::retry_generation()` is the retry. The layout, the fallback page's too, is Spectra containers (2026-11-07, [ai-engine.md](ai-engine.md#layout-spectra-containers)). |
 | 7 `email` | Welcome email: site URL + "Open your site in the editor" link (the member logs in with their own account — no separate credentials). Built: sent at most once; a failed email does not fail the job. |
@@ -196,7 +196,7 @@ Each acting tool is an ability in the `mody` category (decision 13). Its permiss
 | `publish_page` | `mody/publish-page` (built 2026-11-06, M3-03) | `page_id` or `page_title` | Publishes a draft or pending page **as it is now**, without the validator (the member may have edited it by hand; the Publish button does not validate either). Only when the member's message asks for it, never in the same turn as a generation unless the message asked for both; after a draft, the agent says it can be published but never asks "shall I publish it?". Returns the page and two buttons: View and the Site Editor. | `publish_pages`, and `edit_post` on the page. Refuses other post types, and pages already published, private, scheduled or in the trash. | `edit_pages`. Quota-independent. Requires an existing brand profile (else the agent runs the 3 wizard questions inline first). Validator pipeline mandatory. |
 | `update_design` | `mody/update-design` (built 2026-11-06, M3-02) | `preset` (one of the six presets of section 6, decided 2026-11-06) or `{primary, secondary, accent}`, plus `brand` | Patches the site Global Styles (the theme palette, as the Site Editor saves it; each change is a revision). Before calling it, the agent asks whether the colors are part of the brand; if they are (`brand` true), the brand profile's colors change too (decided 2026-11-06). Returns the old and new colors and a button to see them. | Hex regex; maps to palette slugs only (`base` and `contrast` never change). `edit_theme_options`. Requires a brand profile. |
 | `open_editor` | `mody/open-editor` (built 2026-11-06) | `target` (`page` \| `template` \| `styles`), `page_id?`, `page_title?`, `template?` | Returns the exact Site Editor URL and a button label (no mutation). The chat shows it as a button; the model never sees the URL. | URL built from the real site URL. Pages: `edit_pages` and `edit_post`. Templates and styles: `edit_theme_options` |
-| `activate_plugin` / `deactivate_plugin` | `mody/activate-market-plugin` / `mody/deactivate-market-plugin` (proposed) | `slug` | Toggles a market plugin on this site | Slug must exist in `mody_market_plugins` and be listed |
+| `activate_plugin` / `deactivate_plugin` | `mody/activate-plugin` / `mody/deactivate-plugin` (proposed, M4-02 part B) | `plugin` (slug or name) | Switches a plugin on or off on this site, with core's `activate_plugin()` / `deactivate_plugins()` | Core's `activate_plugin` / `deactivate_plugin` capability on the plugin: the same rule as the Plugins screen, so hidden plugins are refused and never named |
 | `update_site_settings` | `mody/update-site-settings` (built 2026-11-06, M3-03) | `title?` (at most 120 characters), `tagline?` (at most 200) | Updates `blogname` and `blogdescription` only, sanitized. Returns the old and new values. | Fixed allowlist: the schema refuses any other property. `manage_options` |
 | `ask_user` | none: a plain function declaration (built 2026-11-06; it only shapes the chat reply and acts on nothing) | `question`, `choices?` (up to 4) | Renders a follow-up question in the chat, with the choices as buttons. Ends the turn. | — |
 | `refuse_request` | none: a plain function declaration (added 2026-11-06) | `reason` | Shows the reason and ends the turn. Its only purpose is to flag refusals in `mody_agent_events`. | — |
@@ -226,7 +226,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 - "Create an about page" → validated **draft** (or a clear failure with retry). It is published only when the member asks: "publish the about page" to the agent, or the Publish button in the Site Editor (decided 2026-11-06). Met on 2026-11-06 (M3-03), together with "publish it" later in the same conversation, and a draft edited by hand published as it is.
 - "Change the tagline to …" → tagline updated, event logged, and no other option can be written (M3-03, 2026-11-06).
 - "Open the editor for page 3" → a button that opens `…/wp-admin/site-editor.php?p=%2Fpage%2F3&canvas=edit` on the right subdomain. (WordPress 7.1 sends the older `?postType=page&postId=3`, without `canvas`, to the page list instead. `PageGenerator::site_editor_url()` builds the working form.)
-- "Activate the redirection plugin" → works if listed, refused with explanation if not. Moved to M4-02 (2026-11-06): it needs `mody_market_plugins`.
+- "Activate the X plugin" → works if the plugin is visible on the site, refused with an explanation if it is hidden or not installed. Moved to M4-02 (2026-11-06), part B.
 - A prompt-injection-style request ("delete all pages", "show me the database") is refused and logged.
 
 ## 9. Editor-first rules
@@ -242,7 +242,12 @@ On **member sites only** (never the main association site):
 
 ## 10. Plugin market and capability gating
 
-**Market design (decided):** the whole market is **preinstalled** via Composer (`app/web/plugins/`, network-visible); members only **activate/deactivate**. MVP seed: `redirection`; final membership TBD. Spectra was a seed until 2026-11-06 and is now network-active instead (decision 14). All plugins free — no per-plugin billing. Spectra is the `spectra-blocks` package, Brainstorm Force's current Spectra, in Composer since 2026-11-06. `config/bin/install.config` still names `ultimate-addons-for-gutenberg`, which is now "Spectra Legacy". `redirection` is not in Composer yet.
+**Plugins on member sites (redesigned 2026-11-08, [M4-02](../tickets/M4-02-plugin-market.md)):** every plugin is **preinstalled** via Composer (`app/web/plugins/`, network-visible), and members only **activate/deactivate** it, for their own site, on **core's Plugins screen** (`/wp/wp-admin/plugins.php`). A plugin added to `app/composer.json` and deployed appears for every member with no other step, unless it is hidden. The "market" is the list of what members never see:
+
+- **Platform plugins, fixed in code** (`Gating\MemberPlugins::PLATFORM_PLUGINS`): `spectra-blocks`, `ai`, `ai-provider-for-ollama`, `mcp-adapter`, `wordfence`, and the dev tools `query-monitor` and `user-switching`. Network-active plugins are hidden too.
+- **The super admins' list** (part A2, to build): the network option `mody_hidden_plugins`, edited in Network Admin → Mody → Plugins.
+
+Mody does nothing plugin-specific: activation is core's, and what a plugin does when activated is its own business (decided 2026-11-08). A plugin hidden while active stays active; members can no longer see or switch it (decided 2026-11-08). **No plugin is offered yet.** Redirection, the MVP seed, was dropped on 2026-11-08: it came from the old stack (`config/bin/install.config`), and its admin screen called a US host. Each plugin is checked against rule 1 before it goes into Composer. Spectra was a seed until 2026-11-06 and is now network-active instead (decision 14). All plugins free — no per-plugin billing. Spectra is the `spectra-blocks` package, Brainstorm Force's current Spectra, in Composer since 2026-11-06. `config/bin/install.config` still names `ultimate-addons-for-gutenberg`, which is now "Spectra Legacy".
 
 **Spectra is a platform plugin, network-activated** (decided 2026-11-06). Every site has it, provisioning does not activate it, and members cannot switch it off and break their Spectra blocks. It is not a market toggle.
 
@@ -273,20 +278,24 @@ If Mody uses them, it is only as hidden machinery behind its own `mody/*` abilit
 
 Using them needs its own ticket; until then they stay off.
 
-- `mody_market_plugins` table (slug, name, description, listed, sort). Platform admin manages the list in a super-admin page.
-- Members see a **Plugins** page in their site wp-admin: the listed market plugins with *Activate / Deactivate* (server-side, own capability `mody_manage_market`). No upload, no install from URL, no search beyond the market.
+**Built 2026-11-08** (part A1 of [M4-02](../tickets/M4-02-plugin-market.md); test `scripts/member-plugins-test.php`):
+
+- **The rule** (`Gating\MemberSite::map_meta_cap()`, for everyone but super admins, on member sites): `activate_plugins` and `deactivate_plugins` (the screen, its menu, bulk actions) are allowed to the site's administrators without core's network switch ("Enable administration menus: Plugins"). `activate_plugin` and `deactivate_plugin` for one plugin, which core checks for single links, each plugin of a bulk action and REST, are allowed only for plugins that are not hidden.
+- **Hidden plugins** (`Gating\MemberPlugins`) are left out of the screen and its counts (`all_plugins`) and of the REST list (`rest_request_after_callbacks`, so internal requests too). Their REST routes answer "Plugin not found" (404) to members, whatever the method.
+- **Any other code path** (`MemberPlugins::keep_hidden()` on `pre_update_option_active_plugins`): during a logged-in member's request, a hidden plugin keeps its state whatever code writes `active_plugins`. Needed because other plugins' own routes check only `activate_plugins` and call `activate_plugin()` themselves. Spectra's onboarding API, `one-onboarding/v1/activate-plugin`, activates any installed plugin by slug; without the guard it switched `mcp-adapter` on for a member (checked 2026-11-08). WP-CLI, cron without a user and super admins are not affected.
+- Core's Must-Use and Drop-ins tabs show only to super admins in Network Admin. The main site and super admins are unchanged.
 
 **Capabilities removed on member sites** (capability filter scoped to the member's own sites):
 
-- `install_plugins`, `activate_plugins` (replaced by the market page), `upload_files` for plugin/theme zips is not affected (media stays allowed).
+- `install_plugins`, `upload_plugins`, `update_plugins`, `delete_plugins`, `edit_plugins`, `resume_plugin`. `activate_plugins` was removed too until 2026-11-08; since M4-02 members switch visible plugins on core's Plugins screen. `upload_files` for plugin/theme zips is not affected (media stays allowed).
 - `switch_themes`, `install_themes`, `delete_themes`, `edit_themes` — the base theme `theme` stays fixed.
 - `DISALLOW_FILE_EDIT` is already on network-wide.
 
 Members keep everything else: content, media, users of their own site, settings, Spectra, Global Styles.
 
-**Built 2026-11-07** ([M4-01](../tickets/M4-01-editor-redirects-gating.md)): `Gating\MemberSite` refuses the plugin and theme capabilities (install, upload, activate, deactivate, resume, update, delete, edit; switch, install, upload, update, delete, edit themes) through `map_meta_cap`, on every site but the main one, to everyone but super admins (decided 2026-11-07). It also defines `mody_manage_market`: a member site's administrators, nobody on the main site. The `ai` plugin's lock-down is [M4-03](../tickets/M4-03-ai-plugin-lockdown.md).
+**Built 2026-11-07** ([M4-01](../tickets/M4-01-editor-redirects-gating.md)): `Gating\MemberSite` refuses the plugin and theme capabilities (install, upload, activate, deactivate, resume, update, delete, edit; switch, install, upload, update, delete, edit themes) through `map_meta_cap`, on every site but the main one, to everyone but super admins (decided 2026-11-07). Since M4-02 (2026-11-08) activating and deactivating are allowed again for plugins members may see, and the planned `mody_manage_market` capability was dropped. The `ai` plugin's lock-down is [M4-03](../tickets/M4-03-ai-plugin-lockdown.md).
 
-**Acceptance criteria:** a member site admin cannot install, upload or switch themes/plugins by any UI or REST path; the market page activates a listed plugin; the front end and editor are unaffected.
+**Acceptance criteria:** a member site admin cannot install, upload, update, delete or edit plugins or switch themes by any UI or REST path; the Plugins screen activates a visible plugin and never shows or switches a hidden one; the front end and editor are unaffected.
 
 ## 11. Data model (new network-wide tables, `base_prefix`)
 
@@ -332,15 +341,6 @@ mody_provisioning_jobs (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-mody_market_plugins (
-  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-  plugin_slug VARCHAR(190) UNIQUE NOT NULL,
-  name        VARCHAR(120) NOT NULL,
-  description TEXT,
-  listed      TINYINT(1) DEFAULT 1,
-  sort        INT DEFAULT 0
-);
-
 mody_agent_events (
   id         BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id    BIGINT NOT NULL,
@@ -353,7 +353,7 @@ mody_agent_events (
 );
 ```
 
-`mody_custom_domains` is **not** created yet (next iteration with the Caddy work).
+`mody_custom_domains` is **not** created yet (next iteration with the Caddy work). `mody_market_plugins` was dropped from this model on 2026-11-08: the plugins hidden from members are a network option, `mody_hidden_plugins` (M4-02).
 
 **Built so far:**
 
@@ -391,7 +391,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 | **M1** | Accounts, trial and billing | 4, 5 | Register → Mollie 0.01 checkout → webhook → active trial with dashboard (My sites, Plan & billing). Simulated failed charge → read-only + banner + 60-day deletion job verified. |
 | **M2** | Site creation | 6, 7, 11 | Wizard (3 choice steps) → provisioned subdomain with Global Styles and a generated, validated home page; job table resumable; fallback page on generation failure. First real model call through Infomaniak (verify model slug + function-calling support here). **Done locally 2026-11-07:** M2-02 (AI engine), M2-01 (the provisioning pipeline) and M2-03 (the wizard) on 2026-11-06, M2-04 (its live preview) and M2-05 (the logo upload) on 2026-11-07. Not provable in production yet: new sites there need the wildcard DNS and TLS for `*.mody.cloud` (section 16, question 3; M5). |
 | **M3** | Agent | 8 | Chat in wp-admin; all six tools work end-to-end; injection attempts refused and logged; every event in `mody_agent_events`. **Done 2026-11-06** (M3-01 to M3-04), except three items moved on: the plugin toggle tools to M4-02 (they need `mody_market_plugins`), the past-due check to M1-02 (it needs `mody_members`), and limiting the agent menu to member sites to M4-01. |
-| **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; market page activates listed plugins; every editing entry point lands in the Site Editor. **In progress:** M4-01 (redirects and gating) and M4-03 (the `ai` plugin) done 2026-11-07, posts excepted; M4-02 (market) to do. |
+| **M4** | Gating, market and editor-first | 9, 10 | No plugin/theme upload or theme switch possible on member sites; members switch visible plugins on core's Plugins screen; every editing entry point lands in the Site Editor. **In progress:** M4-01 (redirects and gating) and M4-03 (the `ai` plugin) done 2026-11-07, posts excepted; M4-02 (plugins, redesigned 2026-11-08): part A1 (core's Plugins screen for members) done 2026-11-08, A2 (the super admins' hidden list) and B (the agent's abilities) to do. |
 | **M5** | Hardening and launch | all | Production compose (no Xdebug/DB ports), wildcard cert at the upstream, backup/restore drill, security pass (nonces, sanitization, webhook signatures), monitoring via Query Monitor, launch checklist green for 100 founding members. |
 
 ## 14. Next iteration (out of MVP, decided direction)
@@ -410,7 +410,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 | Function calling unsupported by the model | JSON action protocol fallback with identical server-side guard (section 8). |
 | Mollie webhook loss / duplicates | Signature check + idempotency + 24 h expiry cron + manual retry from dashboard. |
 | Network admin exposed to non-members | Custom capability on the custom menu only; all queries user-scoped; standard network admin untouched. |
-| Agent performs unsafe actions | Whitelisted tools only, fixed option allowlist, market allowlist, audit log, no delete tools. |
+| Agent performs unsafe actions | Whitelisted tools only, fixed option allowlist, hidden plugins refused, audit log, no delete tools. |
 | Stale Tamarind scripts | Untouched by the MVP; cleanup scheduled after M5 (see [local-development.md](local-development.md#known-stale-items)). |
 
 ## 16. Open questions (remaining)
@@ -419,5 +419,5 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5.
 3. **Upstream wildcard TLS** — confirm the production front end can terminate a wildcard cert for `*.mody.cloud` (infra task, M5).
 4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
-5. **Final market membership** — beyond Redirection (TBD, user-confirmed). Spectra is network-active, not a market plugin (decision 14).
+5. ~~**Final market membership** — beyond Redirection.~~ Decided 2026-11-08: **no plugin for now.** Redirection was dropped; any plugin added later through Composer (after a rule 1 check) and deployed appears on members' Plugins screens unless a super admin hides it. Spectra is network-active, not a market plugin (decision 14).
 6. **Fee confirmation** — 5/15/50 EUR unchanged for 3/10/50 sites (assumed).
