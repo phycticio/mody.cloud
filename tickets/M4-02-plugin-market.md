@@ -154,6 +154,7 @@ Every plugin installed through Composer appears on each member site's own Plugin
   - **Not new:** it already happens today for every admin.
   - **What changes:** members opening the screen make it more frequent.
   - **Rule 1:** it hasn't been checked against rule 1 or documented. Record it in architecture.md, Open questions, and decide separately.
+  - **Decided and built 2026-11-08** in [updates-through-composer-only.md](updates-through-composer-only.md): nobody updates from wp-admin, and core no longer checks on its own, so the Plugins screen never asks WordPress.org for updates.
 
 ## First design (built locally 2026-11-08, replaced the same day)
 - **What was built:**

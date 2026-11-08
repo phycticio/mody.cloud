@@ -293,6 +293,11 @@ Using them needs its own ticket; until then they stay off.
 
 Members keep everything else: content, media, users of their own site, settings, Spectra, Global Styles.
 
+**Updates only through the repository** (decided 2026-11-08, built the same day, [ticket](../tickets/updates-through-composer-only.md), test `scripts/updates-test.php`). Nobody updates WordPress, a plugin, a theme or a translation from wp-admin. Core changes with `./bin/version` and plugins in `app/composer.json`, and both reach production through `./bin/deploy`. `Gating\Updates` enforces this on every site and environment:
+- **Capabilities:** `update_core`, `update_plugins`, `update_themes` and `update_languages` are refused to every user, super admins included. That removes the Updates screen, update notices, update counts and auto-update controls, and refuses the update requests.
+- **No automatic checks:** core's own triggers of the WordPress.org update checks are removed (admin page loads, the Plugins, Themes and Updates screens, the cron events), and the cron events are unscheduled on each site's next request.
+- **Left alone:** code that calls the checks directly: Wordfence's scans and activity report (its outdated and vulnerable plugin warnings), Site Health → Info, and WP-CLI run by hand.
+
 **Built 2026-11-07** ([M4-01](../tickets/M4-01-editor-redirects-gating.md)): `Gating\MemberSite` refuses the plugin and theme capabilities (install, upload, activate, deactivate, resume, update, delete, edit; switch, install, upload, update, delete, edit themes) through `map_meta_cap`, on every site but the main one, to everyone but super admins (decided 2026-11-07). Since M4-02 (2026-11-08) activating and deactivating are allowed again for plugins members may see, and the planned `mody_manage_market` capability was dropped. The `ai` plugin's lock-down is [M4-03](../tickets/M4-03-ai-plugin-lockdown.md).
 
 **Acceptance criteria:** a member site admin cannot install, upload, update, delete or edit plugins or switch themes by any UI or REST path; the Plugins screen activates a visible plugin and never shows or switches a hidden one; the front end and editor are unaffected.
