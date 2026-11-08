@@ -189,13 +189,22 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # Code installed on the server outside Composer (for example from wp-admin)
-# is not in the build, so the sync would delete it. Refuse instead.
+# is not in the build, so the sync would delete it. Refuse instead. A folder
+# the deployed composer.lock installed is Composer's own: the build moved or
+# removed it (Spectra moved to mu-plugins, M3-11), so the sync may delete it.
+REMOTE_LOCK="$(remote "cat '${REMOTE_DIR}/app/composer.lock' 2>/dev/null" || true)"
 for DIR in app/web/plugins app/web/mu-plugins app/web/themes; do
   REMOTE_ENTRIES="$(remote "ls -1A '${REMOTE_DIR}/${DIR}' 2>/dev/null" || true)"
   EXTRA=""
   while IFS= read -r ENTRY; do
     case "$ENTRY" in '' | .*) continue ;; esac
-    [ -e "${DIR}/${ENTRY}" ] || EXTRA="${EXTRA} ${ENTRY}"
+    [ -e "${DIR}/${ENTRY}" ] && continue
+    ENTRY_RE="$(printf '%s' "$ENTRY" | sed 's/[][\.*^$()+?{}|]/\\&/g')"
+    if grep -Eq "\"name\": \"[^\"]+/${ENTRY_RE}\"" <<< "$REMOTE_LOCK"; then
+      log "INFO" "${DIR}/${ENTRY} on the server was installed by Composer and is no longer in the build: the sync removes it."
+      continue
+    fi
+    EXTRA="${EXTRA} ${ENTRY}"
   done <<< "$REMOTE_ENTRIES"
   if [ -n "$EXTRA" ]; then
     die "${DIR} on the server has entries the build does not:${EXTRA}. They were installed outside Composer and the sync would delete them. Add them to app/composer.json (or remove them on the server), then deploy again."

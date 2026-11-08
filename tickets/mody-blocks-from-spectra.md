@@ -1,6 +1,6 @@
 # Mody blocks: a clean block library cloned from Spectra
 
-**Milestone:** not assigned yet · **Spec:** documentation/mvp-spec.md §10, documentation/ai-engine.md ("Initial block whitelist"), AGENTS.md (JS build) · **Status:** todo (created 2026-11-06)
+**Milestone:** not assigned yet · **Spec:** documentation/mvp-spec.md §10, documentation/ai-engine.md ("Initial block whitelist"), AGENTS.md (JS build) · **Status:** **set aside** (2026-11-08). The maintainer chose to keep Spectra as the platform's block library, as a MU plugin, with the agent using every Spectra block ([M3-11](M3-11-spectra-mu-plugin-all-blocks.md)). Kept for reference, in case Spectra's vendor code ever outweighs the guard (created 2026-11-06)
 
 ## Goal
 Our own block library, `mody/*`, forked from Spectra's GPL source, with every vendor service taken out: no telemetry, no AI builder, no upsells, no Google Fonts or Maps, no ZipWP. When it covers the blocks we use, existing content moves from `spectra/*` to `mody/*`, and Spectra and `SpectraGuard` are removed.

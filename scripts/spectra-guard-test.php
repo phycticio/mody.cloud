@@ -25,6 +25,10 @@ $check( 'Spectra is active', $active, $active ? SPECTRA_BLOCKS_VER . ( '1.0.13' 
 if ( ! $active ) {
 	exit( 1 );
 }
+// A MU plugin since M3-11 (2026-11-08), loaded after mody-platform.php, so the guard is in place first.
+$check( 'Spectra is a MU plugin', Mody\Platform\Spectra\SpectraLoader::is_must_use() && ! is_plugin_active_for_network( 'spectra-blocks/spectra-blocks.php' ), SPECTRA_BLOCKS_FILE );
+$mu = array_keys( get_mu_plugins() );
+$check( '...loaded after mody-platform (the guard)', array_search( 'mody-platform.php', $mu, true ) < array_search( 'spectra-blocks.php', $mu, true ), implode( ', ', $mu ) );
 
 // Blocks.
 $registry = WP_Block_Type_Registry::get_instance();
