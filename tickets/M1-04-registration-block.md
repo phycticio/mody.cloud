@@ -1,6 +1,6 @@
 # M1-04 · The registration chat as a block you can style and place anywhere
 
-**Milestone:** M1 · **Builds on:** [M1-03](M1-03-chat-signup-and-editor-tour.md) (the chat signup) · **Spec:** documentation/mvp-spec.md §4, §6; documentation/theme-development.md (design tokens) · **Status:** planned and confirmed 2026-11-09. Part 0 done: M1-03 committed (`b46c427`) and merged into `main` (`6046d68`), not pushed.
+**Milestone:** M1 · **Builds on:** [M1-03](M1-03-chat-signup-and-editor-tour.md) (the chat signup) · **Spec:** documentation/mvp-spec.md §4, §6; documentation/theme-development.md (design tokens) · **Status:** planned and confirmed 2026-11-09. Part 0 done: M1-03 committed (`b46c427`), merged into `main` (`6046d68`) and deployed (`f6b7001`). Parts A and B done on 2026-11-09 (Results). Next: part C.
 
 ## Goal (maintainer, 2026-11-09)
 > The registration wizard should be a gutenberg block and it should have all the style editions possible from margin, padding, background-color, background image, background gradient, font size, button colors, font color, etc, all color pickers should show only the color palette colors including the custom colors created by the user. We then can create any link and insert the registration block and have it working everywhere. The other settings the block should have is the fields required and the mapping of the fields. These fields will be the questions asked to the user.
@@ -145,6 +145,53 @@ M1-03 built the chat as `mody/register`, but as a server-only block:
   - brand-profile.md (signup answers fill the brand);
   - this ticket's Results;
   - next-steps.md.
+
+## Results
+
+### Part A · Palette-only color pickers (2026-11-09)
+- **`theme.json`:** `color.custom` and `customGradient` are `false`, with four gradient presets built from the palette's variables. The table and rules are in [theme-development.md](../documentation/theme-development.md#design-tokens). No style variation defines gradients, so all six presets use the same four, in their own colors.
+- **Found in the browser: Spectra draws some pickers itself, whatever the settings say.** Spectra's color fields (38 of them) follow `color.custom`, but these do not:
+  - the Advanced Gradient's Color 1 and Color 2 (container, slider, slider-child) have a free picker above the palette. Switching it on also starts from Spectra's own two blues (`#06558a`, `#0063A1`) until the owner picks palette colors;
+  - five color lists have a custom color button: the container's shadow and border hover colors, the button's border hover and shadow colors, and the content block's text shadow color.
+- **`Design\PaletteOnly`** (new) adds one editor style, hooked to `enqueue_block_editor_assets`, that hides those free parts and keeps their palettes. The selectors leave core's palette editor alone, and core's shadow editor (Styles → Shadows), which has no palette, keeps its picker.
+- **Stale wording fixed:** the validator's gradient message to the model, `mody/update-styles`' gradient error, `PatternImport`'s comment and ai-engine.md (all said "the theme defines no gradients").
+- **Tests:**
+  - `scripts/style-variations-test.php`, new section 5: the settings, gradients made only of palette variables, no variation overriding them, the settings each site's editor gets, and the style;
+  - `scripts/spectra-guard-test.php`, two checks: Spectra's color fields still take the site's settings, and its own pickers are still where the style hides them.
+- **Browser check** (headless, phycticio, which has a custom palette color "Red"; a draft page with a paragraph, a group and a container):
+  - **core blocks:** the paragraph's and group's text, background and gradient pickers show the five theme colors plus Red, with no custom color button. Their gradient picker shows exactly the four presets, drawn in phycticio's own colors;
+  - **the container:** its color, text hover, background, background hover and divider fields are the same;
+  - **Spectra's own pickers, with the style:** Advanced BG's Color 1 shows only the palette, and the content block's text shadow has no custom color button. The test page was deleted.
+- **Quirks left as they are:**
+  - the text shadow list shows only the site's own colors when it has any (here only Red), not the theme's five; that list comes from Spectra;
+  - Spectra's starting blues stay until the owner picks palette colors.
+
+### Part B · The block and its styles (2026-11-09)
+- **`blocks/register/block.json`** (API version 3, in the MU plugin): the supports listed in part B. The color, background, spacing, typography and border controls are shown by default, as on core's group block. Background gradients use WordPress 7.1's `background.gradient`, as the group does. An empty `example`, so the inserter shows the preview.
+- **`Registration::register_block()`** registers it from block.json, with two handles:
+  - `mody-register`: `register.css`, on the front end and in the editor's canvas;
+  - `mody-register-block`: `register-block.js`, with its words in `window.modyRegisterBlock`.
+- **The main site only:** a `block_type_metadata` filter puts the block in the inserter on the main site only. It stays registered everywhere, so a copy elsewhere still shows its notice in the editor and renders nothing.
+- **`render()`** wraps each of its four outputs in `get_block_wrapper_attributes()`: the chat, done, logged in, and closed. So classes, inline styles, the anchor, alignment and the button colors' `wp-elements-*` class all apply. WordPress does not turn two things into CSS for this block, so the wrapper sets them as variables:
+  - **the block spacing**, as `--mody-register-gap`. WordPress applies `blockGap` only to blocks with a layout;
+  - **the visitor's message colors**, as `--mody-register-you-background` and `-text`: the block's button colors, or else the site's (`wp_get_global_styles()`).
+  - Values pass through `css_value()`, which turns `var:preset|…` into CSS. A value that could end the declaration or load a URL is dropped.
+- **`register.css` inherits** (choice 6):
+  - text, inputs and secondary buttons take the block's text color;
+  - Mody's messages are an 8% tint of it (`color-mix()`);
+  - the visitor's messages use the button colors;
+  - **Send** and **Create my site** are WordPress buttons.
+  - No color is set otherwise. Errors are shown in bold with a bar in the text color, not in the accent color, which may not read on the block's background.
+  - Aligned wide or full, the chat stays at the content width, centered.
+- **`register-block.js`** (choice 7): a still preview in `useBlockProps()`. It shows Mody's intro and first question, a sample answer (Lina), the next question, and the input with Send. It uses the same classes and the same two variables as the front end. On a member site it shows "works only on the main site". While registration is closed, the block's settings say visitors see "Registration opens soon."
+- **Tests:** `scripts/registration-test.php`'s block checks were rewritten. They check the block is registered from block.json with its two handles, has 18 of the supports, and is in the inserter on the main site only, rendering nothing elsewhere. A styled block puts its classes, anchor, padding, radius, font size, gap and visitor colors on the wrapper. A block spacing that tries to inject CSS is dropped. All checks pass.
+- **Browser check** (headless). The test page held a full-width block with a contrast background, base text, accent buttons, 16px corners and a block spacing:
+  - **front end at 1440 px:** the chat is 720 px wide and centered on the full-width background. Mody's messages are a light tint, the visitor's message and **Send** are accent, and the page doesn't scroll sideways. An answer went through the chat's check route;
+  - **front end at 390 px:** the same, with the input above **Send**;
+  - **editor:** the preview shows the same colors. Changing the background to the `base-to-soft-primary` gradient, the text to contrast, the font size to L, the buttons to primary, the corners to 0 and the block spacing showed at once;
+  - **inserter:** on the main site the block is insertable. On alpha it is registered but not in the inserter, and a search for "regist" finds nothing;
+  - no script errors. The test page was deleted.
+- **Found, not changed: the theme's spacing sizes are ignored on every site.** `theme.json` defines `20` to `80` (0.5 to 8 rem) but leaves `defaultSpacingSizes` on, so WordPress drops them for its own sizes with the same slugs (0.44 to 5.06 rem; checked on mody.local, alpha and phycticio). theme-development.md, and the agent's `mody/update-styles`, which reads the theme's file, assume the theme's values. Setting `defaultSpacingSizes: false` would fix it, but every site's spacing would change (`60` from 2.25 to 4 rem, `80` from 5.06 to 8 rem). That is the maintainer's call.
 
 ## Not in this ticket
 - **The block on member sites** (decision 1): a member's own signup page would create platform accounts, and needs rules and abuse limits first.

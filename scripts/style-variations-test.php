@@ -15,10 +15,14 @@
  *    REST routes see it as that variation; a color change afterwards makes it
  *    custom; the default empties the Global Styles.
  * 4. The heading rule in style.css (headings take their group's text color).
+ * 5. Palette only (M1-04 part A): no free color or gradient picker, gradient
+ *    presets built from the palette, no style changes that, every site's
+ *    editor gets it, and the style that hides Spectra's own free pickers.
  *
  * The member site's Global Styles and their revisions are restored. No model call.
  */
 
+use Mody\Platform\Design\PaletteOnly;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 
@@ -142,5 +146,41 @@ if ( ! $others ) {
 echo "\nTheme CSS\n";
 $css = (string) file_get_contents( $dir . '/style.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 $check( 'headings take their group\'s text color', (bool) preg_match( '/\.has-text-color\s+:is\(h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\)\s*\{\s*color:\s*inherit;/', $css ) );
+
+// 5. Palette only (M1-04 part A) -------------------------------------------------------------
+
+echo "\nPalette only\n";
+$theme = json_decode( (string) file_get_contents( $dir . '/theme.json' ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+$color = $theme['settings']['color'] ?? array();
+$check( 'theme.json: no free color or gradient picker', false === ( $color['custom'] ?? null ) && false === ( $color['customGradient'] ?? null ) && false === ( $color['defaultPalette'] ?? null ) && false === ( $color['defaultGradients'] ?? null ) );
+$gradients = array_column( (array) ( $color['gradients'] ?? array() ), 'gradient', 'slug' );
+$loose     = array();
+foreach ( $gradients as $slug => $gradient ) {
+	$rest = preg_replace( '/var\(--wp--preset--color--(?:' . implode( '|', array_column( (array) ( $color['palette'] ?? array() ), 'slug' ) ) . ')\)/', '', (string) $gradient );
+	if ( ! str_contains( (string) $gradient, 'var(--wp--preset--color--' ) || preg_match( '/#|\brgba?\(|\bhsla?\(|var\(/i', (string) $rest ) ) {
+		$loose[] = $slug;
+	}
+}
+$check( 'gradient presets built from the palette only', count( $gradients ) >= 4 && ! $loose, $loose ? 'loose: ' . implode( ', ', $loose ) : implode( ', ', array_keys( $gradients ) ) );
+$overrides = array();
+foreach ( $files as $file ) {
+	$data = json_decode( (string) file_get_contents( $file ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	if ( array_intersect_key( (array) ( $data['settings']['color'] ?? array() ), array_flip( array( 'custom', 'customGradient', 'gradients' ) ) ) ) {
+		$overrides[] = basename( $file );
+	}
+}
+$check( '...no style changes that (they follow each palette)', ! $overrides, implode( ', ', $overrides ) );
+foreach ( array_filter( array( get_main_site_id(), $others[0] ?? 0 ) ) as $site ) {
+	switch_to_blog( (int) $site );
+	wp_clean_theme_json_cache();
+	$settings  = wp_get_global_settings( array( 'color' ) );
+	$variables = wp_get_global_stylesheet( array( 'variables' ) );
+	$missing   = array_filter( array_keys( $gradients ), static fn( $slug ) => ! str_contains( $variables, '--wp--preset--gradient--' . $slug . ': ' . $gradients[ $slug ] ) );
+	$check( "site $site: the editor gets palette-only settings", false === $settings['custom'] && false === $settings['customGradient'] && array_keys( $gradients ) === array_column( $settings['gradients']['theme'] ?? array(), 'slug' ) && ! $missing, $missing ? 'no variable: ' . implode( ', ', $missing ) : '' );
+	restore_current_blog();
+}
+$check( 'editors: the style for Spectra\'s own pickers is hooked', false !== has_action( 'enqueue_block_editor_assets', array( PaletteOnly::class, 'enqueue' ) ) );
+PaletteOnly::enqueue();
+$check( '...and holds both rules', wp_style_is( PaletteOnly::HANDLE ) && str_contains( implode( '', (array) wp_styles()->get_data( PaletteOnly::HANDLE, 'after' ) ), '.block-editor-color-gradient-control__panel > .components-color-picker' ) && str_contains( PaletteOnly::CSS, '.components-color-palette__custom-color-wrapper:not(.global-styles-ui__shadow-editor-panel *)' ) );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

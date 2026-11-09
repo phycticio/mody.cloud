@@ -26,10 +26,16 @@ defined( 'ABSPATH' ) || exit;
  * the site exist, and an email holds the link to choose a password.
  *
  * Decided by the maintainer on 2026-11-08:
- * - **The page** holds the dynamic block `mody/register`, rendered by PHP
- *   (`supports.autoRegister`, so the editor shows it through
- *   ServerSideRender). The theme stays free of platform logic. The block
- *   renders only on the main site and is hidden from the inserter.
+ * - **The page** holds the dynamic block `mody/register`, rendered by PHP.
+ *   The theme stays free of platform logic.
+ * - **A block to place anywhere on the main site** (M1-04, 2026-11-09):
+ *   `blocks/register/block.json` gives it every style WordPress offers a
+ *   block (colors, button colors, background image and gradient, spacing,
+ *   typography, border, shadow, alignment). render() wraps the chat in the
+ *   block's wrapper attributes, so they apply on the front end, and
+ *   `assets/register.css` makes the chat inherit them. The editor shows a
+ *   still preview (`assets/register-block.js`). The block is in the inserter
+ *   on the main site only, and renders nothing elsewhere.
  * - **No WordPress role:** the `mody_members` row is the membership. The new
  *   user has no role on the main site and is `administrator` of their sites.
  * - **A chat, and a trial without a card** (M1-03): name, email, the
@@ -114,28 +120,36 @@ final class Registration {
 		return '.' . preg_replace( '|^www\.|', '', get_network()->domain );
 	}
 
+	/** The front end's style and script, and the editor's script. */
+	public const STYLE  = 'mody-register';
+	public const SCRIPT = 'mody-register';
+	public const EDITOR = 'mody-register-block';
+
 	/**
-	 * `init`: registers the block.
+	 * `init`: registers the block from its block.json, with its style (front
+	 * end and editor) and the editor's preview script.
 	 */
 	public static function register_block(): void {
-		register_block_type(
-			self::BLOCK,
-			array(
-				'api_version'     => 3,
-				'title'           => __( 'Mody registration', 'mody_cloud' ),
-				'description'     => __( 'The chat that creates a member account and its first site. It works only on the main site.', 'mody_cloud' ),
-				'category'        => 'widgets',
-				'icon'            => 'id',
-				'supports'        => array(
-					'autoRegister' => true,
-					'html'         => false,
-					'inserter'     => false,
-					'multiple'     => false,
-					'reusable'     => false,
-				),
-				'render_callback' => array( self::class, 'render' ),
-			)
-		);
+		$root = dirname( __DIR__, 2 );
+		wp_register_style( self::STYLE, self::asset_url( 'register.css' ), array(), self::asset_version( 'register.css' ) );
+		wp_register_script( self::EDITOR, self::asset_url( 'register-block.js' ), array( 'wp-blocks', 'wp-block-editor', 'wp-components', 'wp-data', 'wp-element', 'wp-i18n' ), self::asset_version( 'register-block.js' ), true );
+		wp_add_inline_script( self::EDITOR, 'window.modyRegisterBlock = ' . wp_json_encode( self::preview_settings() ) . ';', 'before' );
+		add_filter( 'block_type_metadata', array( self::class, 'block_metadata' ) );
+		register_block_type( $root . '/blocks/register', array( 'render_callback' => array( self::class, 'render' ) ) );
+	}
+
+	/**
+	 * `block_type_metadata`: the block is in the inserter on the main site only
+	 * (decided by the maintainer on 2026-11-09).
+	 *
+	 * @param array<string, mixed> $metadata A block's block.json.
+	 * @return array<string, mixed>
+	 */
+	public static function block_metadata( array $metadata ): array {
+		if ( self::BLOCK === ( $metadata['name'] ?? '' ) ) {
+			$metadata['supports']['inserter'] = is_main_site();
+		}
+		return $metadata;
 	}
 
 	/**
@@ -546,26 +560,30 @@ final class Registration {
 
 	/**
 	 * The block: the chat (the form, which register.js turns into one), or
-	 * why there is none.
+	 * why there is none. Every output is one element with the block's wrapper
+	 * attributes, so its styles apply (M1-04).
+	 *
+	 * @param array<string, mixed> $attributes The block's attributes.
 	 */
-	public static function render(): string {
+	public static function render( array $attributes = array() ): string {
 		if ( ! is_main_site() ) {
 			return '';
 		}
-		$root    = dirname( __DIR__, 2 );
-		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
-		wp_enqueue_style( 'mody-register', plugins_url( 'assets/register.css', $root . '/mody-platform.php' ), array(), $version( 'register.css' ) );
+		wp_enqueue_style( self::STYLE ); // WordPress does it for a block; render() is also called directly.
+		$wrapper = self::wrapper_attributes( $attributes );
 
 		if ( self::$created ) {
 			return sprintf(
-				'<div class="mody-register"><p role="status">%s</p><p class="mody-register__note">%s</p></div>',
+				'<div %s><p role="status">%s</p><p class="mody-register__note">%s</p></div>',
+				$wrapper,
 				esc_html( self::done_message( self::$created['email'], self::$created['address'] ) ),
 				esc_html__( 'Cannot find it? Look in your spam folder.', 'mody_cloud' )
 			);
 		}
 		if ( is_user_logged_in() ) {
 			return sprintf(
-				'<div class="mody-register"><p>%s</p><p><a class="wp-element-button" href="%s">%s</a></p></div>',
+				'<div %s><p>%s</p><p><a class="wp-element-button" href="%s">%s</a></p></div>',
+				$wrapper,
 				esc_html__( 'You already have an account.', 'mody_cloud' ),
 				esc_url( self::dashboard_url() ),
 				esc_html__( 'Go to your dashboard', 'mody_cloud' )
@@ -573,11 +591,11 @@ final class Registration {
 		}
 		if ( ! self::is_open() ) {
 			// A form posted while closed says so; otherwise, when it opens.
-			return '<div class="mody-register"><p role="status">' . esc_html( self::$errors['form'] ?? __( 'Registration opens soon.', 'mody_cloud' ) ) . '</p></div>';
+			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? __( 'Registration opens soon.', 'mody_cloud' ) ) . '</p></div>';
 		}
 
-		wp_enqueue_script( 'mody-register', plugins_url( 'assets/register.js', $root . '/mody-platform.php' ), array(), $version( 'register.js' ), true );
-		wp_add_inline_script( 'mody-register', 'window.modyRegister = ' . wp_json_encode( self::chat_settings() ) . ';', 'before' );
+		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), array(), self::asset_version( 'register.js' ), true );
+		wp_add_inline_script( self::SCRIPT, 'window.modyRegister = ' . wp_json_encode( self::chat_settings() ) . ';', 'before' );
 
 		$value = static fn( string $key ): string => self::$values[ $key ] ?? '';
 		$error = static fn( string $key ): string => isset( self::$errors[ $key ] )
@@ -587,7 +605,7 @@ final class Registration {
 
 		ob_start();
 		?>
-		<div class="mody-register">
+		<div <?php echo $wrapper; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by WordPress and wrapper_attributes(). ?>>
 			<div class="mody-register__chat" id="mody-register-chat" hidden></div>
 			<form class="mody-register__form" id="mody-register-form" method="post" action="<?php echo esc_url( (string) get_permalink() ); ?>" novalidate>
 				<p class="mody-register__intro"><?php echo esc_html( self::intro() ); ?></p>
@@ -623,6 +641,105 @@ final class Registration {
 		</div>
 		<?php
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * The wrapper's attributes: the block's own (classes and styles from its
+	 * supports, its anchor), plus the class the chat's style needs and the
+	 * two things WordPress does not turn into CSS for this block:
+	 * - `--mody-register-gap`: the block spacing (WordPress applies it only to
+	 *   blocks with a layout);
+	 * - `--mody-register-you-background` and `-text`: the visitor's messages
+	 *   take the button colors, the block's own or else the site's.
+	 * Outside a block render (render() called directly), the class alone.
+	 *
+	 * @param array<string, mixed> $attributes The block's attributes.
+	 */
+	private static function wrapper_attributes( array $attributes ): string {
+		$vars = array();
+		$gap  = $attributes['style']['spacing']['blockGap'] ?? null;
+		$gap  = is_array( $gap ) ? ( $gap['top'] ?? null ) : $gap;
+		if ( is_string( $gap ) ) {
+			$vars['--mody-register-gap'] = self::css_value( $gap );
+		}
+		$own    = (array) ( $attributes['style']['elements']['button']['color'] ?? array() );
+		$site   = (array) wp_get_global_styles( array( 'elements', 'button', 'color' ) );
+		$colors = ( isset( $own['background'] ) || isset( $own['gradient'] ) ) ? $own : $site;
+		$vars['--mody-register-you-background'] = self::css_value( (string) ( $colors['gradient'] ?? $colors['background'] ?? '' ) );
+		$vars['--mody-register-you-text']       = self::css_value( (string) ( $own['text'] ?? $site['text'] ?? '' ) );
+
+		$style = '';
+		foreach ( array_filter( $vars ) as $name => $value ) {
+			$style .= $name . ':' . $value . ';';
+		}
+		$extra = array( 'class' => 'mody-register' );
+		if ( '' !== $style ) {
+			$extra['style'] = $style;
+		}
+		$wrapper = get_block_wrapper_attributes( $extra );
+		if ( '' === $wrapper ) {
+			$wrapper = 'class="mody-register"' . ( '' !== $style ? ' style="' . esc_attr( $style ) . '"' : '' );
+		}
+		return $wrapper;
+	}
+
+	/**
+	 * A style value as CSS: `var:preset|color|accent` becomes
+	 * `var(--wp--preset--color--accent)`. Anything that could end the
+	 * declaration, or load a file, gives ''.
+	 *
+	 * @param string $value A value from the block's attributes or the site's styles.
+	 */
+	private static function css_value( string $value ): string {
+		$value = trim( (string) preg_replace( '/^var:preset\|([a-z0-9-]+)\|([a-z0-9-]+)$/i', 'var(--wp--preset--$1--$2)', trim( $value ) ) );
+		if ( '' === $value || ! preg_match( '/^[\w\s#%(),.+\-\/]+$/', $value ) || preg_match( '/url\s*\(|expression/i', $value ) ) {
+			return '';
+		}
+		return $value;
+	}
+
+	/**
+	 * The URL of a file in assets/.
+	 *
+	 * @param string $file A file name.
+	 */
+	private static function asset_url( string $file ): string {
+		return plugins_url( 'assets/' . $file, dirname( __DIR__, 2 ) . '/mody-platform.php' );
+	}
+
+	/**
+	 * A file's version: when it last changed.
+	 *
+	 * @param string $file A file name in assets/.
+	 */
+	private static function asset_version( string $file ): string {
+		return (string) filemtime( dirname( __DIR__, 2 ) . '/assets/' . $file );
+	}
+
+	/**
+	 * What the editor's preview says (register-block.js): the chat's first
+	 * lines, a sample answer, and where the block works.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function preview_settings(): array {
+		return array(
+			'isMainSite' => is_main_site(),
+			'isOpen'     => self::is_open(),
+			'strings'    => array(
+				'intro'       => self::intro(),
+				'mody'        => __( 'Mody', 'mody_cloud' ),
+				'you'         => __( 'You', 'mody_cloud' ),
+				'askName'     => __( 'What\'s your name?', 'mody_cloud' ),
+				'sampleName'  => __( 'Lina', 'mody_cloud' ),
+				/* translators: %s: the visitor's name. */
+				'askEmail'    => __( 'Nice to meet you, %s! What\'s your email address? I\'ll send your login link there.', 'mody_cloud' ),
+				'placeholder' => __( 'you@example.com', 'mody_cloud' ),
+				'send'        => __( 'Send', 'mody_cloud' ),
+				'notMain'     => __( 'The registration chat works only on the main site. Here it shows nothing.', 'mody_cloud' ),
+				'closed'      => __( 'Registration is closed, so visitors see "Registration opens soon." instead of the chat.', 'mody_cloud' ),
+			),
+		);
 	}
 
 	/**

@@ -1,13 +1,33 @@
 /*
- * The registration chat and its form on the main site (Members\Registration,
- * M1-01 part 2, M1-03). Colors and spacing come from the theme's presets; no
- * loose values.
+ * The registration chat and its form: the block mody/register (Members\Registration,
+ * M1-01 part 2, M1-03, M1-04). Loaded on the front end and in the editor's canvas.
+ *
+ * The chat inherits the block's styles (M1-04): text and links take the block's
+ * colors, buttons are WordPress buttons (.wp-element-button, the block's button
+ * colors or the site's), and fonts and sizes come from the block. No color is
+ * set here except through those. Two values come from the wrapper's style
+ * (Registration::wrapper_attributes()):
+ * - --mody-register-gap: the block spacing;
+ * - --mody-register-you-background and -text: the visitor's messages, in the
+ *   button colors. The fallbacks are the theme's button colors.
  */
 
 .mody-register {
+	box-sizing: border-box;
 	display: grid;
-	gap: var(--wp--preset--spacing--40, 1.5rem);
-	max-width: 40rem;
+	gap: var(--mody-register-gap, var(--wp--preset--spacing--40, 1.5rem));
+}
+
+/* Aligned wide or full, the chat stays at the content's width, centered. */
+.mody-register > * {
+	box-sizing: border-box;
+	margin-inline: auto;
+	max-width: var(--wp--style--global--content-size, 45rem);
+	width: 100%;
+}
+
+.mody-register p {
+	margin-block: 0;
 }
 
 .mody-register .screen-reader-text {
@@ -26,7 +46,7 @@
 
 .mody-register__form {
 	display: grid;
-	gap: var(--wp--preset--spacing--30, 1rem);
+	gap: var(--mody-register-gap, var(--wp--preset--spacing--30, 1rem));
 }
 
 .mody-register__form[hidden],
@@ -39,7 +59,6 @@
 .mody-register__field {
 	display: grid;
 	gap: 0.35rem;
-	margin: 0;
 }
 
 .mody-register label {
@@ -48,11 +67,20 @@
 
 .mody-register input[type="text"],
 .mody-register input[type="email"] {
+	background: color-mix(in srgb, currentColor 4%, transparent);
 	border: 1px solid currentColor;
 	border-radius: 4px;
+	color: inherit;
 	font: inherit;
+	letter-spacing: inherit;
 	min-width: 0;
 	padding: 0.6rem 0.75rem;
+	text-transform: none;
+}
+
+.mody-register input::placeholder {
+	color: inherit;
+	opacity: 0.6;
 }
 
 .mody-register__address {
@@ -65,37 +93,31 @@
 	flex: 1;
 }
 
-.mody-register__intro,
 .mody-register__hint,
 .mody-register__note {
-	margin: 0;
-}
-
-.mody-register__hint,
-.mody-register__note {
-	font-size: var(--wp--preset--font-size--small, 0.875rem);
+	font-size: 0.875em;
 }
 
 .mody-register__error {
-	color: var(--wp--preset--color--accent);
 	font-weight: 600;
-	margin: 0;
+	padding-left: 0.6rem;
+	border-left: 3px solid currentColor;
 }
 
 /* The chat. */
 
 .mody-register__chat {
-	border: 1px solid currentColor;
+	border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
 	border-radius: 12px;
 	display: grid;
-	gap: var(--wp--preset--spacing--30, 1rem);
+	gap: var(--mody-register-gap, var(--wp--preset--spacing--30, 1rem));
 	padding: var(--wp--preset--spacing--30, 1rem);
 }
 
 .mody-register__log {
 	display: flex;
 	flex-direction: column;
-	gap: 0.75rem;
+	gap: var(--mody-register-gap, 0.75rem);
 	max-height: min(32rem, 65vh);
 	min-height: 16rem;
 	overflow-y: auto;
@@ -108,24 +130,24 @@
 	padding: 0.6rem 0.85rem;
 }
 
+/* Mody: a light tint of the block's text color. */
 .mody-register__message--mody {
 	align-self: flex-start;
-	background: var(--wp--preset--color--base);
-	border: 1px solid var(--wp--preset--color--primary);
+	background: color-mix(in srgb, currentColor 8%, transparent);
 	border-bottom-left-radius: 2px;
-	color: var(--wp--preset--color--contrast);
 }
 
+/* The visitor: the button colors. */
 .mody-register__message--you {
 	align-self: flex-end;
-	background: var(--wp--preset--color--primary);
+	background: var(--mody-register-you-background, var(--wp--preset--color--primary));
 	border-bottom-right-radius: 2px;
-	color: var(--wp--preset--color--base);
+	color: var(--mody-register-you-text, var(--wp--preset--color--base));
 }
 
 .mody-register__message.is-error {
-	border-color: var(--wp--preset--color--accent);
-	border-width: 2px;
+	box-shadow: inset 3px 0 0 currentColor;
+	font-weight: 600;
 }
 
 .mody-register__message.is-pending .mody-register__text,
@@ -135,13 +157,12 @@
 
 .mody-register__who {
 	display: block;
-	font-size: var(--wp--preset--font-size--small, 0.875rem);
+	font-size: 0.875em;
 	font-weight: 600;
 	margin-bottom: 0.15rem;
 }
 
 .mody-register__text {
-	margin: 0;
 	overflow-wrap: anywhere;
 }
 
@@ -174,20 +195,22 @@
 	gap: 0.5rem;
 }
 
+/* The secondary choices: outlined in the text color. */
 .mody-register__choice {
-	background: var(--wp--preset--color--base);
-	border: 1px solid var(--wp--preset--color--primary);
+	background: transparent;
+	border: 1px solid currentColor;
 	border-radius: 999px;
-	color: var(--wp--preset--color--primary);
+	color: inherit;
 	cursor: pointer;
 	font: inherit;
+	letter-spacing: inherit;
 	padding: 0.5rem 1rem;
+	text-transform: inherit;
 }
 
 .mody-register__choice:hover,
 .mody-register__choice:focus-visible {
-	background: var(--wp--preset--color--primary);
-	color: var(--wp--preset--color--base);
+	background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .mody-register__composer {

@@ -630,7 +630,7 @@ Runs in PHP, in the MU plugin, before anything is saved. Implemented in `Mody\Pl
    - color properties in inline styles that do not use `var(--wp--preset--color--<slug>)`;
    - attributes whose name contains `Color` (`textColor`, Spectra's `backgroundColorHover`, `iconColor`…), `var:preset|color|…` references and `has-<slug>-color` classes that name an unknown slug;
    - colors in core's `style` attribute (`style.color.text`, `style.color.background`, `style.border.color`, a side's border color), which must be palette presets (`var:preset|color|<slug>`), `transparent`, `inherit` or `currentcolor` (2026-11-09);
-   - gradients (`gradient`, `*Gradient*` attributes): the theme defines none (2026-11-09).
+   - gradients (`gradient`, `*Gradient*` attributes): generated pages use none (2026-11-09). The theme's gradient presets (M1-04) are for people in the editor.
 5. Reject media from outside the network: `src`, `srcset` and CSS `url()` in the HTML, and the `url` attribute of image and cover blocks, must point to this site or a subdomain of the network (rule 1). Links may point anywhere but to `javascript:`, `data:` or `vbscript:` addresses, both `href` in the HTML and the `linkURL`, `linkUrl` and `href` attributes (2026-11-09).
 6. Layout (2026-11-07, [Layout](#layout-spectra-containers)): in a new page (no original, not a template), group, columns and column are refused, and every container uses only the recipe's attributes, with spacing from the theme's spacing presets.
 7. Blocks in their place, and Spectra's attributes (2026-11-09, [M3-11](../tickets/M3-11-spectra-mu-plugin-all-blocks.md) part 2):
