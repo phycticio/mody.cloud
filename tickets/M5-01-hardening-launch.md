@@ -12,7 +12,7 @@ The platform is launch-ready for 100 founding members: member sites reachable in
 
 ## Deliverables
 - **[M5-02](M5-02-production-member-sites.md):** member sites in production (wildcard DNS and certificate, the proxy host), `home` without `/wp`, and real mail through an EU SMTP relay.
-- **The production host** (architecture.md, Open questions): stay on the laptop with the USB disk, or move to a European VPS (Hetzner, Infomaniak) before launch. Replacing Cloudflare depends on it.
+- **The production host** (architecture.md, Open questions): stay on the laptop (on its internal disk since 2026-11-09, after the USB disk failed twice), or move to a European VPS (Hetzner, Infomaniak) before launch. Replacing Cloudflare depends on it.
 - **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule, which does not exist yet.
 - **WP-Cron on subsites** (architecture.md, Open questions), if M1 has not settled it already.
 - **Security pass** over M1 to M4:

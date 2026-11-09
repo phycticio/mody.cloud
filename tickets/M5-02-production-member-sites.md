@@ -55,4 +55,4 @@ Add `*.mody.cloud` to proxy host 18, or create a second host with the same forwa
 
 ## Still open after this ticket
 - **WP-Cron on subsites** (architecture.md, Open questions): production's network alias covers only `mody.cloud`, so subsites' loopback requests fail there too.
-- **The production host** (laptop and USB disk, or a European VPS) and the backup drill: [M5-01](M5-01-hardening-launch.md).
+- **The production host** (the laptop, or a European VPS) and the backup drill: [M5-01](M5-01-hardening-launch.md).

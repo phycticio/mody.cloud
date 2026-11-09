@@ -2,7 +2,7 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-09, after M3-11 part 3 (the agent writes accordions and tabs).
+**Last updated:** 2026-11-09, after M3-11 parts 2 and 3 were deployed, and production moved off the USB disk.
 
 ## Waiting on the maintainer
 - **The SMTP relay** ([M5-02](M5-02-production-member-sites.md), step 6). The answer on 2026-11-08 was cut off ("SMTP relay: Let"). I build the mail hook once the relay is named.
@@ -18,12 +18,11 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
   - M4-02 part A1: the Plugins screen as `member`;
   - the agent chat colors;
   - the network admin screens with no Updates entry.
-- **The production disk** ([architecture.md](../documentation/architecture.md#open-questions), Production host). The USB disk threw I/O errors for about an hour on 2026-11-08, and the site was down. Copy the server-only files somewhere safe (`app/web/uploads/`, `.env`, `compose.prod.yml`, `app/auth.json`). The database is in Colima's volume, not on the disk.
 - **Docker Desktop's uninstall** ([move-local-docker-to-colima.md](move-local-docker-to-colima.md), part F).
 
 ## Queue
 1. **[M3-10](M3-10-agent-edits-global-styles.md): the agent edits every part of the site's styles.** Parts A and B are built (2026-11-08): `mody/update-styles`, the guarded patch, which the agent now uses for any style. Parts A and B are deployed (`8b67ce9`). Next is part C: `mody/undo-styles`, the editor check and the docs.
-2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed. Part 2 (the validator accepts every Spectra block but the popup builder) is merged and pushed (`ab49412`); its deploy waits for the production disk. Part 3 (accordion and tabs) is built (2026-11-09). Next is part 4: buttons, icons, list, separator and content.
+2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed. Part 2 (the validator accepts every Spectra block but the popup builder) and part 3 (accordion and tabs) are built and deployed (2026-11-09). Next is part 4: buttons, icons, list, separator and content.
 3. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
 4. **[M1-01](M1-01-registration-trial-billing.md) part 3: Mollie card verification and webhook.** It needs the test keys.
 5. **[M5-02](M5-02-production-member-sites.md) step 6: SMTP in production.** It needs the relay.
