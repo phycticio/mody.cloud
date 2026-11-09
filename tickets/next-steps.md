@@ -5,7 +5,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 **Last updated:** 2026-11-09, after M3-11 parts 2 and 3 were deployed, and production moved off the USB disk.
 
 ## Waiting on the maintainer
-- **The SMTP relay** ([M5-02](M5-02-production-member-sites.md), step 6). The answer on 2026-11-08 was cut off ("SMTP relay: Let"). I build the mail hook once the relay is named.
+- **Production mail: Brevo** ([M5-02](M5-02-production-member-sites.md), step 6). Built on 2026-11-09: WP Mail SMTP with Brevo's API, set only by constants. It works after a deploy and the server steps in M5-02 step 6: a sending domain and an API key in Brevo, the `BREVO_*` lines in the server's `.env`, the `compose.prod.yml` block, and network activation.
 - **The browser check of [M3-09](M3-09-agent-navigates-site-editor.md)** (built 2026-11-08, deployed in `6819b67` before this check, by the maintainer's choice): the steps in its Results, plus "create a page", where the new draft opens.
 - **Inputs for M1:**
   - the Mollie test keys in `.env` (M1-01 part 3);
@@ -25,7 +25,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed. Part 2 (the validator accepts every Spectra block but the popup builder) and part 3 (accordion and tabs) are built and deployed (2026-11-09). Next is part 4: buttons, icons, list, separator and content.
 3. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
 4. **[M1-01](M1-01-registration-trial-billing.md) part 3: Mollie card verification and webhook.** It needs the test keys.
-5. **[M5-02](M5-02-production-member-sites.md) step 6: SMTP in production.** It needs the relay.
+5. **[M5-02](M5-02-production-member-sites.md) step 6: mail in production.** Built on 2026-11-09 (Brevo). It waits for the deploy and the server steps above.
 6. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
 7. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**
 

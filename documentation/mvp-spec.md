@@ -423,7 +423,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 ## 16. Open questions (remaining)
 
 1. **Mollie account** — test-mode keys available? (Needed at M1 start.)
-2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5.
+2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5. **Answered on 2026-11-09, for now:** Brevo's API through WP Mail SMTP, a temporary exception to rule 1 ([architecture.md](architecture.md#temporary-exceptions-to-rule-1)). An EU relay replaces it later.
 3. **Upstream wildcard TLS** — confirm the production front end can terminate a wildcard cert for `*.mody.cloud` (infra task, M5).
 4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
 5. ~~**Final market membership** — beyond Redirection.~~ Decided 2026-11-08: **no plugin for now.** Redirection was dropped; any plugin added later through Composer (after a rule 1 check) and deployed appears on members' Plugins screens unless a super admin hides it. Spectra is network-active, not a market plugin (decision 14).
