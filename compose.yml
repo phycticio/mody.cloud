@@ -87,7 +87,6 @@ services:
         define( 'WP_DEBUG_DISPLAY', ${WORDPRESS_DEBUG_DISPLAY:-0} );
         define( 'FORCE_SSL_ADMIN', ${WORDPRESS_FORCE_SSL_ADMIN:-true} );
         define( 'DISALLOW_FILE_EDIT', ${WORDPRESS_DISALLOW_FILE_EDIT:-true} );
-        define( 'WPMS_ON', ${WORDPRESS_SMTP_ON:-true} );
         define( 'AUTOMATIC_UPDATER_DISABLED', ${WORDPRESS_AUTOMATIC_UPDATER_DISABLED:-false} );
         define( 'DISALLOW_FILE_MODS', ${WORDPRESS_DISALLOW_FILE_MODS:-false} );
         define( 'CONCATENATE_SCRIPTS', ${WORDPRESS_CONCATENATE_SCRIPTS:-true} );

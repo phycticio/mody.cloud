@@ -54,6 +54,19 @@ services:
   wordpress:
     # Don't publish Xdebug's port to the host in production.
     ports: !reset []
+    # Production mail: Brevo's API through WP Mail SMTP (decided by the
+    # maintainer on 2026-11-09). These replace the local SMTP settings that
+    # .env passes in (Mailpit), and app/wp-config.php turns them into WP Mail
+    # SMTP's constants, which its settings screen cannot change. The values
+    # come from the BREVO_* lines of the server's .env; without the API key or
+    # the sender, Compose refuses to start the stack.
+    environment:
+      WORDPRESS_SMTP_ON: "true"
+      WORDPRESS_SMTP_MAILER: "sendinblue"
+      WORDPRESS_SMTP_BREVO_API_KEY: "${BREVO_API_KEY:?Set BREVO_API_KEY in .env (Brevo, SMTP & API, API keys)}"
+      WORDPRESS_SMTP_BREVO_DOMAIN: "${BREVO_SENDING_DOMAIN:-mody.cloud}"
+      WORDPRESS_SMTP_FROM: "${BREVO_FROM_EMAIL:?Set BREVO_FROM_EMAIL in .env (a sender verified in Brevo)}"
+      WORDPRESS_SMTP_FROM_NAME: "${BREVO_FROM_NAME:-Mody Cloud}"
 
   database:
     # Don't publish MariaDB to the host in production.

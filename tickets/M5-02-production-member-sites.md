@@ -44,9 +44,15 @@ Add `*.mody.cloud` to proxy host 18, or create a second host with the same forwa
 3. List the stored links that still carry the old form: `wp db search 'mody.cloud/wp/' --all-tables`. Change only page and navigation links (`wp search-replace` with `--dry-run` first). Leave `/wp/wp-admin`, `/wp/wp-includes` and the `siteurl` option alone.
 4. New sites then get `siteurl` with `/wp`, like the local ones (`Pipeline::urls()` copies the main site's form). `phycticio` keeps its current URLs; nginx serves both forms.
 
-### 6. Mail (decision needed: the relay)
-- **The relay:** spec §16 question 2 names Infomaniak Mail or self-hosted. Infomaniak fits rule 1, and the AI already runs there.
-- **Building it (mine, after the choice):** production must stop sending to Mailpit. The smallest change is a `phpmailer_init` hook in the MU plugin that switches to SMTP when `MODY_SMTP_HOST` is set, using `MODY_SMTP_PORT`, `MODY_SMTP_USER`, `MODY_SMTP_PASSWORD` and `MODY_SMTP_FROM` from the environment. Locally they stay unset, and Mailpit keeps catching mail. The variables need one line each in `compose.yml` for the app container. The password goes only in the server's `.env` (rule 6). SPF and DKIM for `mody.cloud` come with the relay.
+### 6. Mail (decided on 2026-11-09: Brevo's API, through WP Mail SMTP)
+- **The relay:** the maintainer chose Brevo on 2026-11-09, for now, as a temporary exception to rule 1 ([architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1)). Spec §16 question 2 had named Infomaniak Mail or self-hosted.
+- **Built (2026-11-09):** WP Mail SMTP 4.10.3 in `app/composer.json`, network-active, hidden from members and limited to super admins (`Mail\WpMailSmtp`, `Gating\MemberPlugins`). Its settings are `WPMS_*` constants that `app/wp-config.php` sets from the environment: SMTP to Mailpit locally, and Brevo's API in production through the `wordpress` service's `environment` block in `compose.prod.yml.sample`. Its own calls to its maker are off. Test: `scripts/mail-test.php`, locally and with production's settings (the Brevo request is caught).
+- **The maintainer's steps on the server** (after the deploy, which never touches `.env` or `compose.prod.yml`):
+  1. In Brevo: authenticate `mody.cloud` as a sending domain (its DNS records, at Cloudflare), add the sender `no-reply@mody.cloud`, and create an API key (SMTP & API → API keys).
+  2. In the server's `.env`: the four `BREVO_*` lines from `sample.env`, with the key.
+  3. In the server's `compose.prod.yml`: the `wordpress` service's `environment` block from `compose.prod.yml.sample`. Then `docker compose up -d`. It refuses to start without the key and the sender.
+  4. Network-activate the plugin: `docker exec mody_cloud_app wp plugin activate wp-mail-smtp --network --allow-root --path=/var/www/html/wp --url=mody.cloud`.
+  5. Test it: request a password reset, or send one from WP Mail SMTP → Tools → Email Test as a super admin (that tool's domain check calls `connect.wpmailsmtp.com`).
 
 ### 7. Verify
 - In production, as a super admin, create a site with the wizard, then open `https://<slug>.mody.cloud`, its Site Editor and the agent bubble.
