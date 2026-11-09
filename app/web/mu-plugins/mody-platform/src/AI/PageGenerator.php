@@ -79,7 +79,7 @@ final class PageGenerator {
 				$markup->get_error_data()
 			);
 		}
-		return is_wp_error( $markup ) ? $markup : SpectraLayout::normalize( $markup );
+		return is_wp_error( $markup ) ? $markup : SpectraBlocks::normalize( SpectraLayout::normalize( $markup ) );
 	}
 
 	/**
@@ -120,7 +120,7 @@ final class PageGenerator {
 				$result->get_error_data()
 			);
 		}
-		return is_wp_error( $result ) ? $result : SpectraLayout::normalize( $result, $fragment );
+		return is_wp_error( $result ) ? $result : SpectraBlocks::normalize( SpectraLayout::normalize( $result, $fragment ) );
 	}
 
 	/**
@@ -229,14 +229,26 @@ final class PageGenerator {
 	}
 
 	/**
-	 * Repairs the one model typo seen often enough to need it, before validation.
+	 * A block comment, as WordPress's parser reads it (WP_Block_Parser::next_token()).
+	 */
+	private const BLOCK_COMMENT = '/<!--[ \t\f\r\n]+(?P<closer>\/)?wp:(?P<namespace>[a-z][a-z0-9_-]*\/)?(?P<name>[a-z][a-z0-9_-]*)[ \t\f\r\n]+(?P<attrs>{(?:(?:[^}]+|}+(?=})|(?!}[ \t\f\r\n]+\/?-->).)*+)?}[ \t\f\r\n]+)?(?P<void>\/)?-->/s';
+
+	/**
+	 * Repairs, before validation, what the model gets wrong often enough to
+	 * need it. The result is validated like any other answer.
 	 *
-	 * Qwen sometimes drops the `p>` of a paragraph's opening tag: `<p>Packed
-	 * with seeds…</p>` comes back as `<Packed with seeds…</p>`, and the
-	 * retries repeated it (ai-engine.md, "Validation pipeline"). Only a
-	 * paragraph block whose HTML starts with `<` and a capital letter is
-	 * touched: no HTML tag starts that way in generated markup. The result is
-	 * validated like any other answer.
+	 * 1. Qwen sometimes drops the `p>` of a paragraph's opening tag: `<p>Packed
+	 *    with seeds…</p>` comes back as `<Packed with seeds…</p>`, and the
+	 *    retries repeated it (ai-engine.md, "Validation pipeline"). Only a
+	 *    paragraph block whose HTML starts with `<` and a capital letter is
+	 *    touched: no HTML tag starts that way in generated markup.
+	 * 2. Attribute JSON is written again the way WordPress saves it
+	 *    (serialize_block_attributes(), M3-11 part 3): WordPress escapes `<`,
+	 *    `>`, `&`, `\"` and `--` inside it, so `{"text":"Bread & cakes"}`
+	 *    would fail the validator's round trip. Spectra keeps text in
+	 *    attributes. Only JSON that decodes to a non-empty object is touched,
+	 *    and none with an empty object inside (PHP would write it back as
+	 *    `[]`); the validator refuses the rest as before.
 	 *
 	 * @param string $markup  The model's answer, trimmed.
 	 * @param int    $site_id Site ID, for the log.
@@ -250,7 +262,35 @@ final class PageGenerator {
 		if ( $count && $site_id ) {
 			self::log( $site_id, $attempt, "repaired $count paragraph opening tag(s)" );
 		}
-		return $repaired;
+
+		$encoded   = 0;
+		$rewritten = preg_replace_callback(
+			self::BLOCK_COMMENT,
+			static function ( array $comment ) use ( &$encoded ): string {
+				$json = trim( (string) ( $comment['attrs'] ?? '' ) );
+				if ( '' === $json || '' !== ( $comment['closer'] ?? '' ) || preg_match( '/\{\s*\}/', $json ) ) {
+					return $comment[0];
+				}
+				$attrs = json_decode( $json, true );
+				if ( ! is_array( $attrs ) || ! $attrs ) {
+					return $comment[0];
+				}
+				$saved = serialize_block_attributes( $attrs );
+				if ( $saved === $json ) {
+					return $comment[0];
+				}
+				++$encoded;
+				return str_replace( $json, $saved, $comment[0] );
+			},
+			$repaired
+		);
+		if ( ! is_string( $rewritten ) ) {
+			return $repaired;
+		}
+		if ( $encoded && $site_id ) {
+			self::log( $site_id, $attempt, "wrote $encoded block attribute object(s) as WordPress saves them" );
+		}
+		return $rewritten;
 	}
 
 	/**

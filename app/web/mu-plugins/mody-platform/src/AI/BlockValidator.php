@@ -29,7 +29,8 @@ defined( 'ABSPATH' ) || exit;
  *    no HTML of their own. Blocks sit where their block.json allows
  *    (`parent`, `ancestor`, `allowedBlocks`). Spectra's color attributes
  *    take palette slugs, its media come from this network, its links are
- *    plain links, icons are names, and no `htmlAttributes`.
+ *    plain links, icons are names, and no `htmlAttributes`. Tabs have one
+ *    label per panel, and an accordion item a question and an answer (part 3).
  *
  * What PHP cannot check: whether each block's HTML matches what its save
  * function in the editor would produce. A mismatch shows as "unexpected or
@@ -414,6 +415,13 @@ final class BlockValidator {
 				return $result;
 			}
 		}
+		// After the inner blocks, whose own errors are more precise.
+		if ( $spectra ) {
+			$result = self::check_family( $block );
+			if ( true !== $result ) {
+				return $result;
+			}
+		}
 
 		return true;
 	}
@@ -777,6 +785,30 @@ final class BlockValidator {
 					return $result;
 				}
 			}
+		}
+		return true;
+	}
+
+	/**
+	 * What a Spectra family needs to work (M3-11 part 3): tabs have one label
+	 * per panel (a label without a panel shows nothing), and an accordion item
+	 * has its question and then its answer.
+	 *
+	 * @param array<string, mixed> $block Parsed block.
+	 * @return true|WP_Error
+	 */
+	private static function check_family( array $block ): true|WP_Error {
+		$inner = array_column( (array) $block['innerBlocks'], 'blockName' );
+		if ( 'spectra/tabs' === $block['blockName'] ) {
+			$wrappers = array_values( array_filter( (array) $block['innerBlocks'], static fn( $b ) => 'spectra/tabs-child-tab-wrapper' === $b['blockName'] ) );
+			$labels   = $wrappers ? count( (array) $wrappers[0]['innerBlocks'] ) : 0;
+			$panels   = count( array_keys( $inner, 'spectra/tabs-child-tabpanel', true ) );
+			if ( 1 !== count( $wrappers ) || 0 === $panels || $labels !== $panels ) {
+				return self::error( sprintf( 'A spectra/tabs block holds one tabs-child-tab-wrapper with one tabs-child-tab-button per tab, then one tabs-child-tabpanel per tab, as in the example. Found %d wrapper(s), %d tab label(s) and %d panel(s).', count( $wrappers ), $labels, $panels ) );
+			}
+		}
+		if ( 'spectra/accordion-child-item' === $block['blockName'] && array( 'spectra/accordion-child-header', 'spectra/accordion-child-details' ) !== $inner ) {
+			return self::error( 'Each spectra/accordion-child-item holds one accordion-child-header (the question) and then one accordion-child-details (the answer), as in the example.' );
 		}
 		return true;
 	}

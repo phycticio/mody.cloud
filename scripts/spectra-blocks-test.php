@@ -156,7 +156,7 @@ foreach ( $accepted as $label => $case ) {
 	$check( 'accepted: ' . $label, 'valid' === $result, $result );
 }
 $raw = '<!-- wp:spectra/content {"text":"Fresh <strong>bread</strong>"} /-->';
-$check( 'markup written raw in an attribute fails the round trip (the prompt must say so)', str_contains( $valid( $raw ), 'serialize_blocks' ) );
+$check( 'raw markup in an attribute fails the round trip (PageGenerator::repair() rewrites it first)', str_contains( $valid( $raw ), 'serialize_blocks' ) );
 
 if ( $others ) {
 	restore_current_blog();
