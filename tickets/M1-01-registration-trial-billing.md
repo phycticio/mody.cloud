@@ -1,9 +1,9 @@
 # M1-01 · Registration, trial and Mollie billing
 
-**Milestone:** M1 · **Spec:** documentation/mvp-spec.md §3, §4, §5, §11, §12 · **Status:** in progress: parts 1 and 2 done 2026-11-08; parts 3 to 5 to do. Split into parts on 2026-11-08 (rule 5); before that the ticket was one block.
+**Milestone:** M1 · **Spec:** documentation/mvp-spec.md §3, §4, §5, §11, §12 · **Status:** in progress: parts 1 and 2 done 2026-11-08; parts 3 to 5 to do. Split into parts on 2026-11-08 (rule 5); before that the ticket was one block. **Changed on 2026-11-08 by [M1-03](M1-03-chat-signup-and-editor-tour.md):** the trial needs no card, and the signup is a chat that creates the first site. Part 2's form is replaced, and part 3 moves to the end of the trial.
 
 ## Goal
-A visitor with a valid card reaches an active 30-day trial (3 sites) in under 2 minutes, and a member manages their plan from the Mody dashboard. Past-due read-only and the 60-day deletion are [M1-02](M1-02-past-due-readonly-deletion.md).
+A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no card since 2026-11-08 ([M1-03](M1-03-chat-signup-and-editor-tour.md)), and a member manages their plan and card from the Mody dashboard. Past-due read-only and the 60-day deletion are [M1-02](M1-02-past-due-readonly-deletion.md).
 
 ## What exists already (2026-11-08)
 - The MU plugin, `app/web/mu-plugins/mody-platform/`, which holds all platform code.
@@ -20,7 +20,7 @@ A visitor with a valid card reaches an active 30-day trial (3 sites) in under 2 
   - the plan's site limit, through `mody_site_limit`.
 - No user interface. Nothing changes for users without a row.
 
-### Part 2 · The registration page (done 2026-11-08, Results below)
+### Part 2 · The registration page (done 2026-11-08, Results below; the form was replaced by M1-03's chat the same day)
 - `mody.cloud/register/` on the main site: full name, email, password, and three plan cards (name, price, sites). Then **Create account**.
 - Server-side validation; a duplicate email is refused. It creates the WordPress user and a `pending_payment` row (`Members::create()`).
 - **Closed in production until part 3 works:** a switch that is off unless set, so no account can be created there without a card.
@@ -30,6 +30,7 @@ A visitor with a valid card reaches an active 30-day trial (3 sites) in under 2 
   3. **A `pending_payment` account** logs in and sees a "Finish your payment" step on the dashboard, but creates no site.
 
 ### Part 3 · Mollie card verification and webhook (needs the Mollie test keys)
+**Reworked on 2026-11-08** ([M1-03](M1-03-chat-signup-and-editor-tour.md)): the trial starts without a card, so this checkout now runs **during the trial**, from the dashboard, where the member also chooses their plan (`next_plan`). What happens at day 30 without a card is an open question (mvp-spec §16, question 7). The list below is the card-first design; keep what still applies.
 - A Mollie customer and a 0.01 EUR card-verification checkout, then the redirect to Mollie.
 - **The webhook:** verified and idempotent (a replayed webhook changes nothing). It sets `active`, `trial_ends_at` and `billing_due_at` to now + 30 days, stores the payment method, sends the welcome email, and returns the member to the dashboard with a single-use token.
 - **Env:** `MOLLIE_API_KEY`, plus `MOLLIE_WEBHOOK_KEY` if the webhook mechanism needs one. Never committed.
@@ -47,7 +48,7 @@ A visitor with a valid card reaches an active 30-day trial (3 sites) in under 2 
 - **Blocked by** the open question "WP-Cron on subsites" in architecture.md. The billing jobs are network-wide, so they could run from the main site, whose loopback requests work. Either way, they must run on time whether or not anyone visits.
 
 ## Acceptance criteria (spec §4)
-- New valid-card visitor → active trial in <2 min; duplicate email rejected.
+- New visitor → active trial in <2 min, no card (M1-03); duplicate email rejected.
 - Plan change reflected in quota at next cycle.
 - Replayed webhook is a no-op; a forged one is rejected.
 - (Failed charge → read-only + banner: M1-02.)
@@ -55,7 +56,7 @@ A visitor with a valid card reaches an active 30-day trial (3 sites) in under 2 
 ## Open / blocking
 - **Mollie test-mode keys** (spec §16, question 1): needed for part 3. None in `.env` on 2026-11-08.
 - **The WP-Cron decision:** needed for part 5 and M1-02.
-- **Fee confirmation** (spec §16, question 6): needed before part 2 shows prices to visitors.
+- **Fee confirmation** (spec §16, question 6): needed before the dashboard shows prices. The signup shows none since M1-03.
 - **Production mail** (an EU SMTP relay; [M5-02](M5-02-production-member-sites.md)): needed before production signups. Locally, Mailpit catches the welcome email.
 
 ## Results (part 1, 2026-11-08)

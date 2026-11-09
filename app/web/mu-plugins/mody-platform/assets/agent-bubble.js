@@ -252,6 +252,14 @@
 		return true;
 	}
 
+	// For the editor tour (M1-03): open the chat, and switch screens in place.
+	config.openChat = () => {
+		if ( panel.hidden ) {
+			setOpen( true );
+		}
+	};
+	config.navigate = navigate;
+
 	// The turn's screen to open: in the Site Editor it opens now, and its button gives
 	// way to a note with Go back. Elsewhere the button stays (decided 2026-11-08).
 	function openScreen( actions ) {

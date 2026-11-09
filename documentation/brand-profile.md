@@ -85,18 +85,22 @@ Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin ([M2-
    - `prompt`: the description of the first page, required, at most 2,000 characters.
    - `logo_id`: optional, an image the user uploaded to the main site (M2-05).
 
-   Errors come back as `mody_invalid_input`, with one message per field in `fields`.
+   - `starter`: the signup's site ([M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md), 2026-11-08). Only `slug` and `title` are needed: the mission and the prompt may be empty, so the site starts with an empty tagline and mission, the friendly tone and Mody Teal.
+
+   Every site's address is also checked against `Pipeline::RESERVED_SLUGS` (`www`, `mail`, `api`, `admin`, `plugins` and other infrastructure names, 2026-11-08). Errors come back as `mody_invalid_input`, with one message per field in `fields`.
 2. **`Pipeline::run( $job_id )`** runs the steps in order: `quota`, `site`, `profile`, `theme`, `styles`, `page`, `email`.
    - `site`: the site, public and themed, with its title, tagline and `https://` addresses.
    - `profile` (its name kept in the job table): the brand settings. It copies the logo into the site's media library and sets it as `site_logo`, writes `mody_mission` and `mody_tone`, and deletes the upload on the main site.
    - `styles`: the preset in the site's Global Styles.
-   - `page`: the generated front page, or a fallback page ("Hello, I'm {site title}" and the mission).
-   - `email`: the welcome email.
+   - `page`: the generated front page, or a fallback page ("Hello, I'm {site title}" and the mission). A starter site gets a starter page instead, with no model call: the site's name and "Our new website is on its way".
+   - `email`: the welcome email. A starter site gets none here: the signup's welcome email, with the set-password link, replaces it.
 
    A logo that cannot be copied does not stop the site (`result.logo_error`).
 3. **Resuming.** Each step's outcome and the next step are written in one update, after the step's side effects. A run killed in the middle of a step starts that step again without repeating its work. A running job not updated for 5 minutes counts as killed.
 4. **Generation failure** never blocks the site. `Pipeline::retry_generation( $job_id )` generates the page again and replaces it.
 5. **The quota:** `Provisioning\Quota::can_create_site()`. With M1-01, the plan's limit (see [membership-tiers.md](membership-tiers.md#open-questions)).
+
+**The signup's site** (M1-03): `Members\Registration::register()` starts and runs a starter job in the signup request (a few seconds, no model call). The member then gives the brand to the agent: the editor tour on the Identity screen asks them to tell Mody what they do, which the agent saves as the mission or the tagline (`mody/update-site-settings`).
 
 **Test:** `scripts/provisioning-test.php`. It covers validation, the quota, a full run with a fake model answer (the brand in the site's settings and styles), a run killed after each step and resumed, generation failure, Retry generation, the logo, and one real run. `-e MODY_TEST_OFFLINE=1` skips the real run.
 

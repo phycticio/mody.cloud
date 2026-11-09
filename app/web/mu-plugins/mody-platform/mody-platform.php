@@ -91,14 +91,25 @@ add_filter( 'mody_site_limit', array( Members\Members::class, 'site_limit' ), 10
 add_filter( 'mody_can_create_site', array( Members\Members::class, 'can_create_site' ), 10, 2 ); // No site before the card is verified.
 
 /*
- * Registration (M1-01, part 2): the `mody/register` block on the main site's
- * /register/ page, closed until the network option `mody_registration_open`
- * is set. Members log in to the Mody dashboard.
+ * Registration (M1-01 part 2, M1-03): the `mody/register` block on the main
+ * site's /register/ page, a chat that creates the account, a 30-day trial
+ * without a card and the first site, then emails the set-password link.
+ * Closed until the network option `mody_registration_open` is set. Members
+ * log in to the Mody dashboard.
  */
 add_action( 'init', array( Members\Registration::class, 'register_block' ) );
 add_action( 'init', array( Members\Registration::class, 'ensure_page' ), 20 );
+add_action( 'rest_api_init', array( Members\Registration::class, 'register_routes' ) );
 add_action( 'template_redirect', array( Members\Registration::class, 'handle' ) );
 add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirect' ), 10, 3 );
+
+/*
+ * Onboarding (M1-03): the first password logs the member in on their site's
+ * Identity screen, where the editor tour shows the agent, then the editor.
+ */
+add_action( 'init', array( Onboarding\Onboarding::class, 'register_meta' ) );
+add_action( 'after_password_reset', array( Onboarding\Onboarding::class, 'after_password_reset' ) );
+add_action( 'enqueue_block_editor_assets', array( Onboarding\EditorTour::class, 'enqueue' ), 20 ); // After the chat bubble.
 
 /*
  * wp-admin colors (decided 2026-11-08): Ocean is every user's color scheme
