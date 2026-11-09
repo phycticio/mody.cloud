@@ -541,7 +541,7 @@ final class BlockValidator {
 				return self::error( sprintf( 'The attribute "%s" of %s uses "%s". Colors in style are palette presets, such as "var:preset|color|accent".', $key_path, $name, $value ) );
 			}
 			if ( is_string( $key ) && ( 'gradient' === $key || str_contains( $key, 'Gradient' ) ) && '' !== $value ) {
-				return self::error( sprintf( 'The attribute "%s" of %s is a gradient. The theme defines no gradients: use a palette color.', $key_path, $name ) );
+				return self::error( sprintf( 'The attribute "%s" of %s is a gradient. Generated pages use no gradients: use a palette color.', $key_path, $name ) );
 			}
 			if ( is_string( $key ) && in_array( $key, self::LINK_KEYS, true ) && preg_match( '/^\s*(?:javascript|data|vbscript):/i', $value ) ) {
 				return self::error( sprintf( 'The link "%s" of %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', $key_path, $name ) );

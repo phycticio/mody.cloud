@@ -44,7 +44,7 @@ Not included yet: `languages/` and `screenshot.png`. **No `patterns/` folder (de
 
 ## Design tokens
 
-The palette is the briefing's visual identity. Default palette, gradients and duotones are turned off, so the editor only offers brand colors. The agent must reference these slugs and never loose hex values.
+The palette is the briefing's visual identity. Default palette, gradients and duotones are turned off. The agent must reference these slugs and never loose hex values.
 
 | Slug | Value | Role | Contrast on `base` |
 | --- | --- | --- | --- |
@@ -61,6 +61,24 @@ All pairs the theme actually uses pass WCAG AA for normal text (4.5:1).
 - **Font sizes:** `small`, `medium`, `large`, `x-large`, `xx-large`, fluid between viewport sizes.
 - **Spacing presets:** `20` to `80` (0.5 rem up to 8 rem). Templates use `var:preset|spacing|NN`.
 - **Layout:** content width 720px, wide 1200px, root-padding-aware alignments.
+- **Color pickers offer only the palette, on every block of every site** (decided by the maintainer on 2026-11-09, [M1-04](../tickets/M1-04-registration-block.md) part A).
+  - **What they offer:** the theme's five colors plus the site's own. People still add their own colors under Styles → Colors → Palette → Custom; WordPress shows that editor whatever the settings say.
+  - **How:** `settings.color.custom` and `customGradient` are `false` in `theme.json`.
+  - **Existing content:** a block that already has a custom hex color keeps it, but nobody can pick a new one.
+  - **Spectra:** its color fields follow these settings. A few pickers Spectra draws itself do not; `Design\PaletteOnly` hides their free part in the editors and keeps their palette. These are the Advanced Gradient's two colors, and the custom color button of five color lists (shadows, border hover, text shadow).
+  - **Spectra quirk:** the content block's text shadow list shows only the site's own colors when it has any, not the theme's five.
+- **Gradients:** four presets built from the palette's CSS variables, so each one follows the site's colors and its style variation.
+
+  | Slug | From → to | Text that reads on it |
+  | --- | --- | --- |
+  | `primary-to-accent` | primary → accent, 135° | `base` |
+  | `primary-to-contrast` | primary → contrast, top to bottom | `base` |
+  | `secondary-to-contrast` | secondary → contrast, top to bottom | `base` |
+  | `base-to-soft-primary` | base → base with 12% primary (`color-mix()`), top to bottom | `contrast` |
+
+  - **Style variations** define no gradients of their own.
+  - **Generated pages** use none: the validator refuses gradients ([ai-engine.md](ai-engine.md#validation-pipeline)).
+  - **The agent's `mody/update-styles`** may name these presets.
 - **The theme's preset slugs are fixed on member sites** (M3-10, decided 2026-11-08). Members change the values of the palette's five colors, the five font sizes and the seven spacing sizes, in Styles or through the agent (`mody/update-styles`), but never add or remove these slugs. Their own presets go in the custom origin. Templates, patterns and generated pages use these slugs, so renaming or removing one in `theme.json` breaks every site that uses it.
 
 Each site's own Global Styles override `primary`, `secondary` and `accent` (the preset chosen in the wizard, then Styles → Colors or the agent). The site's palette is its brand (M2-08): no copy of the colors is kept anywhere else. See [brand-profile.md](brand-profile.md).
@@ -83,6 +101,7 @@ All pairs pass. The candidate colors failed four times. Forest's accent (`#c77d2
 - The serialized block format in `templates/` and `parts/` is the same format the agent generates ([ai-engine.md](ai-engine.md)). Keep markup valid: block comment JSON must parse, blocks must be balanced, saved HTML must match the attributes.
 - Layout is Spectra containers, never core groups, columns or covers (the bare `main` landmark aside), and never around `post-content` (see Structure).
 - No Elementor or similar builders. No Astra. No external fonts, scripts or CDNs.
+- Color pickers stay palette-only (see Design tokens). Never set `color.custom`, `customGradient` or `gradients` in a style variation. Add a gradient only as a preset built from palette variables. After a Spectra update, `scripts/spectra-guard-test.php` checks that `Design\PaletteOnly` still matches Spectra's pickers.
 - Styles go in `theme.json` first. `style.css` is only for what `theme.json` cannot express. One such rule (2026-11-07): headings inside a block that sets a text color take that color (`.has-text-color :is(h1, …, h6) { color: inherit }`). Otherwise theme.json's `secondary` heading color wins, and a hero's heading stays dark on the primary color. A heading with its own color class keeps it.
 - Keep `functions.php` small. Platform logic (tiers, the brand settings, agent) does not belong in the theme.
 - Text domain is `mody_cloud`. It differs from the directory name (`theme`), so `functions.php` loads translations explicitly. Wrap user-facing PHP strings with WordPress i18n functions. Text in HTML templates is plain and editable in the Site Editor.

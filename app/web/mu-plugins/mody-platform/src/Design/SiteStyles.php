@@ -718,7 +718,7 @@ final class SiteStyles {
 				} elseif ( 'color' === $group && 'gradient' === $key ) {
 					if ( ! self::is_ref( $item, 'gradient' ) ) {
 						/* translators: %s: a style path. */
-						$errors[] = sprintf( __( '`%s` must name a gradient preset. The site has no gradients.', 'mody_cloud' ), $at );
+						$errors[] = sprintf( __( '`%s` must name one of the site\'s gradient presets, such as var:preset|gradient|primary-to-accent.', 'mody_cloud' ), $at );
 					}
 				} elseif ( $color ) {
 					if ( ! self::is_ref( $item, 'color' ) && ! in_array( strtolower( $item ), self::COLOR_KEYWORDS, true ) ) {

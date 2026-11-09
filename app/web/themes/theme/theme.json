@@ -9,9 +9,33 @@
 			"wideSize": "1200px"
 		},
 		"color": {
+			"custom": false,
+			"customGradient": false,
 			"defaultPalette": false,
 			"defaultGradients": false,
 			"defaultDuotone": false,
+			"gradients": [
+				{
+					"slug": "primary-to-accent",
+					"name": "Primary to accent",
+					"gradient": "linear-gradient(135deg, var(--wp--preset--color--primary) 0%, var(--wp--preset--color--accent) 100%)"
+				},
+				{
+					"slug": "primary-to-contrast",
+					"name": "Primary to contrast",
+					"gradient": "linear-gradient(180deg, var(--wp--preset--color--primary) 0%, var(--wp--preset--color--contrast) 100%)"
+				},
+				{
+					"slug": "secondary-to-contrast",
+					"name": "Secondary to contrast",
+					"gradient": "linear-gradient(180deg, var(--wp--preset--color--secondary) 0%, var(--wp--preset--color--contrast) 100%)"
+				},
+				{
+					"slug": "base-to-soft-primary",
+					"name": "Base to soft primary",
+					"gradient": "linear-gradient(180deg, var(--wp--preset--color--base) 0%, color-mix(in srgb, var(--wp--preset--color--primary) 12%, var(--wp--preset--color--base)) 100%)"
+				}
+			],
 			"palette": [
 				{
 					"slug": "primary",

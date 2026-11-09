@@ -64,6 +64,13 @@ add_action( 'init', array( Design\Fonts::class, 'register_collection' ), 20 ); /
 add_filter( 'wp_theme_json_data_theme', array( Design\Fonts::class, 'theme_fonts' ) ); // Real Inter for the theme.
 
 /*
+ * Color pickers offer only palette colors on every site (M1-04 part A).
+ * theme.json switches the free pickers off; the few Spectra draws itself are
+ * hidden in the editors.
+ */
+add_action( 'enqueue_block_editor_assets', array( Design\PaletteOnly::class, 'enqueue' ) );
+
+/*
  * Network-wide tables (mvp-spec section 11). Creates or updates them only
  * when their version changed.
  */

@@ -86,7 +86,7 @@ Full text and consequences: [documentation/constraints.md](documentation/constra
 | Area | Path | Read |
 | --- | --- | --- |
 | Theme (templates, parts, styles) | `app/web/themes/theme` | [theme-development.md](documentation/theme-development.md) |
-| Palette, fonts, spacing | `app/web/themes/theme/theme.json` | [theme-development.md](documentation/theme-development.md#design-tokens) |
+| Palette, fonts, spacing, gradients; color pickers offer only the palette (M1-04) | `app/web/themes/theme/theme.json`; Spectra's own pickers: `app/web/mu-plugins/mody-platform/src/Design/PaletteOnly.php`; tests `scripts/style-variations-test.php` and `scripts/spectra-guard-test.php` | [theme-development.md](documentation/theme-development.md#design-tokens) |
 | Composer dependencies | `app/composer.json` | [architecture.md](documentation/architecture.md) |
 | WordPress config (env-driven) | `app/wp-config.php` | [architecture.md](documentation/architecture.md) |
 | Docker, Nginx, PHP config | `compose.yml`, `config/` | [architecture.md](documentation/architecture.md), [local-development.md](documentation/local-development.md) |

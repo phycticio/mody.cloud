@@ -7,6 +7,10 @@
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/spectra-guard-test.php
  *
  * Offline: it sends no request (the denied-host check is answered by the guard).
+ *
+ * Also, not rule 1: Spectra's color pickers offer only palette colors (M1-04
+ * part A). Its color lists' custom color button is hidden whatever Spectra
+ * passes (Design\PaletteOnly); this checks the rest of its markup.
  */
 
 use Mody\Platform\Spectra\SpectraGuard;
@@ -102,5 +106,41 @@ $check( 'Infomaniak and WordPress.org not denied', ! SpectraGuard::is_denied_url
 
 // Not Spectra, also rule 1 (2026-11-07): the Font Library has no Google Fonts collection.
 $check( 'Font Library: no Google Fonts collection', ! isset( WP_Font_Library::get_instance()->get_font_collections()['google-fonts'] ), implode( ', ', array_keys( WP_Font_Library::get_instance()->get_font_collections() ) ) );
+
+// Not rule 1: color pickers offer only palette colors (M1-04 part A, Design\PaletteOnly).
+// theme.json covers Spectra's color fields; the pickers Spectra draws itself are hidden
+// by PaletteOnly's style, which matches the markup below. A change here needs a browser check.
+$scripts = array();
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( dirname( SPECTRA_BLOCKS_FILE ) . '/build', FilesystemIterator::SKIP_DOTS ) ) as $file ) {
+	if ( 'js' === $file->getExtension() ) {
+		$scripts[ basename( $file->getPath() ) . '/' . $file->getFilename() ] = (string) file_get_contents( $file->getPathname() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	}
+}
+$fields = array();
+$free   = array();
+$own    = array();
+$other  = array();
+foreach ( $scripts as $name => $js ) {
+	// Its color fields: WordPress's control, the site's settings spread over Spectra's defaults.
+	$dropdowns = substr_count( $js, '__experimentalColorGradientSettingsDropdown,{' );
+	$settled   = preg_match_all( '/([\w$]+)=\(0,[\w$]+\.__experimentalUseMultipleOriginColorsAndGradients\)\(\).{0,300}?__experimentalColorGradientSettingsDropdown,\{__experimentalIsRenderedInSidebar:!0,disableCustomColors:!1,disableCustomGradients:!1,\.\.\.\1,/s', $js );
+	if ( $dropdowns ) {
+		$fields[ $name ] = $dropdowns;
+	}
+	if ( $dropdowns !== $settled ) {
+		$free[] = $name;
+	}
+	// Its own pickers: only directly in the color panel, where the style hides them.
+	$pickers = preg_match_all( '/\.ColorPicker,\{/', $js );
+	$hidden  = preg_match_all( '/className:"block-editor-color-gradient-control__panel",children:\[\(0,[\w$]+\.jsx\)\([\w$]+\.ColorPicker,\{/', $js );
+	if ( $hidden ) {
+		$own[] = $name;
+	}
+	if ( $pickers !== $hidden || preg_match( '/\.(?:__experimental)?(?:Custom)?GradientPicker\b/', $js ) ) {
+		$other[] = $name;
+	}
+}
+$check( 'palette only: color fields follow the settings', $fields && ! $free, $free ? 'not: ' . implode( ', ', $free ) : array_sum( $fields ) . ' fields in ' . count( $fields ) . ' scripts' );
+$check( '...its own pickers are where the style hides them', ! $other, $other ? 'elsewhere: ' . implode( ', ', $other ) : implode( ', ', $own ) );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

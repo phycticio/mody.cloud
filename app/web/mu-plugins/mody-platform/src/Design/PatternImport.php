@@ -29,8 +29,9 @@ defined( 'ABSPATH' ) || exit;
  * - **Links** to other sites become `#`.
  *
  * Attributes and the saved HTML change together, so the editor still
- * recognizes each block as valid. Patterns with gradients are refused: a
- * gradient has no palette slug here (the theme defines none).
+ * recognizes each block as valid. Patterns with gradients are refused: theirs
+ * are core's presets or loose colors, and the theme's gradients (M1-04) are
+ * built from its palette.
  */
 final class PatternImport {
 

@@ -1,6 +1,6 @@
 # M1-04 · The registration chat as a block you can style and place anywhere
 
-**Milestone:** M1 · **Builds on:** [M1-03](M1-03-chat-signup-and-editor-tour.md) (the chat signup) · **Spec:** documentation/mvp-spec.md §4, §6; documentation/theme-development.md (design tokens) · **Status:** planned and confirmed 2026-11-09. Part 0 done: M1-03 committed (`b46c427`) and merged into `main` (`6046d68`), not pushed.
+**Milestone:** M1 · **Builds on:** [M1-03](M1-03-chat-signup-and-editor-tour.md) (the chat signup) · **Spec:** documentation/mvp-spec.md §4, §6; documentation/theme-development.md (design tokens) · **Status:** planned and confirmed 2026-11-09. Part 0 done: M1-03 committed (`b46c427`), merged into `main` (`6046d68`) and deployed (`f6b7001`). Part A done on 2026-11-09 (Results). Next: part B.
 
 ## Goal (maintainer, 2026-11-09)
 > The registration wizard should be a gutenberg block and it should have all the style editions possible from margin, padding, background-color, background image, background gradient, font size, button colors, font color, etc, all color pickers should show only the color palette colors including the custom colors created by the user. We then can create any link and insert the registration block and have it working everywhere. The other settings the block should have is the fields required and the mapping of the fields. These fields will be the questions asked to the user.
@@ -145,6 +145,26 @@ M1-03 built the chat as `mody/register`, but as a server-only block:
   - brand-profile.md (signup answers fill the brand);
   - this ticket's Results;
   - next-steps.md.
+
+## Results
+
+### Part A · Palette-only color pickers (2026-11-09)
+- **`theme.json`:** `color.custom` and `customGradient` are `false`, with four gradient presets built from the palette's variables. The table and rules are in [theme-development.md](../documentation/theme-development.md#design-tokens). No style variation defines gradients, so all six presets use the same four, in their own colors.
+- **Found in the browser: Spectra draws some pickers itself, whatever the settings say.** Spectra's color fields (38 of them) follow `color.custom`, but these do not:
+  - the Advanced Gradient's Color 1 and Color 2 (container, slider, slider-child) have a free picker above the palette. Switching it on also starts from Spectra's own two blues (`#06558a`, `#0063A1`) until the owner picks palette colors;
+  - five color lists have a custom color button: the container's shadow and border hover colors, the button's border hover and shadow colors, and the content block's text shadow color.
+- **`Design\PaletteOnly`** (new) adds one editor style, hooked to `enqueue_block_editor_assets`, that hides those free parts and keeps their palettes. The selectors leave core's palette editor alone, and core's shadow editor (Styles → Shadows), which has no palette, keeps its picker.
+- **Stale wording fixed:** the validator's gradient message to the model, `mody/update-styles`' gradient error, `PatternImport`'s comment and ai-engine.md (all said "the theme defines no gradients").
+- **Tests:**
+  - `scripts/style-variations-test.php`, new section 5: the settings, gradients made only of palette variables, no variation overriding them, the settings each site's editor gets, and the style;
+  - `scripts/spectra-guard-test.php`, two checks: Spectra's color fields still take the site's settings, and its own pickers are still where the style hides them.
+- **Browser check** (headless, phycticio, which has a custom palette color "Red"; a draft page with a paragraph, a group and a container):
+  - **core blocks:** the paragraph's and group's text, background and gradient pickers show the five theme colors plus Red, with no custom color button. Their gradient picker shows exactly the four presets, drawn in phycticio's own colors;
+  - **the container:** its color, text hover, background, background hover and divider fields are the same;
+  - **Spectra's own pickers, with the style:** Advanced BG's Color 1 shows only the palette, and the content block's text shadow has no custom color button. The test page was deleted.
+- **Quirks left as they are:**
+  - the text shadow list shows only the site's own colors when it has any (here only Red), not the theme's five; that list comes from Spectra;
+  - Spectra's starting blues stay until the owner picks palette colors.
 
 ## Not in this ticket
 - **The block on member sites** (decision 1): a member's own signup page would create platform accounts, and needs rules and abuse limits first.
