@@ -21,9 +21,15 @@ defined( 'ABSPATH' ) || exit;
  * 2. Every block is on the whitelist AND registered on this site.
  * 3. Colors are palette slugs only. No hex, rgb() or named colors.
  * 4. Media (src, srcset, url) stay on this network. Nothing loads from a third party (rule 1).
- * 5. Layout is Spectra containers (SpectraLayout, 2026-11-07): a container
- *    saves no HTML of its own, and a new page uses no group, columns or
- *    column block and no container attribute outside the recipe.
+ * 5. Layout is Spectra containers (SpectraLayout, 2026-11-07): a new page
+ *    uses no group, columns or column block and no container attribute
+ *    outside the recipe.
+ * 6. Every Spectra block but the popup builder (M3-11, 2026-11-08). Spectra
+ *    blocks are rendered on the server from their attributes, so they save
+ *    no HTML of their own. Blocks sit where their block.json allows
+ *    (`parent`, `ancestor`, `allowedBlocks`). Spectra's color attributes
+ *    take palette slugs, its media come from this network, its links are
+ *    plain links, icons are names, and no `htmlAttributes`.
  *
  * What PHP cannot check: whether each block's HTML matches what its save
  * function in the editor would produce. A mismatch shows as "unexpected or
@@ -60,14 +66,80 @@ final class BlockValidator {
 		'core/site-tagline',
 		'core/query',
 		'core/post-template',
-		'spectra/container',
+		...self::SPECTRA_BLOCKS,
 	);
+
+	/**
+	 * Spectra 1.0.13's blocks the agent may use (M3-11, decided 2026-11-08):
+	 * all of them but SPECTRA_EXCLUDED. A Spectra update that adds a block
+	 * fails scripts/spectra-blocks-test.php until it is reviewed here.
+	 */
+	public const SPECTRA_BLOCKS = array(
+		'spectra/accordion',
+		'spectra/accordion-child-details',
+		'spectra/accordion-child-header',
+		'spectra/accordion-child-header-content',
+		'spectra/accordion-child-header-icon',
+		'spectra/accordion-child-item',
+		'spectra/button',
+		'spectra/buttons',
+		'spectra/container',
+		'spectra/content',
+		'spectra/countdown',
+		'spectra/countdown-child-day',
+		'spectra/countdown-child-hour',
+		'spectra/countdown-child-label',
+		'spectra/countdown-child-minute',
+		'spectra/countdown-child-number',
+		'spectra/countdown-child-second',
+		'spectra/countdown-child-separator',
+		'spectra/counter',
+		'spectra/counter-child-number',
+		'spectra/counter-child-progress-bar',
+		'spectra/counter-child-wrapper',
+		'spectra/icon',
+		'spectra/icons',
+		'spectra/list',
+		'spectra/list-child-icon',
+		'spectra/list-child-item',
+		'spectra/modal',
+		'spectra/modal-child-button',
+		'spectra/modal-child-content',
+		'spectra/modal-child-icon',
+		'spectra/modal-child-popup-close-icon',
+		'spectra/modal-child-trigger',
+		'spectra/modal-popup',
+		'spectra/modal-popup-content',
+		'spectra/post',
+		'spectra/post-no-results',
+		'spectra/post-template',
+		'spectra/separator',
+		'spectra/slider',
+		'spectra/slider-child',
+		'spectra/tabs',
+		'spectra/tabs-child-tab-button',
+		'spectra/tabs-child-tab-trigger',
+		'spectra/tabs-child-tab-wrapper',
+		'spectra/tabs-child-tabpanel',
+	);
+
+	/**
+	 * Spectra blocks never offered: the popup builder (site-wide popups, not
+	 * page content) and the Google Map (rule 1; SpectraGuard unregisters it).
+	 */
+	public const SPECTRA_EXCLUDED = array( 'spectra/popup-builder', 'spectra/google-map' );
+
+	/** Attributes that name a link target. Plain links are allowed; scripts and data are not. */
+	private const LINK_KEYS = array( 'linkURL', 'linkUrl', 'href' );
+
+	/** Attributes that choose a Spectra block's HTML element. */
+	private const TAG_KEYS = array( 'tagName', 'htmlTag', 'headerElement' );
+
+	/** The elements a Spectra block may render as. */
+	private const SAFE_TAGS = array( 'div', 'section', 'header', 'footer', 'main', 'article', 'aside', 'nav', 'p', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'button', 'a', 'figure', 'blockquote' );
 
 	/** Layout blocks a new page may not use: its layout is Spectra containers (SpectraLayout). */
 	public const REPLACED_BY_CONTAINER = array( 'core/group', 'core/columns', 'core/column' );
-
-	/** Blocks whose save is their inner blocks only: their own HTML must be empty. */
-	private const NO_OWN_HTML = array( 'spectra/container' );
 
 	/**
 	 * The container attributes a new page may use (SpectraLayout's recipe), and
@@ -204,7 +276,7 @@ final class BlockValidator {
 			if ( null === $block['blockName'] ) {
 				continue; // Whitespace between blocks, checked above.
 			}
-			$result = self::check_block( $block, $palette, $unchanged, $allowed, $new_page );
+			$result = self::check_block( $block, $palette, $unchanged, $allowed, $new_page, array() );
 			if ( true !== $result ) {
 				return $result;
 			}
@@ -246,9 +318,13 @@ final class BlockValidator {
 	 * @return list<string>
 	 */
 	public static function palette(): array {
-		$palette = wp_get_global_settings( array( 'color', 'palette', 'theme' ) );
-		$slugs   = is_array( $palette ) ? array_values( array_filter( array_column( $palette, 'slug' ), 'is_string' ) ) : array();
-		return $slugs ? $slugs : self::DEFAULT_PALETTE;
+		$slugs = array();
+		// The theme's five, then the owner's own colors (M3-10).
+		foreach ( array( 'theme', 'custom' ) as $origin ) {
+			$palette = wp_get_global_settings( array( 'color', 'palette', $origin ) );
+			$slugs   = array_merge( $slugs, is_array( $palette ) ? array_values( array_filter( array_column( $palette, 'slug' ), 'is_string' ) ) : array() );
+		}
+		return $slugs ? array_values( array_unique( $slugs ) ) : self::DEFAULT_PALETTE;
 	}
 
 	/**
@@ -278,9 +354,10 @@ final class BlockValidator {
 	 * @param array<string, true>  $unchanged Blocks of the original content, serialized (an edit).
 	 * @param list<string>         $allowed   Block names allowed (the whitelist, plus TEMPLATE_BLOCKS in templates).
 	 * @param bool                 $new_page  A new page: its layout must follow SpectraLayout's recipe.
+	 * @param list<string>         $outer     The blocks around it, innermost last.
 	 * @return true|WP_Error
 	 */
-	private static function check_block( array $block, array $palette, array $unchanged = array(), array $allowed = self::WHITELIST, bool $new_page = false ): true|WP_Error {
+	private static function check_block( array $block, array $palette, array $unchanged = array(), array $allowed = self::WHITELIST, bool $new_page = false, array $outer = array() ): true|WP_Error {
 		if ( $unchanged && isset( $unchanged[ serialize_block( $block ) ] ) ) {
 			return true; // The member's own block, returned as it was.
 		}
@@ -295,8 +372,19 @@ final class BlockValidator {
 		if ( $new_page && in_array( $name, self::REPLACED_BY_CONTAINER, true ) ) {
 			return self::error( sprintf( 'Do not use the "%s" block. Every section, row and column is a spectra/container, as the layout rules say.', $name ) );
 		}
-		if ( in_array( $name, self::NO_OWN_HTML, true ) && '' !== trim( (string) $block['innerHTML'] ) ) {
-			return self::error( sprintf( 'The %s block saves no HTML of its own: between its opening and closing comments write only its inner blocks, with no <div> or text. Found: "%s".', $name, self::excerpt( trim( (string) $block['innerHTML'] ), 0 ) ) );
+		$result = self::check_nesting( $name, $outer );
+		if ( true !== $result ) {
+			return $result;
+		}
+		$spectra = str_starts_with( $name, 'spectra/' );
+		if ( $spectra && '' !== trim( (string) $block['innerHTML'] ) ) {
+			return self::error( sprintf( 'The %s block saves no HTML of its own: write it as a comment with its attributes (self-closing when it has no inner blocks, such as <!-- wp:spectra/button {"text":"Book"} /-->), and between its opening and closing comments only its inner blocks, with no <div> or text. Found: "%s".', $name, self::excerpt( trim( (string) $block['innerHTML'] ), 0 ) ) );
+		}
+		if ( $spectra ) {
+			$result = self::check_spectra_attributes( $name, (array) $block['attrs'], $palette );
+			if ( true !== $result ) {
+				return $result;
+			}
 		}
 		if ( $new_page && SpectraLayout::BLOCK === $name ) {
 			$result = self::check_container( (array) $block['attrs'] );
@@ -321,7 +409,7 @@ final class BlockValidator {
 		}
 
 		foreach ( $block['innerBlocks'] as $inner ) {
-			$result = self::check_block( $inner, $palette, $unchanged, $allowed, $new_page );
+			$result = self::check_block( $inner, $palette, $unchanged, $allowed, $new_page, array_merge( $outer, array( $name ) ) );
 			if ( true !== $result ) {
 				return $result;
 			}
@@ -436,14 +524,25 @@ final class BlockValidator {
 			if ( preg_match( self::COLOR_LITERAL, $value ) ) {
 				return self::error( sprintf( 'The attribute "%s" of %s has a loose color value "%s". Use a palette slug instead.', $key_path, $name, $value ) );
 			}
-			if ( is_string( $key ) && str_ends_with( $key, 'Color' ) && ! in_array( $value, $palette, true ) ) {
+			// textColor, backgroundColorHover, iconColor…: a palette slug (Spectra resolves it, M3-11).
+			if ( is_string( $key ) && str_contains( $key, 'Color' ) && '' !== $value && ! in_array( $value, $palette, true ) ) {
 				return self::error( sprintf( 'The attribute "%s" of %s uses "%s", which is not a palette slug. Use one of: %s.', $key_path, $name, $value, implode( ', ', $palette ) ) );
+			}
+			// style.color.text, style.border.color…: a palette color, written as a preset.
+			if ( self::is_style_color( $key_path ) && ! preg_match( '/^(?:var:preset\|color\|[a-z0-9-]+|var\(--wp--preset--color--[a-z0-9-]+\)|transparent|inherit|currentcolor)$/i', $value ) ) {
+				return self::error( sprintf( 'The attribute "%s" of %s uses "%s". Colors in style are palette presets, such as "var:preset|color|accent".', $key_path, $name, $value ) );
+			}
+			if ( is_string( $key ) && ( 'gradient' === $key || str_contains( $key, 'Gradient' ) ) && '' !== $value ) {
+				return self::error( sprintf( 'The attribute "%s" of %s is a gradient. The theme defines no gradients: use a palette color.', $key_path, $name ) );
+			}
+			if ( is_string( $key ) && in_array( $key, self::LINK_KEYS, true ) && preg_match( '/^\s*(?:javascript|data|vbscript):/i', $value ) ) {
+				return self::error( sprintf( 'The link "%s" of %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', $key_path, $name ) );
 			}
 			$result = self::check_preset_references( $value, $palette, $name );
 			if ( true !== $result ) {
 				return $result;
 			}
-			if ( 'url' === $key && in_array( $name, array( 'core/image', 'core/cover', 'spectra/container' ), true ) ) {
+			if ( 'url' === $key && in_array( $name, array( 'core/image', 'core/cover' ), true ) ) {
 				$result = self::check_media_url( $value, $name );
 				if ( true !== $result ) {
 					return $result;
@@ -564,6 +663,14 @@ final class BlockValidator {
 			}
 		}
 
+		// Links: no scripts or data.
+		preg_match_all( '/\shref\s*=\s*(["\'])(.*?)\1/is', $html, $hrefs );
+		foreach ( $hrefs[2] as $href ) {
+			if ( preg_match( '/^\s*(?:javascript|data|vbscript):/i', html_entity_decode( $href ) ) ) {
+				return self::error( sprintf( 'The link "%s" in %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', $href, $name ) );
+			}
+		}
+
 		// Media sources: src, srcset, poster and CSS url().
 		preg_match_all( '/\s(?:src|poster)\s*=\s*(["\'])(.*?)\1/is', $html, $sources );
 		preg_match_all( '/\ssrcset\s*=\s*(["\'])(.*?)\1/is', $html, $srcsets );
@@ -581,6 +688,108 @@ final class BlockValidator {
 		}
 
 		return true;
+	}
+
+	/**
+	 * A block sits where its block.json allows (M3-11): directly inside one of
+	 * its `parent` blocks, somewhere inside one of its `ancestor` blocks, and
+	 * only in a block whose `allowedBlocks` lists it. A child that names its
+	 * parent itself is accepted too: Spectra 1.0.13's modal trigger lists
+	 * "spectra/spectra/modal-child-button" in allowedBlocks, a typo.
+	 *
+	 * @param string       $name  Block name.
+	 * @param list<string> $outer The blocks around it, innermost last.
+	 * @return true|WP_Error
+	 */
+	private static function check_nesting( string $name, array $outer ): true|WP_Error {
+		$registry = WP_Block_Type_Registry::get_instance();
+		$type     = $registry->get_registered( $name );
+		$parent   = $outer ? (string) end( $outer ) : null;
+		$parents  = $type && is_array( $type->parent ) ? $type->parent : array();
+		if ( $parents && ! in_array( $parent, $parents, true ) ) {
+			return self::error( sprintf( 'The %s block goes directly inside %s, not %s.', $name, implode( ' or ', $parents ), null === $parent ? 'at the top level' : 'inside ' . $parent ) );
+		}
+		$ancestors = $type && is_array( $type->ancestor ) ? $type->ancestor : array();
+		if ( $ancestors && ! array_intersect( $ancestors, $outer ) ) {
+			return self::error( sprintf( 'The %s block goes somewhere inside %s.', $name, implode( ' or ', $ancestors ) ) );
+		}
+		if ( null !== $parent ) {
+			$outer_type = $registry->get_registered( $parent );
+			$children   = $outer_type && is_array( $outer_type->allowed_blocks ) ? $outer_type->allowed_blocks : array();
+			if ( $children && ! in_array( $name, $children, true ) && ! in_array( $parent, $parents, true ) ) {
+				return self::error( sprintf( 'The %s block may hold only %s, not %s.', $parent, implode( ', ', $children ), $name ) );
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * What only Spectra blocks carry (M3-11): media from this network, icons
+	 * by name, the element they render as, no `htmlAttributes`, and HTML in
+	 * text attributes held to the rules of block HTML.
+	 *
+	 * @param string               $name    Block name.
+	 * @param array<string, mixed> $attrs   Block attributes.
+	 * @param list<string>         $palette Allowed color slugs.
+	 * @return true|WP_Error
+	 */
+	private static function check_spectra_attributes( string $name, array $attrs, array $palette ): true|WP_Error {
+		if ( ! empty( $attrs['htmlAttributes'] ) ) {
+			return self::error( sprintf( 'Do not set htmlAttributes on %s.', $name ) );
+		}
+		foreach ( array( 'icon', 'iconSecondary', 'hoverIcon' ) as $key ) {
+			if ( isset( $attrs[ $key ] ) && ( ! is_string( $attrs[ $key ] ) || ! preg_match( '/^[a-z0-9-]*$/', $attrs[ $key ] ) ) ) {
+				return self::error( sprintf( 'The "%s" of %s is an icon name, such as "star" or "arrow-right".', $key, $name ) );
+			}
+		}
+		foreach ( self::TAG_KEYS as $key ) {
+			if ( isset( $attrs[ $key ] ) && ! in_array( $attrs[ $key ], self::SAFE_TAGS, true ) ) {
+				return self::error( sprintf( 'The "%s" of %s must be one of: %s.', $key, $name, implode( ', ', self::SAFE_TAGS ) ) );
+			}
+		}
+		$strings = array();
+		array_walk_recursive(
+			$attrs,
+			static function ( $value, $key ) use ( &$strings ) {
+				if ( is_string( $value ) ) {
+					$strings[] = array( (string) $key, $value );
+				}
+			}
+		);
+		foreach ( $strings as list( $key, $value ) ) {
+			// Anything that loads from an address is media: this network only (rule 1).
+			if ( ! in_array( $key, self::LINK_KEYS, true ) && preg_match( '#^\s*(?:https?:)?//#i', $value ) ) {
+				$result = self::check_media_url( $value, $name );
+				if ( true !== $result ) {
+					return $result;
+				}
+			}
+			// Text with markup (a heading's text with <strong>): known tags only, and block HTML's rules.
+			if ( str_contains( $value, '<' ) ) {
+				$processor = new \WP_HTML_Tag_Processor( $value );
+				while ( $processor->next_tag( array( 'tag_closers' => 'visit' ) ) ) {
+					if ( ! in_array( (string) $processor->get_tag(), self::HTML_TAGS, true ) ) {
+						return self::error( sprintf( 'The "%s" of %s contains the HTML tag <%s>, which is not allowed there.', $key, $name, strtolower( (string) $processor->get_tag() ) ) );
+					}
+				}
+				$result = self::check_html( $name, $value, $palette );
+				if ( true !== $result ) {
+					return $result;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Whether an attribute path is a color in core's `style`: style.color.text,
+	 * style.color.background, style.elements.link.color.text,
+	 * style.border.color, style.border.top.color.
+	 *
+	 * @param string $path Attribute path, dot-separated.
+	 */
+	private static function is_style_color( string $path ): bool {
+		return str_starts_with( $path, 'style.' ) && (bool) preg_match( '/(?:^|\.)color\.(?:text|background)$|(?:^|\.)border(?:\.(?:top|right|bottom|left))?\.color$/', $path );
 	}
 
 	/**
