@@ -25,7 +25,9 @@
  *    permissions, and that nothing else can be written (offline).
  * 6. The REST endpoint mody-platform/v1/chat: jobs and the checker (here they
  *    run at once, WP-CLI has no PHP-FPM), another user's job, a busy and a
- *    stale job, permissions, validation, the stored conversation (offline).
+ *    stale job, permissions, validation, the stored conversation; a change
+ *    held for the owner's decision (unsaved changes in the editor) and
+ *    /chat/decision: save, cancel, a new message, a stale ID (offline).
  * 7. Retention: the setting, the once-a-day purge, the settings page (offline).
  *    It uses the retention in force, so it deletes only what the daily purge would.
  * 8. Real round trips: create a page over HTTP as a background job, polling the
@@ -949,6 +951,56 @@ $roles = array_column( $sent, 'role' );
 $check( '...sent back to the model as a tool call', array( 'system', 'user', 'assistant', 'tool', 'assistant', 'user' ) === $roles && $names['open_editor'] === ( $sent[2]['tool_calls'][0]['function']['name'] ?? '' ) && ( $sent[2]['tool_calls'][0]['id'] ?? '' ) === ( $sent[3]['tool_call_id'] ?? 'none' ), implode( ', ', $roles ) );
 $rest( 'DELETE' );
 $check( 'DELETE forgets it', array() === Mody\Platform\Agent\ChatController::history() );
+
+// A change held for the owner's decision (decided by the maintainer on 2026-11-09):
+// the bubble reports unsaved changes in the editor, the change waits for save, discard or cancel.
+$decide        = static function ( string $id, string $choice ) {
+	$request = new WP_REST_Request( 'POST', '/mody-platform/v1/chat/decision' );
+	$request->set_param( 'id', $id );
+	$request->set_param( 'choice', $choice );
+	return rest_do_request( $request );
+};
+$since();
+$colors_before = $palette();
+$fakes         = array( array( array( $names['update_design'], array( 'primary' => '#2E8B57' ) ) ), 'Done!' );
+$requests      = array();
+$turn          = $rest( 'POST', array( 'message' => 'Make the primary color green', 'unsaved' => array( 'styles' ) ) )->get_data()['turn'] ?? array();
+$rows          = $since();
+$check( 'unsaved styles: the change is held, nothing saved', $colors_before === $palette() && ! empty( $turn['decision']['id'] ) && 'styles' === ( $turn['decision']['record'] ?? '' ) && 1 === count( $requests ) && ! $turn['refresh'] && ! $turn['actions'], wp_json_encode( $turn['decision'] ?? null ) );
+$check( '...the owner is asked, the change named', str_contains( $turn['reply'] ?? '', 'unsaved changes to the styles' ) && str_contains( $turn['reply'] ?? '', 'primary color #2e8b57' ), $turn['reply'] ?? '' );
+$check( '...logged as held', array( 'mody/update-design' ) === $tools_of( $rows ) && str_starts_with( (string) ( $rows[0]['result'] ?? '' ), 'held:' ) );
+$check( '...stored with the reply, for the model', true === ( Mody\Platform\Agent\ChatController::history()[1]['calls'][0]['result']['held'] ?? null ) );
+$response = $decide( wp_generate_uuid4(), 'save' );
+$check( 'decision with another ID: 410, nothing saved', 410 === $response->get_status() && $colors_before === $palette(), (string) $response->get_status() );
+$response = $decide( (string) ( $turn['decision']['id'] ?? '' ), 'save' );
+$done     = $response->get_data()['turn'] ?? array();
+$check( 'decision "save": the held change runs as made', 200 === $response->get_status() && '#2e8b57' === $palette()['primary'] && array( 'styles' ) === ( $done['refresh'] ?? null ) && true === ( $done['actions'][0]['navigate'] ?? null ), $response->get_status() . ' ' . ( $done['reply'] ?? '' ) );
+$history = Mody\Platform\Agent\ChatController::history();
+$check( '...the conversation keeps the choice and the call', Agent::decision_labels()['save'] === ( $history[2]['text'] ?? '' ) && $names['update_design'] === ( $history[3]['calls'][0]['name'] ?? '' ) && array( 'primary' => '#2E8B57' ) === ( $history[3]['calls'][0]['args'] ?? null ) );
+$check( '...and it runs once', 410 === $decide( (string) ( $turn['decision']['id'] ?? '' ), 'save' )->get_status() && null === Agent::held() );
+$restore_design();
+$fakes    = array( array( array( $names['update_design'], array( 'primary' => '#2E8B57' ) ) ) );
+$turn     = $rest( 'POST', array( 'message' => 'Make the primary color green', 'unsaved' => array( 'styles' ) ) )->get_data()['turn'] ?? array();
+$response = $decide( (string) ( $turn['decision']['id'] ?? '' ), 'cancel' );
+$check( 'decision "cancel": nothing changed', 200 === $response->get_status() && $colors_before === $palette() && null === Agent::held() && ! ( $response->get_data()['turn']['refresh'] ?? array() ), $response->get_data()['turn']['reply'] ?? '' );
+$fakes = array( array( array( $names['update_design'], array( 'primary' => '#2E8B57' ) ) ) );
+$turn  = $rest( 'POST', array( 'message' => 'Make the primary color green', 'unsaved' => array( 'styles' ) ) )->get_data()['turn'] ?? array();
+$fakes = array( 'Hi.' );
+$rest( 'POST', array( 'message' => 'Hello' ) );
+$check( 'another message drops the held change', null === Agent::held() && 410 === $decide( (string) ( $turn['decision']['id'] ?? '' ), 'discard' )->get_status() && $colors_before === $palette() );
+$fakes = array( array( array( $names['update_design'], array( 'primary' => '#2E8B57' ) ) ), 'Done.' );
+$turn  = $rest( 'POST', array( 'message' => 'Make the primary color green', 'unsaved' => array( 'site' ) ) )->get_data()['turn'] ?? array();
+$check( 'unsaved site settings: a color change runs at once', ! isset( $turn['decision'] ) && '#2e8b57' === $palette()['primary'] && array( 'styles' ) === ( $turn['refresh'] ?? null ) );
+$restore_design();
+$fakes    = array( array( array( $names['update_design'], array( 'primary' => 'green' ) ) ), 'That is not a color code.' );
+$requests = array();
+$turn     = $rest( 'POST', array( 'message' => 'Make the primary color green', 'unsaved' => array( 'styles' ) ) )->get_data()['turn'] ?? array();
+$check( '...an invalid change is not held: the model gets the error', ! isset( $turn['decision'] ) && null === Agent::held() && 2 === count( $requests ) && $colors_before === $palette() );
+$response = $rest( 'POST', array( 'message' => 'Hi', 'unsaved' => array( 'pages' ) ) );
+$check( '...an unknown unsaved name: 400', 400 === $response->get_status(), (string) $response->get_status() );
+$since();
+Agent::forget_held();
+$rest( 'DELETE' );
 $response = $rest( 'POST', array( 'message' => str_repeat( 'a', Agent::MAX_MESSAGE_LENGTH + 1 ) ) );
 $check( 'too long: 400', 400 === $response->get_status(), (string) $response->get_status() );
 $response = $rest( 'POST', array() );
