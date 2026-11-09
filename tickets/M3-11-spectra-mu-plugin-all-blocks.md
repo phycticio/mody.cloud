@@ -1,6 +1,6 @@
 # M3-11 · Spectra as a MU plugin, and every Spectra block for the agent
 
-**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §10 (Spectra and `SpectraGuard`), documentation/ai-engine.md ("Initial block whitelist", "Layout: Spectra containers", "Validation pipeline"), documentation/architecture.md (layout, deploy) · **Status:** decided 2026-11-08; **part 1 built 2026-11-08** (Results below), parts 2 to 7 to do.
+**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §10 (Spectra and `SpectraGuard`), documentation/ai-engine.md ("Initial block whitelist", "Layout: Spectra containers", "Validation pipeline"), documentation/architecture.md (layout, deploy) · **Status:** decided 2026-11-08; **part 1 built and deployed 2026-11-08, part 2 built 2026-11-09** (Results below), parts 3 to 7 to do.
 
 ## The goal (maintainer, 2026-11-08)
 > Spectra should be a mu-plugin and the agent should be able to use all blocks available from Spectra.
@@ -56,3 +56,21 @@ For each group: a compact reference of the attributes the agent writes (in the p
   - `scripts/spectra-guard-test.php`: Spectra is a MU plugin and loads after mody-platform.
   - `scripts/member-plugins-test.php`: the network-active example is now the `ai` plugin, and Spectra is on no Plugins screen.
   - All 23 suites pass offline.
+- **Deployed 2026-11-08** (`2ac026d`). For about 2 seconds right after the deploy, three requests got a 500: rsync swaps the files while PHP-FPM still runs cached code (OPcache `revalidate_freq=2`). It healed by itself; no reload was needed.
+
+### Part 2 (built 2026-11-09)
+- **The list:** `BlockValidator::SPECTRA_BLOCKS` holds 46 blocks, every registered `spectra/*` block but `SPECTRA_EXCLUDED` (`spectra/popup-builder`, and `spectra/google-map`, which `SpectraGuard` unregisters). They join `WHITELIST`; the prompts do not offer them yet (parts 3 to 7).
+- **The rules** (ai-engine.md, Validation pipeline step 7):
+  - **Nesting, for every block:** `parent` (the block directly around it), `ancestor` (any block around it) and the outer block's `allowedBlocks`, all read from the registry.
+  - **No HTML of their own:** every Spectra block, not only the container. A leaf is a self-closing comment; the error shows one.
+  - **Spectra's attributes:** no `htmlAttributes`; icons are names (`[a-z0-9-]`); `tagName`, `htmlTag` and `headerElement` are safe elements only; any address in a string attribute other than a link is media from this network; markup in text attributes uses known tags and passes the HTML checks.
+  - **Stricter for every block:** any attribute whose name contains `Color` is a palette slug (Spectra's `backgroundColorHover`, `iconColor`…); colors in core's `style` are palette presets; gradients are refused; links (`href` in the HTML, `linkURL`, `linkUrl`, `href` attributes) refuse `javascript:`, `data:` and `vbscript:`.
+  - **The palette** is the theme's slugs plus the owner's custom colors (M3-10 lets the agent add them).
+- **Found while building it:**
+  - **Spectra's modal trigger** lists `spectra/spectra/modal-child-button` in `allowedBlocks`, a typo in Spectra 1.0.13. The real child names its parent, so a child whose own `parent` names the block it is in is accepted.
+  - **Markup inside attribute JSON:** WordPress saves `<`, `>` and `&` there as `\u003c`, `\u003e` and `\u0026`. A raw `<strong>` in `{"text":"…"}` fails the round-trip check (step 1). Parts 3 to 7 must deal with it in the prompts, or with a repair before validating.
+  - **Spectra's own generators** (its `create-*` abilities, called in-process with no `post_id`) write each family's markup. They are the references for the tests and for parts 3 to 7. Their markup passes once normalized by `serialize_blocks( parse_blocks() )`.
+- **Tests:**
+  - `scripts/spectra-blocks-test.php` (new, 70 checks, read-only): every registered Spectra block is on one of the two lists; the markup of Spectra's generators for its 12 families passes as a new page and as an edit, and renders; an accordion inside a recipe section passes; the modal typo case passes; each refused case fails for the reason it states.
+  - All 26 suites pass offline (2026-11-09).
+  - Real runs on 2026-11-09: `ai-generate-page`, `spectra-layout`, `agent-edit` and `agent-template` all passed. The prompts are unchanged, so the stricter rules refuse nothing the model writes today.
