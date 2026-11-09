@@ -1,6 +1,6 @@
 # M3-11 · Spectra as a MU plugin, and every Spectra block for the agent
 
-**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §10 (Spectra and `SpectraGuard`), documentation/ai-engine.md ("Initial block whitelist", "Layout: Spectra containers", "Validation pipeline"), documentation/architecture.md (layout, deploy) · **Status:** decided 2026-11-08; **part 1 built and deployed 2026-11-08, part 2 built 2026-11-09** (Results below), parts 3 to 7 to do.
+**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §10 (Spectra and `SpectraGuard`), documentation/ai-engine.md ("Initial block whitelist", "Layout: Spectra containers", "Validation pipeline"), documentation/architecture.md (layout, deploy) · **Status:** decided 2026-11-08; **part 1 built and deployed 2026-11-08, parts 2 and 3 built 2026-11-09** (Results below; part 2 merged and pushed in `ab49412`, its deploy waits for the production disk), parts 4 to 7 to do.
 
 ## The goal (maintainer, 2026-11-08)
 > Spectra should be a mu-plugin and the agent should be able to use all blocks available from Spectra.
@@ -74,3 +74,23 @@ For each group: a compact reference of the attributes the agent writes (in the p
   - `scripts/spectra-blocks-test.php` (new, 70 checks, read-only): every registered Spectra block is on one of the two lists; the markup of Spectra's generators for its 12 families passes as a new page and as an edit, and renders; an accordion inside a recipe section passes; the modal typo case passes; each refused case fails for the reason it states.
   - All 26 suites pass offline (2026-11-09).
   - Real runs on 2026-11-09: `ai-generate-page`, `spectra-layout`, `agent-edit` and `agent-template` all passed. The prompts are unchanged, so the stricter rules refuse nothing the model writes today.
+- **Not deployed yet.** Merged into `main` (`ab49412`) and pushed on 2026-11-09. The deploy stopped at its server checks: production's USB disk was hanging again (an `ls` in `/Volumes/Toshiba/mody.cloud` never returned), and the mody.cloud stack was already down (only `mody_cloud_db` left, stopped about an hour before). Nothing reached the server.
+
+### Part 3 (built 2026-11-09): accordion and tabs
+- **`AI\SpectraBlocks`** holds the families the writers know: `FAMILIES`, one example each (`ACCORDION`, `TABS`), `reference()` for the prompts and `normalize()`.
+  - **The examples** have the blocks Spectra's generators write, with the attributes as the block editor saves them. The editor drops default values (`"activeAccordion":0`) and writes a tab label's `currentTab` before its `text`, so the examples do too.
+  - **The prompts:** the page writer's and the edit writer's (pages, templates, parts) offer "the Spectra content blocks below (accordion and tabs, with their child blocks)" and carry the reference after the layout rules: about 3,000 characters, with when to use each family ("most sections need none").
+- **The validator:** tabs need one label per panel; an accordion item needs its question, then its answer. Checked after the inner blocks, so a child in the wrong place gets its own, more precise error.
+- **The repair** (the part 2 finding): `PageGenerator::repair()` writes every attribute object again as `serialize_block_attributes()` does, so `&`, quotes, `<`, `>` and `--` in a question or a label no longer fail the round trip. JSON that does not decode, or that has an empty object inside (PHP would write `[]`), is left to the validator. Spaces in attribute JSON are compacted by the same step.
+- **After validation:** `SpectraBlocks::normalize()` drops default values from the families' blocks, sets `variationSelected` on tabs, and numbers `currentTab` on each label and panel by position. Spectra pairs them by that number, and a missing one counts as 0.
+- **Real runs (2026-11-09),** all valid on the first request:
+  - an FAQ page: one accordion per topic, 12 questions;
+  - a menu in tabs: 3 labels and 3 panels;
+  - an about page: neither family;
+  - a whole-page edit adding four questions: a new section with an accordion of 4, the rest kept;
+  - the selected accordion, "add a question about how to pay": 3 questions.
+  - `ai-generate-page`, `agent-edit` and `agent-template` passed. `spectra-layout` failed once and then passed: its whole-page edit ("add a section with three tips") returned fewer sections than the page had. 12 more runs of that edit on one page, 6 with the new reference in the prompt and 6 without, were all right, so the longer prompt is not the cause. The validator cannot see content an edit drops (open question in ai-engine.md).
+- **Browser check (headless Chromium, 2026-11-09):** a page with a section of each family opened in the block editor with no invalid block, no recovery prompt and no layout picker. On the front end, the clicked tab showed its own panel and the clicked question opened, with no script errors. The editor marks the page as changed on load only because it writes a section container's attributes in another key order, which has been the case since M3-08. Blocks, attribute values and text were identical. **Follow-up:** write `SpectraLayout`'s recipe in the editor's key order, so a generated page opens unchanged.
+- **Tests:** `scripts/spectra-content-test.php` (new; offline sections 1 to 5 plus five real requests): the prompts, the examples against Spectra's generators and the editor's way of saving, the rendered blocks, the repair, the validator's family checks and `normalize()`. All 27 suites pass offline.
+- **Found:** `\uXXXX` escapes typed into an editing tool arrive decoded. Part 2's paragraph in ai-engine.md said WordPress saves `<` "as `<`"; it is rewritten here.
+

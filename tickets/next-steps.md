@@ -2,7 +2,7 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-09, after M3-11 part 2 (the validator accepts every Spectra block).
+**Last updated:** 2026-11-09, after M3-11 part 3 (the agent writes accordions and tabs).
 
 ## Waiting on the maintainer
 - **The SMTP relay** ([M5-02](M5-02-production-member-sites.md), step 6). The answer on 2026-11-08 was cut off ("SMTP relay: Let"). I build the mail hook once the relay is named.
@@ -23,7 +23,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 
 ## Queue
 1. **[M3-10](M3-10-agent-edits-global-styles.md): the agent edits every part of the site's styles.** Parts A and B are built (2026-11-08): `mody/update-styles`, the guarded patch, which the agent now uses for any style. Parts A and B are deployed (`8b67ce9`). Next is part C: `mody/undo-styles`, the editor check and the docs.
-2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed; part 2 (the validator accepts every Spectra block but the popup builder) is built (2026-11-09). Next is part 3, the first of five groups of block families: accordion and tabs. It must deal with markup inside attribute JSON (the ticket's part 2 Results).
+2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed. Part 2 (the validator accepts every Spectra block but the popup builder) is merged and pushed (`ab49412`); its deploy waits for the production disk. Part 3 (accordion and tabs) is built (2026-11-09). Next is part 4: buttons, icons, list, separator and content.
 3. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
 4. **[M1-01](M1-01-registration-trial-billing.md) part 3: Mollie card verification and webhook.** It needs the test keys.
 5. **[M5-02](M5-02-production-member-sites.md) step 6: SMTP in production.** It needs the relay.

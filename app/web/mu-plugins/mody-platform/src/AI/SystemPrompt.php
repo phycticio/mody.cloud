@@ -163,8 +163,8 @@ You generate pages for a WordPress site with a Full Site Editing block theme. Yo
 
 Output rules:
 1. Return ONLY serialized block markup: <!-- wp:... --> comments wrapping HTML. No explanations, no Markdown, no backticks, no text outside blocks.
-2. Use only these blocks: spectra/container, heading, paragraph, buttons, button, list, list-item, quote, separator. Never invent block names.
-3. Write blocks exactly as WordPress saves them, like the example below: core blocks by their short name without the core/ prefix (wp:paragraph), the container as wp:spectra/container, attribute JSON with no spaces, every block closed, a blank line between sibling blocks.
+2. Use only these blocks: spectra/container, heading, paragraph, buttons, button, list, list-item, quote, separator, and the Spectra content blocks below (accordion and tabs, with their child blocks). Never invent block names.
+3. Write blocks exactly as WordPress saves them, like the examples below: core blocks by their short name without the core/ prefix (wp:paragraph), Spectra blocks by their full name (wp:spectra/container), attribute JSON with no spaces, every block closed, a blank line between sibling blocks.
 4. Colors: only the palette slugs primary, secondary, accent, base and contrast, through the textColor and backgroundColor attributes plus, on headings, paragraphs and buttons, the matching has-<slug>-color and has-<slug>-background-color classes. Never write hex codes, rgb() or color names, and never put colors in style attributes.
 5. Do not set fonts, font sizes, or any other inline style. Spacing is set only by the containers, exactly as the layout rules say.
 6. No images and no external links. Buttons link to a section of the page (#contact) or have no link.
@@ -172,7 +172,7 @@ Output rules:
 8. Write the page text in the language of the request, in the brand's tone of voice. Do not invent prices, addresses, phone numbers, opening hours or customer names: write a placeholder in square brackets, such as [phone number].
 PROMPT;
 
-		return $rules . "\n" . SpectraLayout::rules() . "\n\n" . self::brand_context()
+		return $rules . "\n" . SpectraLayout::rules() . "\n\n" . SpectraBlocks::reference() . "\n\n" . self::brand_context()
 			. "\n\nExample of correct output, for a different brand (copy the format, not the content):\n"
 			. self::EXAMPLE;
 	}
@@ -198,8 +198,8 @@ You change existing content on a WordPress site with a Full Site Editing block t
 Output rules:
 1. Return ONLY the complete markup after the change: serialized blocks, <!-- wp:... --> comments wrapping HTML. No explanations, no Markdown, no backticks, no text outside blocks.
 2. Change only what the instruction asks. Keep every other block exactly as it is: same attributes, classes, links, words and order, byte for byte.
-3. New or changed blocks: only spectra/container, heading, paragraph, buttons, button, list, list-item, quote, separator. Blocks already there may stay as they are, whatever they are (an older page may have group, columns or column blocks: keep them unless the instruction asks to rebuild that part).
-4. Write blocks exactly as WordPress saves them, like the blocks you receive: core blocks by their short name (wp:paragraph), the container as wp:spectra/container, compact attribute JSON, every block closed.
+3. New or changed blocks: only spectra/container, heading, paragraph, buttons, button, list, list-item, quote, separator, and the Spectra content blocks below (accordion and tabs, with their child blocks). Blocks already there may stay as they are, whatever they are (an older page may have group, columns or column blocks: keep them unless the instruction asks to rebuild that part).
+4. Write blocks exactly as WordPress saves them, like the blocks you receive: core blocks by their short name (wp:paragraph), Spectra blocks by their full name (wp:spectra/container), compact attribute JSON, every block closed.
 5. Colors: only the palette slugs primary, secondary, accent, base and contrast, through the textColor and backgroundColor attributes plus the matching has-<slug>-color and has-<slug>-background-color classes. Never hex codes, rgb() or color names.
 6. No fonts, font sizes or other inline styles of your own; spacing only as the layout rules give it to containers. No new images and no external links.
 7. Write new text in the language of the existing text, unless the instruction asks for another one, in the brand's tone of voice. Do not invent prices, addresses, phone numbers, opening hours or customer names: write a placeholder in square brackets, such as [phone number].
@@ -214,7 +214,7 @@ PROMPT;
 PROMPT;
 		}
 
-		return $rules . "\n\n" . SpectraLayout::rules() . "\n- New layout you add follows these rules; a container already there keeps its attributes unless the instruction is about it." . "\n\n" . self::brand_context();
+		return $rules . "\n\n" . SpectraLayout::rules() . "\n- New layout you add follows these rules; a container already there keeps its attributes unless the instruction is about it." . "\n\n" . SpectraBlocks::reference() . "\n\n" . self::brand_context();
 	}
 
 	/**
