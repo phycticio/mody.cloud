@@ -6,7 +6,7 @@
 
 A self-serve, European-sovereign WordPress Multisite platform:
 
-1. A visitor registers on the main site with a **card** (Mollie) and gets a **30-day trial** equal to Tier 1 (3 sites).
+1. A visitor answers four questions in a chat on the main site and gets a **30-day trial** equal to Tier 1 (3 sites), with **no card** (decided 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)), and their first site at once.
 2. At the end of the trial the selected monthly plan is charged (5/15/50 EUR for 3/10/50 sites). All tiers have the **same benefits**; the only MVP difference is the number of sites.
 3. The member creates sites (subdomains) through a short **choice-based brand wizard**; each site is provisioned automatically: FSE theme `theme` + Spectra, per-site Global Styles from the chosen preset, and an AI-generated home page.
 4. Everything is edited in the **native Site Editor** (Appearance → Editor). Every edit entry point — dashboard, agent, emails — links to the Site Editor URL.
@@ -27,7 +27,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | --- | --- | --- |
 | 1 | AI model & provider | `Qwen/Qwen3.8-27B-FP8` (project-scoped build) via Infomaniak AI Services, OpenAI-compatible API. Supersedes the Ministral decision in [ai-engine.md](ai-engine.md). |
 | 2 | Payment provider | **Mollie** (EU). Supersedes the open question in [architecture.md](architecture.md#open-questions). |
-| 3 | Trial | 30 days, equals **Tier 1 (3 sites)**. Card required at signup. |
+| 3 | Trial | 30 days, equals **Tier 1 (3 sites)**. **No card at signup** (changed by the maintainer on 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md); it was "Card required at signup"). The card and the plan are asked for before the trial ends. |
 | 4 | Expired accounts | Past-due sites go **read-only with a banner**; billing retried daily; after **60 days** the sites are deleted. |
 | 5 | Tier site counts | **3 / 10 / 50**. More sites than that is a dedicated-VPS conversation. |
 | 6 | Custom domains | Per **site** (not per page), **next iteration**. Caddy sidecar is the decided mechanism. No domain resale yet. |
@@ -58,27 +58,32 @@ Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard:
 
 | Tier | Role slug | Fee / month | Sites |
 | --- | --- | --- | --- |
-| Trial (30 days) | `trial` (benefits = `collaborator`) | 0 (card required at signup) | 3 |
+| Trial (30 days) | `trial` (benefits = `collaborator`) | 0 (no card, decided 2026-11-08) | 3 |
 | Tier 1 · Collaborator | `collaborator` | 5 EUR | 3 |
 | Tier 2 · Member | `member` | 15 EUR | 10 |
 | Tier 3 · Patron | `patron` | 50 EUR | 50 |
 
 Fees as documented in [membership-tiers.md](membership-tiers.md); confirm before launch. Until M1 adds `mody_members`, `Provisioning\Quota::can_create_site()` allows every user the trial's 3 sites (decided 2026-11-06, M2-01); M1 swaps in the plan's limit. Resource quotas (storage, upload size) arrive in a later iteration — MVP tiers differ **only** in site count.
 
-### Signup flow (card required)
+### Signup flow (a chat, no card; decided 2026-11-08)
 
-1. `mody.cloud/register/` (page on the main site): full name, email, password, tier selection (three cards: name, price, site count), **Create account**.
-2. Server validates and creates the WP user, with no role on the main site (decided 2026-11-08: the `mody_members` row is the membership, not a `mody_member` role). It sets `mody_members.status = pending_payment` with the chosen tier in `next_plan`. Then it creates a Mollie customer and a **0.01 EUR card-verification checkout**, and redirects to Mollie.
-3. Mollie webhook `payment.succeeded` (signature verified, idempotent) → account `active`, `trial_ends_at = billing_due_at = now + 30d`, payment method stored, welcome email, redirect back to the Mody dashboard (single-use token in the return URL).
-4. No webhook within 24 h → cron marks the account `expired_signup`; the member can retry payment from the dashboard.
+Built 2026-11-08 ([M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md), on top of [M1-01](../tickets/M1-01-registration-trial-billing.md) parts 1 and 2; tests `scripts/members-test.php`, `scripts/registration-test.php`, `scripts/onboarding-test.php`). It replaces the card-first flow agreed on 2026-11-01 (full name, email, password and a plan, then a 0.01 EUR Mollie check before the trial).
 
-**Built 2026-11-08** ([M1-01](../tickets/M1-01-registration-trial-billing.md) parts 1 and 2; tests `scripts/members-test.php`, `scripts/registration-test.php`):
-- **The page:** steps 1 and 2 up to the Mollie checkout. The page holds the PHP-only block `mody/register` (`Members\Registration`). It is closed until the network option `mody_registration_open` is set, and production stays closed until the card check works.
-- **After the form:** the new member is logged in and lands on the Mody dashboard. Until their card is verified (`pending_payment`, `expired_signup`), it shows a "Finish your payment" step and no site can be created (decided 2026-11-08). Members who log in later land there too.
-- **Still to build:** the checkout and the webhook, part 3.
+1. **`mody.cloud/register/`**, a page on the main site holding the PHP-only block `mody/register` (`Members\Registration`). Mody asks, one question at a time: the visitor's name, their email, the name of their project or website, and its address, shown as `<slug>.mody.cloud` (suggested from the project's name, with **Keep it**). Each answer is checked on the server before the next question (`POST mody-platform/v1/register/check`). A summary, then **Create my site** (`POST mody-platform/v1/register`). Without JavaScript the block is a form with the same four fields.
+2. **The server** validates again and creates, in the same request:
+   - the WP user, with a random password and no role on the main site (decided 2026-11-08: the `mody_members` row is the membership, not a `mody_member` role);
+   - the trial: `plan = trial`, `status = active`, `trial_ends_at = billing_due_at = now + 30d`, no `next_plan` (`Members::start_trial()`);
+   - the first site, through the provisioning pipeline as a **starter** site: no model call (the visitor is anonymous, and the brand has no mission yet), the default preset and tone, an empty tagline, and a starter front page;
+   - the welcome email: the site's address, the trial's end, and a link to choose a password (WordPress's own reset screen, valid 24 hours).
+3. **The first password** logs the member in and opens their site's **Identity** screen (Appearance → Editor → Identity), where the **editor tour** runs: the agent, two requests to it, then the Site Editor's parts (`Onboarding\Onboarding`, `Onboarding\EditorTour`). Later password resets behave as in WordPress.
+4. **Closed until opened:** the network option `mody_registration_open`. Before opening it in production: a rate limit and a spam check (M5-01), the SMTP relay (M5-02; the welcome email is the only way in), the wildcard DNS and TLS (M5-02).
+5. **Not built yet:** the card and the plan before the trial ends (M1-01 part 3, reworked); removing accounts that never set a password, with their site (needs the WP-Cron decision).
+
+The statuses `pending_payment` and `expired_signup` stay in the table for the card step that comes before the trial ends. A member in either sees "Finish your payment" on the dashboard and creates no site (decided 2026-11-08); since the change, nothing puts a member in them.
 
 ### Billing lifecycle
 
+- **Before the trial ends** (decided 2026-11-08, design to come with M1-01 part 3): the member chooses a plan and gives a card (a Mollie checkout). **Open question:** what happens at day 30 without one: read-only like a failed charge, or something else.
 - **Trial end (day 30):** charge the tier price via the stored Mollie payment method. Success → recurring monthly (`billing_due_at` + 1 month).
 - **Plan change:** selected in the dashboard; takes effect at the next billing date (both directions). Prorated upgrades: post-MVP.
 - **Failed charge:** account `past_due`. All member sites become **read-only** (capability filter denies content/style mutation; front end and reading still work) with a persistent banner in wp-admin and on the dashboard: "Update your payment to keep editing". Daily retry for 60 days.
@@ -86,7 +91,7 @@ Fees as documented in [membership-tiers.md](membership-tiers.md); confirm before
 
 **Acceptance criteria**
 
-- A new visitor with a valid card reaches an active trial in under 2 minutes; a duplicate email is rejected.
+- A new visitor reaches an active trial and their first site in under 2 minutes, with no card; a duplicate email or a taken address is rejected (M1-03, checked by `scripts/registration-test.php`).
 - Simulating a failed charge makes every site read-only (editor save, REST `wp/v2` update, and agent tools are all denied) and shows the banner.
 - A plan change is reflected in the quota at the next cycle.
 - All Mollie webhook handling is idempotent (replayed webhook changes nothing) and rejects bad signatures.
@@ -106,6 +111,8 @@ The dashboard is the only place where cross-site actions (create/delete site, bi
 **Design principle: the member never types raw values** — no hex codes, no font names, no CSS. Every step is a **choice** from a small number of beautiful, prefilled options, with a live preview. The whole wizard can be completed in three clicks.
 
 Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizard lives under Network Admin → **Mody**, for super admins (decided 2026-11-06, [M2-03](../tickets/M2-03-brand-wizard.md)). Built 2026-11-06 ([M2-03](../tickets/M2-03-brand-wizard.md)), on top of the provisioning pipeline ([M2-01](../tickets/M2-01-site-provisioning.md)). How it works: [brand-profile.md](brand-profile.md#wizard-steps). The logo upload moved to [M2-05](../tickets/M2-05-wizard-logo.md) (decided 2026-11-06, rule 5), built 2026-11-07.
+
+**A member's first site comes from the signup, not from the wizard** (2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)): the signup chat asks only for the site's name and address, and the member gives the rest (mission, tone, colors, pages) to the agent or in the Site Editor, guided by the editor tour. The wizard creates the member's further sites.
 
 ### Step 1 — Your brand (identity)
 
@@ -155,6 +162,8 @@ The presets (kept as they are for M2, decided 2026-11-06). Since 2026-11-07 (M2-
 ## 7. Site provisioning pipeline
 
 Runs **in-process** in the MU plugin (no REST, no Application Passwords — that simplifies the old flow in [brand-profile.md](brand-profile.md#site-creation-flow)). Each step writes to a `mody_provisioning_jobs` row, is idempotent, and is resumable; a site is never left unthemed.
+
+**Starter sites** (the signup's, 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)): the job's input has `starter`, with only a slug and a title. The mission and the prompt may be empty, the `page` step publishes a starter front page (the site's name and "Our new website is on its way") without a model call, and the `email` step sends nothing, because the signup's welcome email replaces it. **Every new site** (signup and wizard) also refuses the reserved addresses in `Pipeline::RESERVED_SLUGS` (`www`, `mail`, `api`, `admin`, `plugins` and other infrastructure names), besides core's `illegal_names`.
 
 **Built 2026-11-06** ([M2-01](../tickets/M2-01-site-provisioning.md)): `Provisioning\Pipeline` in the MU plugin, tested by `scripts/provisioning-test.php`. How it works: [brand-profile.md](brand-profile.md#site-creation-flow). The profile row needs the new site's ID, so `profile` runs after `site`. The table below is in the order the steps run.
 
@@ -428,3 +437,5 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
 5. ~~**Final market membership** — beyond Redirection.~~ Decided 2026-11-08: **no plugin for now.** Redirection was dropped; any plugin added later through Composer (after a rule 1 check) and deployed appears on members' Plugins screens unless a super admin hides it. Spectra is network-active, not a market plugin (decision 14).
 6. **Fee confirmation** — 5/15/50 EUR unchanged for 3/10/50 sites (assumed).
+7. **The end of a trial without a card** (raised 2026-11-08 with the card-free trial, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)): when and how the dashboard asks for the plan and the card, and what happens at day 30 without them (read-only like `past_due`, a grace period, or deletion after some time).
+8. **Accounts that never set a password** (M1-03): after how many days the account and its starter site are removed. Needs the WP-Cron decision.

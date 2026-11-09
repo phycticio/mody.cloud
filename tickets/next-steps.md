@@ -10,11 +10,12 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 - **Inputs for M1:**
   - the Mollie test keys in `.env` (M1-01 part 3);
   - the WP-Cron decision (part 5 and M1-02; architecture.md, Open questions);
-  - the fee confirmation (5/15/50 EUR). The registration page already shows these fees, and it stays closed in production until part 3;
-  - a review of `next_plan`, the column added for the plan chosen at signup ([M1-01](M1-01-registration-trial-billing.md), Results part 2).
+  - the fee confirmation (5/15/50 EUR). Since M1-03 the signup shows no fees; the dashboard will;
+  - a review of `next_plan`, the column added for the plan chosen at signup ([M1-01](M1-01-registration-trial-billing.md), Results part 2). Since M1-03 it is set when the member chooses a plan during the trial;
+  - **for [M1-03](M1-03-chat-signup-and-editor-tour.md):** a review of its seven planning choices (site at signup, no AI call at signup, the first password logging in, and the rest), and two new open questions (mvp-spec §16, 7 and 8): the end of a trial without a card, and when to remove accounts that never set a password.
 - **[M5-02](M5-02-production-member-sites.md) steps 1 to 4:** the `*` DNS record, the API token and wildcard certificate in NPM ("Full (strict)", decided 2026-11-08), the proxy host, and the stack check. Then step 5, the `home` fix.
 - **Browser checks:**
-  - the registration page: open it locally with `./bin/wp site option update mody_registration_open 1`, visit `https://mody.local/register/`, then close it again;
+  - the signup chat and the editor tour ([M1-03](M1-03-chat-signup-and-editor-tour.md), Results: the steps). Open registration locally with `./bin/wp site option update mody_registration_open 1`, sign up at `https://mody.local/register/`, open the email in Mailpit, choose a password, and follow the tour with real requests to Mody. Then close registration again;
   - M4-02 part A1: the Plugins screen as `member`;
   - the agent chat colors;
   - the network admin screens with no Updates entry.
@@ -24,7 +25,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 1. **[M3-10](M3-10-agent-edits-global-styles.md): the agent edits every part of the site's styles.** Parts A and B are built (2026-11-08): `mody/update-styles`, the guarded patch, which the agent now uses for any style. Parts A and B are deployed (`8b67ce9`). Next is part C: `mody/undo-styles`, the editor check and the docs.
 2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed. Part 2 (the validator accepts every Spectra block but the popup builder) and part 3 (accordion and tabs) are built and deployed (2026-11-09). Next is part 4: buttons, icons, list, separator and content.
 3. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
-4. **[M1-01](M1-01-registration-trial-billing.md) part 3: Mollie card verification and webhook.** It needs the test keys.
+4. **[M1-01](M1-01-registration-trial-billing.md) part 3: the plan and the card during the trial (Mollie checkout and webhook).** Reworked by M1-03. It needs the test keys and the answer to mvp-spec §16 question 7.
 5. **[M5-02](M5-02-production-member-sites.md) step 6: mail in production.** Built on 2026-11-09 (Brevo). It waits for the deploy and the server steps above.
 6. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
 7. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**

@@ -46,6 +46,7 @@ Add `*.mody.cloud` to proxy host 18, or create a second host with the same forwa
 
 ### 6. Mail (decided on 2026-11-09: Brevo's API, through WP Mail SMTP)
 - **The relay:** the maintainer chose Brevo on 2026-11-09, for now, as a temporary exception to rule 1 ([architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1)). Spec §16 question 2 had named Infomaniak Mail or self-hosted.
+- **Why it blocks signups** (2026-11-08, [M1-03](M1-03-chat-signup-and-editor-tour.md)): a new member's only way in is the welcome email's set-password link.
 - **Built (2026-11-09):** WP Mail SMTP 4.10.3 in `app/composer.json`, network-active, hidden from members and limited to super admins (`Mail\WpMailSmtp`, `Gating\MemberPlugins`). Its settings are `WPMS_*` constants that `app/wp-config.php` sets from the environment: SMTP to Mailpit locally, and Brevo's API in production through the `wordpress` service's `environment` block in `compose.prod.yml.sample`. Its own calls to its maker are off. Test: `scripts/mail-test.php`, locally and with production's settings (the Brevo request is caught).
 - **The maintainer's steps on the server** (after the deploy, which never touches `.env` or `compose.prod.yml`):
   1. In Brevo: authenticate `mody.cloud` as a sending domain (its DNS records, at Cloudflare), add the sender `no-reply@mody.cloud`, and create an API key (SMTP & API → API keys).

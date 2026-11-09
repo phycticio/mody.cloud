@@ -1,6 +1,7 @@
 /*
- * The registration form on the main site (Members\Registration, M1-01 part 2).
- * Colors and spacing come from the theme's presets; no loose values.
+ * The registration chat and its form on the main site (Members\Registration,
+ * M1-01 part 2, M1-03). Colors and spacing come from the theme's presets; no
+ * loose values.
  */
 
 .mody-register {
@@ -9,72 +10,215 @@
 	max-width: 40rem;
 }
 
+.mody-register .screen-reader-text {
+	border: 0;
+	clip-path: inset(50%);
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	padding: 0;
+	position: absolute;
+	width: 1px;
+	word-wrap: normal;
+}
+
+/* The form, without JavaScript. */
+
+.mody-register__form {
+	display: grid;
+	gap: var(--wp--preset--spacing--30, 1rem);
+}
+
+.mody-register__form[hidden],
+.mody-register__chat[hidden],
+.mody-register__composer[hidden],
+.mody-register__suffix[hidden] {
+	display: none;
+}
+
 .mody-register__field {
 	display: grid;
 	gap: 0.35rem;
 	margin: 0;
 }
 
-.mody-register label,
-.mody-register legend {
+.mody-register label {
 	font-weight: 600;
 }
 
 .mody-register input[type="text"],
-.mody-register input[type="email"],
-.mody-register input[type="password"] {
+.mody-register input[type="email"] {
 	border: 1px solid currentColor;
 	border-radius: 4px;
 	font: inherit;
+	min-width: 0;
 	padding: 0.6rem 0.75rem;
+}
+
+.mody-register__address {
+	align-items: center;
+	display: flex;
+	gap: 0.35rem;
+}
+
+.mody-register__address input {
+	flex: 1;
+}
+
+.mody-register__intro,
+.mody-register__hint,
+.mody-register__note {
+	margin: 0;
 }
 
 .mody-register__hint,
 .mody-register__note {
 	font-size: var(--wp--preset--font-size--small, 0.875rem);
-	margin: 0;
-}
-
-.mody-register__plans {
-	border: 0;
-	display: grid;
-	gap: var(--wp--preset--spacing--30, 1rem);
-	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-	margin: 0;
-	padding: 0;
-}
-
-.mody-register__plans legend {
-	margin-bottom: 0.5rem;
-	padding: 0;
-}
-
-.mody-register__plan {
-	border: 1px solid currentColor;
-	border-radius: 6px;
-	cursor: pointer;
-	display: grid;
-	font-weight: 400;
-	gap: 0.25rem;
-	padding: var(--wp--preset--spacing--30, 1rem);
-}
-
-.mody-register__plan:has(input:checked) {
-	border-color: var(--wp--preset--color--primary);
-	box-shadow: 0 0 0 2px var(--wp--preset--color--primary);
-}
-
-.mody-register__plan:has(input:focus-visible) {
-	outline: 2px solid var(--wp--preset--color--accent);
-	outline-offset: 2px;
-}
-
-.mody-register__plan-name {
-	font-weight: 600;
 }
 
 .mody-register__error {
 	color: var(--wp--preset--color--accent);
 	font-weight: 600;
 	margin: 0;
+}
+
+/* The chat. */
+
+.mody-register__chat {
+	border: 1px solid currentColor;
+	border-radius: 12px;
+	display: grid;
+	gap: var(--wp--preset--spacing--30, 1rem);
+	padding: var(--wp--preset--spacing--30, 1rem);
+}
+
+.mody-register__log {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	max-height: min(32rem, 65vh);
+	min-height: 16rem;
+	overflow-y: auto;
+	padding: 0.25rem;
+}
+
+.mody-register__message {
+	border-radius: 12px;
+	max-width: 85%;
+	padding: 0.6rem 0.85rem;
+}
+
+.mody-register__message--mody {
+	align-self: flex-start;
+	background: var(--wp--preset--color--base);
+	border: 1px solid var(--wp--preset--color--primary);
+	border-bottom-left-radius: 2px;
+	color: var(--wp--preset--color--contrast);
+}
+
+.mody-register__message--you {
+	align-self: flex-end;
+	background: var(--wp--preset--color--primary);
+	border-bottom-right-radius: 2px;
+	color: var(--wp--preset--color--base);
+}
+
+.mody-register__message.is-error {
+	border-color: var(--wp--preset--color--accent);
+	border-width: 2px;
+}
+
+.mody-register__message.is-pending .mody-register__text,
+.mody-register__message.is-note .mody-register__text {
+	font-style: italic;
+}
+
+.mody-register__who {
+	display: block;
+	font-size: var(--wp--preset--font-size--small, 0.875rem);
+	font-weight: 600;
+	margin-bottom: 0.15rem;
+}
+
+.mody-register__text {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.mody-register__link {
+	display: inline-block;
+	font-weight: 600;
+	margin-top: 0.35rem;
+}
+
+.mody-register__summary {
+	display: grid;
+	gap: 0.15rem 0.75rem;
+	grid-template-columns: max-content 1fr;
+	margin: 0.5rem 0 0;
+}
+
+.mody-register__summary dt {
+	font-weight: 600;
+}
+
+.mody-register__summary dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.mody-register__choices {
+	align-self: flex-start;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.mody-register__choice {
+	background: var(--wp--preset--color--base);
+	border: 1px solid var(--wp--preset--color--primary);
+	border-radius: 999px;
+	color: var(--wp--preset--color--primary);
+	cursor: pointer;
+	font: inherit;
+	padding: 0.5rem 1rem;
+}
+
+.mody-register__choice:hover,
+.mody-register__choice:focus-visible {
+	background: var(--wp--preset--color--primary);
+	color: var(--wp--preset--color--base);
+}
+
+.mody-register__composer {
+	align-items: center;
+	display: flex;
+	gap: 0.5rem;
+}
+
+.mody-register__composer .mody-register__address {
+	flex: 1;
+	min-width: 0;
+}
+
+.mody-register__suffix {
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.mody-register button:disabled,
+.mody-register input:disabled {
+	cursor: wait;
+	opacity: 0.6;
+}
+
+@media (max-width: 480px) {
+	.mody-register__composer {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.mody-register__message {
+		max-width: 95%;
+	}
 }

@@ -47,6 +47,42 @@ final class Pipeline {
 	/** Longest site title and brand name (the profile table's column). */
 	public const MAX_NAME_LENGTH = 120;
 
+	/**
+	 * Addresses no site may take (M1-03, 2026-11-08): the platform's own
+	 * hosts and names a visitor could mistake for it. Core's network option
+	 * `illegal_names` is checked too.
+	 */
+	public const RESERVED_SLUGS = array(
+		'www',
+		'mail',
+		'webmail',
+		'smtp',
+		'imap',
+		'pop3',
+		'ftp',
+		'api',
+		'app',
+		'admin',
+		'dashboard',
+		'login',
+		'register',
+		'signup',
+		'account',
+		'accounts',
+		'billing',
+		'plugins',
+		'status',
+		'support',
+		'help',
+		'docs',
+		'static',
+		'cdn',
+		'assets',
+		'staging',
+		'mody',
+		'modycloud',
+	);
+
 	/** The image types a logo may have (M2-05). */
 	public const LOGO_MIMES = array(
 		'jpg|jpeg|jpe' => 'image/jpeg',
@@ -63,7 +99,9 @@ final class Pipeline {
 	 *                                      (seeds the tagline and the mission setting),
 	 *                                      prompt, and optionally tone (default: friendly),
 	 *                                      preset (default: Presets::DEFAULT), logo_id (an
-	 *                                      image the user uploaded to the main site).
+	 *                                      image the user uploaded to the main site), and
+	 *                                      starter (the signup's site, M1-03: mission and
+	 *                                      prompt may be empty, see validate()).
 	 * @return int|WP_Error The job ID, or `mody_invalid_input` (data: `fields`, field => message),
 	 *                      `mody_site_limit_reached`, `mody_invalid_user`.
 	 */
@@ -88,23 +126,27 @@ final class Pipeline {
 	}
 
 	/**
-	 * Validates and cleans the wizard's answers (mvp-spec section 6).
+	 * Checks a site's address and name, as the wizard and the signup ask for
+	 * them: core's signup rules, the network's domain, the reserved names
+	 * and the name's length.
 	 *
-	 * @param array<string, mixed> $input The answers.
-	 * @param \WP_User             $user  The member.
-	 * @return array<string, string>|WP_Error
+	 * @param string        $slug  The subdomain, as typed.
+	 * @param string        $title The site title, as typed.
+	 * @param \WP_User|null $user  The member, or null before the account exists (signup).
+	 * @return array<string, string> Field (`slug`, `title`) => message; empty when both are fine.
 	 */
-	public static function validate( array $input, \WP_User $user ): array|WP_Error {
-		$text   = static fn( string $key ): string => is_scalar( $input[ $key ] ?? null ) ? trim( (string) $input[ $key ] ) : '';
+	public static function check_address( string $slug, string $title, ?\WP_User $user = null ): array {
 		$errors = array();
-
-		$slug  = strtolower( $text( 'slug' ) );
-		$title = sanitize_text_field( $text( 'title' ) );
-		$check = wpmu_validate_blog_signup( $slug, $title, $user );
+		$slug   = strtolower( trim( $slug ) );
+		$title  = sanitize_text_field( $title );
+		$check  = wpmu_validate_blog_signup( $slug, $title, $user ?? '' );
 		foreach ( array( 'blogname' => 'slug', 'blog_title' => 'title' ) as $code => $field ) {
 			if ( $check['errors']->get_error_message( $code ) ) {
 				$errors[ $field ] = $check['errors']->get_error_message( $code );
 			}
+		}
+		if ( ! isset( $errors['slug'] ) && in_array( $slug, self::RESERVED_SLUGS, true ) ) {
+			$errors['slug'] = __( 'That name is not allowed.' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string.
 		}
 		// The check above builds the domain from the current request: check the network's too.
 		if ( ! isset( $errors['slug'] ) && '' !== $slug && domain_exists( self::domain( $slug ), get_network()->path, get_current_network_id() ) ) {
@@ -114,9 +156,32 @@ final class Pipeline {
 			/* translators: %d: maximum number of characters. */
 			$errors['title'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_NAME_LENGTH );
 		}
+		return $errors;
+	}
+
+	/**
+	 * Validates and cleans the wizard's answers (mvp-spec section 6).
+	 *
+	 * A `starter` site (the signup's, M1-03) needs only its address and name:
+	 * the mission and the prompt may be empty, and with no prompt the page
+	 * step publishes the starter page without calling the model.
+	 *
+	 * @param array<string, mixed> $input The answers.
+	 * @param \WP_User             $user  The member.
+	 * @return array<string, string>|WP_Error
+	 */
+	public static function validate( array $input, \WP_User $user ): array|WP_Error {
+		$text    = static fn( string $key ): string => is_scalar( $input[ $key ] ?? null ) ? trim( (string) $input[ $key ] ) : '';
+		$starter = ! empty( $input['starter'] );
+
+		$slug   = strtolower( $text( 'slug' ) );
+		$title  = sanitize_text_field( $text( 'title' ) );
+		$errors = self::check_address( $slug, $title, $user );
 
 		$mission = sanitize_text_field( $text( 'mission' ) );
-		if ( '' === $mission ) {
+		if ( '' === $mission && $starter ) {
+			// Nothing to check: the member tells the agent later (M1-03).
+		} elseif ( '' === $mission ) {
 			$errors['mission'] = __( 'Say in one sentence what you do.', 'mody_cloud' );
 		} elseif ( mb_strlen( $mission ) > self::MAX_MISSION_LENGTH ) {
 			/* translators: %d: maximum number of characters. */
@@ -134,7 +199,7 @@ final class Pipeline {
 		}
 
 		$prompt = trim( sanitize_textarea_field( $text( 'prompt' ) ) );
-		if ( '' === $prompt ) {
+		if ( '' === $prompt && ! $starter ) {
 			$errors['prompt'] = __( 'Describe the first page of your site.', 'mody_cloud' );
 		} elseif ( mb_strlen( $prompt ) > PageGenerator::MAX_PROMPT_LENGTH ) {
 			/* translators: %d: maximum number of characters. */
@@ -150,15 +215,19 @@ final class Pipeline {
 			return new WP_Error( 'mody_invalid_input', reset( $errors ), array( 'fields' => $errors ) );
 		}
 
-		return array(
-			'slug'       => $slug,
-			'title'      => $title,
-			'mission'    => $mission,
-			'tone'       => $tone,
-			'preset'     => $preset,
-			'prompt'     => $prompt,
-			'logo_id'    => $logo_id,
+		$clean = array(
+			'slug'    => $slug,
+			'title'   => $title,
+			'mission' => $mission,
+			'tone'    => $tone,
+			'preset'  => $preset,
+			'prompt'  => $prompt,
+			'logo_id' => $logo_id,
 		);
+		if ( $starter ) {
+			$clean['starter'] = true;
+		}
+		return $clean;
 	}
 
 	/**
@@ -306,6 +375,20 @@ final class Pipeline {
 		return '<!-- wp:spectra/container ' . SpectraLayout::SECTION . " -->\n"
 			. "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $heading ) . "</h1>\n<!-- /wp:heading -->\n\n"
 			. "<!-- wp:paragraph -->\n<p>" . esc_html( $mission ) . "</p>\n<!-- /wp:paragraph -->\n"
+			. '<!-- /wp:spectra/container -->';
+	}
+
+	/**
+	 * A starter site's front page (M1-03): the site's name and a line saying
+	 * it is on its way, in one section (SpectraLayout). The member replaces
+	 * it by asking the agent.
+	 *
+	 * @param string $title The site title.
+	 */
+	public static function starter_markup( string $title ): string {
+		return '<!-- wp:spectra/container ' . SpectraLayout::SECTION . " -->\n"
+			. "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $title ) . "</h1>\n<!-- /wp:heading -->\n\n"
+			. "<!-- wp:paragraph -->\n<p>" . esc_html__( 'Our new website is on its way. Come back soon!', 'mody_cloud' ) . "</p>\n<!-- /wp:paragraph -->\n"
 			. '<!-- /wp:spectra/container -->';
 	}
 
@@ -583,6 +666,20 @@ final class Pipeline {
 
 		if ( $found ) {
 			$page_id = (int) $found[0];
+		} elseif ( '' === (string) $job['input']['prompt'] ) {
+			// A starter site (M1-03): no model call; the member asks the agent for pages later.
+			$page_id = PageGenerator::insert_page(
+				self::starter_markup( (string) $job['input']['title'] ),
+				array(
+					'post_title'  => __( 'Home', 'mody_cloud' ),
+					'post_status' => 'publish',
+					'post_author' => $job['user_id'],
+					'meta_input'  => array( '_mody_provisioning_job' => $job['id'] ),
+				)
+			);
+			if ( is_wp_error( $page_id ) ) {
+				return $page_id;
+			}
 		} else {
 			$markup   = PageGenerator::generate_page( $job['site_id'], $job['input']['prompt'] );
 			$fallback = is_wp_error( $markup );
@@ -625,6 +722,10 @@ final class Pipeline {
 	private static function step_email( array $job ): array|WP_Error {
 		if ( ! empty( $job['result']['email'] ) ) {
 			return array();
+		}
+		if ( ! empty( $job['input']['starter'] ) ) {
+			// The signup's welcome email, with the set-password link, replaces this one (M1-03).
+			return array( 'result' => array( 'email' => 'signup' ) );
 		}
 		// Marked before sending: a run killed while sending does not send it twice.
 		Jobs::update( $job['id'], array( 'result' => array( 'email' => 'sending' ) ) );

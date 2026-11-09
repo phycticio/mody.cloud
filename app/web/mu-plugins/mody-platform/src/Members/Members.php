@@ -24,8 +24,9 @@ defined( 'ABSPATH' ) || exit;
  *   `administrator` of their own sites. During the trial `plan` is `trial`
  *   and `next_plan` holds the plan chosen at signup, charged when the trial
  *   ends; later it holds a plan change for the next billing date.
- * - **Statuses** (spec section 4): `pending_payment` until the card is
- *   verified, `active` (the trial included), `past_due` after a failed
+ * - **Statuses** (spec section 4): `active` (the trial included: since
+ *   2026-11-08 it starts without a card, start_trial(), M1-03),
+ *   `pending_payment` until a card is verified, `past_due` after a failed
  *   charge, `expired_signup` when no payment arrived within 24 hours, and
  *   `expired` once the sites are deleted after 60 days past due.
  * - **What a row gives:** the dashboard capability (spec section 3) and the
@@ -63,7 +64,10 @@ final class Members {
 		),
 	);
 
-	/** The plans a member chooses at signup or later; the trial is not one of them. */
+	/** How long the trial lasts (spec decision 3). */
+	public const TRIAL_DAYS = 30;
+
+	/** The plans a member chooses during the trial or later; the trial is not one of them. */
 	public const PAID_PLANS = array( 'collaborator', 'member', 'patron' );
 
 	/** Statuses whose card is not verified yet (spec section 4): no site may be created. */
@@ -187,6 +191,50 @@ final class Members {
 		$inserted = $wpdb->insert( self::table(), $row, array_merge( array( '%d' ), array_fill( 0, count( $row ) - 1, '%s' ) ) );
 		unset( self::$rows[ $user_id ] );
 		return $inserted ? true : new WP_Error( 'mody_member_db', __( 'The member account could not be saved.', 'mody_cloud' ) );
+	}
+
+	/**
+	 * Starts a member's trial: plan `trial`, status `active`, and the trial's
+	 * end (also the first billing date) TRIAL_DAYS from now. No card is
+	 * needed (decided 2026-11-08, M1-03).
+	 *
+	 * @param int $user_id An existing user without a row.
+	 * @return true|WP_Error
+	 */
+	public static function start_trial( int $user_id ): bool|WP_Error {
+		$created = self::create( $user_id, 'trial', 'active' );
+		if ( is_wp_error( $created ) ) {
+			return $created;
+		}
+		$ends = gmdate( 'Y-m-d H:i:s', time() + self::TRIAL_DAYS * DAY_IN_SECONDS );
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
+		$wpdb->update(
+			self::table(),
+			array(
+				'trial_ends_at'  => $ends,
+				'billing_due_at' => $ends,
+			),
+			array( 'user_id' => $user_id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+		unset( self::$rows[ $user_id ] );
+		return true;
+	}
+
+	/**
+	 * When a member's trial ends, as a Unix timestamp, or 0 when they are not
+	 * on a trial.
+	 *
+	 * @param int $user_id User ID.
+	 */
+	public static function trial_ends( int $user_id ): int {
+		$row = self::get( $user_id );
+		if ( ! $row || 'trial' !== $row['plan'] || empty( $row['trial_ends_at'] ) ) {
+			return 0;
+		}
+		return (int) strtotime( $row['trial_ends_at'] . ' UTC' );
 	}
 
 	/**

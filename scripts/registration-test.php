@@ -1,58 +1,69 @@
 <?php
 /**
- * Tests the registration page (ticket M1-01, part 2).
+ * Tests the registration chat and its form (tickets M1-01 part 2, M1-03).
  *
  * Run from the repository root:
  *
  *   docker exec -i -u www-data mody_cloud_app \
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/registration-test.php
  *
- * 1. Closed (the default): no page is created, the block says registration
- *    opens soon; the block is PHP-only and hidden from the inserter.
- * 2. Validation (in-process): name, email, password and plan, a duplicate
- *    email, the trial as a plan.
- * 3. Open, over HTTP on the main site: the page is created with the block;
- *    the form shows the three plans; a bad post shows its errors and keeps
- *    the name; an expired nonce is refused; a good post creates the user (no
- *    main-site role) and a pending trial row with the chosen plan, logs them
- *    in and sends them to the Mody dashboard.
- * 4. The pending account: no site may be created; the dashboard shows the
- *    payment step instead of the wizard; once active, the quota applies
- *    again. A logged-in visitor is told they have an account; members log in
- *    to the dashboard.
- * 5. Closed again: the page says so, and a good post creates nothing.
+ * 1. Closed (the default): no page, the block says registration opens soon,
+ *    both REST routes refuse; the block is PHP-only and hidden.
+ * 2. The checks (in-process): each question's rules, reserved and taken
+ *    addresses, the address suggested for a project's name, and register()
+ *    refusing bad answers without creating anything.
+ * 3. Open, over HTTP: the page with the chat's script and the form (no
+ *    password, no plans, no card); the check route (nonce, each field, the
+ *    suggestion); the register route: bad answers (400 with fields), then a
+ *    good one (201): the user without a main-site role, an active 30-day
+ *    trial, the onboarding stage, the site with its starter page and no
+ *    model call, the welcome email with the set-password link; the same
+ *    email again is refused.
+ * 4. The form without JavaScript: errors keep the answers, an expired nonce,
+ *    and a good post says "Done!". A logged-in visitor is told they have an
+ *    account; members log in to the dashboard.
+ * 5. Closed again: the page says so, and nothing is created.
  *
- * The option, the page (when the test created it) and the users are put back
- * or removed at the end. No model call.
+ * Everything created is removed at the end. No model call.
  */
 
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
-use Mody\Platform\Provisioning\Quota;
+use Mody\Platform\Onboarding\Onboarding;
+use Mody\Platform\Provisioning\Jobs;
+use Mody\Platform\Provisioning\Pipeline;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
 	$failures += $ok ? 0 : 1;
-	printf( "%-4s %-60s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
+	printf( "%-4s %-64s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
 };
 
 if ( ! is_main_site() ) {
 	echo "Run this on the main site (--url=https://<main host>).\n";
 	return;
 }
-global $wpdb;
 $suffix      = strtolower( wp_generate_password( 6, false ) );
-$email       = 'modyreg' . $suffix . '@mody.local';
+$emails      = array( 'a' => "modyreg{$suffix}@mody.local", 'b' => "modyregb{$suffix}@mody.local", 'c' => "modyregc{$suffix}@mody.local" );
+$slugs       = array( 'a' => "regtest{$suffix}", 'b' => "regtestb{$suffix}", 'c' => "regtestc{$suffix}" );
 $was_open    = get_site_option( Registration::OPEN_OPTION );
 $page_before = (int) get_option( Registration::PAGE_OPTION );
 $admins      = get_super_admins();
 $super       = get_user_by( 'login', $admins[0] );
 register_shutdown_function(
-	static function () use ( $email, $was_open, $page_before ): void {
-		$user = get_user_by( 'email', $email );
-		if ( $user ) {
+	static function () use ( $emails, $was_open, $page_before ): void {
+		foreach ( $emails as $email ) {
+			$user = get_user_by( 'email', $email );
+			if ( ! $user ) {
+				continue;
+			}
+			foreach ( get_blogs_of_user( $user->ID ) as $site ) {
+				if ( ! is_main_site( (int) $site->userblog_id ) ) {
+					wpmu_delete_blog( (int) $site->userblog_id, true );
+				}
+			}
 			Members::delete( $user->ID );
 			wpmu_delete_user( $user->ID );
 		}
@@ -65,6 +76,33 @@ register_shutdown_function(
 	}
 );
 $block = static fn(): string => render_block( parse_blocks( '<!-- wp:' . Registration::BLOCK . ' /-->' )[0] );
+$http  = static function ( string $method, string $to, array $cookies = array(), array $body = array(), bool $json = false ): array {
+	$response = wp_remote_request(
+		$to,
+		array(
+			'method'      => $method,
+			'cookies'     => $cookies,
+			'headers'     => $json ? array( 'Content-Type' => 'application/json' ) : array(),
+			'body'        => $json ? wp_json_encode( $body ) : $body,
+			'sslverify'   => false,
+			'redirection' => 0,
+			'timeout'     => 60,
+		)
+	);
+	$text = (string) wp_remote_retrieve_body( $response );
+	return array(
+		'code'     => (int) wp_remote_retrieve_response_code( $response ),
+		'location' => (string) wp_remote_retrieve_header( $response, 'location' ),
+		'body'     => $text,
+		'json'     => json_decode( $text, true ),
+	);
+};
+$rest  = static fn( string $route, array $body ): array => $http( 'POST', rest_url( 'mody-platform/v1/' . $route ), array(), $body, true );
+// From the database: sites created by another request are not in this process's cache.
+$site_exists = static function ( string $slug ): bool {
+	global $wpdb;
+	return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT blog_id FROM {$wpdb->blogs} WHERE domain = %s", Pipeline::domain( $slug ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+};
 
 // 1. Closed ------------------------------------------------------------------------
 
@@ -78,19 +116,35 @@ if ( ! $page_before ) {
 $check( 'the block says registration opens soon', str_contains( $block(), 'Registration opens soon.' ) && ! str_contains( $block(), '<form' ) );
 $type = WP_Block_Type_Registry::get_instance()->get_registered( Registration::BLOCK );
 $check( 'the block: PHP-only (autoRegister), not in the inserter', $type && ! empty( $type->supports['autoRegister'] ) && false === ( $type->supports['inserter'] ?? null ) && is_callable( $type->render_callback ) );
+$out = $rest( 'register/check', array( 'field' => 'name', 'value' => 'Ada', 'nonce' => 'x' ) );
+$check( 'the check route refuses (403)', 403 === $out['code'] && 'mody_registration_closed' === ( $out['json']['code'] ?? '' ), (string) $out['code'] );
 
-// 2. Validation ---------------------------------------------------------------------
+// 2. The checks ---------------------------------------------------------------------
 
-echo "\nValidation\n";
-$result = Registration::register( '  ', 'not-an-email', 'short', 'gold' );
-$codes  = is_wp_error( $result ) ? $result->get_error_codes() : array();
-sort( $codes );
-$check( 'empty name, bad email, short password, unknown plan', array( 'email', 'name', 'password', 'plan' ) === $codes, implode( ', ', $codes ) );
-$result = Registration::register( 'Ada', $super->user_email, str_repeat( 'x', 16 ), 'member' );
-$check( 'a duplicate email is refused', is_wp_error( $result ) && array( 'email' ) === $result->get_error_codes() && str_contains( $result->get_error_message( 'email' ), 'already exists' ) );
-$result = Registration::register( 'Ada', $email, str_repeat( 'x', 16 ), 'trial' );
-$check( 'the trial is not a plan to choose', is_wp_error( $result ) && array( 'plan' ) === $result->get_error_codes() );
-$check( 'nothing was created', ! get_user_by( 'email', $email ) );
+echo "\nThe checks\n";
+$check( 'name: required, at most 120 characters', '' !== Registration::check( 'name', '  ' ) && '' !== Registration::check( 'name', str_repeat( 'a', 121 ) ) && '' === Registration::check( 'name', 'Ada Lovelace' ) );
+$check( 'email: valid and unused', str_contains( Registration::check( 'email', 'nope' ), 'valid email' ) && str_contains( Registration::check( 'email', $super->user_email ), 'already exists' ) && '' === Registration::check( 'email', $emails['a'] ) );
+$check( 'title: required, at most 120 characters', '' !== Registration::check( 'title', '' ) && '' !== Registration::check( 'title', str_repeat( 'b', 121 ) ) && '' === Registration::check( 'title', 'Lina\'s Bakery' ) );
+$taken = get_site( get_main_site_id() )->domain;
+$first = get_sites( array( 'number' => 1, 'site__not_in' => array( get_main_site_id() ) ) );
+$check(
+	'slug: core\'s rules, reserved names, taken addresses',
+	str_contains( Registration::check( 'slug', 'ab' ), 'at least 4' )
+		&& str_contains( Registration::check( 'slug', 'Big-Shop' ), 'lowercase' )
+		&& str_contains( Registration::check( 'slug', 'mail' ), 'not allowed' )
+		&& str_contains( Registration::check( 'slug', 'plugins' ), 'not allowed' )
+		&& ( ! $first || str_contains( Registration::check( 'slug', strstr( $first[0]->domain, '.', true ) ), 'already exists' ) )
+		&& '' === Registration::check( 'slug', $slugs['a'] ),
+	$taken
+);
+$check( 'the wizard refuses reserved names too', isset( Pipeline::check_address( 'admin', 'X', $super )['slug'] ) && isset( Pipeline::check_address( 'webmail', 'X', $super )['slug'] ) );
+$check( 'addresses as typed are cleaned', 'myshop' === Registration::normalize_slug( 'https://My-Shop' . Registration::address_suffix() ) && 'bakery' === Registration::normalize_slug( 'Bäkery!' ) );
+$check( 'an address is suggested for the project\'s name', 'linasbakery' === Registration::suggest_slug( 'Lina\'s Bäkery!' ) && 'mailsite' !== Registration::suggest_slug( 'Mail' ) && '' === Registration::check( 'slug', Registration::suggest_slug( 'Mail' ) ), Registration::suggest_slug( 'Mail' ) );
+$result = Registration::register( ' ', 'nope', '', 'ab' );
+$fields = is_wp_error( $result ) ? array_keys( (array) $result->get_error_data()['fields'] ) : array();
+sort( $fields );
+$check( 'register() refuses all four bad answers', array( 'email', 'name', 'slug', 'title' ) === $fields, implode( ', ', $fields ) );
+$check( '... and creates nothing', ! get_user_by( 'email', 'nope' ) && ! $site_exists( 'ab' ) );
 
 // 3. Open, over HTTP ----------------------------------------------------------------
 
@@ -102,26 +156,107 @@ $page    = get_post( $page_id );
 $check( 'the page exists, published at /register/, with the block', $page && 'publish' === $page->post_status && Registration::PAGE_SLUG === $page->post_name && has_block( Registration::BLOCK, $page ), $page_id ? (string) get_permalink( $page_id ) : 'none' );
 $url = (string) get_permalink( $page_id );
 
-$http = static function ( string $method, string $to, array $cookies = array(), array $body = array() ): array {
-	$response = wp_remote_request(
-		$to,
-		array(
-			'method'      => $method,
-			'cookies'     => $cookies,
-			'body'        => $body,
-			'sslverify'   => false,
-			'redirection' => 0,
-			'timeout'     => 30,
-		)
-	);
-	return array(
-		'code'     => (int) wp_remote_retrieve_response_code( $response ),
-		'location' => (string) wp_remote_retrieve_header( $response, 'location' ),
-		'body'     => (string) wp_remote_retrieve_body( $response ),
-		'cookies'  => array_map( static fn( $c ): string => $c->name, is_wp_error( $response ) ? array() : wp_remote_retrieve_cookies( $response ) ),
-	);
-};
-$cookie = static function ( int $user_id ): array {
+$out = $http( 'GET', $url );
+preg_match( '/name="_mody_nonce" value="([0-9a-f]+)"/', $out['body'], $nonce );
+$nonce = $nonce[1] ?? '';
+$check( 'the page: the chat\'s script and settings, and the form', 200 === $out['code'] && str_contains( $out['body'], 'assets/register.js' ) && str_contains( $out['body'], 'window.modyRegister' ) && str_contains( $out['body'], 'id="mody-register-chat"' ) && '' !== $nonce, (string) $out['code'] );
+$check( '... the four questions, the address\'s suffix', str_contains( $out['body'], 'name="mody_name"' ) && str_contains( $out['body'], 'name="mody_email"' ) && str_contains( $out['body'], 'name="mody_title"' ) && str_contains( $out['body'], 'name="mody_slug"' ) && str_contains( $out['body'], esc_html( Registration::address_suffix() ) ) );
+$check( '... no password, no plans; a free trial, no card, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && ! str_contains( $out['body'], 'EUR per month' ) && str_contains( $out['body'], '30-day trial' ) && str_contains( $out['body'], 'no card needed' ) && false === stripos( $out['body'], 'unlimited' ) );
+
+$out = $rest( 'register/check', array( 'field' => 'name', 'value' => 'Ada', 'nonce' => 'deadbeef00' ) );
+$check( 'check: a wrong nonce is refused (403)', 403 === $out['code'] && 'mody_registration_expired' === ( $out['json']['code'] ?? '' ), (string) $out['code'] );
+$ask = static fn( string $field, string $value ): array => (array) $rest( 'register/check', array( 'field' => $field, 'value' => $value, 'nonce' => $nonce ) )['json'];
+$out = $ask( 'email', $super->user_email );
+$check( 'check: a used email, with "exists" for Log in', false === ( $out['ok'] ?? null ) && ! empty( $out['exists'] ) && str_contains( (string) ( $out['message'] ?? '' ), 'already exists' ) );
+$out = $ask( 'title', 'Regtest ' . $suffix );
+$check( 'check: a title gives a free address', true === ( $out['ok'] ?? null ) && 'regtest' . $suffix === ( $out['suggestion'] ?? '' ), (string) ( $out['suggestion'] ?? '' ) );
+$out = $ask( 'slug', 'Mail' . Registration::address_suffix() );
+$check( 'check: a reserved address, cleaned first', false === ( $out['ok'] ?? null ) && 'mail' === ( $out['value'] ?? '' ) && str_contains( (string) ( $out['message'] ?? '' ), 'not allowed' ) );
+$out = $ask( 'slug', $slugs['a'] );
+$check( 'check: a free address, with the whole domain', true === ( $out['ok'] ?? null ) && Pipeline::domain( $slugs['a'] ) === ( $out['address'] ?? '' ) );
+
+$answers = static fn( string $key, array $over = array() ): array => array_merge(
+	array(
+		'name'  => 'Ada Lovelace',
+		'email' => $emails[ $key ],
+		'title' => 'Ada\'s Analytical Bakery',
+		'slug'  => $slugs[ $key ],
+		'nonce' => $nonce,
+	),
+	$over
+);
+$out = $rest( 'register', $answers( 'a', array( 'email' => 'nope', 'slug' => 'mail' ) ) );
+$check( 'register: bad answers, 400 with the fields', 400 === $out['code'] && isset( $out['json']['data']['fields']['email'], $out['json']['data']['fields']['slug'] ) && ! get_user_by( 'email', $emails['a'] ), (string) $out['code'] );
+
+$mails   = array();
+$started = microtime( true );
+add_filter(
+	'pre_wp_mail',
+	static function ( $short, array $mail ) use ( &$mails ) {
+		$mails[] = $mail;
+		return true;
+	},
+	10,
+	2
+);
+// In-process, so the welcome email can be read here; the REST route is checked with the next account.
+$account = Registration::register( 'Ada Lovelace', $emails['a'], 'Ada\'s Analytical Bakery', $slugs['a'] );
+$seconds = microtime( true ) - $started;
+$user    = get_user_by( 'email', $emails['a'] );
+$row     = $user ? Members::get( $user->ID ) : null;
+$check( 'register(): the account, in seconds', is_array( $account ) && $user && $seconds < 20, sprintf( '%.1fs', $seconds ) );
+$check( '... the user, with their name and no main-site role', $user && 'Ada Lovelace' === $user->display_name && ! ( new WP_User( $user->ID ) )->roles, $user ? $user->user_login : 'no user' );
+$days = $row ? ( strtotime( $row['trial_ends_at'] . ' UTC' ) - time() ) / DAY_IN_SECONDS : 0;
+$check( '... an active trial of 30 days, no plan chosen yet', $row && 'trial' === $row['plan'] && 'active' === $row['status'] && null === $row['next_plan'] && $days > 29.9 && $days <= 30 && $row['trial_ends_at'] === $row['billing_due_at'], $row ? $row['trial_ends_at'] : '' );
+$check( '... the onboarding stage: password', $user && Onboarding::STAGE_PASSWORD === get_user_meta( $user->ID, Onboarding::META, true ) );
+$site_id = is_array( $account ) ? (int) $account['site_id'] : 0;
+$job     = $site_id ? Jobs::get( (int) get_blog_option( $site_id, 'mody_provisioning_job' ) ) : null;
+$check( '... the site, at its address, with the member as administrator', $site_id && Pipeline::domain( $slugs['a'] ) === get_site( $site_id )->domain && is_user_member_of_blog( $user->ID, $site_id ) && user_can_for_site( $user->ID, $site_id, 'administrator' ) );
+$check( '... the starter site: done, no model call, no site email', $job && 'done' === $job['status'] && ! empty( $job['input']['starter'] ) && '' === $job['input']['prompt'] && 'signup' === ( $job['result']['email'] ?? '' ) && empty( $job['result']['generation_error'] ) );
+switch_to_blog( $site_id );
+$front = get_post( (int) get_option( 'page_on_front' ) );
+$check( '... the site\'s name, an empty tagline, the starter front page', 'Ada\'s Analytical Bakery' === wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) && '' === get_option( 'blogdescription' ) && $front && 'Home' === $front->post_title && 'publish' === $front->post_status && has_block( 'spectra/container', $front ) );
+restore_current_blog();
+// Core also tells the network admin about each new site (the network option `registrationnotification`).
+$to_member = array_values( array_filter( $mails, static fn( array $mail ): bool => $emails['a'] === $mail['to'] ) );
+$welcome   = $to_member[0] ?? array();
+$body      = (string) ( $welcome['message'] ?? '' );
+$check( 'one email to the member: the welcome', 1 === count( $to_member ) && str_contains( (string) ( $welcome['subject'] ?? '' ), 'choose your password' ), count( $mails ) . ' sent' );
+$check( '... with the site, the trial, no card', str_contains( $body, 'https://' . Pipeline::domain( $slugs['a'] ) . '/' ) && str_contains( $body, 'Your free trial runs until' ) && str_contains( $body, 'No card is needed.' ) );
+preg_match( '#(https?://\S+wp-login\.php\?action=rp&key=([^&\s]+)&login=([^\s]+))#', $body, $link );
+$check( '... and the set-password link, with a valid key', isset( $link[2] ) && $user && rawurldecode( $link[3] ) === $user->user_login && check_password_reset_key( $link[2], $user->user_login ) instanceof WP_User );
+
+$out = $rest( 'register', $answers( 'b' ) );
+$b   = get_user_by( 'email', $emails['b'] );
+$check( 'register over REST: 201 with the email and the address', 201 === $out['code'] && $emails['b'] === ( $out['json']['email'] ?? '' ) && Pipeline::domain( $slugs['b'] ) === ( $out['json']['address'] ?? '' ) && $b && Members::get( $b->ID ), (string) $out['code'] );
+$out = $rest( 'register', $answers( 'b', array( 'slug' => $slugs['c'] ) ) );
+$check( '... the same email again is refused', 400 === $out['code'] && isset( $out['json']['data']['fields']['email'] ) && ! $site_exists( $slugs['c'] ), (string) $out['code'] );
+$out = $rest( 'register', $answers( 'c', array( 'slug' => $slugs['b'] ) ) );
+$check( '... and so is a taken address', 400 === $out['code'] && str_contains( (string) ( $out['json']['data']['fields']['slug'] ?? '' ), 'already exists' ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
+
+// 4. The form without JavaScript ----------------------------------------------------
+
+echo "\nThe form without JavaScript\n";
+$form = static fn( array $over = array() ): array => array_merge(
+	array(
+		'mody_action' => Registration::ACTION,
+		'_mody_nonce' => $nonce,
+		'mody_name'   => 'Charles Babbage',
+		'mody_email'  => $emails['c'],
+		'mody_title'  => 'Difference Engines',
+		'mody_slug'   => $slugs['c'],
+	),
+	$over
+);
+$out = $http( 'POST', $url, array(), $form( array( 'mody_email' => 'not-an-email' ) ) );
+$check( 'a bad post: its error, the answers kept, no account', 200 === $out['code'] && str_contains( $out['body'], 'Please enter a valid email address.' ) && str_contains( $out['body'], 'value="Charles Babbage"' ) && str_contains( $out['body'], 'value="' . $slugs['c'] . '"' ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
+$out = $http( 'POST', $url, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
+$check( 'an expired nonce is refused', str_contains( $out['body'], 'The form expired.' ) && ! get_user_by( 'email', $emails['c'] ) );
+$out = $http( 'POST', $url, array(), $form() );
+$c   = get_user_by( 'email', $emails['c'] );
+$check( 'a good post: "Done!", the account and the site', 200 === $out['code'] && str_contains( $out['body'], 'Done! Your site ' . Pipeline::domain( $slugs['c'] ) . ' is ready.' ) && $c && $site_exists( $slugs['c'] ), (string) $out['code'] );
+
+$cookie    = static function ( int $user_id ): array {
 	$expiration = time() + 300;
 	$token      = WP_Session_Tokens::get_instance( $user_id )->create( $expiration );
 	register_shutdown_function( static fn() => WP_Session_Tokens::get_instance( $user_id )->destroy( $token ) );
@@ -130,63 +265,11 @@ $cookie = static function ( int $user_id ): array {
 		LOGGED_IN_COOKIE   => wp_generate_auth_cookie( $user_id, $expiration, 'logged_in', $token ),
 	);
 };
-
-$out = $http( 'GET', $url );
-preg_match( '/name="_mody_nonce" value="([0-9a-f]+)"/', $out['body'], $nonce );
-$check( 'the form opens', 200 === $out['code'] && str_contains( $out['body'], 'class="mody-register"' ) && isset( $nonce[1] ), (string) $out['code'] );
-$plans = array( 'Collaborator', '5 EUR per month', '3 sites', 'Member', '15 EUR per month', '10 sites', 'Patron', '50 EUR per month', '50 sites' );
-$check( '... with the three plans, their prices and sites', ! array_filter( $plans, static fn( string $s ): bool => ! str_contains( $out['body'], $s ) ) );
-$check( '... the trial explained, and never "unlimited"', str_contains( $out['body'], '30-day trial with 3 sites' ) && false === stripos( $out['body'], 'unlimited' ) );
-
-$form = static fn( array $over = array() ): array => array_merge(
-	array(
-		'mody_action'   => Registration::ACTION,
-		'_mody_nonce'   => $nonce[1] ?? '',
-		'mody_name'     => 'Ada Lovelace',
-		'mody_email'    => $email,
-		'mody_password' => 'correct horse battery staple',
-		'mody_plan'     => 'member',
-	),
-	$over
-);
-$out = $http(
-	'POST',
-	$url,
-	array(),
-	$form(
-		array(
-			'mody_email'    => 'not-an-email',
-			'mody_password' => 'short',
-		)
-	)
-);
-$check( 'a bad post: its errors, the name kept, no account', 200 === $out['code'] && str_contains( $out['body'], 'Please enter a valid email address.' ) && str_contains( $out['body'], 'Please use at least 12 characters.' ) && str_contains( $out['body'], 'value="Ada Lovelace"' ) && ! get_user_by( 'email', $email ), (string) $out['code'] );
-$out = $http( 'POST', $url, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
-$check( 'an expired nonce is refused', str_contains( $out['body'], 'The form expired.' ) && ! get_user_by( 'email', $email ) );
-
-$out  = $http( 'POST', $url, array(), $form() );
-$user = get_user_by( 'email', $email );
-$row  = $user ? Members::get( $user->ID ) : null;
-$check( 'a good post: to the Mody dashboard, logged in', 302 === $out['code'] && Registration::dashboard_url() === $out['location'] && in_array( LOGGED_IN_COOKIE, $out['cookies'], true ), $out['code'] . ' ' . $out['location'] );
-$check( '... the user, with their name', $user && 'Ada Lovelace' === $user->display_name, $user ? $user->user_login : 'no user' );
-$check( '... no role on the main site', $user && ! ( new WP_User( $user->ID ) )->roles );
-$check( '... a pending trial with the chosen plan next', $row && 'trial' === $row['plan'] && 'pending_payment' === $row['status'] && 'member' === $row['next_plan'], wp_json_encode( $row ? array_intersect_key( $row, array_flip( array( 'plan', 'status', 'next_plan' ) ) ) : null ) );
-
-// 4. The pending account ------------------------------------------------------------
-
-echo "\nThe pending account\n";
 if ( $user ) {
-	$quota = Quota::can_create_site( $user->ID );
-	$check( 'no site before the card is verified', is_wp_error( $quota ) && 'mody_payment_pending' === $quota->get_error_code() );
-	$as_member = $cookie( $user->ID );
-	$out       = $http( 'GET', Registration::dashboard_url(), $as_member );
-	$check( 'the dashboard: the payment step, not the wizard', 200 === $out['code'] && str_contains( $out['body'], 'Finish your payment' ) && ! str_contains( $out['body'], 'id="mody-wizard-form"' ) && ! str_contains( $out['body'], 'wizard.js' ), (string) $out['code'] );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Test; own table.
-	$wpdb->update( Members::table(), array( 'status' => 'active' ), array( 'user_id' => $user->ID ) ); // Read by the next request, a new process.
-	$out = $http( 'GET', Registration::dashboard_url(), $as_member );
-	$check( 'once active: the wizard, with the trial\'s 3 sites', str_contains( $out['body'], 'id="mody-wizard-form"' ) && str_contains( $out['body'], '0 of 3 sites used' ) );
-	$out = $http( 'GET', $url, $as_member );
-	$check( 'a logged-in visitor: "You already have an account."', str_contains( $out['body'], 'You already have an account.' ) && ! str_contains( $out['body'], 'name="mody_password"' ) );
+	$out = $http( 'GET', $url, $cookie( $user->ID ) );
+	$check( 'a logged-in visitor: "You already have an account."', str_contains( $out['body'], 'You already have an account.' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
+	$out = $http( 'GET', Registration::dashboard_url(), $cookie( $user->ID ) );
+	$check( 'the trial member\'s dashboard: the wizard, 1 of 3 sites', 200 === $out['code'] && str_contains( $out['body'], 'id="mody-wizard-form"' ) && str_contains( $out['body'], '1 of 3 sites used' ), (string) $out['code'] );
 	$check( 'members log in to the dashboard', Registration::dashboard_url() === Registration::login_redirect( admin_url(), '', $user ) );
 	$check( '... unless they asked for a page', 'https://example.test/x' === Registration::login_redirect( 'https://example.test/x', 'https://example.test/x', $user ) );
 	$check( '... and others keep the default', admin_url() === Registration::login_redirect( admin_url(), '', $super ) );
@@ -196,10 +279,12 @@ if ( $user ) {
 
 echo "\nClosed again\n";
 delete_site_option( Registration::OPEN_OPTION );
-$other = 'modyreg2' . $suffix . '@mody.local';
+$other = 'modyregd' . $suffix . '@mody.local';
 $out   = $http( 'GET', $url );
-$check( 'the page says registration opens soon', str_contains( $out['body'], 'Registration opens soon.' ) && ! str_contains( $out['body'], 'name="mody_password"' ) );
+$check( 'the page says registration opens soon', str_contains( $out['body'], 'Registration opens soon.' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
 $out = $http( 'POST', $url, array(), $form( array( 'mody_email' => $other ) ) );
 $check( 'a good post creates nothing', str_contains( $out['body'], 'Registration is not open yet.' ) && ! get_user_by( 'email', $other ) );
+$out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
+$check( 'the register route refuses (403)', 403 === $out['code'] && ! get_user_by( 'email', $other ), (string) $out['code'] );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

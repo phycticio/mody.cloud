@@ -1,0 +1,178 @@
+/* The editor tour in the Site Editor (M1-03). Colors follow the user's admin scheme. */
+
+/* The spotlight: a hole in a dimmed page. Clicks go through it and around it. */
+.mody-tour__spot {
+	position: fixed;
+	/* Above the chat bubble (99990), below the editor's modals and popovers (100000+). */
+	z-index: 99991;
+	border-radius: 8px;
+	box-shadow:
+		0 0 0 3px var(--wp-admin-theme-color, #2271b1),
+		0 0 0 9999px rgba(0, 0, 0, 0.45);
+	pointer-events: none;
+	transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.mody-tour__spot[hidden] {
+	display: none;
+}
+
+/* While the member talks to Mody, the page stays easy to see. */
+.mody-tour.is-light .mody-tour__spot {
+	box-shadow:
+		0 0 0 3px var(--wp-admin-theme-color, #2271b1),
+		0 0 0 9999px rgba(0, 0, 0, 0.15);
+}
+
+.mody-tour__card {
+	position: fixed;
+	z-index: 99992;
+	box-sizing: border-box;
+	width: min(340px, calc(100vw - 16px));
+	padding: 16px 18px;
+	color: #1e1e1e;
+	font-size: 13px;
+	line-height: 1.5;
+	background: #fff;
+	border-radius: 8px;
+	box-shadow: 0 10px 32px rgba(0, 0, 0, 0.3);
+	transition: left 0.2s ease, top 0.2s ease;
+}
+
+.mody-tour__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 4px;
+}
+
+.mody-tour__progress {
+	color: #757575;
+	font-size: 12px;
+}
+
+.mody-tour__close {
+	width: 28px;
+	height: 28px;
+	margin: -6px -8px 0 0;
+	padding: 0;
+	font-size: 20px;
+	line-height: 1;
+	background: none;
+	border: 0;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.mody-tour__close:hover {
+	background: #f0f0f0;
+}
+
+.mody-tour__title {
+	margin: 0 0 6px;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+.mody-tour__title:focus {
+	outline: none;
+}
+
+.mody-tour__text {
+	margin: 0;
+}
+
+.mody-tour__starters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 12px;
+}
+
+.mody-tour__starters[hidden] {
+	display: none;
+}
+
+.mody-tour__starter {
+	padding: 4px 10px;
+	color: var(--wp-admin-theme-color, #2271b1);
+	font: inherit;
+	font-size: 12px;
+	background: #fff;
+	border: 1px solid var(--wp-admin-theme-color, #2271b1);
+	border-radius: 999px;
+	cursor: pointer;
+}
+
+.mody-tour__starter:hover,
+.mody-tour__starter:focus-visible {
+	color: #fff;
+	background: var(--wp-admin-theme-color, #2271b1);
+}
+
+.mody-tour__status {
+	margin: 10px 0 0;
+	font-style: italic;
+}
+
+.mody-tour__status:empty {
+	display: none;
+}
+
+.mody-tour__buttons {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.mody-tour__spacer {
+	flex: 1;
+}
+
+.mody-tour__button {
+	min-height: 32px;
+	padding: 0 12px;
+	color: var(--wp-admin-theme-color, #2271b1);
+	font: inherit;
+	background: #fff;
+	border: 1px solid var(--wp-admin-theme-color, #2271b1);
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.mody-tour__button[hidden] {
+	display: none;
+}
+
+.mody-tour__button--primary {
+	color: #fff;
+	background: var(--wp-admin-theme-color, #2271b1);
+}
+
+.mody-tour__button--primary:hover {
+	background: var(--wp-admin-theme-color-darker-10, #135e96);
+}
+
+.mody-tour__button--link {
+	padding: 0;
+	color: #757575;
+	text-decoration: underline;
+	background: none;
+	border: 0;
+}
+
+.mody-tour__close:focus-visible,
+.mody-tour__button:focus-visible,
+.mody-tour__starter:focus-visible {
+	outline: 2px solid var(--wp-admin-theme-color, #2271b1);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mody-tour__spot,
+	.mody-tour__card {
+		transition: none;
+	}
+}
