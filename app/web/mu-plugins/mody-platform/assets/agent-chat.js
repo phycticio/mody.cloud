@@ -42,7 +42,7 @@
 	 *
 	 * @param {string} role  'user' or 'assistant'.
 	 * @param {string} text  Plain text.
-	 * @param {Object} extra actions, choices, error, refused, interactive.
+	 * @param {Object} extra actions, choices, decision, error, refused, interactive.
 	 * @return {HTMLElement} The message element.
 	 */
 	function show( role, text, extra = {} ) {
@@ -83,6 +83,19 @@
 				const button = element( 'button', 'button', choice );
 				button.type = 'button';
 				button.addEventListener( 'click', () => send( choice ) );
+				row.append( button );
+			} );
+			item.append( row );
+		}
+
+		// A change held for the owner's decision (Agent::hold()): three buttons, in the
+		// editor's bubble only. Removed, like choices, when another message is sent.
+		if ( extra.interactive && extra.decision && config.decisions ) {
+			const row = element( 'div', 'mody-agent__choices mody-agent__decision' );
+			[ 'save', 'discard', 'cancel' ].forEach( ( choice ) => {
+				const button = element( 'button', 'cancel' === choice ? 'button' : 'button button-primary', config.decisions[ choice ] );
+				button.type = 'button';
+				button.addEventListener( 'click', () => decide( extra.decision, choice ) );
 				row.append( button );
 			} );
 			item.append( row );
@@ -197,7 +210,52 @@
 		if ( screen ) {
 			body.screen = screen;
 		}
+		// In the editors' bubble: what the owner has unsaved changes to (styles, site).
+		const unsaved = 'function' === typeof config.unsaved ? config.unsaved() : [];
+		if ( unsaved.length ) {
+			body.unsaved = unsaved;
+		}
 		converse( text, () => request( 'POST', body ) );
+	}
+
+	/**
+	 * The owner's choice on a held change: their changes are saved or discarded in the
+	 * editor first (the bubble's settle()), then the server runs the change as it was
+	 * planned, or drops it. Its turn goes to the bubble like any other.
+	 *
+	 * @param {Object} decision The turn's decision: id and record.
+	 * @param {string} choice   save, discard or cancel.
+	 */
+	async function decide( decision, choice ) {
+		if ( busy ) {
+			return;
+		}
+		setBusy( true );
+		log.querySelectorAll( '.mody-agent__choices' ).forEach( ( row ) => row.remove() );
+		show( 'user', config.decisions[ choice ] );
+		const pending = show( 'assistant', config.strings.working );
+		pending.classList.add( 'is-pending' );
+		try {
+			if ( 'cancel' !== choice && ! ( 'function' === typeof config.settle && await config.settle( decision.record, choice ) ) ) {
+				pending.remove();
+				show( 'assistant', config.strings.settleFailed || config.strings.failed, { error: true } );
+				return;
+			}
+			const { ok, data } = await request( 'POST', { id: decision.id, choice }, config.endpoint + '/decision' );
+			pending.remove();
+			if ( ok && data.turn ) {
+				show( 'assistant', data.turn.reply, { ...data.turn, interactive: true } );
+				document.dispatchEvent( new CustomEvent( 'mody-agent:turn', { detail: data.turn } ) );
+			} else {
+				show( 'assistant', data.message || config.strings.failed, { error: true } );
+			}
+		} catch ( error ) {
+			pending.remove();
+			show( 'assistant', config.strings.failed, { error: true } );
+		} finally {
+			setBusy( false );
+			focusInput();
+		}
 	}
 
 	form.addEventListener( 'submit', ( event ) => {

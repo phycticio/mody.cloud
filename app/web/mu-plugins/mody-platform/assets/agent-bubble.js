@@ -316,6 +316,47 @@
 		}
 	}
 
+	// What the owner has unsaved changes to, sent with each message: the agent holds a
+	// change to it for their decision (decided by the maintainer on 2026-11-09).
+	config.unsaved = () => {
+		const data = wpData();
+		const core = data && data.select( 'core' );
+		if ( ! core ) {
+			return [];
+		}
+		try {
+			return Object.keys( RECORDS ).filter( ( name ) => RECORDS[ name ]( core ).some( ( args ) => core.hasEditsForEntityRecord( ...args ) ) );
+		} catch ( e ) {
+			return [];
+		}
+	};
+
+	// The owner's choice on a held change, in the editor, before the change runs: save
+	// their changes (the Site Editor's own save) or discard them (each edit set back to
+	// the saved value, which core-data then drops). True when none is left.
+	config.settle = async ( name, choice ) => {
+		const data = wpData();
+		const core = data && data.select( 'core' );
+		if ( ! core || ! RECORDS[ name ] ) {
+			return false;
+		}
+		const records = RECORDS[ name ]( core ).filter( ( args ) => core.hasEditsForEntityRecord( ...args ) );
+		try {
+			for ( const args of records ) {
+				if ( 'save' === choice ) {
+					await data.dispatch( 'core' ).saveEditedEntityRecord( ...args );
+				} else {
+					const saved = core.getRawEntityRecord( ...args ) || {};
+					const edits = core.getEntityRecordEdits( ...args ) || {};
+					data.dispatch( 'core' ).editEntityRecord( args[ 0 ], args[ 1 ], args[ 2 ], Object.fromEntries( Object.keys( edits ).map( ( key ) => [ key, saved[ key ] ] ) ) );
+				}
+			}
+		} catch ( e ) {
+			return false;
+		}
+		return records.every( ( args ) => ! core.hasEditsForEntityRecord( ...args ) );
+	};
+
 	document.addEventListener( 'mody-agent:turn', ( event ) => {
 		( ( event.detail && event.detail.edits ) || [] ).forEach( apply );
 		openScreen( ( event.detail && event.detail.actions ) || [] );

@@ -17,6 +17,7 @@ use WordPress\AiClient\Tools\DTO\FunctionCall;
 use WordPress\AiClient\Tools\DTO\FunctionDeclaration;
 use WordPress\AiClient\Tools\DTO\FunctionResponse;
 use WP_AI_Client_Ability_Function_Resolver as Resolver;
+use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -59,6 +60,16 @@ final class Agent {
 		'mody/update-styles'        => 'styles',
 		'mody/update-site-settings' => 'site',
 	);
+
+	/**
+	 * User option (per site) holding the change that waits for the owner's
+	 * decision: the owner had unsaved changes in the editor to what it
+	 * changes (decided by the maintainer on 2026-11-09). See hold().
+	 */
+	private const HELD_OPTION = 'mody_agent_held_change';
+
+	/** How long a held change waits for the owner's decision. */
+	public const HELD_TTL = 30 * MINUTE_IN_SECONDS;
 
 	/** Plain function: shows a follow-up question in the chat. Acts on nothing. */
 	public const ASK_USER = 'ask_user';
@@ -131,6 +142,14 @@ final class Agent {
 	 */
 	private ?array $screen = null;
 
+	/**
+	 * What the owner has unsaved changes to in the editor, by REFRESH name
+	 * (`styles`, `site`), as the chat bubble reported it with the message.
+	 *
+	 * @var list<string>
+	 */
+	private array $unsaved = array();
+
 	/** Whether a narrating reply was already sent back once in this turn (narrates()). */
 	private bool $renarrated = false;
 
@@ -152,6 +171,8 @@ final class Agent {
 	 * (the selected block, or null for the whole content) and markup.
 	 * `refresh` names what the turn changed on the server that the editor
 	 * keeps a copy of (`styles`, `site`, see REFRESH).
+	 * `decision` (only when a change was held, see hold()) is the held
+	 * change's `id` and `record`, for the chat's three choices.
 	 *
 	 * @var array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array{post_id: int, client_id: ?string, markup: string}>, refresh: list<string>}
 	 */
@@ -185,15 +206,19 @@ final class Agent {
 	 *                                                          checked (EditorContext::from_input()).
 	 * @param array<string, mixed>|null                $screen  Where the owner is in the Site Editor,
 	 *                                                          checked (SiteEditor::screen_from_input()).
+	 * @param list<string>                             $unsaved What the owner has unsaved changes to in
+	 *                                                          the editor (`styles`, `site`): a change to
+	 *                                                          it waits for their decision (hold()).
 	 * @return array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array<string, mixed>>, calls: list<array<string, mixed>>}
 	 *         `error` is true when the agent could not answer (no brand profile, model unavailable).
 	 *         `edits` are changes for the editor. `calls` are the abilities run, to store
 	 *         with the reply as context: not for the client.
 	 */
-	public static function respond( string $message, array $history = array(), ?array $context = null, ?array $screen = null ): array {
+	public static function respond( string $message, array $history = array(), ?array $context = null, ?array $screen = null, array $unsaved = array() ): array {
 		$agent          = new self( trim( mb_substr( sanitize_textarea_field( $message ), 0, self::MAX_MESSAGE_LENGTH ) ) );
 		$agent->context = $context;
 		$agent->screen  = $screen;
+		$agent->unsaved = array_values( array_intersect( array_unique( array_values( self::REFRESH ) ), $unsaved ) );
 		return $agent->run( $history );
 	}
 
@@ -430,6 +455,12 @@ final class Agent {
 			);
 		}
 
+		// The owner has unsaved changes in the editor to what this changes (decided by the
+		// maintainer on 2026-11-09): the call waits, as made, for their decision in the chat.
+		if ( isset( self::REFRESH[ $ability ] ) && in_array( self::REFRESH[ $ability ], $this->unsaved, true ) ) {
+			return $this->hold( $call, $ability, $args, $started );
+		}
+
 		++$this->executed;
 		$response = $resolver->execute_ability( $call )->getResponse();
 		AgentEvents::log( $this->input, $ability, $args, (string) wp_json_encode( $response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $started );
@@ -517,6 +548,204 @@ final class Agent {
 			'result' => $response,
 		);
 		return $response;
+	}
+
+	/**
+	 * Holds an ability call instead of running it: the owner has unsaved
+	 * changes in the editor to what it changes, which the change would hide
+	 * or a later Save would undo. The call is checked (input, permissions)
+	 * and kept on the server for this user and site; the turn ends with the
+	 * question and a `decision` for the chat, which shows three choices
+	 * (decision_labels()). decide() runs the call exactly as it was made.
+	 *
+	 * @param FunctionCall         $call    The call.
+	 * @param string               $ability The ability's name.
+	 * @param array<string, mixed> $args    The call's arguments.
+	 * @param float                $started When the call started (microtime).
+	 * @return array<string, mixed> What the model gets back.
+	 */
+	private function hold( FunctionCall $call, string $ability, array $args, float $started ): array {
+		if ( isset( $this->turn['decision'] ) ) {
+			AgentEvents::log( $this->input, $ability, $args, 'refused: a change already waits for the owner', $started );
+			return array(
+				'error' => 'Another change already waits for the owner\'s decision. Nothing was run.',
+				'code'  => 'mody_change_waiting',
+			);
+		}
+
+		// What execute() checks first, so a held call can run as it is.
+		$object = wp_get_ability( $ability );
+		$input  = $object ? $object->normalize_input( $args ? $args : null ) : null;
+		$valid  = $object ? $object->validate_input( $input ) : new WP_Error( 'ability_not_found', 'Unknown ability.' );
+		if ( true === $valid ) {
+			$valid = $object->check_permissions( $input );
+		}
+		if ( true !== $valid ) {
+			$error    = is_wp_error( $valid ) ? $valid : new WP_Error( 'ability_invalid_permissions', 'The owner may not make this change.' );
+			$response = array(
+				'error' => $error->get_error_message(),
+				'code'  => $error->get_error_code(),
+			);
+			AgentEvents::log( $this->input, $ability, $args, (string) wp_json_encode( $response ), $started );
+			return $response;
+		}
+
+		$record = self::REFRESH[ $ability ];
+		$held   = array(
+			'id'      => wp_generate_uuid4(),
+			'ability' => $ability,
+			'args'    => $args,
+			'record'  => $record,
+			'name'    => (string) $call->getName(),
+			'message' => $this->input,
+			'time'    => time(),
+		);
+		update_user_option( get_current_user_id(), self::HELD_OPTION, $held );
+
+		++$this->executed;
+		$this->done             = true;
+		$this->turn['decision'] = array(
+			'id'     => $held['id'],
+			'record' => $record,
+		);
+		$this->turn['reply']    = sprintf(
+			/* translators: 1: "the styles" or "the site settings", 2: the change, such as "primary color #2e8b57". */
+			__( 'You have unsaved changes to %1$s in the editor, so I have not made this change yet: %2$s. What should I do with your changes first?', 'mody_cloud' ),
+			'site' === $record ? __( 'the site settings', 'mody_cloud' ) : __( 'the styles', 'mody_cloud' ),
+			self::describe( $ability, $args )
+		);
+
+		$response      = array(
+			'held'    => true,
+			'message' => 'Not done yet: the owner has unsaved changes to this in the editor. The chat asks them to save theirs first, discard them, or cancel, and runs this call as it is if they choose to.',
+		);
+		$this->calls[] = array(
+			'id'     => (string) $call->getId(),
+			'name'   => $held['name'],
+			'args'   => $args,
+			'result' => $response,
+		);
+		AgentEvents::log( $this->input, $ability, $args, 'held: unsaved ' . $record . ' in the editor', $started );
+		return $response;
+	}
+
+	/**
+	 * A short description of a held change, for the owner.
+	 *
+	 * @param string               $ability The ability's name.
+	 * @param array<string, mixed> $args    The call's arguments.
+	 */
+	private static function describe( string $ability, array $args ): string {
+		$parts = array();
+		if ( 'mody/update-design' === $ability ) {
+			if ( isset( $args['preset'] ) ) {
+				/* translators: %s: a design preset, such as "Forest". */
+				$parts[] = sprintf( __( 'the %s preset', 'mody_cloud' ), ucfirst( (string) $args['preset'] ) );
+			}
+			foreach ( array( 'primary', 'secondary', 'accent' ) as $slug ) {
+				if ( isset( $args[ $slug ] ) ) {
+					/* translators: 1: primary, secondary or accent, 2: a hex color. */
+					$parts[] = sprintf( __( '%1$s color %2$s', 'mody_cloud' ), $slug, strtolower( (string) $args[ $slug ] ) );
+				}
+			}
+		} elseif ( 'mody/update-site-settings' === $ability ) {
+			foreach ( array( 'title', 'tagline', 'mission', 'tone' ) as $field ) {
+				if ( isset( $args[ $field ] ) ) {
+					/* translators: 1: title, tagline, mission or tone, 2: the new value. */
+					$parts[] = sprintf( __( '%1$s "%2$s"', 'mody_cloud' ), $field, mb_strimwidth( sanitize_text_field( (string) $args[ $field ] ), 0, 120, '…' ) );
+				}
+			}
+		}
+		return $parts ? implode( ', ', $parts ) : __( 'a change to the site\'s styles', 'mody_cloud' );
+	}
+
+	/**
+	 * The owner's three choices for a held change, as the chat shows them and
+	 * as the conversation keeps them. `save` and `discard` happen in the
+	 * editor first (the chat bubble), then the change runs; `cancel` drops it.
+	 *
+	 * @return array{save: string, discard: string, cancel: string}
+	 */
+	public static function decision_labels(): array {
+		return array(
+			'save'    => __( 'Save my changes, then apply', 'mody_cloud' ),
+			'discard' => __( 'Discard my changes, then apply', 'mody_cloud' ),
+			'cancel'  => __( 'Cancel', 'mody_cloud' ),
+		);
+	}
+
+	/**
+	 * The owner's decision on the held change: runs the call as it was made
+	 * (after the editor saved or discarded their changes), or drops it.
+	 *
+	 * @param string $id     The held change's ID, from the turn's `decision`.
+	 * @param string $choice save, discard or cancel.
+	 * @return array<string, mixed>|WP_Error The turn, like respond()'s, or an error when
+	 *                                       nothing waits under this ID any more.
+	 */
+	public static function decide( string $id, string $choice ): array|WP_Error {
+		$held = self::held();
+		if ( ! $held || ! hash_equals( (string) $held['id'], $id ) || ! isset( self::decision_labels()[ $choice ] ) ) {
+			return new WP_Error( 'mody_decision_expired', __( 'This change is no longer waiting. Ask me again.', 'mody_cloud' ), array( 'status' => 410 ) );
+		}
+		self::forget_held();
+
+		$agent = new self( (string) $held['message'] );
+		$label = $choice . ': ';
+		if ( 'cancel' === $choice ) {
+			$agent->turn['reply'] = __( 'Cancelled: nothing was changed.', 'mody_cloud' );
+			AgentEvents::log( $agent->input, (string) $held['ability'], $held['args'], $label . 'nothing run', $agent->started );
+			return $agent->turn + array( 'calls' => array() );
+		}
+
+		$object = wp_get_ability( (string) $held['ability'] );
+		$result = $object ? $object->execute( $held['args'] ? $held['args'] : null ) : new WP_Error( 'ability_not_found', 'Unknown ability.' );
+		AgentEvents::log( $agent->input, (string) $held['ability'], $held['args'], $label . (string) wp_json_encode( is_wp_error( $result ) ? array( 'error' => $result->get_error_message() ) : $result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $agent->started );
+		if ( is_wp_error( $result ) ) {
+			$response             = array(
+				'error' => $result->get_error_message(),
+				'code'  => $result->get_error_code(),
+			);
+			$agent->turn['error'] = true;
+			/* translators: %s: why the change failed. */
+			$agent->turn['reply'] = sprintf( __( 'The change could not be made: %s', 'mody_cloud' ), $result->get_error_message() );
+		} else {
+			$response                 = $agent->take_link( $result );
+			$agent->turn['refresh'][] = (string) $held['record'];
+			$agent->turn['reply']     = __( 'Done: the change is made.', 'mody_cloud' );
+		}
+		$agent->turn['actions'] = array_values( array_column( $agent->turn['actions'], null, 'url' ) );
+		return $agent->turn + array(
+			'calls' => array(
+				array(
+					'id'     => 'decided_' . substr( (string) $held['id'], 0, 8 ),
+					'name'   => (string) $held['name'],
+					'args'   => $held['args'],
+					'result' => is_string( wp_json_encode( $response ) ) && strlen( (string) wp_json_encode( $response ) ) <= self::MAX_KEPT_RESULT ? $response : array_filter( (array) $response, 'is_scalar' ),
+				),
+			),
+		);
+	}
+
+	/**
+	 * The change waiting for the current user's decision on this site, or
+	 * null (none, or older than HELD_TTL).
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	public static function held(): ?array {
+		$held = get_user_option( self::HELD_OPTION );
+		if ( ! is_array( $held ) || empty( $held['id'] ) || time() - (int) ( $held['time'] ?? 0 ) > self::HELD_TTL ) {
+			return null;
+		}
+		return $held;
+	}
+
+	/**
+	 * Drops the held change: decided, or the owner sent another message.
+	 */
+	public static function forget_held(): void {
+		delete_user_option( get_current_user_id(), self::HELD_OPTION );
 	}
 
 	/**

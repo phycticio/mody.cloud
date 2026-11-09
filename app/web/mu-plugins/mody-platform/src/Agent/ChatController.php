@@ -17,7 +17,8 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * POST a message to start a job, GET the job (the checker) until it is done,
- * DELETE to start a new conversation.
+ * DELETE to start a new conversation. POST /chat/decision answers a change
+ * held for the owner's decision (Agent::hold()).
  *
  * Logged-in users only, with the REST nonce (cookie authentication): without
  * `X-WP-Nonce`, WordPress treats the request as logged out and it gets 401
@@ -77,12 +78,45 @@ final class ChatController {
 							'type'     => 'object',
 							'required' => false,
 						),
+						// What the owner has unsaved changes to in the editor (the chat bubble, 2026-11-09):
+						// a change to it waits for their decision (Agent::hold()).
+						'unsaved' => array(
+							'type'     => 'array',
+							'required' => false,
+							'items'    => array(
+								'type' => 'string',
+								'enum' => array( 'styles', 'site' ),
+							),
+						),
 					),
 				),
 				array(
 					'methods'             => WP_REST_Server::DELETABLE,
 					'callback'            => array( self::class, 'reset' ),
 					'permission_callback' => array( self::class, 'can_chat' ),
+				),
+			)
+		);
+
+		// The owner's decision on a held change (decided by the maintainer on 2026-11-09).
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/chat/decision',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( self::class, 'decision' ),
+				'permission_callback' => array( self::class, 'can_chat' ),
+				'args'                => array(
+					'id'     => array(
+						'type'     => 'string',
+						'required' => true,
+						'pattern'  => '^[0-9a-f-]{36}$',
+					),
+					'choice' => array(
+						'type'     => 'string',
+						'required' => true,
+						'enum'     => array_keys( Agent::decision_labels() ),
+					),
 				),
 			)
 		);
@@ -130,6 +164,7 @@ final class ChatController {
 			return $context;
 		}
 		$screen = SiteEditor::screen_from_input( $request->get_param( 'screen' ) ); // M3-09.
+		Agent::forget_held(); // A new message drops a change still waiting for a decision.
 
 		$job = array(
 			'id'      => wp_generate_uuid4(),
@@ -137,6 +172,7 @@ final class ChatController {
 			'message' => trim( mb_substr( sanitize_textarea_field( (string) $request->get_param( 'message' ) ), 0, Agent::MAX_MESSAGE_LENGTH ) ),
 			'context' => $context,
 			'screen'  => $screen,
+			'unsaved' => array_values( array_unique( array_map( 'strval', (array) $request->get_param( 'unsaved' ) ) ) ),
 			'status'  => 'running',
 			'started' => time(),
 		);
@@ -189,7 +225,7 @@ final class ChatController {
 
 		try {
 			$history = self::history();
-			$turn    = Agent::respond( $job['message'], $history, $job['context'] ?? null, $job['screen'] ?? null );
+			$turn    = Agent::respond( $job['message'], $history, $job['context'] ?? null, $job['screen'] ?? null, $job['unsaved'] ?? array() );
 			$calls   = (array) ( $turn['calls'] ?? array() );
 			unset( $turn['calls'] ); // Context for the model, kept on the server.
 
@@ -223,10 +259,44 @@ final class ChatController {
 	}
 
 	/**
-	 * Forgets the conversation.
+	 * The owner's decision on the change held for them (Agent::hold()): runs
+	 * it as it was made, or drops it. It runs at once (no model call), and
+	 * the conversation keeps the choice and the result.
+	 *
+	 * @param WP_REST_Request $request The request: `id` and `choice`.
+	 * @return WP_REST_Response|WP_Error 200 with the turn, 409 while a job runs, 410 when nothing waits.
+	 */
+	public static function decision( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		if ( self::running_job() ) {
+			return new WP_Error( 'mody_agent_busy', __( 'I am still working on your previous message. Please wait for it to finish.', 'mody_cloud' ), array( 'status' => 409 ) );
+		}
+		$choice = (string) $request->get_param( 'choice' );
+		$turn   = Agent::decide( (string) $request->get_param( 'id' ), $choice );
+		if ( is_wp_error( $turn ) ) {
+			return $turn;
+		}
+		$calls = (array) ( $turn['calls'] ?? array() );
+		unset( $turn['calls'] );
+
+		$history   = self::history();
+		$history[] = array(
+			'role' => 'user',
+			'text' => Agent::decision_labels()[ $choice ],
+		);
+		$history[] = array( 'role' => 'assistant' ) + array_intersect_key( $turn, array_flip( array( 'actions', 'choices', 'refused' ) ) ) + array(
+			'text'  => $turn['reply'],
+			'calls' => $calls,
+		);
+		set_transient( self::history_key(), array_slice( $history, -self::KEPT_MESSAGES ), self::TTL );
+		return new WP_REST_Response( array( 'turn' => $turn ) );
+	}
+
+	/**
+	 * Forgets the conversation, and a change still waiting for a decision.
 	 */
 	public static function reset(): WP_REST_Response {
 		delete_transient( self::history_key() );
+		Agent::forget_held();
 		return new WP_REST_Response( array( 'reset' => true ) );
 	}
 
