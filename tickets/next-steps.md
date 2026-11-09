@@ -29,6 +29,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 5. **[M5-02](M5-02-production-member-sites.md) step 6: mail in production.** Built on 2026-11-09 (Brevo). It waits for the deploy and the server steps above.
 6. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
 7. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**
+8. **[M1-04](M1-04-registration-block.md): the registration chat as a block you can style and place anywhere.** Planned on 2026-11-09. It covers questions with a mapping (account, site, brand, custom answers) and palette-only color pickers on every site. Part 0 commits M1-03 first. Its place in the queue is the maintainer's call.
 
 ## Tech debt
 - **[The design market](design-market-themes-patterns.md):** the patterns part was built and merged on 2026-11-08 (the Mody collection, 63 patterns). Still open:
