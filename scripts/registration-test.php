@@ -8,7 +8,9 @@
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/registration-test.php
  *
  * 1. Closed (the default): no page, the block says registration opens soon,
- *    both REST routes refuse; the block is PHP-only and hidden.
+ *    both REST routes refuse. The block (M1-04): from block.json, every
+ *    style support, in the inserter on the main site only, its styles on
+ *    the wrapper, nothing rendered on a member site.
  * 2. The checks (in-process): each question's rules, reserved and taken
  *    addresses, the address suggested for a project's name, and register()
  *    refusing bad answers without creating anything.
@@ -115,7 +117,29 @@ if ( ! $page_before ) {
 }
 $check( 'the block says registration opens soon', str_contains( $block(), 'Registration opens soon.' ) && ! str_contains( $block(), '<form' ) );
 $type = WP_Block_Type_Registry::get_instance()->get_registered( Registration::BLOCK );
-$check( 'the block: PHP-only (autoRegister), not in the inserter', $type && ! empty( $type->supports['autoRegister'] ) && false === ( $type->supports['inserter'] ?? null ) && is_callable( $type->render_callback ) );
+$check( 'the block: from block.json, with its editor preview and style', $type && 3 === $type->api_version && is_callable( $type->render_callback ) && array( Registration::EDITOR ) === $type->editor_script_handles && array( Registration::STYLE ) === $type->style_handles && false === ( $type->supports['multiple'] ?? null ) );
+$supports = array( 'anchor', 'align', 'color.background', 'color.text', 'color.gradients', 'color.link', 'color.button', 'background.backgroundImage', 'background.gradient', 'spacing.margin', 'spacing.padding', 'spacing.blockGap', 'dimensions.minHeight', 'typography.fontSize', 'typography.__experimentalFontFamily', 'typography.__experimentalLetterSpacing', '__experimentalBorder.radius', 'shadow' );
+$missing  = array_filter( $supports, static fn( $path ) => ! block_has_support( $type, explode( '.', $path ) ) );
+$check( '...every style WordPress offers a block', ! $missing, $missing ? 'missing: ' . implode( ', ', $missing ) : count( $supports ) . ' checked' );
+$member_site = get_sites( array( 'number' => 1, 'fields' => 'ids', 'site__not_in' => array( get_main_site_id() ) ) );
+$inserter    = true === ( $type->supports['inserter'] ?? null );
+if ( $member_site ) {
+	switch_to_blog( (int) $member_site[0] );
+	$inserter = $inserter && false === Registration::block_metadata( array( 'name' => Registration::BLOCK ) )['supports']['inserter'] && '' === $block();
+	restore_current_blog();
+}
+$check( '...in the inserter on the main site only, rendered nothing elsewhere', $inserter );
+$styled = render_block( parse_blocks( '<!-- wp:' . Registration::BLOCK . ' {"align":"wide","anchor":"join","backgroundColor":"contrast","textColor":"base","style":{"spacing":{"blockGap":"var:preset|spacing|50","padding":{"top":"var:preset|spacing|60"}},"elements":{"button":{"color":{"background":"var:preset|color|accent","text":"var:preset|color|contrast"}}},"border":{"radius":"20px"},"typography":{"fontSize":"1.2rem"}}} /-->' )[0] );
+$check(
+	'...its styles on the front end (classes, inline styles, the gap, the visitor\'s colors)',
+	1 === preg_match( '/^\s*<div ([^>]*)>/', $styled, $tag )
+		&& str_contains( $tag[1], 'class="mody-register alignwide wp-elements-' ) && str_contains( $tag[1], 'has-contrast-background-color' ) && str_contains( $tag[1], 'has-base-color' ) && str_contains( $tag[1], 'id="join"' )
+		&& str_contains( $tag[1], 'padding-top:var(--wp--preset--spacing--60)' ) && str_contains( $tag[1], 'border-radius:20px' ) && preg_match( '/font-size:[^;"]*1\\.2rem/', $tag[1] )
+		&& str_contains( $tag[1], '--mody-register-gap:var(--wp--preset--spacing--50)' ) && str_contains( $tag[1], '--mody-register-you-background:var(--wp--preset--color--accent)' ) && str_contains( $tag[1], '--mody-register-you-text:var(--wp--preset--color--contrast)' ),
+	$tag[1] ?? 'no wrapper'
+);
+$hostile = render_block( parse_blocks( '<!-- wp:' . Registration::BLOCK . ' {"style":{"spacing":{"blockGap":"1rem;background:url(https://example.org/x.png)"}}} /-->' )[0] );
+$check( '...a style value that could inject CSS is dropped', ! str_contains( $hostile, 'example.org' ) && ! str_contains( $hostile, '--mody-register-gap' ) );
 $out = $rest( 'register/check', array( 'field' => 'name', 'value' => 'Ada', 'nonce' => 'x' ) );
 $check( 'the check route refuses (403)', 403 === $out['code'] && 'mody_registration_closed' === ( $out['json']['code'] ?? '' ), (string) $out['code'] );
 

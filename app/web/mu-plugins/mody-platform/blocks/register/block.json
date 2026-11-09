@@ -1,0 +1,80 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "mody/register",
+	"title": "Mody registration",
+	"category": "widgets",
+	"icon": "id",
+	"description": "The chat that creates a member account, its free trial and its first site. It works only on the main site.",
+	"keywords": [ "signup", "register", "trial", "account", "chat" ],
+	"textdomain": "mody_cloud",
+	"example": {},
+	"supports": {
+		"html": false,
+		"multiple": false,
+		"reusable": false,
+		"anchor": true,
+		"align": [ "wide", "full" ],
+		"color": {
+			"background": true,
+			"text": true,
+			"gradients": true,
+			"link": true,
+			"button": true,
+			"heading": true,
+			"__experimentalDefaultControls": {
+				"background": true,
+				"text": true
+			}
+		},
+		"background": {
+			"backgroundImage": true,
+			"backgroundSize": true,
+			"gradient": true,
+			"__experimentalDefaultControls": {
+				"backgroundImage": true,
+				"gradient": true
+			}
+		},
+		"spacing": {
+			"margin": true,
+			"padding": true,
+			"blockGap": true,
+			"__experimentalDefaultControls": {
+				"padding": true,
+				"blockGap": true
+			}
+		},
+		"dimensions": {
+			"minHeight": true
+		},
+		"typography": {
+			"fontSize": true,
+			"lineHeight": true,
+			"__experimentalFontFamily": true,
+			"__experimentalFontWeight": true,
+			"__experimentalFontStyle": true,
+			"__experimentalLetterSpacing": true,
+			"__experimentalTextTransform": true,
+			"__experimentalTextDecoration": true,
+			"__experimentalDefaultControls": {
+				"fontSize": true
+			}
+		},
+		"__experimentalBorder": {
+			"color": true,
+			"radius": true,
+			"style": true,
+			"width": true,
+			"__experimentalDefaultControls": {
+				"color": true,
+				"radius": true,
+				"style": true,
+				"width": true
+			}
+		},
+		"shadow": true
+	},
+	"editorScript": "mody-register-block",
+	"style": "mody-register"
+}
