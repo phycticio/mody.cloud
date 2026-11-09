@@ -48,6 +48,18 @@ final class Agent {
 		'update_styles'        => 'mody/update-styles', // M3-10 part B.
 	);
 
+	/**
+	 * What each ability changes that an open editor holds a copy of: the
+	 * site's Global Styles, or its settings (title, tagline, mission, tone).
+	 * The turn lists them in `refresh`, and the editor's bubble reloads them,
+	 * so the Site Editor shows the change without a page reload.
+	 */
+	private const REFRESH = array(
+		'mody/update-design'        => 'styles',
+		'mody/update-styles'        => 'styles',
+		'mody/update-site-settings' => 'site',
+	);
+
 	/** Plain function: shows a follow-up question in the chat. Acts on nothing. */
 	public const ASK_USER = 'ask_user';
 
@@ -138,8 +150,10 @@ final class Agent {
 	 *
 	 * `edits` are changes for the editor to apply (M3-06): post_id, client_id
 	 * (the selected block, or null for the whole content) and markup.
+	 * `refresh` names what the turn changed on the server that the editor
+	 * keeps a copy of (`styles`, `site`, see REFRESH).
 	 *
-	 * @var array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array{post_id: int, client_id: ?string, markup: string}>}
+	 * @var array{reply: string, actions: list<array{label: string, url: string}>, choices: list<string>, refused: bool, error: bool, edits: list<array{post_id: int, client_id: ?string, markup: string}>, refresh: list<string>}
 	 */
 	private array $turn = array(
 		'reply'   => '',
@@ -148,6 +162,7 @@ final class Agent {
 		'refused' => false,
 		'error'   => false,
 		'edits'   => array(),
+		'refresh' => array(),
 	);
 
 	/**
@@ -422,6 +437,9 @@ final class Agent {
 		// A schema error leaves the target unchanged: the model may fix its arguments.
 		if ( 'mody/publish-page' === $ability && is_array( $response ) && isset( $response['error'] ) && 'ability_invalid_input' !== ( $response['code'] ?? '' ) ) {
 			$this->publish_failed = true;
+		}
+		if ( isset( self::REFRESH[ $ability ] ) && is_array( $response ) && ! isset( $response['error'] ) && ! in_array( self::REFRESH[ $ability ], $this->turn['refresh'], true ) ) {
+			$this->turn['refresh'][] = self::REFRESH[ $ability ];
 		}
 
 		$response      = $this->take_link( $response );

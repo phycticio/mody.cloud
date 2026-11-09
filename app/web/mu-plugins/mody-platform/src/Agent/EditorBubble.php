@@ -86,6 +86,8 @@ final class EditorBubble {
 		/* translators: %s: a Site Editor screen, such as "Styles → Colors". */
 		$settings['strings']['opened'] = __( 'Opened %s.', 'mody_cloud' );
 		$settings['strings']['back']   = __( 'Go back', 'mody_cloud' );
+		// After a turn that changed the styles or the site settings, when the editor holds unsaved changes to them too.
+		$settings['strings']['unsaved'] = __( 'You also have unsaved changes here. Where they overlap with this change, the editor shows yours, and saving keeps them.', 'mody_cloud' );
 		return $settings;
 	}
 }
