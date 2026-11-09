@@ -1,6 +1,6 @@
 # M3-11 · Spectra as a MU plugin, and every Spectra block for the agent
 
-**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §10 (Spectra and `SpectraGuard`), documentation/ai-engine.md ("Initial block whitelist", "Layout: Spectra containers", "Validation pipeline"), documentation/architecture.md (layout, deploy) · **Status:** decided 2026-11-08; **part 1 built and deployed 2026-11-08, parts 2 and 3 built 2026-11-09** (Results below; part 2 merged and pushed in `ab49412`, its deploy waits for the production disk), parts 4 to 7 to do.
+**Milestone:** M3 · **Spec:** documentation/mvp-spec.md §10 (Spectra and `SpectraGuard`), documentation/ai-engine.md ("Initial block whitelist", "Layout: Spectra containers", "Validation pipeline"), documentation/architecture.md (layout, deploy) · **Status:** decided 2026-11-08; **part 1 built and deployed 2026-11-08, parts 2 and 3 built and deployed 2026-11-09** (Results below), parts 4 to 7 to do.
 
 ## The goal (maintainer, 2026-11-08)
 > Spectra should be a mu-plugin and the agent should be able to use all blocks available from Spectra.
@@ -74,9 +74,9 @@ For each group: a compact reference of the attributes the agent writes (in the p
   - `scripts/spectra-blocks-test.php` (new, 70 checks, read-only): every registered Spectra block is on one of the two lists; the markup of Spectra's generators for its 12 families passes as a new page and as an edit, and renders; an accordion inside a recipe section passes; the modal typo case passes; each refused case fails for the reason it states.
   - All 26 suites pass offline (2026-11-09).
   - Real runs on 2026-11-09: `ai-generate-page`, `spectra-layout`, `agent-edit` and `agent-template` all passed. The prompts are unchanged, so the stricter rules refuse nothing the model writes today.
-- **Not deployed yet.** Merged into `main` (`ab49412`) and pushed on 2026-11-09. The deploy stopped at its server checks: production's USB disk was hanging again (an `ls` in `/Volumes/Toshiba/mody.cloud` never returned), and the mody.cloud stack was already down (only `mody_cloud_db` left, stopped about an hour before). Nothing reached the server.
+- **Deployed with part 3** (2026-11-09). Merged into `main` (`ab49412`) and pushed first, but that deploy stopped at its server checks: production's USB disk was hanging again (an `ls` in `/Volumes/Toshiba/mody.cloud` never returned), and the mody.cloud stack was already down. Nothing reached the server. The maintainer then moved production to the internal disk (`~/web/sites/mody.cloud`, [architecture.md](../documentation/architecture.md#host)), `bin/deploy` was pointed there, and parts 2 and 3 went out together.
 
-### Part 3 (built 2026-11-09): accordion and tabs
+### Part 3 (built and deployed 2026-11-09): accordion and tabs
 - **`AI\SpectraBlocks`** holds the families the writers know: `FAMILIES`, one example each (`ACCORDION`, `TABS`), `reference()` for the prompts and `normalize()`.
   - **The examples** have the blocks Spectra's generators write, with the attributes as the block editor saves them. The editor drops default values (`"activeAccordion":0`) and writes a tab label's `currentTab` before its `text`, so the examples do too.
   - **The prompts:** the page writer's and the edit writer's (pages, templates, parts) offer "the Spectra content blocks below (accordion and tabs, with their child blocks)" and carry the reference after the layout rules: about 3,000 characters, with when to use each family ("most sections need none").

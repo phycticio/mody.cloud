@@ -30,10 +30,13 @@
 # Containers are not restarted. When config/ or a compose file changes, the
 # script prints the command to apply it on the server.
 #
-# Targets: prod is home.local:/Volumes/Toshiba/mody.cloud. Override it with
-# DEPLOY_PROD_HOST and DEPLOY_PROD_DIR. Stage has no server yet: set
-# DEPLOY_STAGE_HOST and DEPLOY_STAGE_DIR. Hosts are SSH aliases from
-# ~/.ssh/config.
+# Targets: prod is home.local:/Users/javo/web/sites/mody.cloud, the server
+# user's ~/web/sites/mody.cloud (until 2026-11-09 it was on a USB disk,
+# /Volumes/Toshiba/mody.cloud). Override it with DEPLOY_PROD_HOST and
+# DEPLOY_PROD_DIR. Stage has no server yet: set DEPLOY_STAGE_HOST and
+# DEPLOY_STAGE_DIR. Hosts are SSH aliases from ~/.ssh/config. Directories are
+# absolute paths: the script quotes them in remote commands, so ~ would not
+# expand.
 #
 # See documentation/architecture.md#production.
 
@@ -72,7 +75,7 @@ EXPECTED_HOST_NAME=""
 case "$ENV" in
   prod)
     SSH_HOST="${DEPLOY_PROD_HOST:-home.local}"
-    REMOTE_DIR="${DEPLOY_PROD_DIR:-/Volumes/Toshiba/mody.cloud}"
+    REMOTE_DIR="${DEPLOY_PROD_DIR:-/Users/javo/web/sites/mody.cloud}"
     EXPECTED_HOST_NAME="mody.cloud"
     ;;
   stage)
@@ -139,7 +142,7 @@ log "INFO" "Checking ${SSH_HOST}:${REMOTE_DIR}..."
 remote true \
   || die "Cannot connect to ${SSH_HOST}. Key authentication and a known host key (~/.ssh/known_hosts) are required."
 remote "test -d '${REMOTE_DIR}' && test -f '${REMOTE_DIR}/compose.yml' && test -f '${REMOTE_DIR}/.env'" \
-  || die "${SSH_HOST}:${REMOTE_DIR} is not a Mody Cloud stack (compose.yml and .env are required). Is the volume mounted?"
+  || die "${SSH_HOST}:${REMOTE_DIR} is not a Mody Cloud stack (compose.yml and .env are required). Wrong directory?"
 
 REMOTE_HOST_NAME="$(remote_env_value HOST_NAME)"
 if [ -n "$EXPECTED_HOST_NAME" ] && [ "$REMOTE_HOST_NAME" != "$EXPECTED_HOST_NAME" ]; then
