@@ -280,9 +280,46 @@
 		underReply( row );
 	}
 
+	// What the agent changed on the server, and the editor holds a copy of: the records
+	// to load again (core-data's getEntityRecord arguments), by the turn's `refresh` names.
+	const RECORDS = {
+		styles: ( core ) => {
+			const id = core.__experimentalGetCurrentGlobalStylesId ? core.__experimentalGetCurrentGlobalStylesId() : null;
+			return id ? [ [ 'root', 'globalStyles', id ] ] : [];
+		},
+		site: () => [ [ 'root', 'site' ], [ 'root', '__unstableBase' ] ],
+	};
+
+	// Loads those records again, so the open screen and the canvas show the change now,
+	// as after a page reload (the Site Editor keeps them from when it opened). Only
+	// records the editor has loaded: the others are read fresh when needed. Unsaved
+	// changes of the owner's to the same record stay on top, and a note says so.
+	async function refresh( names ) {
+		const data = wpData();
+		const core = data && data.select( 'core' );
+		if ( ! core || ! names.length ) {
+			return;
+		}
+		const records = names
+			.flatMap( ( name ) => ( RECORDS[ name ] ? RECORDS[ name ]( core ) : [] ) )
+			.filter( ( args ) => core.hasFinishedResolution( 'getEntityRecord', args ) );
+		try {
+			await Promise.all( records.map( ( args ) => {
+				data.dispatch( 'core' ).invalidateResolution( 'getEntityRecord', args );
+				return data.resolveSelect( 'core' ).getEntityRecord( ...args );
+			} ) );
+		} catch ( e ) {
+			return;
+		}
+		if ( records.some( ( args ) => core.hasEditsForEntityRecord( ...args ) ) ) {
+			underReply( element( 'p', 'mody-bubble__note', strings.unsaved ) );
+		}
+	}
+
 	document.addEventListener( 'mody-agent:turn', ( event ) => {
 		( ( event.detail && event.detail.edits ) || [] ).forEach( apply );
 		openScreen( ( event.detail && event.detail.actions ) || [] );
+		refresh( ( event.detail && event.detail.refresh ) || [] );
 	} );
 
 	// Open on load: after an agent button (?mody-chat=open), after a reload if it was

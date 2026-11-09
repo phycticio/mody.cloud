@@ -302,6 +302,7 @@ $turn     = Agent::respond( 'What can you do?' );
 $rows     = $since();
 $sent     = array_column( array_column( $requests[0]['tools'] ?? array(), 'function' ), 'name' );
 $check( 'plain answer', 'I can create pages and open the editor.' === $turn['reply'] && ! $turn['actions'] && ! $turn['error'], $turn['reply'] );
+$check( '...nothing for the editor to reload', array() === $turn['refresh'] );
 $check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 8 === count( $sent ), implode( ', ', $sent ) );
 $check( '...tools JSON size', strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) < 4000, strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) . ' bytes (see ai-engine.md "Prompt size")' );
 $check( '...brand in the system prompt', str_contains( wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ) && 'system' === ( $requests[0]['messages'][0]['role'] ?? '' ) );
@@ -574,6 +575,7 @@ $colors_screen = SiteEditor::styles_screen( 'colors' );
 $check( '...Styles → Colors, opened in place (M3-09)', EditorBubble::open_url( $colors_screen['url'] ) === ( $turn['actions'][0]['url'] ?? '' ) && true === ( $turn['actions'][0]['navigate'] ?? null ) && $colors_screen['place'] === ( $turn['actions'][0]['place'] ?? '' ), ( $turn['actions'][0]['place'] ?? 'no screen' ) . ' ' . ( $turn['actions'][0]['url'] ?? '' ) );
 $check( '...old and new sent back, no URL, nothing about a profile', str_contains( $sent, '"old":"' . $start_colors['primary'] . '"' ) && str_contains( $sent, '"new":"#ff7f50"' ) && ! str_contains( $sent, 'brand_profile' ) && ! str_contains( $sent, 'site-editor' ), mb_strimwidth( $sent, 0, 90, '...' ) );
 $check( '...logged with old and new', array( 'mody/update-design' ) === $tools_of( $rows ) && str_contains( (string) $rows[0]['result'], '"new":"#ff7f50"' ) );
+$check( '...the editor reloads the styles (refresh)', array( 'styles' ) === $turn['refresh'], wp_json_encode( $turn['refresh'] ) );
 $stored = json_decode( $styles_now(), true );
 $check( '...stored like the Site Editor', count( $theme_colors ) === count( $stored['settings']['color']['palette']['theme'] ?? array() ) && ! empty( $stored['isGlobalStylesUserThemeJSON'] ), 'settings.color.palette.theme, ' . count( $stored['settings']['color']['palette']['theme'] ?? array() ) . ' entries' );
 $check( '...a Global Styles revision', count( wp_get_post_revisions( $styles_id, array( 'fields' => 'ids' ) ) ) > count( $revisions ) );
@@ -614,6 +616,7 @@ $before   = $styles_now();
 $turn     = Agent::respond( 'Add this CSS: body{display:none}' );
 $sent     = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
 $check( '...a refused change: nothing saved, the reason sent back', $before === $styles_now() && str_contains( $sent, 'Nothing was saved' ) && ! $turn['actions'], mb_strimwidth( $sent, 0, 120, '...' ) );
+$check( '...nothing for the editor to reload', array() === $turn['refresh'], wp_json_encode( $turn['refresh'] ) );
 $restore_design();
 
 // A preset.
@@ -632,6 +635,7 @@ $now    = $palette();
 $forest = Presets::colors( 'forest' );
 $check( 'forest: palette', array_intersect_key( $now, $forest ) == $forest && $now['base'] === $start_colors['base'] && $now['contrast'] === $start_colors['contrast'], wp_json_encode( array_intersect_key( $now, $forest ) ) ); // phpcs:ignore Universal.Operators.StrictComparisons
 $check( '...the whole style is active (M2-06), Browse styles opened', 'forest' === SiteDesign::active_preset() && 'Styles → Browse styles' === ( $turn['actions'][0]['place'] ?? '' ) );
+$check( '...the editor reloads the styles', array( 'styles' ) === $turn['refresh'], wp_json_encode( $turn['refresh'] ) );
 
 // A member saves through kses (only super admins have unfiltered_html on Multisite).
 $no_html = static fn( array $caps, string $cap ): array => 'unfiltered_html' === $cap ? array( 'do_not_allow' ) : $caps;
@@ -844,6 +848,7 @@ $sent        = $tool_messages( $requests[1] ?? array() )[0]['content'] ?? '';
 $check( 'tagline: sanitized and saved', 'Fresh sourdough for offices & teams' === SiteSettings::get( 'tagline' ) && 'Fresh sourdough for offices &amp; teams' === get_option( 'blogdescription' ), get_option( 'blogdescription' ) );
 $check( '...title unchanged', $start_site[0] === get_option( 'blogname' ), SiteSettings::get( 'title' ) );
 $check( '...old and new sent back', str_contains( $sent, '"new":"Fresh sourdough for offices & teams"' ) && ! $turn['actions'], mb_strimwidth( $sent, 0, 90, '...' ) );
+$check( '...the editor reloads the site settings (refresh)', array( 'site' ) === $turn['refresh'], wp_json_encode( $turn['refresh'] ) );
 $check(
 	'...logged with old and new',
 	array( 'mody/update-site-settings' ) === $tools_of( $rows ) && array(
