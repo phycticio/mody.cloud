@@ -1,0 +1,238 @@
+/*
+ * wp-login.php in the site's brand (Login\LoginPage, tickets/login-branding.md).
+ *
+ * Every color is a role of the chosen scheme, set inline on the body as
+ * `--mody-login-*` (palette colors as the theme's own variables). Core's
+ * buttons, focus rings and checkboxes follow `--wp-admin-theme-color`, which
+ * is set to the scheme's button color. Loaded after core's login.css, so a
+ * rule here wins a tie in specificity.
+ */
+
+body.mody-login {
+	background: var(--mody-login-page);
+	color: var(--mody-login-nav);
+	font-family: var(--mody-login-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+/* Form controls take the page's font; the shown password keeps core's monospace. */
+.mody-login input:not(.password-input),
+.mody-login select,
+.mody-login textarea,
+.mody-login.wp-core-ui .button {
+	font-family: inherit;
+}
+
+/* The logo, or the site's name ------------------------------------------- */
+
+.mody-login h1 a {
+	background: none;
+	width: auto;
+	height: auto;
+	max-width: 100%;
+	margin: 0 auto 24px;
+	padding: 0;
+	overflow: visible;
+	text-indent: 0;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	color: var(--mody-login-nav);
+	text-decoration: none;
+	border-radius: 12px;
+}
+
+.mody-login h1 a:focus {
+	color: var(--mody-login-nav);
+	box-shadow: 0 0 0 2px var(--mody-login-page), 0 0 0 4px var(--mody-login-nav);
+	outline: 2px solid transparent;
+}
+
+/* A logo is drawn for the site's background: on another color it sits on a plate of it. */
+.mody-login-plate {
+	display: inline-flex;
+	justify-content: center;
+	align-items: center;
+	max-width: 100%;
+	box-sizing: border-box;
+	padding: 12px 16px;
+	border-radius: 12px;
+	background: var(--mody-login-plate, transparent);
+}
+
+.mody-login--light .mody-login-plate,
+.mody-login--soft .mody-login-plate,
+.mody-login--accent .mody-login-plate {
+	padding: 0;
+}
+
+.mody-login-logo {
+	display: block;
+	width: auto;
+	height: auto;
+	max-width: 100%;
+	max-height: 84px;
+	object-fit: contain;
+}
+
+.mody-login-logo--icon {
+	width: 72px;
+	height: 72px;
+	border-radius: 12px;
+}
+
+.mody-login-name {
+	display: block;
+	max-width: 100%;
+	font-family: var(--mody-login-heading-font, inherit);
+	font-size: 28px;
+	font-weight: 600;
+	line-height: 1.2;
+	text-align: center;
+	overflow-wrap: anywhere;
+}
+
+/* The form and the messages ------------------------------------------------ */
+
+.mody-login form,
+.mody-login .message,
+.mody-login .notice,
+.mody-login .success,
+.mody-login #login_error {
+	background: var(--mody-login-card);
+	color: var(--mody-login-text);
+}
+
+.mody-login form {
+	border: 1px solid var(--mody-login-border);
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+.mody-login .message,
+.mody-login .notice:not(.notice-error):not(.notice-success) {
+	border-left-color: var(--mody-login-button);
+}
+
+.mody-login form label,
+.mody-login form p,
+.mody-login .admin-email__heading,
+.mody-login .message,
+.mody-login #login_error {
+	color: var(--mody-login-text);
+}
+
+.mody-login form a,
+.mody-login .message a,
+.mody-login #login_error a {
+	color: var(--mody-login-link);
+}
+
+.mody-login form a:hover,
+.mody-login form a:focus,
+.mody-login .message a:hover,
+.mody-login #login_error a:hover {
+	color: var(--mody-login-text);
+}
+
+.mody-login input[type="text"],
+.mody-login input[type="password"],
+.mody-login input[type="email"],
+.mody-login input[type="checkbox"],
+.mody-login select {
+	background-color: var(--mody-login-card);
+	color: var(--mody-login-text);
+}
+
+/* The resting border is as specific as core's, so core's :focus border (the button color) still wins. */
+:where(.mody-login) input[type="text"],
+:where(.mody-login) input[type="password"],
+:where(.mody-login) input[type="email"],
+:where(.mody-login) input[type="checkbox"],
+:where(.mody-login) select {
+	border-color: var(--mody-login-field);
+}
+
+.mody-login input[type="checkbox"]:checked {
+	background-color: var(--mody-login-button);
+	border-color: var(--mody-login-button);
+}
+
+.mody-login .description,
+.mody-login .indicator-hint,
+.mody-login #reg_passmail,
+.mody-login .admin-email__details,
+.mody-login .wp-tooltip .wp-tooltip__toggle {
+	color: var(--mody-login-muted);
+}
+
+.mody-login .admin-email__heading {
+	border-bottom-color: var(--mody-login-border);
+}
+
+.mody-login.wp-core-ui .button-primary,
+.mody-login.wp-core-ui .button-primary:hover,
+.mody-login.wp-core-ui .button-primary:focus,
+.mody-login.wp-core-ui .button-primary:active {
+	color: var(--mody-login-button-text);
+}
+
+.mody-login .button.wp-hide-pw,
+.mody-login .button.wp-hide-pw .dashicons {
+	color: var(--mody-login-button);
+}
+
+/* On the page, below the form ---------------------------------------------- */
+
+.mody-login #nav a,
+.mody-login #backtoblog a,
+.mody-login .privacy-policy-page-link a,
+.mody-login .language-switcher label,
+.mody-login .language-switcher .dashicons {
+	color: var(--mody-login-nav);
+}
+
+.mody-login #nav a:hover,
+.mody-login #nav a:focus,
+.mody-login #backtoblog a:hover,
+.mody-login #backtoblog a:focus,
+.mody-login .privacy-policy-page-link a:hover {
+	color: var(--mody-login-nav);
+	text-decoration-thickness: 2px;
+}
+
+.mody-login #nav a:focus,
+.mody-login #backtoblog a:focus,
+.mody-login .privacy-policy-page-link a:focus {
+	box-shadow: 0 0 0 2px var(--mody-login-nav);
+}
+
+/* The antibot widget (Security\FormGuard) in the same colors. */
+.mody-login altcha-widget {
+	--altcha-color-base: var(--mody-login-card);
+	--altcha-color-base-content: var(--mody-login-text);
+	--altcha-border-color: var(--mody-login-border);
+	--altcha-checkbox-border-color: var(--mody-login-field);
+	--altcha-color-primary: var(--mody-login-button);
+	--altcha-color-primary-content: var(--mody-login-button-text);
+	--altcha-color-success: var(--mody-login-button);
+	--altcha-color-success-content: var(--mody-login-button-text);
+	--altcha-color-neutral-content: var(--mody-login-muted);
+}
+
+/* Small screens: the form fills the width, the logo shrinks. */
+@media screen and (max-width: 400px) {
+	.mody-login #login {
+		width: auto;
+		max-width: 320px;
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+
+	.mody-login-logo {
+		max-height: 64px;
+	}
+
+	.mody-login-name {
+		font-size: 24px;
+	}
+}

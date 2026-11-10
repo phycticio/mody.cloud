@@ -140,6 +140,16 @@ add_filter( 'get_user_option_admin_color', array( Admin\AdminColors::class, 'def
 add_action( 'init', array( Admin\AdminColors::class, 'migrate' ), 1 );
 
 /*
+ * The login page (tickets/login-branding.md): each site's wp-login.php wears
+ * that site's logo, palette and fonts (the theme's variables, read on each
+ * request), arranged by the scheme its admins choose in Settings → Login.
+ */
+Login\LoginPage::register();
+add_action( 'admin_init', array( Login\SettingsPage::class, 'register_setting' ) );
+add_action( 'rest_api_init', array( Login\SettingsPage::class, 'register_setting' ) );
+add_action( 'admin_menu', array( Login\SettingsPage::class, 'register_menu' ) );
+
+/*
  * Agent settings (Network Admin > Settings > Mody Agent): event retention.
  */
 add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_menu' ) );
