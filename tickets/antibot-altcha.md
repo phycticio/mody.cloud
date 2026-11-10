@@ -86,6 +86,7 @@ ALTCHA stops scripts; Antispam Bee (pluginkollektiv, Germany, 2.11.13) catches c
   - **The login form**, on the main site (desktop) and alpha (phone width): the widget fits the form and says Verified; a real login works.
   - **The signup chat**, from the first answer to "Done!": the widget is solved after the first answer, the account and site were created, then removed.
   - **Requests:** every request stayed on mody.local; the widget's workers are `blob:` URLs.
+- **Fixed after the deploy (reported by the maintainer the same day, locally):** the signup chat on the home page never passed. Spectra's container runs its inner blocks through `wp_kses()` with the "post" tags, which removed `<altcha-widget>`. The chat then sent an empty solution, and every Create got a 403. `/register/`, where the tests and the browser check ran, has no container. Now `Altcha::allow_widget()` (`wp_kses_allowed_html`, context "post") allows the element with the attributes the widget has. `registration-test.php` checks the block inside a container, and the home page chat was run end to end in headless Chrome. Production was not affected yet: its home page has no chat, and registration is closed there.
 - **Found while building:**
   - Core runs `pre_comment_approved` twice for one comment, so a once-only solution failed on the second run. The verdict is now kept for the request.
   - A REST argument marked `required` answers with core's generic 400, so `altcha` is optional and a missing one gets the antibot message.

@@ -192,6 +192,8 @@ preg_match( '/name="_mody_nonce" value="([0-9a-f]+)"/', $out['body'], $nonce );
 $nonce = $nonce[1] ?? '';
 $check( 'the page: the chat\'s script and settings, and the form', 200 === $out['code'] && str_contains( $out['body'], 'assets/register.js' ) && str_contains( $out['body'], 'window.modyRegister' ) && str_contains( $out['body'], 'id="mody-register-chat"' ) && '' !== $nonce, (string) $out['code'] );
 $check( '... the antibot widget and its script, in the form', str_contains( $out['body'], '<altcha-widget class="mody-altcha" name="altcha"' ) && str_contains( $out['body'], '/dist/altcha.js' ) && str_contains( $out['body'], 'Signing up needs JavaScript' ) );
+$in_container = do_blocks( '<!-- wp:spectra/container {"tagName":"section"} --><div class="wp-block-spectra-container"><!-- wp:' . Registration::BLOCK . ' /--></div><!-- /wp:spectra/container -->' );
+$check( '... and inside a Spectra container too (its kses; the home page)', str_contains( $in_container, '<altcha-widget class="mody-altcha" name="altcha" challenge="' ) && str_contains( $in_container, 'auto="onfocus"' ) );
 $check( '... the four questions, the address\'s suffix', str_contains( $out['body'], 'name="mody_name"' ) && str_contains( $out['body'], 'name="mody_email"' ) && str_contains( $out['body'], 'name="mody_title"' ) && str_contains( $out['body'], 'name="mody_slug"' ) && str_contains( $out['body'], esc_html( Registration::address_suffix() ) ) );
 $check( '... no password, no plans; a free trial, no card, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && ! str_contains( $out['body'], 'EUR per month' ) && str_contains( $out['body'], '30-day trial' ) && str_contains( $out['body'], 'no card needed' ) && false === stripos( $out['body'], 'unlimited' ) );
 

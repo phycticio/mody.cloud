@@ -79,6 +79,30 @@ final class Altcha {
 	}
 
 	/**
+	 * `wp_kses_allowed_html`: the widget survives sanitizing with the "post"
+	 * tags, with the attributes widget() prints. Spectra's container runs its
+	 * inner blocks through wp_kses() with that list, which removed the widget
+	 * from the signup chat placed in a container (the home page), so the chat
+	 * could never pass.
+	 *
+	 * @param array<string, mixed> $tags    Allowed tags and their attributes.
+	 * @param string|array         $context The kses context.
+	 * @return array<string, mixed>
+	 */
+	public static function allow_widget( $tags, $context ) {
+		if ( is_array( $tags ) && 'post' === $context ) {
+			$tags['altcha-widget'] = array(
+				'class'         => true,
+				'name'          => true,
+				'challenge'     => true,
+				'auto'          => true,
+				'configuration' => true,
+			);
+		}
+		return $tags;
+	}
+
+	/**
 	 * `rest_api_init`: GET `mody-platform/v1/altcha`, a new challenge, on
 	 * every site.
 	 */
