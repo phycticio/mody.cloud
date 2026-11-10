@@ -118,6 +118,7 @@ add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirec
  */
 add_action( 'init', array( Security\Altcha::class, 'register_script' ) );
 add_action( 'rest_api_init', array( Security\Altcha::class, 'register_route' ) );
+add_filter( 'wp_kses_allowed_html', array( Security\Altcha::class, 'allow_widget' ), 10, 2 ); // Spectra's container sanitizes its inner blocks.
 Security\FormGuard::register();
 Security\AntispamBee::register(); // Its checks that call outside services stay off (rule 1).
 
