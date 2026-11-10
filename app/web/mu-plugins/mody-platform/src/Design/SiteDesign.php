@@ -50,10 +50,21 @@ final class SiteDesign {
 	 * @return array<string, string> Slug => lowercase hex.
 	 */
 	public static function colors(): array {
+		return array_intersect_key( self::palette(), array_flip( self::SLUGS ) );
+	}
+
+	/**
+	 * Every color of the current site's theme palette as the site shows it
+	 * now: `primary`, `secondary`, `accent`, `base` and `contrast`. Also for
+	 * the login page (Admin\LoginBranding).
+	 *
+	 * @return array<string, string> Slug => color, lowercase, as stored.
+	 */
+	public static function palette(): array {
 		$colors = array();
 		foreach ( (array) wp_get_global_settings( array( 'color', 'palette', 'theme' ) ) as $entry ) {
 			$slug = is_array( $entry ) ? (string) ( $entry['slug'] ?? '' ) : '';
-			if ( in_array( $slug, self::SLUGS, true ) ) {
+			if ( '' !== $slug ) {
 				$colors[ $slug ] = strtolower( (string) ( $entry['color'] ?? '' ) );
 			}
 		}
