@@ -1,6 +1,6 @@
 # Infomaniak Newsletter integration
 
-Related: [membership-tiers.md](membership-tiers.md) (where the per-tier caps come from) and [brand-profile.md](brand-profile.md#site-creation-flow) (the step that registers the domain).
+Related: [membership-tiers.md](membership-tiers.md) (the plans; no per-plan sending cap is decided) and [brand-profile.md](brand-profile.md#site-creation-flow) (the step that registers the domain).
 
 ## Credit model
 
@@ -10,9 +10,11 @@ Related: [membership-tiers.md](membership-tiers.md) (where the per-tier caps com
 
 ## Legal requirement
 
-Double opt-in and explicit consent are mandatory. Purchased lists are forbidden. This reinforces the GDPR message of the association.
+Double opt-in and explicit consent are mandatory. Purchased lists are forbidden. This reinforces Mody Cloud's GDPR message.
 
 ## Control per tier
+
+**Outdated (2026-11-10):** the tiers below are the briefing's. They were replaced by plans named by their number of sites ([membership-tiers.md](membership-tiers.md)), and no sending cap per plan is decided. The newsletter is out of the MVP.
 
 Use Infomaniak's **"Set a sending limit"** function (a monthly cap per domain) with the role's `newsletter_sends_per_month` value:
 

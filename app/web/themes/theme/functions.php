@@ -27,14 +27,18 @@ function mody_cloud_setup(): void {
 add_action( 'after_setup_theme', 'mody_cloud_setup' );
 
 /**
- * Enqueue style.css on the front end.
+ * Enqueue style.css on the front end. Its version is the file's modification
+ * time, so a changed file gets a new URL past the proxies' caches (the theme's
+ * version never changes).
  */
 function mody_cloud_enqueue_styles(): void {
+	$path = get_theme_file_path( 'style.css' );
+
 	wp_enqueue_style(
 		'mody_cloud_style',
 		get_theme_file_uri( 'style.css' ),
 		array(),
-		wp_get_theme()->get( 'Version' )
+		file_exists( $path ) ? (string) filemtime( $path ) : wp_get_theme()->get( 'Version' )
 	);
 }
 add_action( 'wp_enqueue_scripts', 'mody_cloud_enqueue_styles' );

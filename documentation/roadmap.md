@@ -15,7 +15,7 @@ Milestones from the briefing (v4, October 2026). Status is as the briefing repor
 | | 2.2 | Member registration + site panel + role gating (sites, sends, disk) | In progress | Registration built 2026-11-08: a chat signup with a 30-day trial and no card, the first site, and the editor tour ([M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)). Site limits per plan built (M1-01 part 1); the site panel and billing to do. See [membership-tiers.md](membership-tiers.md). |
 | | 2.3 | Brand profile backend + `theme.json` writing | Done (2026-11-06) | The profile table (M2-02) and the provisioning pipeline (M2-01) exist. Each site's colors go into its own Global Styles, not a per-site `theme.json`. See [brand-profile.md](brand-profile.md#site-creation-flow). |
 | 3 · Launch | 3.1 | Brand wizard (3 steps) + coherent generation + Newsletter integration | Pending | See [newsletter.md](newsletter.md). |
-| | 3.2 | Memberships and payments (Mollie or Stripe, tiers 5/15/50 + custom VPS) | Pending | Payments provider is an open decision. |
+| | 3.2 | Memberships and payments (Mollie or Stripe, tiers 5/15/50 + custom VPS) | Pending | Mollie, decided 2026-11-01. The tiers were replaced on 2026-11-10: plans of 1, 3 and 10 sites, monthly or yearly ([membership-tiers.md](membership-tiers.md)). |
 | | 3.3 | Launch: 100 founding members | Pending | |
 
 ## First concrete step (superseded)
