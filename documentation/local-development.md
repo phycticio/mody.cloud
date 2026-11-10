@@ -188,7 +188,7 @@ docker run --rm -v proxy_data:/from -v "$PWD:/to" alpine tar czf /to/proxy_data.
 | `./bin/version <wp-version>` | Replace WordPress core in `app/wp` without touching `app/web`. |
 | `./bin/db import` | Import `app/dumps/<DB_NAME>.sql` and rewrite the domain. Needs a dump. |
 | `cd app && composer update --no-install` | Regenerate `composer.lock` on the host. |
-| `pnpm build` / `pnpm start` | Lint `src/` and compile it into `app/dist` with `@wordpress/scripts` / the same in watch mode. `pnpm lint:js:fix` and `pnpm lint:scss:fix` apply fixes. |
+| `pnpm build` / `pnpm start` | Lint `src/` and compile it into `app/dist` with `@wordpress/scripts` / the same in watch mode. `pnpm lint:js:fix` and `pnpm lint:scss:fix` apply fixes. Run it once after cloning: the antibot widget (`app/dist/altcha.js`) is needed to sign up, log in or comment. |
 | `./bin/build [prod\|stage]` | `pnpm build`, then `composer install` in the app container. Without an argument it includes dev requirements. `prod` and `stage` leave them out and use the frozen lockfile. |
 | `./bin/deploy --env=prod [--dry-run]` | Deploy committed `main` to production after checks, a preview and a typed confirmation. See [architecture.md](architecture.md#production). |
 | `docker exec mody_cloud_server nginx -s reload` | Reload Nginx after editing its config. |

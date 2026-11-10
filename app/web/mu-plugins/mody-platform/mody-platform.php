@@ -111,6 +111,17 @@ add_action( 'template_redirect', array( Members\Registration::class, 'handle' ) 
 add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirect' ), 10, 3 );
 
 /*
+ * Antibot (tickets/antibot-altcha.md): ALTCHA, a proof-of-work check served
+ * from our own servers, on the signup chat (Members\Registration), log in,
+ * lost password and visitors' comments, on every site. Antispam Bee (a MU
+ * plugin, mu-plugins/antispam-bee.php) checks what people type in comments.
+ */
+add_action( 'init', array( Security\Altcha::class, 'register_script' ) );
+add_action( 'rest_api_init', array( Security\Altcha::class, 'register_route' ) );
+Security\FormGuard::register();
+Security\AntispamBee::register(); // Its checks that call outside services stay off (rule 1).
+
+/*
  * Onboarding (M1-03): the first password logs the member in on their site's
  * Identity screen, where the editor tour shows the agent, then the editor.
  */

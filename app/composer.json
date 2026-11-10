@@ -30,7 +30,8 @@
         "wpackagist-plugin/ai": "1.5.0",
         "wpackagist-plugin/ai-provider-for-ollama": "1.4.0",
         "wpackagist-plugin/mcp-adapter": "0.7.1",
-        "wpackagist-plugin/spectra-blocks": "1.0.13"
+        "wpackagist-plugin/spectra-blocks": "1.0.13",
+        "wpackagist-plugin/antispam-bee": "2.11.13"
     },
     "require-dev": {
         "wpackagist-plugin/query-monitor": "3.20.2",
@@ -39,7 +40,8 @@
     "extra": {
         "installer-paths": {
             "web/mu-plugins/{$name}/": [
-                "wpackagist-plugin/spectra-blocks"
+                "wpackagist-plugin/spectra-blocks",
+                "wpackagist-plugin/antispam-bee"
             ],
             "web/plugins/{$name}/": [
                 "type:wordpress-plugin"

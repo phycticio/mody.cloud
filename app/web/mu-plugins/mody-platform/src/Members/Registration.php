@@ -12,6 +12,7 @@ namespace Mody\Platform\Members;
 use Mody\Platform\Agent\ChatController;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
+use Mody\Platform\Security\Altcha;
 use Mody\Platform\Wizard\WizardPage;
 use WP_Error;
 use WP_REST_Request;
@@ -48,6 +49,11 @@ defined( 'ABSPATH' ) || exit;
  *   password logs the member in on the site's Identity screen (Onboarding).
  * - **Without JavaScript** the block is a form with the same four fields,
  *   posted to the page and handled on `template_redirect`.
+ * - **Antibot** (tickets/antibot-altcha.md): creating the account needs an
+ *   ALTCHA solution (Security\Altcha), from the chat or the form. The chat
+ *   starts solving after the first answer, in the background; the form's
+ *   widget when a field gets focus. Without JavaScript nobody can sign up,
+ *   and the form says so.
  *
  * **Closed unless opened:** the network option `mody_registration_open`.
  * While it is off, nothing creates the page, the block says registration
@@ -417,8 +423,13 @@ final class Registration {
 					'name'  => $string( 500 ),
 					'email' => $string( 500 ),
 					'title' => $string( 500 ),
-					'slug'  => $string( 500 ),
-					'nonce' => $string( 64 ),
+					'slug'   => $string( 500 ),
+					'nonce'  => $string( 64 ),
+					'altcha' => array( // Optional here, so a missing one gets the antibot message.
+						'type'      => 'string',
+						'default'   => '',
+						'maxLength' => 4096,
+					),
 				),
 			)
 		);
@@ -478,6 +489,9 @@ final class Registration {
 	 * @return WP_REST_Response|WP_Error 201 with `email` and `address`; 400 with `fields`.
 	 */
 	public static function rest_register( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		if ( ! Altcha::verify( $request['altcha'] ) ) {
+			return new WP_Error( 'mody_altcha_failed', Altcha::failed_message(), array( 'status' => 403 ) );
+		}
 		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'] );
 		if ( is_wp_error( $account ) ) {
 			$account->add_data( array_merge( (array) $account->get_error_data(), array( 'status' => 'mody_invalid_input' === $account->get_error_code() ? 400 : 500 ) ) );
@@ -517,6 +531,10 @@ final class Registration {
 		}
 		if ( ! self::is_open() ) {
 			self::$errors = array( 'form' => __( 'Registration is not open yet.', 'mody_cloud' ) );
+			return;
+		}
+		if ( ! Altcha::verify( Altcha::posted() ) ) {
+			self::$errors = array( 'form' => Altcha::failed_message() );
 			return;
 		}
 
@@ -594,7 +612,7 @@ final class Registration {
 			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? __( 'Registration opens soon.', 'mody_cloud' ) ) . '</p></div>';
 		}
 
-		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), array(), self::asset_version( 'register.js' ), true );
+		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), array( Altcha::SCRIPT ), self::asset_version( 'register.js' ), true );
 		wp_add_inline_script( self::SCRIPT, 'window.modyRegister = ' . wp_json_encode( self::chat_settings() ) . ';', 'before' );
 
 		$value = static fn( string $key ): string => self::$values[ $key ] ?? '';
@@ -634,6 +652,8 @@ final class Registration {
 					<span class="mody-register__hint"><?php esc_html_e( 'Lowercase letters and numbers, at least 4.', 'mody_cloud' ); ?></span>
 					<?php echo $error( 'slug' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $error. ?>
 				</p>
+				<?php echo Altcha::widget(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in widget(). ?>
+				<noscript><p class="mody-register__error"><?php esc_html_e( 'Signing up needs JavaScript: your browser solves a small puzzle that shows you are not a robot. Please turn JavaScript on and reload this page.', 'mody_cloud' ); ?></p></noscript>
 				<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::ACTION ); ?>">
 				<input type="hidden" name="_mody_nonce" value="<?php echo esc_attr( wp_create_nonce( self::ACTION ) ); ?>">
 				<p><button type="submit" class="wp-element-button"><?php esc_html_e( 'Start my free trial', 'mody_cloud' ); ?></button></p>
