@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "144987128ec061278f1797ad8ad42b40",
+    "content-hash": "ecba927d09dcaf0963372b00771e283d",
     "packages": [
         {
             "name": "composer/installers",
@@ -188,6 +188,24 @@
             },
             "type": "wordpress-plugin",
             "homepage": "https://wordpress.org/plugins/ai-provider-for-ollama/"
+        },
+        {
+            "name": "wpackagist-plugin/antispam-bee",
+            "version": "2.11.13",
+            "source": {
+                "type": "svn",
+                "url": "https://plugins.svn.wordpress.org/antispam-bee/",
+                "reference": "tags/2.11.13"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://downloads.wordpress.org/plugin/antispam-bee.2.11.13.zip"
+            },
+            "require": {
+                "composer/installers": "^1.0 || ^2.0"
+            },
+            "type": "wordpress-plugin",
+            "homepage": "https://wordpress.org/plugins/antispam-bee/"
         },
         {
             "name": "wpackagist-plugin/mcp-adapter",

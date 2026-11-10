@@ -36,6 +36,21 @@ Tags: full-site-editing, block-patterns, wide-blocks, custom-colors, accessibili
 	color: inherit;
 }
 
+/*
+ * The footer band meets the content's last section. WordPress puts the block
+ * gap above every top-level part, and a template part has no margin setting,
+ * so a page ending on a colored section showed a strip of the page background
+ * above the footer (found 2026-11-10, the main site's home page).
+ */
+.wp-site-blocks > footer.wp-block-template-part {
+	margin-block-start: 0;
+}
+
+/* Jumps to a section of the same page scroll smoothly. */
+html {
+	scroll-behavior: smooth;
+}
+
 /* Respect the system preference for reduced motion. */
 @media (prefers-reduced-motion: reduce) {
 	*,

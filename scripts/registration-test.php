@@ -26,6 +26,10 @@
  *    account; members log in to the dashboard.
  * 5. Closed again: the page says so, and nothing is created.
  *
+ * Antibot (tickets/antibot-altcha.md): the page has the ALTCHA widget and
+ * its script; creating an account needs a solution (403 without one), and a
+ * solution works once. The test solves easy challenges in PHP.
+ *
  * Everything created is removed at the end. No model call.
  */
 
@@ -34,6 +38,7 @@ use Mody\Platform\Members\Registration;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
+use Mody\Platform\Security\Altcha;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -99,6 +104,8 @@ $http  = static function ( string $method, string $to, array $cookies = array(),
 		'json'     => json_decode( $text, true ),
 	);
 };
+// A solved ALTCHA challenge (an easy one: counter 3).
+$proof = static fn(): string => Altcha::solve( Altcha::challenge( 3 ) );
 $rest  = static fn( string $route, array $body ): array => $http( 'POST', rest_url( 'mody-platform/v1/' . $route ), array(), $body, true );
 // From the database: sites created by another request are not in this process's cache.
 $site_exists = static function ( string $slug ): bool {
@@ -184,6 +191,7 @@ $out = $http( 'GET', $url );
 preg_match( '/name="_mody_nonce" value="([0-9a-f]+)"/', $out['body'], $nonce );
 $nonce = $nonce[1] ?? '';
 $check( 'the page: the chat\'s script and settings, and the form', 200 === $out['code'] && str_contains( $out['body'], 'assets/register.js' ) && str_contains( $out['body'], 'window.modyRegister' ) && str_contains( $out['body'], 'id="mody-register-chat"' ) && '' !== $nonce, (string) $out['code'] );
+$check( '... the antibot widget and its script, in the form', str_contains( $out['body'], '<altcha-widget class="mody-altcha" name="altcha"' ) && str_contains( $out['body'], '/dist/altcha.js' ) && str_contains( $out['body'], 'Signing up needs JavaScript' ) );
 $check( '... the four questions, the address\'s suffix', str_contains( $out['body'], 'name="mody_name"' ) && str_contains( $out['body'], 'name="mody_email"' ) && str_contains( $out['body'], 'name="mody_title"' ) && str_contains( $out['body'], 'name="mody_slug"' ) && str_contains( $out['body'], esc_html( Registration::address_suffix() ) ) );
 $check( '... no password, no plans; a free trial, no card, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && ! str_contains( $out['body'], 'EUR per month' ) && str_contains( $out['body'], '30-day trial' ) && str_contains( $out['body'], 'no card needed' ) && false === stripos( $out['body'], 'unlimited' ) );
 
@@ -204,13 +212,21 @@ $answers = static fn( string $key, array $over = array() ): array => array_merge
 		'name'  => 'Ada Lovelace',
 		'email' => $emails[ $key ],
 		'title' => 'Ada\'s Analytical Bakery',
-		'slug'  => $slugs[ $key ],
-		'nonce' => $nonce,
+		'slug'   => $slugs[ $key ],
+		'nonce'  => $nonce,
+		'altcha' => $proof(),
 	),
 	$over
 );
-$out = $rest( 'register', $answers( 'a', array( 'email' => 'nope', 'slug' => 'mail' ) ) );
+$used = $proof();
+$out  = $rest( 'register', $answers( 'a', array( 'email' => 'nope', 'slug' => 'mail', 'altcha' => $used ) ) );
 $check( 'register: bad answers, 400 with the fields', 400 === $out['code'] && isset( $out['json']['data']['fields']['email'], $out['json']['data']['fields']['slug'] ) && ! get_user_by( 'email', $emails['a'] ), (string) $out['code'] );
+$out = $rest( 'register', $answers( 'b', array( 'altcha' => '' ) ) );
+$check( 'register without an antibot solution: 403, nothing created', 403 === $out['code'] && 'mody_altcha_failed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $emails['b'] ), (string) $out['code'] );
+$out = $rest( 'register', $answers( 'b', array( 'altcha' => $used ) ) );
+$check( '... and with a solution used before: 403', 403 === $out['code'] && 'mody_altcha_failed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $emails['b'] ), (string) $out['code'] );
+$out = $rest( 'register', $answers( 'b', array( 'altcha' => Altcha::solve( Altcha::challenge( 3 ) ) . 'x' ) ) );
+$check( '... and with a changed one: 403', 403 === $out['code'] && ! get_user_by( 'email', $emails['b'] ), (string) $out['code'] );
 
 $mails   = array();
 $started = microtime( true );
@@ -269,11 +285,14 @@ $form = static fn( array $over = array() ): array => array_merge(
 		'mody_email'  => $emails['c'],
 		'mody_title'  => 'Difference Engines',
 		'mody_slug'   => $slugs['c'],
+		'altcha'      => $proof(),
 	),
 	$over
 );
 $out = $http( 'POST', $url, array(), $form( array( 'mody_email' => 'not-an-email' ) ) );
 $check( 'a bad post: its error, the answers kept, no account', 200 === $out['code'] && str_contains( $out['body'], 'Please enter a valid email address.' ) && str_contains( $out['body'], 'value="Charles Babbage"' ) && str_contains( $out['body'], 'value="' . $slugs['c'] . '"' ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
+$out = $http( 'POST', $url, array(), $form( array( 'altcha' => '' ) ) );
+$check( 'a post without the antibot solution: refused, no account', str_contains( $out['body'], esc_html( Altcha::failed_message() ) ) && ! get_user_by( 'email', $emails['c'] ) );
 $out = $http( 'POST', $url, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
 $check( 'an expired nonce is refused', str_contains( $out['body'], 'The form expired.' ) && ! get_user_by( 'email', $emails['c'] ) );
 $out = $http( 'POST', $url, array(), $form() );

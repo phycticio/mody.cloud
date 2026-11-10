@@ -14,7 +14,7 @@ A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no c
 
 ### Part 1 · Member accounts (done 2026-11-08, Results below)
 - The `mody_members` table (spec §11), created on `init` like the other tables.
-- **Plans and their site limits** (spec decisions 3 and 5, §4): trial 3, Collaborator 3, Member 10, Patron 50. The fees 0, 5, 15 and 50 EUR are recorded with them, but are not confirmed yet (spec §16, question 6).
+- **Plans and their site limits** (spec decisions 3 and 5, §4): trial 3, Collaborator 3, Member 10, Patron 50. The fees 0, 5, 15 and 50 EUR are recorded with them, but are not confirmed yet (spec §16, question 6). **Replaced on 2026-11-10:** plans of 1, 3 and 10 sites at 9.99, 25.99 and 49.99 EUR a month, or 89.99, 249.99 and 499.99 EUR a year ([membership-tiers.md](../documentation/membership-tiers.md)). Part 3 renames the plans in `Members::PLANS` and the enums, and adds the billing period.
 - **A row gives:**
   - the dashboard capability (spec §3);
   - the plan's site limit, through `mody_site_limit`.
@@ -30,6 +30,7 @@ A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no c
   3. **A `pending_payment` account** logs in and sees a "Finish your payment" step on the dashboard, but creates no site.
 
 ### Part 3 · Mollie card verification and webhook (needs the Mollie test keys)
+- **The new plans (2026-11-10):** rename the plans in `Members::PLANS` and the `plan` and `next_plan` enums (a table version 3), add the billing period (monthly or yearly), and update `scripts/members-test.php` and `scripts/registration-test.php`.
 **Reworked on 2026-11-08** ([M1-03](M1-03-chat-signup-and-editor-tour.md)): the trial starts without a card, so this checkout now runs **during the trial**, from the dashboard, where the member also chooses their plan (`next_plan`). What happens at day 30 without a card is an open question (mvp-spec §16, question 7). The list below is the card-first design; keep what still applies.
 - A Mollie customer and a 0.01 EUR card-verification checkout, then the redirect to Mollie.
 - **The webhook:** verified and idempotent (a replayed webhook changes nothing). It sets `active`, `trial_ends_at` and `billing_due_at` to now + 30 days, stores the payment method, sends the welcome email, and returns the member to the dashboard with a single-use token.
@@ -40,10 +41,10 @@ A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no c
 
 ### Part 4 · The dashboard: My sites and Plan & billing (spec §5)
 - **My sites:** a card per site (name, subdomain, status, created), with Open, Site editor and wp-admin. Delete: soft, typing the slug, 30-day trash. Also "+ New site" and "2 of 3 sites used".
-- **Plan & billing:** the current plan, the trial countdown or next charge date, Change plan (effective at the next billing date), Update card (a new Mollie checkout) and Cancel (end of cycle).
+- **Plan & billing:** the current plan, the trial countdown or next charge date, Change plan (three plans, monthly or yearly, with the yearly saving; effective at the next billing date), Update card (a new Mollie checkout) and Cancel (end of cycle).
 
 ### Part 5 · Billing jobs (needs the WP-Cron decision)
-- Hourly: the trial-end charge with the stored payment method, then monthly; a plan change applied at the billing date; `expired_signup` after 24 hours without payment.
+- Hourly: the trial-end charge with the stored payment method, then monthly or yearly by the plan's period; a plan change applied at the billing date; `expired_signup` after 24 hours without payment.
 - Failed charges, retries, read-only and deletion are [M1-02](M1-02-past-due-readonly-deletion.md).
 - **Blocked by** the open question "WP-Cron on subsites" in architecture.md. The billing jobs are network-wide, so they could run from the main site, whose loopback requests work. Either way, they must run on time whether or not anyone visits.
 
@@ -56,7 +57,7 @@ A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no c
 ## Open / blocking
 - **Mollie test-mode keys** (spec §16, question 1): needed for part 3. None in `.env` on 2026-11-08.
 - **The WP-Cron decision:** needed for part 5 and M1-02.
-- **Fee confirmation** (spec §16, question 6): needed before the dashboard shows prices. The signup shows none since M1-03.
+- ~~**Fee confirmation** (spec §16, question 6): needed before the dashboard shows prices. The signup shows none since M1-03.~~ Answered on 2026-11-10: the plans and prices are in [membership-tiers.md](../documentation/membership-tiers.md), whose open questions (VAT, the trial's 3 sites against the 1-site plan, switching between monthly and yearly) come first.
 - **Production mail** (an EU SMTP relay; [M5-02](M5-02-production-member-sites.md)): needed before production signups. Locally, Mailpit catches the welcome email.
 
 ## Results (part 1, 2026-11-08)

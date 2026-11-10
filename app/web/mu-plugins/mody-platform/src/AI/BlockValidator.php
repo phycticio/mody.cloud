@@ -180,6 +180,8 @@ final class BlockValidator {
 		'core/navigation-link',
 		'core/navigation-submenu',
 		'core/page-list',
+		// The mody-languages switcher, placed after every navigation block (tickets/site-languages.md).
+		'mody/language-switcher',
 	);
 
 	/** Blocks a template must keep when it has them: without them, its pages show nothing. */

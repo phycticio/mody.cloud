@@ -10,7 +10,7 @@ Related documents: [ai-engine.md](ai-engine.md) (agent output uses the same bloc
 app/web/themes/theme/
 ├── style.css          # theme header + a few rules theme.json cannot express
 ├── theme.json         # version 3: palette, typography, spacing, element styles
-├── functions.php      # minimal: translations, editor style, front-end style.css enqueue
+├── functions.php      # minimal: translations, editor style, front-end style.css enqueue (versioned by the file's time)
 ├── index.php          # empty, "Silence is golden"
 ├── templates/
 │   ├── index.html     # fallback and blog index
@@ -102,15 +102,16 @@ All pairs pass. The candidate colors failed four times. Forest's accent (`#c77d2
 - Layout is Spectra containers, never core groups, columns or covers (the bare `main` landmark aside), and never around `post-content` (see Structure).
 - No Elementor or similar builders. No Astra. No external fonts, scripts or CDNs.
 - Color pickers stay palette-only (see Design tokens). Never set `color.custom`, `customGradient` or `gradients` in a style variation. Add a gradient only as a preset built from palette variables. After a Spectra update, `scripts/spectra-guard-test.php` checks that `Design\PaletteOnly` still matches Spectra's pickers.
-- Styles go in `theme.json` first. `style.css` is only for what `theme.json` cannot express. One such rule (2026-11-07): headings inside a block that sets a text color take that color (`.has-text-color :is(h1, …, h6) { color: inherit }`). Otherwise theme.json's `secondary` heading color wins, and a hero's heading stays dark on the primary color. A heading with its own color class keeps it.
+- Styles go in `theme.json` first. `style.css` is only for what `theme.json` cannot express. One such rule (2026-11-07): headings inside a block that sets a text color take that color (`.has-text-color :is(h1, …, h6) { color: inherit }`). Otherwise theme.json's `secondary` heading color wins, and a hero's heading stays dark on the primary color. A heading with its own color class keeps it. A second (2026-11-10): the footer has no top margin, so it meets a page's last colored section without a strip of the page background (a template part has no margin setting). Links to a section of the same page scroll smoothly, except with reduced motion. `style.css` is enqueued with its modification time as its version, so proxies and Cloudflare never serve an old copy after a deploy.
 - Keep `functions.php` small. Platform logic (tiers, the brand settings, agent) does not belong in the theme.
 - Text domain is `mody_cloud`. It differs from the directory name (`theme`), so `functions.php` loads translations explicitly. Wrap user-facing PHP strings with WordPress i18n functions. Text in HTML templates is plain and editable in the Site Editor.
 - Code comments, documentation and commit messages are written in English (rule 8 in [constraints.md](constraints.md)). Do not write Spanish into code or templates.
 - **JavaScript and CSS go through `@wordpress/scripts`.**
   - Sources live in `src/`. `pnpm build` lints them and compiles them into `app/dist`, and `pnpm start` watches. `config/webpack/config.js` extends the wp-scripts defaults.
   - Each entry gets an `*.asset.php` file with its dependencies and version. Enqueue with it, so WordPress packages load as script dependencies instead of being bundled.
-  - Nothing enqueues `app/dist` yet.
+  - `app/dist/altcha.js` (the antibot widget, [tickets/antibot-altcha.md](../tickets/antibot-altcha.md)) is the first entry something enqueues: the platform registers it as `mody-altcha`, served at `/dist/altcha.js` on every host. `app/dist` is not tracked, so run `pnpm build` once locally: without it nobody can sign up, log in or comment.
 - **Only the libraries a feature needs.** Prefer WordPress packages (`@wordpress/element`, `@wordpress/components`, `@wordpress/i18n`, `@wordpress/api-fetch`, and so on) and the webpack, Babel, Sass, ESLint and Stylelint setup that wp-scripts already ships. Add a third-party library or framework only when no WordPress package covers the need. Ask first (see `AGENTS.md`), and record it here with the reason. Everything is bundled locally. No script or style loads from a CDN.
+  - **`altcha` 3.5.0** (MIT licence; added with the maintainer's approval on 2026-11-10): the proof-of-work widget on the signup chat, login, lost password and comments. No WordPress package does this, and it calls no outside service. Our PHP signs and checks its challenges (`Security\Altcha`). Pinned exactly.
 - PHP-only custom blocks (`block.json` plus `render.php`, as the briefing suggests) need no build step.
 
 ## Working with the theme

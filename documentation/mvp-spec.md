@@ -6,8 +6,8 @@
 
 A self-serve, European-sovereign WordPress Multisite platform:
 
-1. A visitor answers four questions in a chat on the main site and gets a **30-day trial** equal to Tier 1 (3 sites), with **no card** (decided 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)), and their first site at once.
-2. At the end of the trial the selected monthly plan is charged (5/15/50 EUR for 3/10/50 sites). All tiers have the **same benefits**; the only MVP difference is the number of sites.
+1. A visitor answers four questions in a chat on the main site and gets a **30-day trial** with 3 sites, with **no card** (decided 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)), and their first site at once.
+2. At the end of the trial the selected plan is charged, monthly or yearly: 1 site 9.99 / 89.99 EUR, 3 sites 25.99 / 249.99 EUR, 10 sites 49.99 / 499.99 EUR (decided by the maintainer on 2026-11-10; it replaced 5/15/50 EUR for 3/10/50 sites). Every site gets the **same features** (3 GB, every plugin in the market, its own Mody, a custom domain, a way out); plans differ only in the number of sites. [membership-tiers.md](membership-tiers.md).
 3. The member creates sites (subdomains) through a short **choice-based brand wizard**; each site is provisioned automatically: FSE theme `theme` + Spectra, per-site Global Styles from the chosen preset, and an AI-generated home page.
 4. Everything is edited in the **native Site Editor** (Appearance → Editor). Every edit entry point — dashboard, agent, emails — links to the Site Editor URL.
 5. The **agent** (Qwen via Infomaniak AI Services) is the encouraged control channel: change a color, generate a page, switch a plugin on, open the editor for a page, and so on. It decides by itself whether to act, hand over to the editor, or ask a follow-up question.
@@ -15,11 +15,11 @@ A self-serve, European-sovereign WordPress Multisite platform:
 
 **Non-goals (next iteration, deliberately):**
 
-- Custom domains per site, Caddy sidecar, domain resale (Caddy is the decided future approach; no code now).
+- Custom domains per site, Caddy sidecar, domain resale (Caddy is the decided future approach; no code now). **Changed 2026-11-10:** the home page offers custom domains as "soon", so they are needed by the launch (domain resale stays out).
 - Newsletter / Infomaniak sending caps (confirmed out of scope).
-- Dedicated VPS tier, per-tier resource quotas (storage, upload size), analytics.
+- Dedicated VPS tier, analytics. (The 3 GB per site, decided 2026-11-10, is promised on the home page: enforcing it is needed by the launch.)
 - A font step in the wizard (members install fonts in the Site Editor since M2-07); style variations beyond the six presets.
-- Multi-language UI (rule 8: English everywhere).
+- Multi-language UI (rule 8: English everywhere). Sites in several languages are a separate thing, decided 2026-11-10 (decision 12).
 
 ## 2. Decisions recorded (2026-11-01 review)
 
@@ -27,16 +27,16 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | --- | --- | --- |
 | 1 | AI model & provider | `Qwen/Qwen3.8-27B-FP8` (project-scoped build) via Infomaniak AI Services, OpenAI-compatible API. Supersedes the Ministral decision in [ai-engine.md](ai-engine.md). |
 | 2 | Payment provider | **Mollie** (EU). Supersedes the open question in [architecture.md](architecture.md#open-questions). |
-| 3 | Trial | 30 days, equals **Tier 1 (3 sites)**. **No card at signup** (changed by the maintainer on 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md); it was "Card required at signup"). The card and the plan are asked for before the trial ends. |
+| 3 | Trial | 30 days, **3 sites**. **No card at signup** (changed by the maintainer on 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md); it was "Card required at signup"). The card and the plan are asked for before the trial ends. |
 | 4 | Expired accounts | Past-due sites go **read-only with a banner**; billing retried daily; after **60 days** the sites are deleted. |
-| 5 | Tier site counts | **3 / 10 / 50**. More sites than that is a dedicated-VPS conversation. |
-| 6 | Custom domains | Per **site** (not per page), **next iteration**. Caddy sidecar is the decided mechanism. No domain resale yet. |
+| 5 | Plan site counts | **1 / 3 / 10** (changed by the maintainer on 2026-11-10; it was 3 / 10 / 50). Monthly or yearly. More than 10 sites is not offered. [membership-tiers.md](membership-tiers.md). |
+| 6 | Custom domains | Per **site** (not per page). Caddy sidecar is the decided mechanism. No domain resale yet. Was "next iteration"; since 2026-11-10 every plan includes them and the home page says "soon". |
 | 7 | Plugin market | **Everything is preinstalled via Composer; members only activate**, on core's Plugins screen of their own site (redesigned 2026-11-08). Every installed plugin appears there unless hidden: platform plugins always (fixed in code), and any plugin a super admin hides. **No plugin is offered yet**: Redirection, the first seed, was dropped on 2026-11-08 (it came from the old stack). Spectra is network-active instead (decision 14). All plugins free. Each plugin is checked against rule 1 before it goes into Composer. New sites get none switched on. Section 10. |
 | 8 | Editor redirect | **All** content editing (pages and posts) redirects to the Site Editor on member sites. |
 | 9 | Brand wizard | Choice-based, no raw inputs (section 6). |
 | 10 | Newsletter | Out of MVP scope (confirmed). |
 | 11 | Member dashboard | Custom "Mody" menu in the **Network Admin** (`/wp-admin/network/`). |
-| 12 | Languages | UI English only; generated content language follows the member's prompt. |
+| 12 | Languages | UI English only; generated content language follows the member's prompt. **Added 2026-11-10:** every site can have other languages (the `mody-languages` MU plugin, [tickets/site-languages.md](../tickets/site-languages.md)): translations as pages, `/es/` addresses, a language switcher and the translation matrix on Settings → Languages; Mody translates pages as drafts. |
 | 13 | Agent actions ("Option C", decided 2026-11-06) | Agent actions are **WordPress abilities** (Abilities API, category `mody`), used by the in-site agent through `using_abilities()` and by MCP clients through mcp-adapter. The site's brand (its settings, M2-08) goes into every Mody prompt, and into the `ai` plugin's writing features (through its `wpai_system_instruction` filter; which features, decided 2026-11-06, in section 8). Members get a curated set of `ai` features. M4 locks the plugin's settings, connector approvals and MCP on member sites. The plugin's request log is the basis for per-member cost tracking. Section 8. |
 | 14 | Spectra (decided 2026-11-06, changed 2026-11-08) | The platform's block library: a **MU plugin** since 2026-11-08 (network-activated before), not a market toggle. `SpectraGuard` in the MU plugin switches off every part that connects outside Europe (rule 1). It stays: the fork into a `mody/*` library is set aside, and the agent will use every Spectra block but the popup builder (ticket M3-11). Section 10. |
 | 15 | wp-admin colors (decided 2026-11-08) | **Ocean** is every user's admin color scheme by default: new users get it, and users on WordPress's default (Modern) were moved to it once. Anyone may choose another scheme. The agent chat follows the user's scheme: buttons and borders in its accent, the user's own messages in the second color of its palette. [tickets/admin-colors.md](../tickets/admin-colors.md). |
@@ -45,7 +45,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 
 | Actor | Access |
 | --- | --- |
-| **Prospect** | Public pages on the main site (association site, site 1): landing, register. |
+| **Prospect** | Public pages on the main site (site 1): the home page, which is the landing page (what Mody Cloud is, how it works, the agent, sovereignty, the plans, questions) and holds the signup chat; and `/register/`. The home page is built by `scripts/home-page.php` (2026-11-10), which also sets the header menu to its sections. |
 | **Member** | One network-wide WordPress account (shared login, cookies cover all subdomains via `COOKIE_DOMAIN`). Is `administrator` of each own subdomain site. Sees the custom **Mody** menu in the Network Admin: dashboard, new site, billing. |
 | **Platform admin** | Super admin of the network, plus the list of plugins hidden from members and exception handling. |
 | **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
@@ -56,14 +56,14 @@ Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard:
 
 ## 4. Tiers, trial and billing
 
-| Tier | Role slug | Fee / month | Sites |
+| Plan | Sites | Monthly | Yearly |
 | --- | --- | --- | --- |
-| Trial (30 days) | `trial` (benefits = `collaborator`) | 0 (no card, decided 2026-11-08) | 3 |
-| Tier 1 · Collaborator | `collaborator` | 5 EUR | 3 |
-| Tier 2 · Member | `member` | 15 EUR | 10 |
-| Tier 3 · Patron | `patron` | 50 EUR | 50 |
+| Trial (30 days) | 3 | 0 (no card, decided 2026-11-08) | – |
+| 1 site | 1 | 9.99 EUR | 89.99 EUR |
+| 3 sites | 3 | 25.99 EUR | 249.99 EUR |
+| 10 sites | 10 | 49.99 EUR | 499.99 EUR |
 
-Fees as documented in [membership-tiers.md](membership-tiers.md); confirm before launch. Until M1 adds `mody_members`, `Provisioning\Quota::can_create_site()` allows every user the trial's 3 sites (decided 2026-11-06, M2-01); M1 swaps in the plan's limit. Resource quotas (storage, upload size) arrive in a later iteration — MVP tiers differ **only** in site count.
+Decided by the maintainer on 2026-11-10 ([membership-tiers.md](membership-tiers.md)). It replaced Collaborator, Member and Patron (5, 15 and 50 EUR for 3, 10 and 50 sites). **The code still has the old plans** (`Members::PLANS`, the `plan` and `next_plan` enums in section 11) until the billing work (M1-01 part 3) renames them and adds the billing period. Until M1 adds `mody_members`, `Provisioning\Quota::can_create_site()` allows every user the trial's 3 sites (decided 2026-11-06, M2-01); M1 swaps in the plan's limit. Every site gets 3 GB (not enforced yet), and plans differ **only** in site count and billing period.
 
 ### Signup flow (a chat, no card; decided 2026-11-08)
 
@@ -76,7 +76,7 @@ Built 2026-11-08 ([M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md), on t
    - the first site, through the provisioning pipeline as a **starter** site: no model call (the visitor is anonymous, and the brand has no mission yet), the default preset and tone, an empty tagline, and a starter front page;
    - the welcome email: the site's address, the trial's end, and a link to choose a password (WordPress's own reset screen, valid 24 hours).
 3. **The first password** logs the member in and opens their site's **Identity** screen (Appearance → Editor → Identity), where the **editor tour** runs: the agent, two requests to it, then the Site Editor's parts (`Onboarding\Onboarding`, `Onboarding\EditorTour`). Later password resets behave as in WordPress.
-4. **Closed until opened:** the network option `mody_registration_open`. Before opening it in production: a rate limit and a spam check (M5-01), the SMTP relay (M5-02; the welcome email is the only way in), the wildcard DNS and TLS (M5-02).
+4. **Closed until opened:** the network option `mody_registration_open`. Before opening it in production: a rate limit (M5-01; the bot check is ALTCHA since 2026-11-10, [tickets/antibot-altcha.md](../tickets/antibot-altcha.md)), the SMTP relay (M5-02; the welcome email is the only way in), the wildcard DNS and TLS (M5-02).
 5. **Not built yet:** the card and the plan before the trial ends (M1-01 part 3, reworked); removing accounts that never set a password, with their site (needs the WP-Cron decision).
 
 The statuses `pending_payment` and `expired_signup` stay in the table for the card step that comes before the trial ends. A member in either sees "Finish your payment" on the dashboard and creates no site (decided 2026-11-08); since the change, nothing puts a member in them.
@@ -84,7 +84,7 @@ The statuses `pending_payment` and `expired_signup` stay in the table for the ca
 ### Billing lifecycle
 
 - **Before the trial ends** (decided 2026-11-08, design to come with M1-01 part 3): the member chooses a plan and gives a card (a Mollie checkout). **Open question:** what happens at day 30 without one: read-only like a failed charge, or something else.
-- **Trial end (day 30):** charge the tier price via the stored Mollie payment method. Success → recurring monthly (`billing_due_at` + 1 month).
+- **Trial end (day 30):** charge the plan's price via the stored Mollie payment method. Success → recurring monthly or yearly (`billing_due_at` + 1 month or + 1 year).
 - **Plan change:** selected in the dashboard; takes effect at the next billing date (both directions). Prorated upgrades: post-MVP.
 - **Failed charge:** account `past_due`. All member sites become **read-only** (capability filter denies content/style mutation; front end and reading still work) with a persistent banner in wp-admin and on the dashboard: "Update your payment to keep editing". Daily retry for 60 days.
 - **Day 60 past due:** sites are deleted (trashed network-wide after a final warning email at day 53 offering a full WP export link). The account remains for re-registration with a new card.
@@ -101,7 +101,7 @@ The statuses `pending_payment` and `expired_signup` stay in the table for the ca
 A `Mody` top-level menu in `/wp-admin/network/` for members:
 
 - **My sites:** card per site (name, subdomain, status, created), buttons: *Open*, *Site editor*, *wp-admin*, *Delete* (soft; requires typing the slug; 30-day trash). Prominent **+ New site** (starts section 6) and a disabled state with the remaining quota ("2 of 3 sites used").
-- **Plan & billing:** current plan, trial countdown or next charge date, *Change plan* (three tier cards), *Update card* (new Mollie checkout with the stored method), *Cancel* (effective end of cycle).
+- **Plan & billing:** current plan, trial countdown or next charge date, *Change plan* (three plan cards, monthly or yearly), *Update card* (new Mollie checkout with the stored method), *Cancel* (effective end of cycle).
 - Past-due: banner at the top of every dashboard page.
 
 The dashboard is the only place where cross-site actions (create/delete site, billing) happen. Per-site actions always link into that site's own wp-admin / Site Editor.
@@ -246,7 +246,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 
 ## 9. Editor-first rules
 
-On **member sites only** (never the main association site):
+On **member sites only** (never the main site):
 
 - `post.php?post=N&action=edit` (page **or** post) → redirects to the Site Editor for that item. For pages that is `site-editor.php?p=%2Fpage%2FN&canvas=edit`. The form `?postType=<type>&postId=N` without `canvas=edit` lands on the list in WordPress 7.1 (`wp-admin/site-editor.php`). **Built 2026-11-07 ([M4-01](../tickets/M4-01-editor-redirects-gating.md)), with one decided exception: posts.** WordPress 7.1's Site Editor has routes for pages, patterns (`/wp_block/:id`) and navigation menus (`/wp_navigation/:id`), but none for posts, so posts keep the block editor (`post.php`) until it does (decided by the maintainer on 2026-11-07). Pages, patterns and menus open in the Site Editor; `post-new.php` for pages goes to the Site Editor's pages (`?p=/page`). Member sites are every site but the main one; super admins are not redirected.
 - `post-new.php?post_type=page|post` → redirects to `site-editor.php?postType=<type>`.
@@ -412,9 +412,9 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 
 ## 14. Next iteration (out of MVP, decided direction)
 
-- **Custom domains per site + Caddy sidecar** (ACME; DNS-instruction flow: member requests → platform replies with exact records → cron verifies → cert → activate). No domain resale yet.
-- **Newsletter** (Infomaniak, per-tier sending caps) per [newsletter.md](newsletter.md).
-- **Dedicated VPS** tier; per-tier resource quotas (storage, upload size, AI volume).
+- **Custom domains per site + Caddy sidecar** (ACME; DNS-instruction flow: member requests → platform replies with exact records → cron verifies → cert → activate). No domain resale yet. Needed by the launch since 2026-11-10: every plan includes it.
+- **Newsletter** (Infomaniak; per-plan sending caps, undecided) per [newsletter.md](newsletter.md).
+- **Dedicated VPS** tier (not in the plans since 2026-11-10); AI volume limits.
 - A font choice in the wizard, more presets. (Fonts in the Site Editor and the presets as style variations are built: M2-06, M2-07.)
 - Analytics (EU-hosted, GDPR-coherent, undecided).
 
@@ -436,6 +436,6 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 3. **Upstream wildcard TLS** — confirm the production front end can terminate a wildcard cert for `*.mody.cloud` (infra task, M5).
 4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
 5. ~~**Final market membership** — beyond Redirection.~~ Decided 2026-11-08: **no plugin for now.** Redirection was dropped; any plugin added later through Composer (after a rule 1 check) and deployed appears on members' Plugins screens unless a super admin hides it. Spectra is network-active, not a market plugin (decision 14).
-6. **Fee confirmation** — 5/15/50 EUR unchanged for 3/10/50 sites (assumed).
+6. ~~**Fee confirmation** — 5/15/50 EUR unchanged for 3/10/50 sites (assumed).~~ Answered by the maintainer on 2026-11-10: new plans, 1 / 3 / 10 sites at 9.99 / 25.99 / 49.99 EUR a month or 89.99 / 249.99 / 499.99 EUR a year ([membership-tiers.md](membership-tiers.md)). Still open there: VAT in the prices, the trial's 3 sites against the 1-site plan, switching between monthly and yearly, invoices and the right of withdrawal, enforcing the 3 GB.
 7. **The end of a trial without a card** (raised 2026-11-08 with the card-free trial, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)): when and how the dashboard asks for the plan and the card, and what happens at day 30 without them (read-only like `past_due`, a grace period, or deletion after some time).
 8. **Accounts that never set a password** (M1-03): after how many days the account and its starter site are removed. Needs the WP-Cron decision.

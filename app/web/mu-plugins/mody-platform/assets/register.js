@@ -7,6 +7,10 @@
  * before the next question; then a summary, and Create my site
  * (mody-platform/v1/register). All text is inserted with textContent,
  * never as HTML. Without this script the form works on its own.
+ *
+ * Antibot (tickets/antibot-altcha.md): creating the account sends an ALTCHA
+ * solution. The form's widget solves it in the background after the first
+ * answer; each solution is used once, so a new one is solved for a retry.
  */
 ( function () {
 	'use strict';
@@ -56,6 +60,35 @@
 	chat.append( log, composer );
 	form.hidden = true;
 	chat.hidden = false;
+
+	// The proof of work (the form's ALTCHA widget): a promise of its payload.
+	const widget = form.querySelector( 'altcha-widget' );
+	let proof = null;
+
+	function prove() {
+		if ( ! proof ) {
+			proof = ( async () => {
+				try {
+					const result = await widget.verify();
+					return ( result && result.payload ) || '';
+				} catch ( error ) {
+					return '';
+				}
+			} )();
+		}
+		return proof;
+	}
+
+	function newProof() {
+		proof = null;
+		if ( widget && widget.reset ) {
+			widget.reset();
+		}
+	}
+
+	if ( widget ) {
+		widget.addEventListener( 'expired', newProof );
+	}
 
 	const answers = { name: '', email: '', title: '', slug: '' };
 	let current = null; // The question being answered.
@@ -187,6 +220,9 @@
 			return;
 		}
 		const name = current;
+		if ( widget ) {
+			prove(); // Solved while the visitor answers the rest.
+		}
 		clearChoices();
 		say( 'slug' === name && ! text.includes( '.' ) ? text + config.suffix : text, 'you' );
 		input.value = '';
@@ -277,7 +313,8 @@
 		const pending = say( strings.creating );
 		pending.classList.add( 'is-pending' );
 		try {
-			const { ok, data } = await post( '', answers );
+			const altcha = widget ? await prove() : '';
+			const { ok, data } = await post( '', { ...answers, altcha } );
 			pending.remove();
 			if ( ok ) {
 				say( strings.done.replace( '%1$s', data.address ).replace( '%2$s', data.email ) );
@@ -301,6 +338,7 @@
 			say( strings.network, 'mody', true );
 			choices( [ { label: strings.create, primary: true, onClick: create } ] );
 		} finally {
+			newProof(); // A solution is used once, whatever the answer was.
 			setBusy( false );
 		}
 	}

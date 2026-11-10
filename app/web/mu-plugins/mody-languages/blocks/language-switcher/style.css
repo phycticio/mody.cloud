@@ -1,0 +1,50 @@
+/* The language switcher: a short inline list, the current language marked. */
+.wp-block-mody-language-switcher ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75em;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.wp-block-mody-language-switcher a {
+	text-decoration: none;
+}
+
+.wp-block-mody-language-switcher a:hover,
+.wp-block-mody-language-switcher a:focus-visible,
+.wp-block-mody-language-switcher [aria-current] {
+	text-decoration: underline;
+}
+
+.wp-block-mody-language-switcher [aria-current] {
+	font-weight: 600;
+}
+
+/* Narrow screens: the short codes (ES, DE), the full names kept for screen readers. */
+.wp-block-mody-language-switcher__code {
+	display: none;
+}
+
+@media (max-width: 600px) {
+	.wp-block-mody-language-switcher ul {
+		gap: 0.5em;
+	}
+
+	.wp-block-mody-language-switcher__name {
+		border: 0;
+		clip: rect(0, 0, 0, 0);
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		padding: 0;
+		position: absolute;
+		white-space: nowrap;
+		width: 1px;
+	}
+
+	.wp-block-mody-language-switcher__code {
+		display: inline;
+	}
+}

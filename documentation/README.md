@@ -6,7 +6,8 @@ The product source of truth is `Mody_Cloud_Briefing_Agente_Codificacion_v4.pdf` 
 
 1. The briefing's non-negotiable constraints apply ([constraints.md](constraints.md)), with one deliberate override: **everything is written in English**. That replaces the briefing's rule 8 (Spanish).
 2. For infrastructure, **the stack in this repository wins** over the briefing's stack recommendations. See [Briefing recommendations not adopted](architecture.md#briefing-recommendations-not-adopted).
-3. For everything else (product, data model, AI engine, roadmap) the briefing is authoritative. These docs record it and flag open questions instead of inventing answers.
+3. **Dated decisions by the maintainer win over the briefing**: those in [mvp-spec.md](mvp-spec.md) and AGENTS.md ("Decisions already made"). One of them (2026-11-10) replaced the briefing's non-profit association and its tiers with a self-employed business and plans of 1, 3 and 10 sites ([membership-tiers.md](membership-tiers.md)).
+4. For everything else (product, data model, AI engine, roadmap) the briefing is authoritative. These docs record it and flag open questions instead of inventing answers.
 
 Statements marked **Open question** or **Inference** are not in the briefing.
 
@@ -25,7 +26,7 @@ Coding agents and developers: read the document that matches the work **before**
 | [theme-development.md](theme-development.md) | Editing templates, parts, `theme.json`, palette, fonts or styles | The FSE theme scaffold and how to extend it | 1, 2, 4 |
 | [ai-engine.md](ai-engine.md) | Building or changing the AI agent: model calls, prompts, block whitelist, validation | Model, provider, block serialization, master prompt rules, first task | 3, 4, 12 |
 | [brand-profile.md](brand-profile.md) | Working on the wizard, the brand (each site's own settings and styles), prompt assembly or site creation | Wizard, where the brand lives, the brand context, site creation flow | 6, 7 |
-| [membership-tiers.md](membership-tiers.md) | Working on quotas, roles, site limits or dedicated VPS thresholds | Tiers, gating logic, dedicated VPS rules | 5 |
+| [membership-tiers.md](membership-tiers.md) | Working on plans, prices, site limits or the space per site | The plans (1, 3 and 10 sites, monthly or yearly), what every site gets, gating | 5 |
 | [newsletter.md](newsletter.md) | Working on newsletter sending, sending caps or opt-in | Infomaniak Newsletter integration | 9 |
 | [roadmap.md](roadmap.md) | Choosing what to work on next, or checking milestone status | Milestones and the first concrete step | 10, 12 |
 | [tickets.md](tickets.md) | Creating, updating or picking up a ticket, or checking what the team is working on | Where tickets live, and how planning and in-progress work are tracked | n/a |

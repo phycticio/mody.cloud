@@ -1,49 +1,44 @@
-# Membership tiers and role gating
+# Plans, limits and gating
 
-Four tiers. Each fee covers the **real cost** of serving that profile (Hetzner hosting, Infomaniak Newsletter credits, AI and maintenance) with no profit margin. See [project-overview.md](project-overview.md#economics) for the economics.
+Decided by the maintainer on 2026-11-10. It replaces the briefing's four tiers (Collaborator, Member, Patron and Dedicated VPS at 5, 15 and 50 EUR, "fees equal real cost"): Mody Cloud is run by the maintainer as a self-employed professional in Spain, not by a non-profit association. See [project-overview.md](project-overview.md#economics).
 
-| Tier | Role slug | Fee per month | Sites | Newsletter sends per month | Disk |
-| --- | --- | --- | --- | --- | --- |
-| Collaborator | `collaborator` | 5 EUR | 1 | 30 | 1 GB |
-| Member | `member` | 15 EUR | 10 | 500 | 5 GB |
-| Patron | `patron` | 50 EUR | 30 | 1,000 | 8 GB |
-| Dedicated VPS | `dedicated_vps` | At cost | Per VPS resources | By consumption | Per VPS |
+## Every site gets the same
 
-**The MVP's site counts are different:** a 30-day trial with 3 sites (no card needed since 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)), then Collaborator 3, Member 10 and Patron 50 (mvp-spec decisions 3 and 5, agreed 2026-11-01; mvp-spec wins where they overlap). The table above is the briefing's. The fees are the same, still to confirm before launch (mvp-spec §16, question 6). The MVP's tiers differ only in site count; newsletter sends and disk come later. Built in `Members\Members::PLANS` (M1-01 part 1).
+Whatever the plan, each site has:
 
-The briefing calls these tiers Colaborador, Socio, Patrono and VPS dedicado. The role slugs are translated from the briefing's Spanish identifiers (**Inference**, change them freely before implementation).
+- **3 GB of space.** **Not enforced yet:** the network has `upload_space_check_disabled` = 1, so no quota applies. WordPress's own per-site upload quota (`blog_upload_space` = 3072, in MB, with the check switched on) counts the site's uploads folder only (**Inference**: a starting point, to confirm).
+- **Every plugin in the market**, switched on per site by the member ([mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). The market offers no plugin yet.
+- **Its own Mody.** The agent of a site reads only that site's brand and content, and nothing passes between the sites of one account. This is how the agent already works: every call runs on the current site (`get_current_blog_id()`).
+- **A custom domain:** the member points a domain to our servers and the site answers at it. **Not built yet** (mvp-spec §14, the Caddy sidecar); the home page says "soon".
+- **A way out** (**not verified yet**: nobody has exported a member site and restored it elsewhere; check whether the zip carries the Mody fonts, which the platform serves): the theme downloads as a zip from the Site Editor (core's Export, `export` capability, which members have as administrators), and the content with Tools → Export. The site then runs on another WordPress host with Spectra installed.
+- The full Site Editor, the six designs and the Mody fonts, Spectra blocks, and updates and security run by the platform.
 
-## Gating logic (pseudocode from the briefing, translated)
+## Plans
 
-```python
-ROLES = {
-  "collaborator": {"max_sites": 1,  "newsletter_sends_per_month": 30,   "disk_gb": 1},
-  "member":       {"max_sites": 10, "newsletter_sends_per_month": 500,  "disk_gb": 5},
-  "patron":       {"max_sites": 30, "newsletter_sends_per_month": 1000, "disk_gb": 8},
-  "dedicated_vps": {"limits": "by_vps_resources"}   # no fixed caps
-}
+| Plan | Sites | Monthly | Yearly | Yearly saving |
+| --- | --- | --- | --- | --- |
+| Trial (30 days, no card) | 3 | 0 | – | – |
+| 1 site | 1 | 9.99 EUR | 89.99 EUR | 29.89 EUR |
+| 3 sites | 3 | 25.99 EUR | 249.99 EUR | 61.89 EUR |
+| 10 sites | 10 | 49.99 EUR | 499.99 EUR | 99.89 EUR |
 
-def can_create_site(user) -> bool:
-    if user.role == "dedicated_vps":
-        return vps_resources_available(user.vps)   # real measurement
-    limit = ROLES[user.role]["max_sites"]
-    return count_sites(user.id) < limit
+- Plans differ **only** in the number of sites and the billing period.
+- The trial is unchanged (M1-03): 30 days, no card, 3 sites.
+- **The code still has the old plans:** `Members\Members::PLANS` (trial 3, `collaborator` 3 at 5 EUR, `member` 10 at 15 EUR, `patron` 50 at 50 EUR), the `plan` and `next_plan` columns' enums, and `scripts/members-test.php`. They change with the billing work ([M1-01](../tickets/M1-01-registration-trial-billing.md) part 3), which also adds the billing period. The new slugs are chosen then.
+- The home page shows these plans since 2026-11-10 (`scripts/home-page.php`).
 
-# Newsletter sends: set a monthly cap per domain via the Infomaniak API
-# to the role's "newsletter_sends_per_month" value (see newsletter.md).
-```
+## Gating
 
-This is pseudocode and not a language decision. The code that enforces it has not been placed yet (**open question**, see [architecture.md](architecture.md#open-questions)).
-
-## Dedicated VPS
-
-- Never describe this tier as "unlimited". Limits are defined by the VPS resources.
-- The member or collective manages sites inside their own Hetzner VPS.
-- The system measures consumption (CPU, RAM, disk, bandwidth). When a threshold is reached (for example 80%) it raises an alert to negotiate an expansion at real cost.
-- Any proxy admin interface on that VPS must not be public. Restrict it by IP allowlist or basic auth.
+- **Sites:** `Provisioning\Quota::can_create_site()` (M2-01) counts a user's sites: the network sites they administer (not the main site), plus site creations still on the way. A user with a `mody_members` row gets their plan's limit through the `mody_site_limit` filter (`Members\Members::site_limit()`, M1-01 part 1). Users without a row keep 3. The refusal never says "unlimited" (rule 7).
+- **Space:** 3 GB per site, to enforce (see above).
+- **Newsletter sends:** out of the MVP ([newsletter.md](newsletter.md)); no per-plan cap is decided.
 
 ## Open questions
 
-- How disk quotas are measured and enforced is not specified. In Multisite there is a per-site upload quota that could be a starting point (**inference**).
-- Sending caps are enforced on the Infomaniak side. See [newsletter.md](newsletter.md).
-- The `can_create_site` check is the first step of the site creation flow in [brand-profile.md](brand-profile.md#site-creation-flow). Built 2026-11-06 as `Provisioning\Quota::can_create_site()` (M2-01) with a stub until M1 adds `mody_members`: every user may have 3 sites (the trial and Collaborator limit). A user's sites are the network sites they administer (not the main site), plus site creations still on the way. Since 2026-11-08 (M1-01 part 1), a user with a `mody_members` row gets their plan's limit (3, 3, 10 or 50) through the `mody_site_limit` filter (`Members\Members::site_limit()`). Users without a row keep 3. The refusal never says "unlimited" (rule 7).
+- **Prices and VAT:** are the prices shown VAT included? A self-employed seller in Spain charges VAT to consumers, and EU consumer rules expect the final price to be shown. The home page shows the prices with no VAT mention.
+- **The trial's 3 sites and the 1-site plan:** what happens to the extra sites when a trial member chooses the 1-site plan.
+- **Monthly and yearly:** switching between them, and what a yearly member gets back on cancelling. mvp-spec §4 applies plan changes "at the next billing date", which for a yearly plan can be a year away.
+- **Invoices and the right of withdrawal:** the invoices a self-employed seller must issue (who issues them, Mollie or the platform), and the EU 14-day right of withdrawal for consumers on a paid plan.
+- **More than 10 sites:** not offered. The briefing's dedicated VPS tier is not part of the new plans.
+- **Enforcing the 3 GB:** WordPress's upload quota, or a measure of the whole site (database included).
+- **Custom domains:** they are on the home page as "soon"; building them (mvp-spec §14) moves before the launch.

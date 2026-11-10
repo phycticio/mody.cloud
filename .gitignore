@@ -17,6 +17,8 @@ app/web/omitsis-logs
 app/web/plugins/*
 # Spectra, installed by Composer as a MU plugin (M3-11).
 app/web/mu-plugins/spectra-blocks/
+# Antispam Bee, installed by Composer as a MU plugin (tickets/antibot-altcha.md).
+app/web/mu-plugins/antispam-bee/
 app/web/readme.html
 app/web/themes
 app/web/uploads/*
