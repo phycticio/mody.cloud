@@ -5,8 +5,11 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 **Last updated:** 2026-11-10, after site languages part 11 (the working language in wp-admin) and the antibot check (ALTCHA).
 
 ## Waiting on the maintainer
-- **The main site's home page** (built locally on 2026-11-10, `scripts/home-page.php`; the new plans the same day): a review of its copy and its note on the US services, and the open questions on the plans ([membership-tiers.md](../documentation/membership-tiers.md#open-questions)): VAT in the prices, the trial's 3 sites against the 1-site plan, and more than 10 sites. In production it needs a deploy and one run of the script on `mody.cloud`, which makes it the front page and replaces the header menu.
-- **The home page in Spanish, German and Italian** (published locally on 2026-11-10, [site-languages.md](site-languages.md)): a read by native speakers of `scripts/home-page-translations.json`. In production, after the deploy: `scripts/home-page.php`, then `docker cp scripts/home-page-translations.json mody_cloud_app:/tmp/` and `scripts/home-page-translations.php` on `mody.cloud`.
+- **The main site's home page** (built locally on 2026-11-10, `scripts/home-page.php`; the new plans the same day): a review of its copy and its note on the US services, and the open questions on the plans ([membership-tiers.md](../documentation/membership-tiers.md#open-questions)): VAT in the prices, the trial's 3 sites against the 1-site plan, and more than 10 sites. **In production since 2026-11-10** (page 229, the front page, header menu 4; the database before it: `backups/mody_cloud-prod-before-home-page-20261110-182420.sql`). Rerun the script there after editing it; it replaces the page.
+- **The home page in Spanish, German and Italian** (published locally on 2026-11-10, [site-languages.md](site-languages.md)): a read by native speakers of `scripts/home-page-translations.json`.
+  - **In production since 2026-11-10** at `/es/`, `/de/` and `/it/`: pages 231, 236 and 241, menus 233, 238 and 243, headers `header-es`, `header-de` and `header-it`. To update, copy the JSON into the container (`docker exec -i mody_cloud_app sh -c 'cat > /tmp/home-page-translations.json' < scripts/home-page-translations.json` over ssh), then run the script.
+  - **Still in English on those pages:** the chat block's "Registration opens soon." (M1-04 part C).
+  - **Links carry `/wp/`** (`https://mody.cloud/wp/es/`) until `home` loses it ([M5-02](M5-02-production-member-sites.md) step 5). `/es/` works as well.
 - **Antibot** ([antibot-altcha.md](antibot-altcha.md), built and deployed 2026-11-10):
   - ALTCHA guards the signup chat, login, lost password and comments.
   - Antispam Bee checks comments, with its outside checks pinned off.
