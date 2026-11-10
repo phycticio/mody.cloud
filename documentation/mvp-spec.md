@@ -390,7 +390,7 @@ Everything else in the current stack is unchanged ([architecture.md](architectur
 | --- | --- |
 | Multisite on | `WORDPRESS_ALLOW_MULTISITE` / `WORDPRESS_MULTISITE` / `WORDPRESS_SUBDOMAIN_INSTALL` = `true` (subdomain mode). `wp-config.php` already handles the constants. |
 | Wildcard TLS | `APP_DOMAINS` gains `*.${HOST_NAME}` (local: mkcert wildcard; production: upstream wildcard cert for `*.mody.cloud`). `compose.local.yml` already wires the wildcard `server_name`. |
-| MU plugin | Project-owned `app/web/mu-plugins/mody-platform/` (tracked, always active, **not** Composer-managed), loaded by `app/web/mu-plugins/mody-platform.php`. Holds: the AI provider and agent, registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects. Resolves the "where gating lives" open question. |
+| MU plugin | Project-owned `app/web/mu-plugins/mody-platform/` (tracked, always active, **not** Composer-managed), loaded by `app/web/mu-plugins/mody-platform.php`. Holds: the AI provider and agent, registration, billing, dashboard, provisioning, wizard, market, gating, editor redirects. Resolves the "where gating lives" open question. Outgoing mail is the one exception: its own MU plugin, `app/web/mu-plugins/mody-mail/` (decided by the maintainer on 2026-11-10). |
 | AI | WordPress AI Client (core) with the Infomaniak provider in the MU plugin. No extra service. Env: `INFOMANIAK_API_KEY`, `INFOMANIAK_AI_BASE_URL`, optional `INFOMANIAK_AI_MODEL`. Decided 2026-11-04, replacing the Python agent service. |
 | Abilities | Agent actions are abilities in the `mody` category, registered by the MU plugin on `wp_abilities_api_init` (decision 13). Public, so authenticated users reach them through REST and MCP as well as the agent. |
 | Cron | WP-Cron (already enabled): hourly jobs — due billing, past-due sweep (banner, day-53 warning, day-60 deletion), job retry, expired-signup cleanup. |
@@ -432,7 +432,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 ## 16. Open questions (remaining)
 
 1. **Mollie account** — test-mode keys available? (Needed at M1 start.)
-2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5. **Answered on 2026-11-09, for now:** Brevo's API through WP Mail SMTP, a temporary exception to rule 1 ([architecture.md](architecture.md#temporary-exceptions-to-rule-1)). An EU relay replaces it later.
+2. **Production SMTP** — which relay for real mail (Infomaniak Mail or self-hosted)? Needed by M5. **Answered on 2026-11-09, for now:** Brevo's API (through the `mody-mail` MU plugin since 2026-11-10; WP Mail SMTP before), a temporary exception to rule 1 ([architecture.md](architecture.md#temporary-exceptions-to-rule-1)). An EU relay replaces it later.
 3. **Upstream wildcard TLS** — confirm the production front end can terminate a wildcard cert for `*.mody.cloud` (infra task, M5).
 4. ~~**Infomaniak AI** — exact model slug + product ID + function-calling support.~~ Resolved 2026-11-04: slug, base URL and function calling verified ([ai-engine.md](ai-engine.md#verification-2026-11-04)). Still to confirm: Infomaniak lists the model as `coming_soon`, and its price.
 5. ~~**Final market membership** — beyond Redirection.~~ Decided 2026-11-08: **no plugin for now.** Redirection was dropped; any plugin added later through Composer (after a rule 1 check) and deployed appears on members' Plugins screens unless a super admin hides it. Spectra is network-active, not a market plugin (decision 14).

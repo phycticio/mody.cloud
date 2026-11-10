@@ -195,44 +195,6 @@ if ( MULTISITE ) {
 	define( 'SITECOOKIEPATH', '/' );
 }
 
-/*
- * Outgoing mail (decided by the maintainer on 2026-11-09). WP Mail SMTP,
- * network-active, is the only way the platform sends email, and these
- * constants are its only settings: with WPMS_ON its settings screen shows
- * them and cannot change them.
- *
- * - Locally: SMTP to Mailpit, from the WORDPRESS_SMTP_* values in .env.
- * - Production: Brevo's API. The server's compose.prod.yml sets
- *   WORDPRESS_SMTP_MAILER=sendinblue and the WORDPRESS_SMTP_BREVO_* and
- *   WORDPRESS_SMTP_FROM* values from the BREVO_* lines of its .env. Nothing
- *   else sets them, so only production sends through Brevo.
- *
- * Every message leaves from one verified sender (WPMS_MAIL_FROM_FORCE); a
- * plugin's own sender name is kept, WordPress's default one is replaced.
- * See documentation/architecture.md#production.
- */
-$mody_mail = array(
-	'WPMS_ON'                            => filter_var( getenv_docker( 'WORDPRESS_SMTP_ON', true ), FILTER_VALIDATE_BOOLEAN ),
-	'WPMS_MAILER'                        => getenv_docker( 'WORDPRESS_SMTP_MAILER', 'smtp' ),
-	'WPMS_MAIL_FROM'                     => getenv_docker( 'WORDPRESS_SMTP_FROM', 'no-reply@' . $main_network_domain ),
-	'WPMS_MAIL_FROM_FORCE'               => true,
-	'WPMS_MAIL_FROM_NAME'                => getenv_docker( 'WORDPRESS_SMTP_FROM_NAME', 'Mody Cloud' ),
-	'WPMS_MAIL_FROM_NAME_FORCE'          => false,
-	'WPMS_SMTP_HOST'                     => getenv_docker( 'WORDPRESS_SMTP_HOST', 'mailpit' ),
-	'WPMS_SMTP_PORT'                     => (int) getenv_docker( 'WORDPRESS_SMTP_PORT', 1025 ),
-	'WPMS_SSL'                           => getenv_docker( 'WORDPRESS_SMTP_SSL', '' ),
-	'WPMS_SMTP_AUTH'                     => false,
-	'WPMS_SMTP_AUTOTLS'                  => false,
-	'WPMS_SENDINBLUE_API_KEY'            => getenv_docker( 'WORDPRESS_SMTP_BREVO_API_KEY', '' ),
-	'WPMS_SENDINBLUE_DOMAIN'             => getenv_docker( 'WORDPRESS_SMTP_BREVO_DOMAIN', '' ),
-	'WPMS_SUMMARY_REPORT_EMAIL_DISABLED' => true,
-);
-foreach ( $mody_mail as $mody_name => $mody_value ) {
-	if ( ! defined( $mody_name ) ) { // Containers created before 2026-11-09 still define WPMS_ON in WORDPRESS_CONFIG_EXTRA.
-		define( $mody_name, $mody_value );
-	}
-}
-unset( $mody_mail, $mody_name, $mody_value );
 
 if ( ! defined( 'ROOT_DIR' ) ) {
     define( 'ROOT_DIR', __DIR__ );

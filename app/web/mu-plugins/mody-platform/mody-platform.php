@@ -170,13 +170,6 @@ add_filter( 'rest_pre_dispatch', array( Gating\AiPlugin::class, 'lock_routes' ),
 add_action( 'wp_initialize_site', array( Gating\AiPlugin::class, 'create_log_table' ), 200 );
 
 /*
- * Outgoing mail (decided by the maintainer on 2026-11-09): WP Mail SMTP sends
- * everything, set only by wp-config.php's constants, seen only by super admins,
- * and never calling its maker on its own.
- */
-Mail\WpMailSmtp::register();
-
-/*
  * Brand wizard (Network Admin → Mody → New site, ticket M2-03): its page and
  * its REST endpoint, which runs the provisioning pipeline after the response.
  */
