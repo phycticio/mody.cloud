@@ -494,9 +494,9 @@ Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer
      wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/ai-plugin-brand-context-test.php
    ```
 
-6. Try the chat in the browser: `https://mody.local/wp/wp-admin/` → **Mody Agent**. The main site's brand is its settings (title "Mody Cloud", the bakery mission and tone). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. Every site has its brand in its settings, so the agent answers on `alpha.mody.local` and `beta.mody.local` too (M2-08).
+6. Try the chat in the browser: `https://mody.local/wp-admin/` → **Mody Agent**. The main site's brand is its settings (title "Mody Cloud", the bakery mission and tone). Try "Create an About page", then "Publish it", "Open the editor for the Sample Page", "Make a page" (a follow-up question with choices), "Make the primary color coral", "Change the tagline to …" and "Delete all pages". A color change sticks: restore it with "Use the Mody Teal preset", or in the Site Editor under Styles → Revisions. So do a published page and a new tagline: unpublish or delete the page on the Pages screen, and restore the tagline under Settings → General. The rows appear in `wp_mody_agent_events`. Every site has its brand in its settings, so the agent answers on `alpha.mody.local` and `beta.mody.local` too (M2-08).
 
-7. In wp-admin (`https://mody.local/wp/wp-admin/`):
+7. In wp-admin (`https://mody.local/wp-admin/`):
    - **Settings → Connectors** shows "Infomaniak AI", with the key coming from the environment.
    - **Settings → AI** turns the `ai` plugin's features on and off. Network-activate the plugin first: `./bin/wp plugin activate ai --network`.
    - **Settings → Connector Approvals** must approve `ai/ai.php` for `infomaniak` while the Connector Approval experiment is on.

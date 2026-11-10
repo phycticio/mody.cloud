@@ -218,7 +218,7 @@ $check( 'a creation runs (at once here)', 200 === $out['code'] && 'done' === ( $
 $check(
 	'...the site\'s links',
 	'https://' . Pipeline::domain( $slug( 'full' ) ) . '/' === ( $view['site']['url'] ?? '' ) && str_contains( (string) ( $view['site']['editor'] ?? '' ), '/wp-admin/site-editor.php?p=%2Fpage%2F' ) && str_contains( (string) ( $view['site']['editor'] ?? '' ), 'mody-chat=open' )
-		&& str_ends_with( (string) ( $view['site']['admin'] ?? '' ), '/wp/wp-admin/' ) && 'Ogia Bakery' === ( $view['site']['title'] ?? '' ),
+		&& str_ends_with( (string) ( $view['site']['admin'] ?? '' ), '/wp-admin/' ) && 'Ogia Bakery' === ( $view['site']['title'] ?? '' ),
 	(string) ( $view['site']['url'] ?? 'no site' )
 );
 $check( '...no fallback', false === ( $view['fallback'] ?? null ) && false === ( $view['retrying'] ?? null ) );

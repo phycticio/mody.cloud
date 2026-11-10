@@ -51,7 +51,7 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 └── readme.md
 ```
 
-`wp-config.php` sets `WP_CONTENT_DIR` to `app/web`, `WP_SITEURL` to `<home>/wp`, and `ABSPATH` to `app/wp/`. Nginx rewrites `/wp-admin`, `/wp-includes` and root `wp-*.php` requests into `/wp/`.
+`wp-config.php` sets `WP_CONTENT_DIR` to `app/web` and `ABSPATH` to `app/wp/`. **No address carries `/wp`** (decided by the maintainer on 2026-11-10): every site's `home` and `siteurl` are its bare domain (`https://mody.cloud`), and `WP_SITEURL` matches (multisite reads the options, not the constant). Nginx serves core from the root by rewriting `/wp-admin`, `/wp-includes`, root `wp-*.php` and `xmlrpc.php` into `/wp/` internally, and sends any old `/wp/…` address to the same address without `/wp` (a 308, which keeps a posted login form's method). Redirects are relative (`absolute_redirect off`), so they stay `https` behind the proxies.
 
 ## Target system
 
@@ -190,11 +190,11 @@ On 2026-11-09 the maintainer added Brevo for production mail, for the same kind 
 
 ### Deviations to resolve
 
-These are differences between production and the conventions above. None of them is fixed by a deploy. The steps for all three, and the decisions they need, are in [tickets/M5-02-production-member-sites.md](../tickets/M5-02-production-member-sites.md) (2026-11-08).
+These are differences between production and the conventions above. None of them is fixed by a deploy. The steps for them, and the decisions they need, are in [tickets/M5-02-production-member-sites.md](../tickets/M5-02-production-member-sites.md) (2026-11-08).
 
 1. **Subsites cannot be reached.** There is no wildcard DNS record, and the NPM certificate and proxy host cover only `mody.cloud`. M2 needs `*.mody.cloud` (DNS, certificate and proxy host, as in [Multisite](#multisite-enabled-m0-01)). `www.mody.cloud` returns a Cloudflare 525 error, because the origin has no certificate for it.
 2. **No outgoing mail until the Brevo API key is on the server.** Mail is sent by the `mody-mail` MU plugin since 2026-11-10 (the Mail row above; it replaced WP Mail SMTP). Without `BREVO_API_KEY` in the server's `.env`, every `wp_mail()` in production fails with "No mail transport: BREVO_API_KEY is not set.", so password resets and notifications are not delivered. Before 2026-11-04, Mailpit captured that mail and discarded it, which was also a loss, only a silent one. M1 needs real delivery for registration and billing emails. The steps on the server are in [M5-02 step 6](../tickets/M5-02-production-member-sites.md): a sending domain and an API key in Brevo, the key (and optionally the sender) in the server's `.env`, the old WP Mail SMTP block out of `compose.prod.yml`, then `docker compose up -d`.
-3. **`home` carries `/wp`.** Both `home` and `siteurl` are `https://mody.cloud/wp`, so generated links read `https://mody.cloud/wp/sample-page/`. Both forms resolve, but the convention from M0-01 is `home` without `/wp`. Fix it with `wp option update home https://mody.cloud` after a database backup, then check the links stored in content. Until then, sites created by provisioning copy the main site's form (`Pipeline::urls()`), so production member sites get `siteurl` **without** `/wp` (`phycticio.mody.cloud`, seen 2026-11-07). That works, because nginx rewrites `/wp-admin/…`, `/wp-includes/…` and `wp-*.php` into `/wp/` on every host. After the fix, new sites get `/wp` like the local ones.
+3. ~~**`home` carries `/wp`.**~~ Resolved on 2026-11-10 ([M5-02 step 5](../tickets/M5-02-production-member-sites.md)): no address carries `/wp`, locally or in production (see [Repository layout](#repository-layout)).
 
 ## Open questions
 

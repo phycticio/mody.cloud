@@ -65,4 +65,4 @@ rm -rf "$TEMP_DIR"
 
 ./bin/log "SUCCESS" "Successfully switched to WordPress $VERSION"
 # Updated the upgrade path to reflect the new subdirectory
-./bin/log "WARNING" "Note: Visit your site's /wp/wp-admin/upgrade.php to update the database if prompted."
+./bin/log "WARNING" "Note: Visit your site's /wp-admin/upgrade.php to update the database if prompted."
