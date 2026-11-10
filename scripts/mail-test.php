@@ -1,160 +1,146 @@
 <?php
 /**
- * Tests outgoing mail: WP Mail SMTP, the platform's only way of sending email
- * (decided by the maintainer on 2026-11-09, documentation/architecture.md#production).
+ * Tests outgoing mail: the mody-mail MU plugin, the platform's only way of
+ * sending email (decided by the maintainer on 2026-11-10, replacing WP Mail
+ * SMTP; documentation/architecture.md#production).
  *
- * Run from the repository root, locally (SMTP to Mailpit):
+ * Run from the repository root:
  *
  *   docker exec -i -u www-data mody_cloud_app \
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/mail-test.php
  *
- * And with production's mail settings, as the server's compose.prod.yml sets
- * them (Brevo's API; the request is caught here, nothing leaves the machine):
+ * 1. The plugin: a MU plugin, loaded; WP Mail SMTP is gone (files, Composer,
+ *    network activation, constants).
+ * 2. Its settings: MAIL_SENDER_EMAIL, MAIL_SENDER_NAME and BREVO_API_KEY from
+ *    the environment, with their defaults.
+ * 3. The sender: one address for every message; the name replaces only
+ *    WordPress's default.
+ * 4. Without a key (as locally): wp_mail() uses PHP's mail(), and Mailpit
+ *    receives the message from the sender, with no web request.
+ * 5. With a key (as in production; a test key is set in this process and
+ *    Brevo's answers are faked, so nothing leaves the machine): one request to
+ *    Brevo's API per message, with the key, the sender, every recipient, the
+ *    body, headers and attachments; Brevo's refusals and network errors make
+ *    wp_mail() fail with wp_mail_failed, never showing the key.
  *
- *   docker exec -i -u www-data -e WORDPRESS_SMTP_MAILER=sendinblue \
- *     -e WORDPRESS_SMTP_BREVO_API_KEY=xkeysib-test -e WORDPRESS_SMTP_FROM=no-reply@mody.cloud \
- *     mody_cloud_app wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/mail-test.php
- *
- * 1. The plugin: required, network-active, hidden from members' Plugins screen.
- * 2. Its settings: the constants from wp-config.php, locked (its screen cannot change them).
- * 3. Who sees it: super admins only; a member site's administrator does not.
- * 4. Rule 1: its notifications feed, usage tracking, summary email, error banner and
- *    setup wizard are off.
- * 5. Sending: locally a wp_mail() reaches Mailpit through WP Mail SMTP, from the one
- *    sender; with production's settings it goes to Brevo's API, with the key, and
- *    nowhere else.
- *
- * A test user (administrator of a member site) is created and removed.
+ * Environment variables changed here (putenv) are restored at the end.
  */
 
-use Mody\Platform\Gating\MemberPlugins;
-use Mody\Platform\Mail\WpMailSmtp;
+use Mody\Mail\BrevoMailer;
+use Mody\Mail\Config;
+use Mody\Mail\Mail;
 
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
 	$failures += $ok ? 0 : 1;
-	printf( "%-4s %-58s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
+	printf( "%-4s %-62s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
 };
 
-$production = defined( 'WPMS_MAILER' ) && 'sendinblue' === WPMS_MAILER;
-echo $production ? "Production settings (Brevo's API, caught)\n" : "Local settings (SMTP to Mailpit)\n";
-
-// 1. The plugin ----------------------------------------------------------------
-
-echo "\nThe plugin\n";
-$composer = json_decode( (string) file_get_contents( dirname( ABSPATH ) . '/composer.json' ), true );
-$check( 'required in app/composer.json, pinned', isset( $composer['require']['wpackagist-plugin/wp-mail-smtp'] ) && preg_match( '/^\d+\.\d+\.\d+$/', (string) $composer['require']['wpackagist-plugin/wp-mail-smtp'] ), (string) ( $composer['require']['wpackagist-plugin/wp-mail-smtp'] ?? 'missing' ) );
-$check( 'network-active', is_plugin_active_for_network( WpMailSmtp::PLUGIN ), WpMailSmtp::PLUGIN );
-$check( 'loaded', function_exists( 'wp_mail_smtp' ) );
-$check( 'a platform plugin: never on members\' Plugins screen', in_array( 'wp-mail-smtp', MemberPlugins::PLATFORM_PLUGINS, true ) && MemberPlugins::is_hidden( WpMailSmtp::PLUGIN ) );
-
-// 2. Its settings ------------------------------------------------------------------
-
-echo "\nSettings (constants)\n";
-$options = \WPMailSMTP\Options::init();
-$check( 'constants on (WPMS_ON): its screen cannot change them', true === WPMS_ON && $options->is_const_enabled() );
-foreach ( array( array( 'mail', 'mailer' ), array( 'mail', 'from_email' ), array( 'mail', 'from_email_force' ), array( 'mail', 'from_name' ) ) as $setting ) {
-	$check( '...' . implode( '.', $setting ) . ' locked', $options->is_const_defined( $setting[0], $setting[1] ), (string) wp_json_encode( $options->get( $setting[0], $setting[1] ) ) );
+// Environment variables this test changes, restored when it ends.
+$saved_env = array();
+foreach ( array( 'BREVO_API_KEY', 'MAIL_SENDER_EMAIL', 'MAIL_SENDER_NAME' ) as $name ) {
+	$saved_env[ $name ] = getenv( $name );
 }
-$check( '...one sender for every message', true === (bool) $options->get( 'mail', 'from_email_force' ) && WPMS_MAIL_FROM === $options->get( 'mail', 'from_email' ) && is_email( WPMS_MAIL_FROM ), WPMS_MAIL_FROM );
-if ( $production ) {
-	$check( 'mailer: Brevo\'s API, with the key from the environment', 'sendinblue' === $options->get( 'mail', 'mailer' ) && '' !== (string) $options->get( 'sendinblue', 'api_key' ) && $options->is_const_defined( 'sendinblue', 'api_key' ) );
-} else {
-	$check( 'mailer: SMTP to Mailpit, locked', 'smtp' === $options->get( 'mail', 'mailer' ) && 'mailpit' === $options->get( 'smtp', 'host' ) && 1025 === (int) $options->get( 'smtp', 'port' ) && $options->is_const_defined( 'smtp', 'host' ), $options->get( 'smtp', 'host' ) . ':' . $options->get( 'smtp', 'port' ) );
-	$check( '...no Brevo key outside production', '' === (string) $options->get( 'sendinblue', 'api_key' ) );
-}
-
-// 3. Who sees it -------------------------------------------------------------------
-
-echo "\nWho sees it\n";
-$sites  = get_sites(
-	array(
-		'site__not_in' => array( get_main_site_id() ),
-		'fields'       => 'ids',
-		'number'       => 1,
-	)
-);
-$site   = (int) ( $sites[0] ?? 0 );
-$member = wp_insert_user(
-	array(
-		'user_login' => 'modymail' . strtolower( wp_generate_password( 6, false ) ),
-		'user_email' => 'modymail' . wp_generate_password( 6, false ) . '@mody.local',
-		'user_pass'  => wp_generate_password( 24 ),
-		'role'       => '',
-	)
-);
-$admin  = get_user_by( 'login', get_super_admins()[0] )->ID;
+$set_env = static function ( string $name, $value ): void {
+	putenv( false === $value ? $name : "$name=$value" );
+};
 register_shutdown_function(
-	static function () use ( $member ): void {
-		require_once ABSPATH . 'wp-admin/includes/ms.php';
-		if ( is_int( $member ) ) {
-			wpmu_delete_user( $member );
+	static function () use ( $saved_env, $set_env ): void {
+		foreach ( $saved_env as $name => $value ) {
+			$set_env( $name, $value );
 		}
 	}
 );
-$cap = wp_mail_smtp()->get_capability_manage_options();
-$check( 'its capability: super admins only', WpMailSmtp::CAPABILITY === $cap && WpMailSmtp::CAPABILITY === wp_mail_smtp()->get_capability_manage_options(), $cap );
-if ( $site && is_int( $member ) ) {
-	add_user_to_blog( $site, $member, 'administrator' );
-	switch_to_blog( $site );
-	$check( 'a member site\'s administrator: no screens, test tool or notices', user_can( $member, 'manage_options' ) && ! user_can( $member, $cap ) );
-	$check( '...a super admin: all of them', user_can( $admin, $cap ) );
-	restore_current_blog();
-}
 
-// 4. Rule 1 --------------------------------------------------------------------
+// 1. The plugin ----------------------------------------------------------------
 
-echo "\nRule 1: nothing to its maker on its own\n";
-$check( 'notifications feed off', false === apply_filters( 'wp_mail_smtp_admin_notifications_has_access', true ) );
-$check( 'usage tracking off', false === apply_filters( 'wp_mail_smtp_usage_tracking_load_allowed', true ) );
-$check( 'weekly summary email off', true === apply_filters( 'wp_mail_smtp_reports_emails_summary_is_disabled', false ) && true === WPMS_SUMMARY_REPORT_EMAIL_DISABLED );
-$check( 'error banner (help links from wpmailsmtpapi.com) off', false === apply_filters( 'wp_mail_smtp_admin_is_error_delivery_notice_enabled', true ) );
-$check( 'setup wizard off (the constants set everything)', false === apply_filters( 'wp_mail_smtp_admin_setup_wizard_load_wizard', true ) );
+echo "The plugin\n";
+$check( 'a MU plugin (always on, nobody can switch it off)', isset( get_mu_plugins()['mody-mail.php'] ) && class_exists( Mail::class ) );
+$check( '...hooked into wp_mail()', PHP_INT_MAX === has_filter( 'pre_wp_mail', array( Mail::class, 'use_transport' ) ) && PHP_INT_MAX === has_filter( 'wp_mail_from', array( Mail::class, 'from_email' ) ) && PHP_INT_MAX === has_filter( 'wp_mail_from_name', array( Mail::class, 'from_name' ) ) );
+$composer = json_decode( (string) file_get_contents( dirname( ABSPATH ) . '/composer.json' ), true );
+$mail_plugins = array_filter( array_keys( $composer['require'] ?? array() ), static fn( $name ) => str_contains( $name, 'mail-smtp' ) );
+$check( 'WP Mail SMTP gone: not in app/composer.json', ! $mail_plugins, implode( ', ', $mail_plugins ) );
+$check( '...not installed, not loaded', ! is_dir( WP_PLUGIN_DIR . '/wp-mail-smtp' ) && ! is_dir( WP_PLUGIN_DIR . '/wp-mail-smtp-pro' ) && ! function_exists( 'wp_mail_smtp' ) );
+$active = array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) );
+$check( '...not network-active', ! array_filter( $active, static fn( $file ) => str_starts_with( $file, 'wp-mail-smtp' ) ), implode( ', ', $active ) );
+$check( '...none of its WPMS_* constants', ! array_filter( array_keys( get_defined_constants( true )['user'] ?? array() ), static fn( $name ) => str_starts_with( $name, 'WPMS_' ) ) );
 
-// 5. Sending ---------------------------------------------------------------------
+// 2. Its settings ----------------------------------------------------------------
 
-echo "\nSending\n";
-$subject  = 'Mody mail test ' . wp_generate_password( 10, false );
-$to       = 'mail-test@example.org';
-$requests = array();
+echo "\nSettings (environment)\n";
+$set_env( 'MAIL_SENDER_EMAIL', 'hello@mody.test' );
+$set_env( 'MAIL_SENDER_NAME', "Mody\r\nBcc: x@example.org" );
+$check( 'MAIL_SENDER_EMAIL read', 'hello@mody.test' === Config::sender_email(), Config::sender_email() );
+$check( 'MAIL_SENDER_NAME read, on one line (no header injection)', 'Mody Bcc: x@example.org' === Config::sender_name(), Config::sender_name() );
+$set_env( 'MAIL_SENDER_EMAIL', 'not an address' );
+$set_env( 'MAIL_SENDER_NAME', '' );
+$check( 'defaults: no-reply@ the network domain, "Mody Cloud"', 'no-reply@' . DOMAIN_CURRENT_SITE === Config::sender_email() && 'Mody Cloud' === Config::sender_name(), Config::sender_email() . ', ' . Config::sender_name() );
+$set_env( 'MAIL_SENDER_EMAIL', 'no-reply@mody.test' );
+$set_env( 'MAIL_SENDER_NAME', 'Mody Test' );
+$set_env( 'BREVO_API_KEY', '' );
+$check( 'no key: WordPress\'s own transport (here: ' . wp_get_environment_type() . ')', Config::TRANSPORT_PHP === Config::transport() || 'production' === wp_get_environment_type(), Config::transport() );
+$set_env( 'BREVO_API_KEY', 'xkeysib-test' );
+$check( 'a key: Brevo', Config::TRANSPORT_BREVO === Config::transport() );
+$set_env( 'BREVO_API_KEY', '' );
+
+// 3. The sender ------------------------------------------------------------------
+
+echo "\nThe sender\n";
+$check( 'the address, whatever the message says', 'no-reply@mody.test' === apply_filters( 'wp_mail_from', 'someone@example.org' ) );
+$check( 'the name, instead of WordPress\'s default', 'Mody Test' === apply_filters( 'wp_mail_from_name', 'WordPress' ) && 'Mody Test' === apply_filters( 'wp_mail_from_name', '' ) );
+$check( '...a message\'s own name kept', 'Wordfence' === apply_filters( 'wp_mail_from_name', 'Wordfence' ) );
+
+// HTTP requests from here on: Brevo's answer is faked (or the request is refused).
+$requests      = array();
+$brevo_answer  = null;
 add_filter(
 	'pre_http_request',
-	static function ( $preempt, $args, $url ) use ( &$requests ) {
+	static function ( $preempt, $args, $url ) use ( &$requests, &$brevo_answer ) {
+		if ( str_starts_with( $url, 'http://mailpit:8025/' ) ) {
+			return $preempt; // The test's own look into Mailpit.
+		}
 		$requests[] = array(
 			'url'  => $url,
 			'args' => $args,
 		);
-		if ( str_starts_with( $url, 'https://api.brevo.com/' ) ) {
-			return array(
-				'headers'  => array( 'content-type' => 'application/json' ),
-				'body'     => '{"messageId":"<test@smtp-relay.mailin.fr>"}',
-				'response' => array(
-					'code'    => 201,
-					'message' => 'Created',
-				),
-				'cookies'  => array(),
-			);
-		}
-		return $preempt;
+		return str_starts_with( $url, 'https://api.brevo.com/' ) && null !== $brevo_answer ? $brevo_answer : new WP_Error( 'mail_test', 'Refused by mail-test.php.' );
 	},
 	10,
 	3
 );
-$sent = wp_mail( $to, $subject, "Sent by scripts/mail-test.php.\n" );
-$check( 'wp_mail() succeeds', true === $sent );
-$check( '...through WP Mail SMTP', $GLOBALS['phpmailer'] instanceof \WPMailSMTP\MailCatcherInterface, is_object( $GLOBALS['phpmailer'] ) ? get_class( $GLOBALS['phpmailer'] ) : 'none' );
+$failed = array();
+add_action(
+	'wp_mail_failed',
+	static function ( WP_Error $error ) use ( &$failed ): void {
+		$failed[] = $error->get_error_message();
+	}
+);
+$brevo_says = static function ( int $code, array $body ): array {
+	return array(
+		'headers'  => array( 'content-type' => 'application/json' ),
+		'body'     => (string) wp_json_encode( $body ),
+		'response' => array(
+			'code'    => $code,
+			'message' => '',
+		),
+		'cookies'  => array(),
+	);
+};
 
-if ( $production ) {
-	$brevo = array_values( array_filter( $requests, static fn( $request ) => str_starts_with( $request['url'], 'https://api.brevo.com/' ) ) );
-	$body  = json_decode( (string) ( $brevo[0]['args']['body'] ?? '' ), true );
-	$check( 'one request to Brevo\'s API, nothing else', 1 === count( $brevo ) && 1 === count( $requests ) && 'https://api.brevo.com/v3/smtp/email' === $brevo[0]['url'], count( $requests ) . ' request(s): ' . implode( ', ', array_column( $requests, 'url' ) ) );
-	$check( '...with the key from the environment', WPMS_SENDINBLUE_API_KEY === ( $brevo[0]['args']['headers']['api-key'] ?? '' ) );
-	$check( '...from the one sender, to the recipient', WPMS_MAIL_FROM === ( $body['sender']['email'] ?? '' ) && $to === ( $body['to'][0]['email'] ?? '' ) && $subject === ( $body['subject'] ?? '' ), wp_json_encode( $body['sender'] ?? null ) );
+// 4. Without a key ----------------------------------------------------------------
+
+echo "\nWithout a key (WordPress's own transport, Mailpit locally)\n";
+if ( 'production' === wp_get_environment_type() ) {
+	$check( 'skipped: production', true );
 } else {
-	$check( '...over SMTP to Mailpit', 'smtp' === $GLOBALS['phpmailer']->Mailer && 'mailpit' === $GLOBALS['phpmailer']->Host, $GLOBALS['phpmailer']->Mailer . ' ' . $GLOBALS['phpmailer']->Host );
-	$check( '...no web request (no API, nothing to its maker)', ! $requests, implode( ', ', array_column( $requests, 'url' ) ) );
+	$subject = 'Mody mail test ' . wp_generate_password( 10, false );
+	$to      = 'mail-test@example.org';
+	$sent    = wp_mail( $to, $subject, "Sent by scripts/mail-test.php.\n" );
+	$check( 'wp_mail() succeeds', true === $sent, implode( ' | ', $failed ) );
+	$check( '...through PHP\'s mail(), not Brevo', ! ( $GLOBALS['phpmailer'] instanceof BrevoMailer ) && 'mail' === $GLOBALS['phpmailer']->Mailer, get_class( $GLOBALS['phpmailer'] ) . ' ' . $GLOBALS['phpmailer']->Mailer );
+	$check( '...no web request', ! $requests, implode( ', ', array_column( $requests, 'url' ) ) );
 	$found = array();
 	for ( $i = 0; $i < 10 && ! $found; $i++ ) {
 		$response = wp_remote_get( 'http://mailpit:8025/api/v1/search?query=' . rawurlencode( 'subject:"' . $subject . '"' ) );
@@ -165,10 +151,127 @@ if ( $production ) {
 	}
 	$message = $found[0] ?? array();
 	$check( 'Mailpit received it', 1 === count( $found ) && $to === ( $message['To'][0]['Address'] ?? '' ), (string) ( $message['ID'] ?? 'not found' ) );
-	$check( '...from the one sender', WPMS_MAIL_FROM === ( $message['From']['Address'] ?? '' ) && WPMS_MAIL_FROM_NAME === ( $message['From']['Name'] ?? '' ), ( $message['From']['Name'] ?? '' ) . ' <' . ( $message['From']['Address'] ?? '' ) . '>' );
+	$check( '...from the sender', 'no-reply@mody.test' === ( $message['From']['Address'] ?? '' ) && 'Mody Test' === ( $message['From']['Name'] ?? '' ), ( $message['From']['Name'] ?? '' ) . ' <' . ( $message['From']['Address'] ?? '' ) . '>' );
 	if ( ! empty( $message['ID'] ) ) {
-		wp_remote_request( 'http://mailpit:8025/api/v1/messages', array( 'method' => 'DELETE', 'body' => wp_json_encode( array( 'IDs' => array( $message['ID'] ) ) ), 'headers' => array( 'Content-Type' => 'application/json' ) ) );
+		wp_remote_request(
+			'http://mailpit:8025/api/v1/messages',
+			array(
+				'method'  => 'DELETE',
+				'body'    => wp_json_encode( array( 'IDs' => array( $message['ID'] ) ) ),
+				'headers' => array( 'Content-Type' => 'application/json' ),
+			)
+		);
 	}
 }
+
+// 5. With a key ---------------------------------------------------------------------
+
+echo "\nWith a key (Brevo's API, answers faked)\n";
+$set_env( 'BREVO_API_KEY', 'xkeysib-test-123' );
+$requests     = array();
+$failed       = array();
+$succeeded    = 0;
+$brevo_answer = $brevo_says( 201, array( 'messageId' => '<test-1@smtp-relay.mailin.fr>' ) );
+add_action(
+	'wp_mail_succeeded',
+	static function () use ( &$succeeded ): void {
+		++$succeeded;
+	}
+);
+$file = wp_tempnam( 'mody-mail-test.txt' );
+file_put_contents( $file, "attached\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+$sent = wp_mail(
+	array( 'Ada Lovelace <ada@example.org>', 'grace@example.org' ),
+	'Plain test',
+	"Line one.\nLine two.\n",
+	array( 'From: Someone <someone@example.org>', 'Cc: cc@example.org', 'Bcc: bcc@example.org', 'Reply-To: Support <support@example.org>', 'X-Mody-Test: yes' ),
+	array( 'notes.txt' => $file )
+);
+wp_delete_file( $file );
+$brevo = $requests[0] ?? array();
+$body  = json_decode( (string) ( $brevo['args']['body'] ?? '' ), true );
+$check( 'wp_mail() succeeds, wp_mail_succeeded fired', true === $sent && 1 === $succeeded, implode( ' | ', $failed ) );
+$check( '...through a BrevoMailer, Brevo\'s message id kept', $GLOBALS['phpmailer'] instanceof BrevoMailer && '<test-1@smtp-relay.mailin.fr>' === $GLOBALS['phpmailer']->brevo_message_id );
+$check( 'one request, a POST to Brevo\'s API, nothing else', 1 === count( $requests ) && BrevoMailer::ENDPOINT === ( $brevo['url'] ?? '' ) && 'POST' === ( $brevo['args']['method'] ?? '' ), implode( ', ', array_column( $requests, 'url' ) ) );
+$check( '...with the key, as JSON', 'xkeysib-test-123' === ( $brevo['args']['headers']['api-key'] ?? '' ) && 'application/json' === ( $brevo['args']['headers']['content-type'] ?? '' ) && is_array( $body ) );
+$check( '...from the sender (the message\'s From ignored, its name kept)', array( 'email' => 'no-reply@mody.test', 'name' => 'Someone' ) === ( $body['sender'] ?? null ), (string) wp_json_encode( $body['sender'] ?? null ) );
+$check( '...To, with names', array( array( 'email' => 'ada@example.org', 'name' => 'Ada Lovelace' ), array( 'email' => 'grace@example.org' ) ) === ( $body['to'] ?? null ), (string) wp_json_encode( $body['to'] ?? null ) );
+$check( '...Cc and Bcc', array( array( 'email' => 'cc@example.org' ) ) === ( $body['cc'] ?? null ) && array( array( 'email' => 'bcc@example.org' ) ) === ( $body['bcc'] ?? null ) );
+$check( '...Reply-To', array( 'email' => 'support@example.org', 'name' => 'Support' ) === ( $body['replyTo'] ?? null ) );
+$check( '...subject, and the text as textContent only', 'Plain test' === ( $body['subject'] ?? '' ) && "Line one.\nLine two.\n" === ( $body['textContent'] ?? '' ) && ! isset( $body['htmlContent'] ) );
+$check( '...custom header', 'yes' === ( $body['headers']['X-Mody-Test'] ?? '' ), (string) wp_json_encode( $body['headers'] ?? null ) );
+$check( '...attachment, base64', array( array( 'name' => 'notes.txt', 'content' => base64_encode( "attached\n" ) ) ) === ( $body['attachment'] ?? null ), (string) wp_json_encode( $body['attachment'] ?? null ) );
+
+$requests = array();
+$sent     = wp_mail( 'ada@example.org', 'HTML test', '<p>Hello</p>', array( 'Content-Type: text/html; charset=UTF-8' ) );
+$body     = json_decode( (string) ( $requests[0]['args']['body'] ?? '' ), true );
+$check( 'an HTML message: htmlContent, no textContent', true === $sent && '<p>Hello</p>' === ( $body['htmlContent'] ?? '' ) && ! isset( $body['textContent'] ) && ! isset( $body['cc'], $body['replyTo'], $body['attachment'] ), (string) wp_json_encode( array_keys( (array) $body ) ) );
+$check( '...WordPress\'s default name replaced', array( 'email' => 'no-reply@mody.test', 'name' => 'Mody Test' ) === ( $body['sender'] ?? null ) );
+
+$requests = array();
+$sent     = wp_mail( '', 'Bcc only', 'Hidden.', array( 'Bcc: bcc@example.org' ) );
+$body     = json_decode( (string) ( $requests[0]['args']['body'] ?? '' ), true );
+$check( 'Bcc only: the sender is the To (Brevo needs one)', true === $sent && array( array( 'email' => 'no-reply@mody.test', 'name' => 'Mody Test' ) ) === ( $body['to'] ?? null ) && array( array( 'email' => 'bcc@example.org' ) ) === ( $body['bcc'] ?? null ) );
+
+$requests = array();
+$sent     = wp_mail( array( 'ada@example.org', 'x@bücher.de' ), 'IDN test', 'Hello.', array( 'Reply-To: help@bücher.de' ) );
+$body     = json_decode( (string) ( $requests[0]['args']['body'] ?? '' ), true );
+$check( 'an international domain: punycoded, not dropped (To, Reply-To)', true === $sent && array( array( 'email' => 'ada@example.org' ), array( 'email' => 'x@xn--bcher-kva.de' ) ) === ( $body['to'] ?? null ) && array( 'email' => 'help@xn--bcher-kva.de' ) === ( $body['replyTo'] ?? null ), (string) wp_json_encode( array( $body['to'] ?? null, $body['replyTo'] ?? null ) ) );
+
+$requests = array();
+$html     = static fn() => 'text/html; charset=UTF-8';
+add_filter( 'wp_mail_content_type', $html );
+$sent = wp_mail( 'ada@example.org', 'HTML by filter', '<p>Hi</p>' );
+remove_filter( 'wp_mail_content_type', $html );
+$body = json_decode( (string) ( $requests[0]['args']['body'] ?? '' ), true );
+$check( '"text/html; charset=UTF-8" from wp_mail_content_type: HTML', true === $sent && '<p>Hi</p>' === ( $body['htmlContent'] ?? '' ) && ! isset( $body['textContent'] ) );
+
+$requests     = array();
+$failed       = array();
+$log          = wp_tempnam( 'mody-mail-log' );
+$previous_log = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet.Risky -- captures the failure log for this check.
+$brevo_answer = $brevo_says(
+	401,
+	array(
+		'code'    => 'unauthorized',
+		'message' => 'Key not found',
+	)
+);
+$sent = wp_mail( 'ada@example.org', 'Refused', 'No.' );
+$check( 'Brevo refuses: wp_mail() fails, wp_mail_failed says why', false === $sent && array( 'Brevo refused the email (HTTP 401: Key not found).' ) === $failed, implode( ' | ', $failed ) );
+$check( '...never showing the key', ! str_contains( implode( ' ', $failed ), 'xkeysib' ) );
+ini_set( 'error_log', (string) $previous_log ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+$logged = (string) file_get_contents( $log );
+wp_delete_file( $log );
+$check( '...the reason in PHP\'s error log, without the key or the message', str_contains( $logged, '[mody-mail] Email not sent: Brevo refused the email (HTTP 401: Key not found).' ) && ! str_contains( $logged, 'xkeysib' ) && ! str_contains( $logged, 'No.' ), trim( $logged ) );
+
+$failed       = array();
+$brevo_answer = null; // The request is refused, as by a network error.
+$sent         = wp_mail( 'ada@example.org', 'Unreachable', 'No.' );
+$check( 'Brevo unreachable: wp_mail() fails', false === $sent && 1 === count( $failed ) && str_starts_with( $failed[0], 'Brevo could not be reached: ' ), implode( ' | ', $failed ) );
+
+$failed = array();
+$sent   = wp_mail( 'not an address', 'Nobody', 'No.' );
+$check( 'no valid recipient: wp_mail() fails before any request', false === $sent && 1 === count( $failed ), implode( ' | ', $failed ) );
+
+// Production without a key: the BrevoMailer refuses, it never falls back to mail().
+$set_env( 'BREVO_API_KEY', '' );
+$requests = array();
+$mailer   = new BrevoMailer( true );
+$mailer->setFrom( 'no-reply@mody.test', 'Mody Test', false );
+$mailer->addAddress( 'ada@example.org' );
+$mailer->Subject = 'No key';
+$mailer->Body    = 'No.';
+try {
+	$mailer->send();
+	$error = '';
+} catch ( PHPMailer\PHPMailer\Exception $e ) {
+	$error = $e->getMessage();
+}
+$check( 'no key (production): sending fails with a clear error, no request', 'No mail transport: BREVO_API_KEY is not set.' === $error && ! $requests, $error );
+
+// The key gone, WordPress's own mailer comes back.
+Mail::use_transport( null );
+$check( 'the key gone: the BrevoMailer is dropped', 'production' === wp_get_environment_type() || ! ( $GLOBALS['phpmailer'] instanceof BrevoMailer ) );
 
 echo "\n" . ( $failures ? "$failures check(s) failed.\n" : "All checks passed.\n" );

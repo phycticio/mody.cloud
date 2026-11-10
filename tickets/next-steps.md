@@ -6,7 +6,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 
 ## Waiting on the maintainer
 - **The theme's spacing sizes are ignored on every site** (found 2026-11-09, [M1-04](M1-04-registration-block.md) part B results). WordPress uses its own sizes for the same slugs because `defaultSpacingSizes` is on. Turning it off fixes it, but changes every site's spacing.
-- **Production mail: Brevo** ([M5-02](M5-02-production-member-sites.md), step 6). Built on 2026-11-09: WP Mail SMTP with Brevo's API, set only by constants. It works after a deploy and the server steps in M5-02 step 6: a sending domain and an API key in Brevo, the `BREVO_*` lines in the server's `.env`, the `compose.prod.yml` block, and network activation.
+- **Production mail: Brevo** ([M5-02](M5-02-production-member-sites.md), step 6). Built on 2026-11-10: the `mody-mail` MU plugin posts every email to Brevo's API (it replaced WP Mail SMTP). It works after a deploy and the server steps in M5-02 step 6: a sending domain and an API key in Brevo, the key in the server's `.env`, and the old WP Mail SMTP block out of `compose.prod.yml`.
 - **The browser check of [M3-09](M3-09-agent-navigates-site-editor.md)** (built 2026-11-08, deployed in `6819b67` before this check, by the maintainer's choice): the steps in its Results, plus "create a page", where the new draft opens.
 - **Inputs for M1:**
   - the Mollie test keys in `.env` (M1-01 part 3);
@@ -27,7 +27,7 @@ The ordered list of what comes next. Each item links to its ticket, and the deta
 2. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md): Spectra as a MU plugin, and every Spectra block for the agent.** Decided 2026-11-08. Part 1 (the MU plugin) is built and deployed. Part 2 (the validator accepts every Spectra block but the popup builder) and part 3 (accordion and tabs) are built and deployed (2026-11-09). Next is part 4: buttons, icons, list, separator and content.
 3. **[M1-01](M1-01-registration-trial-billing.md) part 4: the dashboard's My sites and Plan & billing.** Unblocked. Update card waits for part 3.
 4. **[M1-01](M1-01-registration-trial-billing.md) part 3: the plan and the card during the trial (Mollie checkout and webhook).** Reworked by M1-03. It needs the test keys and the answer to mvp-spec §16 question 7.
-5. **[M5-02](M5-02-production-member-sites.md) step 6: mail in production.** Built on 2026-11-09 (Brevo). It waits for the deploy and the server steps above.
+5. **[M5-02](M5-02-production-member-sites.md) step 6: mail in production.** Built on 2026-11-10: the `mody-mail` MU plugin posts every email to Brevo (it replaced WP Mail SMTP). It waits for the deploy and the server steps above.
 6. **[M1-01](M1-01-registration-trial-billing.md) part 5 and [M1-02](M1-02-past-due-readonly-deletion.md): billing jobs, past-due read-only, deletion.** They need the WP-Cron decision.
 7. **[M5-01](M5-01-hardening-launch.md): the production host, the backup drill, the security pass** (including the registration form's rate limit and spam check, before it opens) **and the launch checklist.**
 8. **[M1-04](M1-04-registration-block.md): the registration chat as a block you can style and place anywhere.** Planned on 2026-11-09. It covers questions with a mapping (account, site, brand, custom answers) and palette-only color pickers on every site. Part 0 (M1-03 committed), part A (palette-only pickers) and part B (the block and its styles) are done. Next is part C, the questions and their mapping.
