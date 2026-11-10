@@ -15,9 +15,23 @@ server {
     root /var/www/html;
     index index.php index.html index.htm;
 
+    # Redirects carry no scheme or host: behind the proxies this server sees
+    # http, while visitors use https.
+    absolute_redirect off;
+
+    # No address carries /wp (2026-11-10): core lives in app/wp, but every
+    # site's home and siteurl are the bare domain, and the rewrites below serve
+    # core from the root. An old /wp/... link goes to the same address without
+    # it. 308 keeps the method, for a login form posted to /wp/wp-login.php.
+    # $request_uri is what the browser asked for, so the internal rewrites
+    # into /wp/ below never match it.
+    if ($request_uri ~ "^/wp(?:/(?<wp_rest>[^?]*))?(?<wp_query>\?.*)?$") {
+        return 308 /$wp_rest$wp_query;
+    }
+
     rewrite ^/(wp-admin|wp-includes)/(.*)$ /wp/$1/$2 last;
     rewrite ^/(wp-[^/]+\.php|xmlrpc\.php)$ /wp/$1 last;
-    rewrite ^/wp-admin$ $scheme://$host$uri/ permanent;
+    rewrite ^/wp-admin$ /wp-admin/ permanent;
 
     # The document root is app/, which also holds files that must never be
     # served: Composer credentials (auth.json) and metadata, the vendor

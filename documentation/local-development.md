@@ -102,7 +102,7 @@ WP-CLI runs against the network's main site unless it is told otherwise. `./bin/
 ./bin/wp site list                       # network-wide commands need no --site
 ```
 
-**HTTP to a subsite from inside the app container** (tests, 2026-11-07). The container resolves only the main host, so loopback requests to `<slug>.<host>` fail. Request the main host and send the subsite's name as the `Host` header: nginx and WordPress then serve the subsite (`wp_remote_get( 'https://mody.local/wp/wp-admin/…', array( 'headers' => array( 'Host' => 'alpha.mody.local' ), 'sslverify' => false ) )`). `scripts/gating-test.php` uses it.
+**HTTP to a subsite from inside the app container** (tests, 2026-11-07). The container resolves only the main host, so loopback requests to `<slug>.<host>` fail. Request the main host and send the subsite's name as the `Host` header: nginx and WordPress then serve the subsite (`wp_remote_get( 'https://mody.local/wp-admin/…', array( 'headers' => array( 'Host' => 'alpha.mody.local' ), 'sslverify' => false ) )`). `scripts/gating-test.php` uses it.
 
 A literal `--url=...` still passes through. `wp-cli.yml` is **not** read inside the container — WP-CLI finds `wp-config.php` from its working directory — so do not put per-site defaults there. `bin/wp` only greps that file for the container name behind `@$SITE_SLUG`, and the `@mody` alias is what a host-side WP-CLI uses (`wp @mody core version`).
 
@@ -122,11 +122,11 @@ Two consequences worth knowing when a proxy is in front:
 - **Reaching `https://<host>:4435` directly no longer works.** The `Host` header then carries `:4435` and you get the signup redirect. Use the proxied host name. To check the stack itself without going through the proxy, override the header: `curl -k --resolve alpha.mody.cloud.local:4435:127.0.0.1 -H "Host: alpha.mody.cloud.local" https://alpha.mody.cloud.local:4435/`.
 - **The proxy needs the wildcard too**, or only the main site answers over HTTPS. One proxy host for `mody.cloud.local` leaves `alpha.*` failing TLS with `tlsv1 unrecognized name`, because no configured server name matches the SNI. Add a proxy host covering `*.mody.cloud.local` with a certificate that covers it, pointing at the stack's HTTPS port.
 
-Separately, `wp site create` writes each new site's `siteurl` and `home` with an `http://` scheme and without the Bedrock `/wp` suffix, so fix both after creating a site by hand. Sites created by the provisioning pipeline (M2-01) get both right: it copies the main site's scheme and suffix (`Pipeline::urls()`) (`siteurl` carries `/wp` because core lives in `app/wp`, `home` does not — see [architecture.md](architecture.md)):
+Separately, `wp site create` writes each new site's `siteurl` and `home` with an `http://` scheme, so fix both after creating a site by hand. Both are the bare address: no address carries `/wp`, although core lives in `app/wp` (2026-11-10, [architecture.md](architecture.md#repository-layout)). Sites created by the provisioning pipeline (M2-01) get both right: it copies the main site's form (`Pipeline::urls()`):
 
 ```bash
 ./bin/wp --site=alpha option update home    "https://alpha.mody.cloud.local"
-./bin/wp --site=alpha option update siteurl "https://alpha.mody.cloud.local/wp"
+./bin/wp --site=alpha option update siteurl "https://alpha.mody.cloud.local"
 ```
 
 ## Colima on macOS

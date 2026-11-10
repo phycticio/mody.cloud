@@ -10,7 +10,7 @@ A site created with the wizard in production opens at `https://<slug>.mody.cloud
   - Cloudflare proxies only `mody.cloud`, with no wildcard record. `www.mody.cloud` answers 525.
   - NPM proxy host 18 serves `mody.cloud` with a Let's Encrypt certificate. It forwards to `http://host.docker.internal:8195`.
 - **The stack:** `compose.prod.yml.sample` sets `NGINX_APP_SERVER_NAME` to `mody.cloud *.mody.cloud`, so nginx already answers every subsite, if the server's `compose.prod.yml` matches the sample (step 4 checks it).
-- **The site URLs:** `home` and `siteurl` are both `https://mody.cloud/wp` (deviation 3).
+- **The site URLs:** `home` and `siteurl` were both `https://mody.cloud/wp` (deviation 3) until step 5, 2026-11-10.
 - **Mail:** PHP sends with msmtp to `mailpit:1025` (`config/php/zzz-mail.ini`), and Mailpit never runs in production, so `wp_mail()` fails (deviation 2).
 
 ## Steps
@@ -38,11 +38,21 @@ Add `*.mody.cloud` to proxy host 18, or create a second host with the same forwa
 - The server's `compose.prod.yml` sets `NGINX_APP_SERVER_NAME: "${HOST_NAME} *.${HOST_NAME}"` as the sample does. If it was changed, run `docker compose up -d && docker compose restart nginx`.
 - Then `curl -sI -H 'Host: phycticio.mody.cloud' http://127.0.0.1:8195/` on the server should answer from WordPress, not with nginx's default page.
 
-### 5. `home` without `/wp` (deviation 3; maintainer runs it, or approves it)
-1. Make a database dump first (`mariadb-dump` in `mody_cloud_db`, as the local Colima migration did on 2026-11-03).
-2. Run `wp option update home https://mody.cloud` on the main site: `docker exec -u www-data mody_cloud_app wp --path=/var/www/html/wp --url=https://mody.cloud …`.
-3. List the stored links that still carry the old form: `wp db search 'mody.cloud/wp/' --all-tables`. Change only page and navigation links (`wp search-replace` with `--dry-run` first). Leave `/wp/wp-admin`, `/wp/wp-includes` and the `siteurl` option alone.
-4. New sites then get `siteurl` with `/wp`, like the local ones (`Pipeline::urls()` copies the main site's form). `phycticio` keeps its current URLs; nginx serves both forms.
+### 5. No `/wp` in any address (decided by the maintainer on 2026-11-10: "I prefer mody.cloud over mody.cloud/wp")
+Both `home` and `siteurl` lose `/wp`, not only `home`: wp-admin, wp-login.php and core's files are served from the root too. Core stays in `app/wp`.
+1. **Deploy first** (`fix/no-wp-in-urls`): `config/nginx/app.conf.template` sends any old `/wp/…` address to the same address without `/wp` (a 308; it reads `$request_uri`, so the internal rewrites into `/wp/` never loop), and `wp-config.php`'s `WP_SITEURL` loses `/wp`. Then `docker compose restart nginx` on the server: nginx renders its template only at start.
+2. A database dump ([architecture.md](../documentation/architecture.md#production)).
+3. One regex search-replace over the network, `--dry-run` first, `guid` skipped. It drops `/wp` right after any `mody.cloud` host, plain or JSON-escaped, only when `/wp` is followed by `/`, a quote, `?`, `#`, `<`, a space, a backslash or the end, so `/wp-admin` and `/wp-json` are never touched. It covers `home`, `siteurl` and every stored link (menus, the header's "Log in" link):
+
+   ```bash
+   wp search-replace '(https?:(?:\\?/){2}(?:[a-z0-9-]+\.)?mody\.cloud)\\?/wp(?=\\?/|["'"'"'?#<\s\\]|$)' '$1' \
+     --regex --regex-delimiter='~' --network --skip-columns=guid --report-changed-only --dry-run
+   ```
+4. The network's own `siteurl` option, if it carries `/wp`: `wp site option update siteurl https://mody.cloud/`. It changes WordPress's cookie names, so everyone logs in once more.
+5. `wp cache flush`.
+6. Check: `/`, `/es/`, wp-login.php, wp-admin, Network Admin, the Site Editor, `phycticio.mody.cloud`, and an old `/wp/es/` link.
+
+Rehearsed locally on 2026-11-10: 7 replacements (the main site's `siteurl`, the five language menus' "Log in" links, one user URL), then wp-admin, Network Admin, the Site Editor and the Pages screen answered 200 at the root with no `/wp/` link, and `/wp/wp-admin/edit.php` answered 308 to `/wp-admin/edit.php`. New sites need no change: `Pipeline::urls()` copies the main site's form, now without `/wp`.
 
 ### 6. Mail (decided on 2026-11-09: Brevo's API; since 2026-11-10 through the `mody-mail` MU plugin)
 - **The relay:** the maintainer chose Brevo on 2026-11-09, for now, as a temporary exception to rule 1 ([architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1)). Spec §16 question 2 had named Infomaniak Mail or self-hosted.

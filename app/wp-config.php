@@ -157,7 +157,10 @@ $http_host = ! empty( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : $main_ne
 $base = '/';
 
 define( 'WP_HOME', $protocol . $http_host );
-define( 'WP_SITEURL', $protocol . $http_host . '/wp' );
+// Core lives in app/wp, but no address carries /wp: nginx serves wp-admin,
+// wp-includes and wp-*.php from the root. Multisite reads each site's
+// siteurl option, not this constant; it is set to the same form.
+define( 'WP_SITEURL', $protocol . $http_host );
 
 define( 'WP_CONTENT_DIR', __DIR__ . '/web' );
 define( 'WP_CONTENT_URL', $protocol . $http_host . '/web' );
