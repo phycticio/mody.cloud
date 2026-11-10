@@ -209,8 +209,8 @@ PROMPT;
 		if ( $template ) {
 			$rules .= <<<'PROMPT'
 
-9. This is the site's layout. Besides the blocks of rule 3 you may use the theme blocks: template-part, post-content, post-title, post-date, post-excerpt, post-featured-image, post-terms, query with its blocks, search, site-title, site-tagline, site-logo, navigation, navigation-link.
-10. Theme blocks show the site's own data: use site-title, site-tagline, site-logo and navigation, never the brand name, the tagline or links typed as text. Keep template-part, post-content and query blocks unless the instruction asks to remove them, and never remove post-content.
+9. This is the site's layout. Besides the blocks of rule 3 you may use the theme blocks: template-part, post-content, post-title, post-date, post-excerpt, post-featured-image, post-terms, query with its blocks, search, site-title, site-tagline, site-logo, navigation, navigation-link, mody/language-switcher (the links to the site's other languages).
+10. Theme blocks show the site's own data: use site-title, site-tagline, site-logo and navigation, never the brand name, the tagline or links typed as text. Keep template-part, post-content, query and mody/language-switcher blocks unless the instruction asks to remove them, and never remove post-content.
 PROMPT;
 		}
 

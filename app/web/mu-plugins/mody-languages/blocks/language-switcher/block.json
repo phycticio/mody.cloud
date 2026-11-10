@@ -1,0 +1,40 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "mody/language-switcher",
+	"title": "Language switcher",
+	"category": "widgets",
+	"icon": "translation",
+	"description": "Links to the current page in each of the site's languages. It shows nothing while the site has one language.",
+	"keywords": [ "language", "translation", "multilingual" ],
+	"textdomain": "mody_cloud",
+	"attributes": {
+		"showCurrent": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"supports": {
+		"html": false,
+		"multiple": true,
+		"color": {
+			"text": true,
+			"link": true,
+			"background": true
+		},
+		"spacing": {
+			"margin": true,
+			"padding": true
+		},
+		"typography": {
+			"fontSize": true,
+			"__experimentalFontWeight": true,
+			"__experimentalTextTransform": true
+		}
+	},
+	"blockHooks": {
+		"core/navigation": "after"
+	},
+	"editorScript": "mody-language-switcher-editor",
+	"style": "file:./style.css"
+}
