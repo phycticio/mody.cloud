@@ -1,0 +1,43 @@
+{
+    "family": "latest-posts",
+    "label": "Latest posts",
+    "top": "core/latest-posts",
+    "blocks": [
+        "core/latest-posts"
+    ],
+    "when": "the newest posts as a short list of titles, with date or excerpt if wanted (for a grid or cards of posts use spectra/post)",
+    "keywords": [
+        "latest posts",
+        "recent posts",
+        "latest articles",
+        "latest news",
+        "recent blog posts",
+        "ultimas entradas",
+        "entradas recientes",
+        "ultimos articulos",
+        "ultimas noticias",
+        "derniers articles",
+        "articles recents",
+        "dernieres actualites",
+        "neuesten beitrage",
+        "neuesten beitraege",
+        "letzten beitrage",
+        "letzten beitraege",
+        "neueste beitrage",
+        "neueste beitraege",
+        "ultimi articoli",
+        "articoli recenti",
+        "ultime notizie",
+        "ultimos artigos",
+        "artigos recentes",
+        "ultimas publicacoes",
+        "laatste berichten",
+        "recente berichten",
+        "laatste artikelen",
+        "ultimes entrades",
+        "entrades recents",
+        "ultimes noticies"
+    ],
+    "rules": "One self-closing comment, no inner blocks. It fills itself with the site's newest published posts, each title linking to its post, so never write titles or links. Write only the attributes wanted: \"postsToShow\" (how many, default 5); \"displayPostDate\", \"displayAuthor\" and \"displayFeaturedImage\" as true; \"displayPostContent\":true with \"excerptLength\" (words, default 55) for an excerpt under each title. Never set \"categories\", \"selectedAuthor\", \"layout\", \"order\", \"orderBy\" or \"displayPostContentRadio\". A heading goes above it. For a grid or cards of posts use spectra/post.",
+    "example": "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Latest news</h2>\n<!-- /wp:heading -->\n\n<!-- wp:latest-posts {\"postsToShow\":3,\"displayPostDate\":true} /-->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">From the blog</h2>\n<!-- /wp:heading -->\n\n<!-- wp:latest-posts {\"postsToShow\":2,\"displayPostContent\":true,\"excerptLength\":20} /-->"
+}

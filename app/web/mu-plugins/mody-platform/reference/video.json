@@ -1,0 +1,34 @@
+{
+    "family": "video",
+    "label": "Video",
+    "top": "core/video",
+    "blocks": [
+        "core/video"
+    ],
+    "when": "a video file from the media library, played on the page",
+    "media": true,
+    "keywords": [
+        "video",
+        "videos",
+        "videoclip",
+        "videoclips",
+        "movie",
+        "movies",
+        "film",
+        "films",
+        "filmpje",
+        "filmpjes",
+        "filme",
+        "filmes",
+        "pelicula",
+        "peliculas",
+        "filmato",
+        "filmati",
+        "pel licula",
+        "pel licules",
+        "mp4",
+        "webm"
+    ],
+    "rules": "Use only a video from \"The site's media library\" (a \"video\" line): its exact address as \"src\" in the HTML and its ID as \"id\" in the comment, like {\"id\":2480}. The comment holds only \"id\"; controls, src, poster and the caption are HTML. Keep \"controls\"; no autoplay, loop, muted or tracks. A caption is the figcaption after the video. A poster is optional: only an image from the list, as poster=\"address\" between controls and src. If no video is in the list, write no video block.",
+    "example": "<!-- wp:video -->\n<figure class=\"wp-block-video\"><video controls src=\"/web/uploads/example.mp4\"></video><figcaption class=\"wp-element-caption\">A morning in the workshop</figcaption></figure>\n<!-- /wp:video -->"
+}

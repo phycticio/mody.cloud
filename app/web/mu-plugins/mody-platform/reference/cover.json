@@ -1,0 +1,34 @@
+{
+    "family": "cover",
+    "label": "Cover",
+    "top": "core/cover",
+    "blocks": [
+        "core/cover"
+    ],
+    "when": "a banner or hero: a headline and text over a background picture, with an optional button",
+    "media": true,
+    "keywords": [
+        "hero",
+        "cover",
+        "banner",
+        "hero image",
+        "hero section",
+        "background image",
+        "imagen de fondo",
+        "portada",
+        "banniere",
+        "image de fond",
+        "titelbild",
+        "hintergrundbild",
+        "immagine di sfondo",
+        "copertina",
+        "imagem de fundo",
+        "capa",
+        "achtergrondafbeelding",
+        "achtergrondfoto",
+        "imatge de fons",
+        "baner"
+    ],
+    "rules": "A banner of text over a picture, a block of a section. Picture only from \"The site's media library\": \"url\" is its exact address and \"id\" its ID; the img has the same src, alt=\"\" and class=\"wp-block-cover__image-background wp-image-<ID>\". The example's address is a stand-in without an id: replace it; if none fits, write no cover. Overlay: \"overlayColor\" contrast or primary, \"dimRatio\" 50 to 80 in tens; the span after the img has has-<slug>-background-color, has-background-dim-<dimRatio> (none at 50) and has-background-dim. Inside: heading, paragraph, spectra/buttons. No other attributes.",
+    "example": "<!-- wp:cover {\"url\":\"/mody-placeholder/1200x800.svg\",\"dimRatio\":60,\"overlayColor\":\"contrast\",\"isUserOverlayColor\":true,\"layout\":{\"type\":\"constrained\"}} -->\n<div class=\"wp-block-cover\"><img class=\"wp-block-cover__image-background\" alt=\"\" src=\"/mody-placeholder/1200x800.svg\" data-object-fit=\"cover\"/><span aria-hidden=\"true\" class=\"wp-block-cover__background has-contrast-background-color has-background-dim-60 has-background-dim\"></span><div class=\"wp-block-cover__inner-container\"><!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">Bikes fixed while you wait</h1>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Bring it in before ten and ride it home tonight.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:spectra/buttons -->\n<!-- wp:spectra/button {\"text\":\"Book a repair\",\"linkURL\":\"#contact\",\"backgroundColor\":\"accent\",\"textColor\":\"base\"} /-->\n<!-- /wp:spectra/buttons --></div></div>\n<!-- /wp:cover -->"
+}

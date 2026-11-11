@@ -1,0 +1,24 @@
+{
+    "family": "content",
+    "label": "Text element",
+    "top": "spectra/content",
+    "blocks": [
+        "spectra/content"
+    ],
+    "when": "a piece of text inside a list item or a counter (for ordinary text on a page use heading and paragraph instead)",
+    "keywords": [
+        "content block",
+        "spectra content",
+        "html tag",
+        "tagname",
+        "bloque de contenido",
+        "bloc de contenu",
+        "inhaltsblock",
+        "blocco di contenuto",
+        "bloco de conteudo",
+        "inhoudsblok",
+        "bloc de contingut"
+    ],
+    "rules": "A text element with no HTML of its own, self-closing. Use it only inside a spectra list item or counter, as their examples show. For any other text on a page write heading and paragraph blocks, never this block. \"text\" is plain text, no HTML tags. Always \"isRootBlock\":false. \"tagName\" is the element: p (the default, leave it out) for a sentence, h3 or h4 for a short title, span for a few words. \"textColor\" is a palette slug. Set nothing else.",
+    "example": "<!-- wp:spectra/content {\"tagName\":\"h4\",\"text\":\"Puncture repair\",\"isRootBlock\":false} /-->\n\n<!-- wp:spectra/content {\"text\":\"We find the hole, patch the tube and check the tyre before you leave.\",\"isRootBlock\":false} /-->"
+}

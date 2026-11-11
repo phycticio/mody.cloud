@@ -49,6 +49,7 @@ Spectra\SpectraLoader::boot();
  * WordPress runs.
  */
 Design\Patterns::serve_placeholder();
+Users\Avatars::serve_initials(); // Initials in place of Gravatar (tickets/network-profile-local-avatars.md).
 add_filter( 'should_load_remote_block_patterns', '__return_false' );
 add_action( 'after_setup_theme', array( Design\Patterns::class, 'remove_core_patterns' ), 20 );
 add_action( 'rest_api_init', array( Design\Patterns::class, 'register' ), 5 );
@@ -158,8 +159,9 @@ add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\Agen
 /*
  * Member sites (every site but the main one, ticket M4-01): no plugin
  * installs or theme changes for members, and pages, patterns and menus open
- * in the Site Editor. Super admins are not affected. Members switch plugins
- * on core's Plugins screen, which never shows them the hidden ones (M4-02).
+ * in the Site Editor. Super admins are not affected. The hidden plugins stay
+ * out of every list and switch (M4-02), although nobody has a Plugins screen
+ * since 2026-11-11 (below).
  */
 add_filter( 'map_meta_cap', array( Gating\MemberSite::class, 'map_meta_cap' ), 10, 4 );
 add_filter( 'all_plugins', array( Gating\MemberPlugins::class, 'filter_screen' ) );
@@ -168,6 +170,45 @@ add_filter( 'rest_pre_dispatch', array( Gating\MemberPlugins::class, 'refuse_res
 add_filter( 'rest_request_after_callbacks', array( Gating\MemberPlugins::class, 'filter_rest_list' ), 10, 3 );
 add_action( 'load-post.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
 add_action( 'load-post-new.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
+
+/*
+ * No Plugins or Connectors screens for anyone, super admins included
+ * (decided 2026-11-11, tickets/hide-plugins-and-connectors.md): plugins
+ * change only through Composer, ./bin/deploy and WP-CLI, and connector keys
+ * only through the environment.
+ */
+add_action( 'admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
+add_action( 'network_admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
+add_action( 'admin_bar_menu', array( Gating\HiddenScreens::class, 'hide_toolbar' ), 999 );
+add_action( 'wp_dashboard_setup', array( Gating\HiddenScreens::class, 'hide_widgets' ), 999 );
+add_action( 'admin_init', array( Gating\HiddenScreens::class, 'refuse_screens' ) );
+add_filter( 'register_setting_args', array( Gating\HiddenScreens::class, 'hide_settings' ), 10, 4 );
+add_filter( 'rest_pre_dispatch', array( Gating\HiddenScreens::class, 'refuse_routes' ), 10, 3 );
+
+/*
+ * One profile for the network, edited on the main site only, and pictures
+ * stored there instead of Gravatar (decided 2026-11-11,
+ * tickets/network-profile-local-avatars.md).
+ */
+add_action( 'load-profile.php', array( Users\NetworkProfile::class, 'redirect' ) );
+add_action( 'load-user-edit.php', array( Users\NetworkProfile::class, 'redirect' ) );
+add_filter( 'edit_profile_url', array( Users\NetworkProfile::class, 'profile_url' ), 10, 2 );
+add_filter( 'allowed_redirect_hosts', array( Users\NetworkProfile::class, 'allow_main_host' ) );
+add_filter( 'rest_pre_dispatch', array( Users\NetworkProfile::class, 'refuse_rest_writes' ), 10, 3 );
+add_filter( 'pre_get_avatar_data', array( Users\Avatars::class, 'avatar_data' ), 10, 2 );
+add_filter( 'avatar_defaults', array( Users\Avatars::class, 'defaults' ) );
+add_action( 'user_edit_form_tag', array( Users\Avatars::class, 'form_tag' ) );
+add_filter( 'user_profile_picture_description', array( Users\Avatars::class, 'description' ), 10, 2 );
+add_action( 'show_user_profile', array( Users\Avatars::class, 'section' ) );
+add_action( 'edit_user_profile', array( Users\Avatars::class, 'section' ) );
+add_action( 'personal_options_update', array( Users\Avatars::class, 'save' ) );
+add_action( 'edit_user_profile_update', array( Users\Avatars::class, 'save' ) );
+add_filter( 'ajax_query_attachments_args', array( Users\Avatars::class, 'hide_from_media' ) );
+add_filter( 'rest_attachment_query', array( Users\Avatars::class, 'hide_from_media' ) );
+add_action( 'delete_attachment', array( Users\Avatars::class, 'forget_attachment' ) );
+add_action( 'wpmu_delete_user', array( Users\Avatars::class, 'forget_user' ) );
+add_action( 'delete_user', array( Users\Avatars::class, 'forget_user' ) );
+add_filter( 'wp_is_application_passwords_available_for_user', array( Users\NetworkProfile::class, 'application_passwords' ), 10, 2 );
 
 /*
  * Updates only through the repository (decided 2026-11-08): nobody updates

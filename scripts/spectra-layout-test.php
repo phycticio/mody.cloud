@@ -49,7 +49,8 @@ $containers = static function ( string $markup ): array {
 			if ( null === $block['blockName'] ) {
 				continue;
 			}
-			if ( SpectraLayout::BLOCK === $block['blockName'] ) {
+			// Layout containers only: the one inside a Spectra list item (2026-11-11) is part of the list.
+			if ( SpectraLayout::BLOCK === $block['blockName'] && ( null === $parent || SpectraLayout::BLOCK === $parent['blockName'] || ! str_starts_with( (string) $parent['blockName'], 'spectra/' ) ) ) {
 				$found[] = array(
 					'depth'  => $depth,
 					'parent' => $parent,
@@ -250,7 +251,7 @@ if ( $others ) {
 			}
 		}
 	);
-	$check( 'insert_page: the example with an ID per container', '' !== $saved && preg_replace( '/,"spectraId":"spectra-[0-9a-z-]+"/', '', $saved ) === SystemPrompt::EXAMPLE && substr_count( $saved, '"spectraId"' ) === count( $containers( SystemPrompt::EXAMPLE ) ) );
+	$check( 'insert_page: the example with an ID per Spectra block', '' !== $saved && preg_replace( '/ \{"spectraId":"spectra-[0-9a-z-]+"\}|,"spectraId":"spectra-[0-9a-z-]+"/', '', $saved ) === SystemPrompt::EXAMPLE && substr_count( $saved, '"spectraId"' ) === preg_match_all( '#<!-- wp:spectra/#', SystemPrompt::EXAMPLE ) );
 	$response = wp_remote_get(
 		'https://' . get_site( get_main_site_id() )->domain . $path,
 		array(

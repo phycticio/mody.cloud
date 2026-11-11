@@ -296,6 +296,8 @@
 			return id ? [ [ 'root', 'globalStyles', id ] ] : [];
 		},
 		site: () => [ [ 'root', 'site' ], [ 'root', '__unstableBase' ] ],
+		// The menus the editor has loaded (mody/update-menu, 2026-11-11).
+		navigation: () => ( config.menu ? [ [ 'postType', 'wp_navigation', config.menu ] ] : [] ),
 	};
 
 	// Loads those records again, so the open screen and the canvas show the change now,

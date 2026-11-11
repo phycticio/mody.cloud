@@ -1,0 +1,36 @@
+{
+    "family": "pullquote",
+    "label": "Pullquote",
+    "top": "core/pullquote",
+    "blocks": [
+        "core/pullquote"
+    ],
+    "when": "one short line the page wants to stand out (a motto, the founder's words, a highlighted quote)",
+    "keywords": [
+        "pullquote",
+        "pullquotes",
+        "pull quote",
+        "highlighted quote",
+        "featured quote",
+        "big quote",
+        "cita destacada",
+        "cita resaltada",
+        "frase destacada",
+        "cita grande",
+        "citation mise en avant",
+        "citation en exergue",
+        "citation mise en evidence",
+        "hervorgehobenes zitat",
+        "hervorgehobene zitate",
+        "grosses zitat",
+        "citazione in evidenza",
+        "citazione evidenziata",
+        "citacao em destaque",
+        "citacao destacada",
+        "uitgelicht citaat",
+        "opvallend citaat",
+        "groot citaat"
+    ],
+    "rules": "One core/pullquote per quote, no inner blocks, saved as HTML: figure, blockquote, the quote in <p>, the author in <cite> after it (leave <cite> out when unknown). Only for one short line that should stand out, never for body text. Use the member's own words: never invent a customer's quote or name. Centered: \"style\":{\"typography\":{\"textAlign\":\"center\"}} first, and class has-text-align-center first on the figure. Colors only as palette slugs: \"backgroundColor\" and \"textColor\", with the classes as in the example. No other attributes (no \"textAlign\" of its own).",
+    "example": "<!-- wp:pullquote -->\n<figure class=\"wp-block-pullquote\"><blockquote><p>We bake everything the same morning, by hand, and nothing waits on a shelf.</p><cite>The bakery team</cite></blockquote></figure>\n<!-- /wp:pullquote -->\n\n<!-- wp:pullquote {\"style\":{\"typography\":{\"textAlign\":\"center\"}},\"backgroundColor\":\"primary\",\"textColor\":\"base\"} -->\n<figure class=\"wp-block-pullquote has-text-align-center has-base-color has-primary-background-color has-text-color has-background\"><blockquote><p>Good bread cannot be rushed.</p><cite>Our baker</cite></blockquote></figure>\n<!-- /wp:pullquote -->"
+}

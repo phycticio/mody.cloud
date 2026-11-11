@@ -1,0 +1,39 @@
+{
+    "family": "categories",
+    "label": "Categories",
+    "top": "core/categories",
+    "blocks": [
+        "core/categories"
+    ],
+    "when": "the post categories as a list or a dropdown, to browse the blog by topic",
+    "keywords": [
+        "category list",
+        "list of categories",
+        "blog categories",
+        "post categories",
+        "browse by category",
+        "categories dropdown",
+        "lista de categorias",
+        "listado de categorias",
+        "categorias del blog",
+        "categorias de las entradas",
+        "liste des categories",
+        "liste de categories",
+        "categories du blog",
+        "liste der kategorien",
+        "kategorienliste",
+        "blog kategorien",
+        "elenco delle categorie",
+        "elenco categorie",
+        "categorie del blog",
+        "lista das categorias",
+        "categorias do blog",
+        "lijst met categorieen",
+        "categorielijst",
+        "blogcategorieen",
+        "llista de categories",
+        "categories del blog"
+    ],
+    "rules": "One self-closing comment, no inner blocks. It lists the site's categories that have posts, each linking to its page, so never write category names or links. \"showPostCounts\":true adds the number of posts; \"showHierarchy\":true nests subcategories; \"showOnlyTopLevel\":true lists only the top ones. \"displayAsDropdown\":true shows a select instead of a list, with \"label\" as its text (default \"Categories\"; \"showLabel\":false hides it). A list gets a heading above it, a dropdown does not. Never set \"taxonomy\" or \"showEmpty\".",
+    "example": "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Topics</h2>\n<!-- /wp:heading -->\n\n<!-- wp:categories {\"showPostCounts\":true} /-->\n\n<!-- wp:categories {\"displayAsDropdown\":true,\"label\":\"Browse by topic\"} /-->"
+}

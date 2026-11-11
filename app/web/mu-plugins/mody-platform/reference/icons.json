@@ -1,0 +1,39 @@
+{
+    "family": "icons",
+    "label": "Icons",
+    "top": "spectra/icons",
+    "blocks": [
+        "spectra/icons",
+        "spectra/icon"
+    ],
+    "when": "a row of small icons: social network links, contact details or feature symbols",
+    "keywords": [
+        "icon",
+        "icons",
+        "icono",
+        "iconos",
+        "icone",
+        "icones",
+        "icona",
+        "icoon",
+        "iconen",
+        "pictogram",
+        "pictogrammen",
+        "social icons",
+        "social links",
+        "social media",
+        "social network",
+        "social networks",
+        "redes sociales",
+        "redes sociais",
+        "reseaux sociaux",
+        "soziale medien",
+        "soziale netzwerke",
+        "reti sociali",
+        "sociale media",
+        "xarxes socials",
+        "font awesome"
+    ],
+    "rules": "One spectra/icon per icon; \"icon\" is a Font Awesome name without \"fa-\" (unknown names show nothing): phone,envelope,location-dot,clock,star,check,heart,truck,leaf,user,users,calendar,cart-shopping,gift,shield,award,handshake,lightbulb,comments,thumbs-up,camera,wrench,house,utensils,credit-card,recycle,bolt,globe,rocket,car,bicycle,paw,tag,facebook,instagram,linkedin,x-twitter,youtube,tiktok,whatsapp. \"size\" like \"40px\". Icons that mean something (social, contact) get \"accessibilityMode\":\"svg\" and an \"accessibilityLabel\". \"linkURL\" is \"#\" until the member gives the address: never invent one.",
+    "example": "<!-- wp:spectra/icons {\"layout\":{\"type\":\"flex\",\"flexWrap\":\"wrap\",\"justifyContent\":\"center\",\"verticalAlignment\":\"center\"}} -->\n<!-- wp:spectra/icon {\"icon\":\"facebook\",\"size\":\"40px\",\"accessibilityMode\":\"svg\",\"accessibilityLabel\":\"Facebook\",\"linkURL\":\"#\",\"textColor\":\"primary\"} /-->\n\n<!-- wp:spectra/icon {\"icon\":\"instagram\",\"size\":\"40px\",\"accessibilityMode\":\"svg\",\"accessibilityLabel\":\"Instagram\",\"linkURL\":\"#\",\"textColor\":\"primary\"} /-->\n\n<!-- wp:spectra/icon {\"icon\":\"youtube\",\"size\":\"40px\",\"accessibilityMode\":\"svg\",\"accessibilityLabel\":\"YouTube\",\"linkURL\":\"#\",\"textColor\":\"primary\"} /-->\n<!-- /wp:spectra/icons -->"
+}

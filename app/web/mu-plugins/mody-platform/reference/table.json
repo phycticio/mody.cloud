@@ -1,0 +1,43 @@
+{
+    "family": "table",
+    "label": "Table",
+    "top": "core/table",
+    "blocks": [
+        "core/table"
+    ],
+    "when": "facts that line up in rows and columns (opening hours, a price list, a comparison)",
+    "keywords": [
+        "table",
+        "tables",
+        "opening hours",
+        "price list",
+        "horaris",
+        "tabla",
+        "tablas",
+        "horario",
+        "horarios",
+        "lista de precios",
+        "tableau",
+        "horaires",
+        "liste de prix",
+        "tabelle",
+        "tabellen",
+        "offnungszeiten",
+        "oeffnungszeiten",
+        "preisliste",
+        "tabella",
+        "orari",
+        "listino prezzi",
+        "tabela",
+        "lista de precos",
+        "tabel",
+        "openingstijden",
+        "prijslijst",
+        "taula",
+        "taules",
+        "horari",
+        "llista de preus"
+    ],
+    "rules": "One core/table block, no inner blocks, saved as HTML: figure, table, thead (header row), tbody, optional tfoot, one tr per row, the same cells in each row. Header cells are th, the rest td (a comparison row may start with <th scope=\"row\">); text is plain, no <p>. Keep class has-fixed-layout on the table. Stripes: \"className\":\"is-style-stripes\" and that class on the figure. Caption: <figcaption class=\"wp-element-caption\"> after the table. Right-align: class has-text-align-right and data-align=\"right\" on the cells. No colors. Never invent prices or hours: use the member's, or [price] or [hours].",
+    "example": "<!-- wp:table -->\n<figure class=\"wp-block-table\"><table class=\"has-fixed-layout\"><thead><tr><th>Day</th><th>Opening hours</th></tr></thead><tbody><tr><td>Monday to Friday</td><td>[hours]</td></tr><tr><td>Saturday</td><td>[hours]</td></tr><tr><td>Sunday</td><td>Closed</td></tr></tbody></table></figure>\n<!-- /wp:table -->\n\n<!-- wp:table {\"className\":\"is-style-stripes\"} -->\n<figure class=\"wp-block-table is-style-stripes\"><table class=\"has-fixed-layout\"><thead><tr><th>Service</th><th class=\"has-text-align-right\" data-align=\"right\">Price</th></tr></thead><tbody><tr><td>Basic service</td><td class=\"has-text-align-right\" data-align=\"right\">[price]</td></tr><tr><td>Full service</td><td class=\"has-text-align-right\" data-align=\"right\">[price]</td></tr></tbody></table><figcaption class=\"wp-element-caption\">Parts are charged extra.</figcaption></figure>\n<!-- /wp:table -->"
+}

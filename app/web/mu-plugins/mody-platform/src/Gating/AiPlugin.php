@@ -167,7 +167,8 @@ final class AiPlugin {
 		if ( null !== $result || ! $request instanceof WP_REST_Request || ! self::locked() ) {
 			return $result;
 		}
-		$route = (string) $request->get_route();
+		// The REST server matches routes regardless of case, so this does too.
+		$route = strtolower( untrailingslashit( (string) $request->get_route() ) );
 		foreach ( self::ROUTES as $locked ) {
 			if ( $route === $locked || str_starts_with( $route, $locked . '/' ) ) {
 				return new WP_Error( 'mody_locked', __( 'This is not available on your site.', 'mody_cloud' ), array( 'status' => 403 ) );

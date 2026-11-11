@@ -44,7 +44,8 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 };
 $message  = static fn( $result ): string => is_wp_error( $result ) ? $result->get_error_code() . ': ' . $result->get_error_message() : '';
 // Saved pages carry a spectraId per Spectra block (SpectraLayout::with_ids()).
-$without_ids = static fn( string $content ): string => (string) preg_replace( '/,"spectraId":"spectra-[0-9a-z-]+"/', '', $content );
+// A block whose only attribute is its ID has it alone: {"spectraId":"…"}.
+$without_ids = static fn( string $content ): string => (string) preg_replace( '/ \{"spectraId":"spectra-[0-9a-z-]+"\}|,"spectraId":"spectra-[0-9a-z-]+"/', '', $content );
 
 global $wpdb;
 $admins = get_super_admins();
