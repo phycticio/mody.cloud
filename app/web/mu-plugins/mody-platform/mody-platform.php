@@ -158,8 +158,9 @@ add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\Agen
 /*
  * Member sites (every site but the main one, ticket M4-01): no plugin
  * installs or theme changes for members, and pages, patterns and menus open
- * in the Site Editor. Super admins are not affected. Members switch plugins
- * on core's Plugins screen, which never shows them the hidden ones (M4-02).
+ * in the Site Editor. Super admins are not affected. The hidden plugins stay
+ * out of every list and switch (M4-02), although nobody has a Plugins screen
+ * since 2026-11-11 (below).
  */
 add_filter( 'map_meta_cap', array( Gating\MemberSite::class, 'map_meta_cap' ), 10, 4 );
 add_filter( 'all_plugins', array( Gating\MemberPlugins::class, 'filter_screen' ) );
@@ -168,6 +169,20 @@ add_filter( 'rest_pre_dispatch', array( Gating\MemberPlugins::class, 'refuse_res
 add_filter( 'rest_request_after_callbacks', array( Gating\MemberPlugins::class, 'filter_rest_list' ), 10, 3 );
 add_action( 'load-post.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
 add_action( 'load-post-new.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
+
+/*
+ * No Plugins or Connectors screens for anyone, super admins included
+ * (decided 2026-11-11, tickets/hide-plugins-and-connectors.md): plugins
+ * change only through Composer, ./bin/deploy and WP-CLI, and connector keys
+ * only through the environment.
+ */
+add_action( 'admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
+add_action( 'network_admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
+add_action( 'admin_bar_menu', array( Gating\HiddenScreens::class, 'hide_toolbar' ), 999 );
+add_action( 'wp_dashboard_setup', array( Gating\HiddenScreens::class, 'hide_widgets' ), 999 );
+add_action( 'admin_init', array( Gating\HiddenScreens::class, 'refuse_screens' ) );
+add_filter( 'register_setting_args', array( Gating\HiddenScreens::class, 'hide_settings' ), 10, 4 );
+add_filter( 'rest_pre_dispatch', array( Gating\HiddenScreens::class, 'refuse_routes' ), 10, 3 );
 
 /*
  * Updates only through the repository (decided 2026-11-08): nobody updates

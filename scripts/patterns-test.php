@@ -149,6 +149,8 @@ $used       = array_unique( array_merge( ...array_map( static fn( $p ) => (array
 $check( 'every category used is registered', ! array_diff( $used, $categories ), implode( ', ', array_diff( $used, $categories ) ) );
 $directory = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/pattern-directory/patterns' ) );
 $check( 'the Pattern Directory proxy: refused to the member', 403 === $directory->get_status() && 'mody_pattern_directory_off' === ( $directory->get_data()['code'] ?? '' ), (string) $directory->get_status() );
+$upper = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/Pattern-Directory/patterns' ) );
+$check( '...in any casing (the REST server ignores it)', 403 === $upper->get_status(), (string) $upper->get_status() );
 restore_current_blog();
 $admins = get_super_admins();
 wp_set_current_user( get_user_by( 'login', $admins[0] )->ID );

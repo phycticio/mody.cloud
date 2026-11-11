@@ -169,7 +169,8 @@ foreach ( array(
 }
 wp_cache_flush(); // The requests ran in other processes.
 $written = array_filter( $caches, static fn( string $cache ): bool => false !== get_site_transient( $cache ) );
-$check( 'four admin screens open', array( 200, 200, 200, 200 ) === $codes, implode( ' ', $codes ) );
+// The Plugins screens are refused to everyone since 2026-11-11 (tickets/hide-plugins-and-connectors.md).
+$check( 'two admin screens open, the two Plugins screens refused', array( 200, 403, 200, 403 ) === $codes, implode( ' ', $codes ) );
 $check( '... and no update check ran (the caches stay empty)', ! $written, implode( ', ', $written ) );
 switch_to_blog( $site );
 $still = array_filter( Updates::EVENTS, static fn( string $event ): bool => (bool) wp_next_scheduled( $event ) );
@@ -202,8 +203,8 @@ set_site_transient(
 		'translations' => array(),
 	)
 );
-$out = $http( $main_host, network_admin_url( 'plugins.php' ), $as_super );
-$check( 'a fake update: the network Plugins screen lists mcp-adapter', 200 === $out['code'] && str_contains( $out['body'], 'data-plugin="' . $platform . '"' ), (string) $out['code'] );
+$out = $http( $main_host, network_admin_url( 'index.php' ), $as_super );
+$check( 'a fake update: the network dashboard opens', 200 === $out['code'], (string) $out['code'] );
 $check( '... with no update notice and no update count', ! str_contains( $out['body'], 'There is a new version of' ) && ! preg_match( '/class="update-plugins count-[1-9]/', $out['body'] ) );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

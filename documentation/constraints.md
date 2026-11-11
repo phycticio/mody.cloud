@@ -15,7 +15,7 @@ These eight rules come from the briefing (§11) and apply to every change, human
 
 | Rule | Practical consequence | Read |
 | --- | --- | --- |
-| 1 | No third-party CDNs or fonts in the theme. EU or Swiss providers only (Infomaniak, Hetzner). Review any new plugin or service for US data flows before adding it. Two temporary, cost-driven exceptions are in production: Cloudflare and Wordfence. | [architecture.md](architecture.md#temporary-exceptions-to-rule-1) |
+| 1 | No third-party CDNs or fonts in the theme. EU or Swiss providers only (Infomaniak, Hetzner). Review any new plugin or service for US data flows before adding it. Two temporary, cost-driven exceptions are in production: Cloudflare and Wordfence. The rule binds what the platform runs and loads by itself, not what a member chooses to embed on their own site (decided 2026-11-11: core's embeds stay available). | [architecture.md](architecture.md#temporary-exceptions-to-rule-1) |
 | 2, 3 | Theme templates and agent output use the same serialized format. Validate with a parser, never by eye. | [ai-engine.md](ai-engine.md), [theme-development.md](theme-development.md) |
 | 4 | Every prompt is built with `SystemPrompt::brand_context()`, read from the site's own settings; no path calls the model without it. | [brand-profile.md](brand-profile.md) |
 | 5 | Prefer the smallest change that works. Raise it if an estimate exceeds 2 hours. | [roadmap.md](roadmap.md) |

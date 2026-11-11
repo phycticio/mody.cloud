@@ -1,7 +1,8 @@
 <?php
 /**
- * Tests plugins on member sites (ticket M4-02, part A1): members use core's
- * Plugins screen, which never shows them the hidden plugins.
+ * Tests plugins on member sites (ticket M4-02, part A1): which plugins are
+ * hidden from members, and, since 2026-11-11, that nobody has a Plugins or
+ * Connectors screen (tickets/hide-plugins-and-connectors.md).
  *
  * Run from the repository root:
  *
@@ -16,18 +17,14 @@
  *
  * 1. The rule: what is hidden (the platform plugins, network-active ones),
  *    and what the member, an editor and a super admin may do.
- * 2. REST (as the member, internal requests): the list leaves hidden
- *    plugins out; their routes answer "not found"; the fixture switches on
- *    and off; install and delete refused. Another plugin's route that
- *    checks only `activate_plugins` (Spectra's onboarding API) switches the
- *    fixture but never mcp-adapter: hidden plugins keep their state.
- * 3. Over HTTP on the member site: the screen and its menu list the
- *    fixture and no hidden plugin, with no Add Plugin or Must-Use; the
- *    row's Activate link and the bulk Deactivate work; a crafted bulk
- *    request, single link or deactivation for a hidden plugin is refused;
- *    an editor is refused.
- * 4. Unchanged: the main site's screen refuses the member; a super admin
- *    sees the platform plugins.
+ * 2. REST: the plugin and block directory routes refused to a member and a
+ *    super admin; Spectra's onboarding API (it checks only
+ *    `activate_plugins`) never switches a hidden plugin. The settings route
+ *    shows no connector key and ignores writes to one; members may not
+ *    write the `ai` plugin's options there, super admins may.
+ * 3. Over HTTP: the Plugins, Add Plugin and Connectors screens, the network
+ *    Plugins screen and the ai plugin's connector approvals refused; no
+ *    menu or toolbar entry for them, for a member or a super admin.
  *
  * Everything is removed at the end: the fixture (switched off first), the
  * users. No model call.
@@ -151,9 +148,8 @@ $check( 'super admin: every plugin, on the member site too', $can( $super, $site
 
 // 2. REST --------------------------------------------------------------------------
 
-echo "\nREST (member, member site)\n";
+echo "\nREST (member site)\n";
 switch_to_blog( $site );
-wp_set_current_user( $member );
 $rest = static function ( string $method, string $route, array $params = array() ): WP_REST_Response {
 	$request = new WP_REST_Request( $method, $route );
 	foreach ( $params as $key => $value ) {
@@ -161,42 +157,61 @@ $rest = static function ( string $method, string $route, array $params = array()
 	}
 	return rest_ensure_response( rest_do_request( $request ) );
 };
-$route  = static fn( string $file ): string => '/wp/v2/plugins/' . preg_replace( '/\.php$/', '', $file );
-$out    = $rest( 'GET', '/wp/v2/plugins' );
-$listed = array_map( static fn( $item ): string => $item['plugin'] . '.php', (array) $out->get_data() );
-sort( $listed );
-$check( 'the list: exactly the visible plugins', 200 === $out->get_status() && $listed === $visible, implode( ', ', $listed ) );
-$out = $rest( 'GET', $route( $platform ) );
-$check( 'a platform plugin: not found', 404 === $out->get_status(), (string) $out->get_status() );
-$out = $rest( 'POST', $route( $platform ), array( 'status' => 'active' ) );
-$check( '... and not activated', 404 === $out->get_status() && ! in_array( $platform, $active_on( $site ), true ), (string) $out->get_status() );
-$out = $rest( 'GET', $route( $network ) );
-$check( 'a network-active plugin: not found', 404 === $out->get_status(), (string) $out->get_status() );
-$out = $rest( 'POST', $route( $fixture ), array( 'status' => 'active' ) );
-$check( 'the fixture: switched on', 200 === $out->get_status() && in_array( $fixture, $active_on( $site ), true ), (string) $out->get_status() );
-$out = $rest( 'POST', $route( $fixture ), array( 'status' => 'inactive' ) );
-$check( '... and off', 200 === $out->get_status() && ! in_array( $fixture, $active_on( $site ), true ), (string) $out->get_status() );
-$out = $rest( 'POST', '/wp/v2/plugins', array( 'slug' => 'akismet' ) );
-$check( 'install from wordpress.org: refused', 403 === $out->get_status(), (string) $out->get_status() );
-$out = $rest( 'DELETE', $route( $fixture ) );
-$check( 'delete the fixture: refused', 403 === $out->get_status() && is_file( WP_PLUGIN_DIR . '/' . $fixture ), (string) $out->get_status() );
+$route = static fn( string $file ): string => '/wp/v2/plugins/' . preg_replace( '/\.php$/', '', $file );
+// Nobody has the plugin routes since 2026-11-11 (tickets/hide-plugins-and-connectors.md).
+foreach ( array( 'member' => $member, 'super admin' => $super ) as $who => $user_id ) {
+	wp_set_current_user( $user_id );
+	$codes = array(
+		$rest( 'GET', '/wp/v2/plugins' )->get_status(),
+		$rest( 'POST', $route( $fixture ), array( 'status' => 'active' ) )->get_status(),
+		$rest( 'POST', '/wp/v2/plugins', array( 'slug' => 'akismet' ) )->get_status(),
+		$rest( 'GET', '/wp/v2/block-directory/search', array( 'term' => 'x' ) )->get_status(),
+	);
+	$check( "$who: list, switch, install, block directory refused", array( 403, 403, 403, 403 ) === $codes && ! in_array( $fixture, $active_on( $site ), true ), implode( ' ', $codes ) );
+}
+// Found by the review (2026-11-11): the REST server matches routes regardless of case.
+foreach ( array( 'member' => $member, 'super admin' => $super ) as $who => $user_id ) {
+	wp_set_current_user( $user_id );
+	$codes = array(
+		$rest( 'GET', '/wp/v2/Plugins' )->get_status(),
+		$rest( 'GET', '/WP/V2/PLUGINS/' )->get_status(),
+		$rest( 'GET', '/wp/v2/Block-Directory/search', array( 'term' => 'x' ) )->get_status(),
+		$rest( 'GET', '/one-onboarding/v1/plugin-status' )->get_status(),
+	);
+	$check( "$who: other casings and Spectra's plugin routes refused too", array( 403, 403, 403, 403 ) === $codes, implode( ' ', $codes ) );
+}
+wp_set_current_user( $member );
+$out = $rest( 'POST', '/wp/v2/Settings', array( 'wpai_feature_summarization_enabled' => '1' ) );
+$check( 'member: the ai plugin\'s options refused at /wp/v2/Settings too', 403 === $out->get_status(), (string) $out->get_status() );
 $out = $rest( 'POST', '/one-onboarding/v1/activate-plugin', array( 'plugin' => 'mcp-adapter' ) );
 $check( 'Spectra\'s onboarding API: mcp-adapter stays off', ! in_array( $platform, $active_on( $site ), true ), $out->get_status() . ' ' . wp_json_encode( $out->get_data() ) );
-$out = $rest( 'POST', '/one-onboarding/v1/activate-plugin', array( 'plugin' => 'mody-test-plugin' ) );
-$check( '... while it still switches the fixture on', in_array( $fixture, $active_on( $site ), true ), (string) $out->get_status() );
 deactivate_plugins( $fixture );
 $check( 'hidden plugins keep their state, both ways', array( $fixture ) === MemberPlugins::keep_hidden( array( $fixture, $platform ), array() ) && array( $platform ) === MemberPlugins::keep_hidden( array(), array( $fixture, $platform ) ) );
 wp_set_current_user( 0 );
 $check( '... except without a logged-in user (WP-CLI, cron)', array( $fixture, $platform ) === MemberPlugins::keep_hidden( array( $fixture, $platform ), array() ) );
+
+// The settings route: no connector keys for anyone, no `ai` plugin options for members.
 wp_set_current_user( $super );
-$listed = array_map( static fn( $item ): string => $item['plugin'] . '.php', (array) $rest( 'GET', '/wp/v2/plugins' )->get_data() );
-$check( 'super admin: the list shows platform plugins', in_array( $platform, $listed, true ) );
+$settings = (array) $rest( 'GET', '/wp/v2/settings' )->get_data();
+$keys     = array_keys( $settings );
+$check( 'settings: no connector key, for a super admin either', ! preg_grep( '/^connectors_/', $keys ) && isset( $settings['title'] ), implode( ', ', preg_grep( '/^connectors_/', $keys ) ) );
+$before = get_option( 'connectors_ai_infomaniak_api_key', '' );
+$out    = $rest( 'POST', '/wp/v2/settings', array( 'connectors_ai_infomaniak_api_key' => 'mody-test-key' ) );
+$check( '... and a write leaves it alone', get_option( 'connectors_ai_infomaniak_api_key', '' ) === $before, (string) $out->get_status() );
+$wpai = (string) array_values( preg_grep( '/^wpai_/', $keys ) )[0];
+$out  = $rest( 'POST', '/wp/v2/settings', array( $wpai => $settings[ $wpai ] ) );
+$check( '... a super admin may still save the ai plugin\'s options', 200 === $out->get_status(), $wpai . ' ' . $out->get_status() );
+wp_set_current_user( $member );
+$out = $rest( 'POST', '/wp/v2/settings', array( $wpai => $settings[ $wpai ] ) );
+$check( '... a member may not', 403 === $out->get_status(), (string) $out->get_status() );
+$out = $rest( 'POST', '/wp/v2/settings', array( 'title' => get_option( 'blogname' ) ) );
+$check( '... while the member saves other settings', 200 === $out->get_status(), (string) $out->get_status() );
 wp_set_current_user( 0 );
 restore_current_blog();
 
 // 3. Over HTTP ----------------------------------------------------------------------
 
-echo "\nOver HTTP (member site)\n";
+echo "\nOver HTTP\n";
 $host   = get_site( $site )->domain;
 $cookie = static function ( int $user_id ): array {
 	$expiration = time() + 300;
@@ -208,75 +223,60 @@ $cookie = static function ( int $user_id ): array {
 	);
 };
 // This container reaches only the main host; the Host header picks the site.
-$http = static function ( string $site_host, string $path, array $cookies, ?array $body = null ): array {
-	$args     = array(
-		'cookies'     => $cookies,
-		'headers'     => array( 'Host' => $site_host ),
-		'sslverify'   => false,
-		'redirection' => 0,
-		'timeout'     => 30,
+$http = static function ( string $site_host, string $path, array $cookies ): array {
+	$response = wp_remote_get(
+		'https://' . get_site( get_main_site_id() )->domain . $path,
+		array(
+			'cookies'     => $cookies,
+			'headers'     => array( 'Host' => $site_host ),
+			'sslverify'   => false,
+			'redirection' => 0,
+			'timeout'     => 30,
+		)
 	);
-	$url      = 'https://' . get_site( get_main_site_id() )->domain . $path;
-	$response = null === $body ? wp_remote_get( $url, $args ) : wp_remote_post( $url, $args + array( 'body' => $body ) );
 	return array(
-		'code'     => (int) wp_remote_retrieve_response_code( $response ),
-		'location' => (string) wp_remote_retrieve_header( $response, 'location' ),
-		'body'     => (string) wp_remote_retrieve_body( $response ),
+		'code' => (int) wp_remote_retrieve_response_code( $response ),
+		'body' => (string) wp_remote_retrieve_body( $response ),
 	);
 };
+$path      = static fn( int $site_id, string $screen ): string => (string) wp_parse_url( get_admin_url( $site_id, $screen ), PHP_URL_PATH );
+$main_host = get_site( $main )->domain;
 $as_member = $cookie( $member );
-$screen    = (string) wp_parse_url( get_admin_url( $site, 'plugins.php' ), PHP_URL_PATH );
-$rows      = static function ( string $body ): array {
-	preg_match_all( '/<tr class="[^"]*" data-slug="[^"]*" data-plugin="([^"]+)"/', $body, $match );
-	sort( $match[1] );
-	return $match[1];
+$as_super  = $cookie( $super );
+foreach ( array( 'plugins.php', 'plugin-install.php', 'options-connectors.php' ) as $screen ) {
+	$codes = array( $http( $host, $path( $site, $screen ), $as_member )['code'], $http( $host, $path( $site, $screen ), $as_super )['code'] );
+	$check( "$screen: refused to the member and a super admin", array( 403, 403 ) === $codes, implode( ' ', $codes ) );
+}
+// Core's plugin actions on admin-ajax.php (found by the review): the updates nonce is on the Import screen.
+$ajax = static function ( string $host, int $site_id, array $cookies, string $action ) use ( $http, $path ): array {
+	$page = $http( $host, $path( $site_id, 'import.php' ), $cookies );
+	preg_match( '/"ajax_nonce":"([0-9a-f]+)"/', $page['body'], $nonce );
+	$response = wp_remote_post(
+		'https://' . get_site( get_main_site_id() )->domain . $path( $site_id, 'admin-ajax.php' ),
+		array(
+			'cookies'   => $cookies,
+			'headers'   => array( 'Host' => $host ),
+			'sslverify' => false,
+			'body'      => array( 'action' => $action, '_ajax_nonce' => $nonce[1] ?? '', 's' => '', 'plugin' => 'mcp-adapter/mcp-adapter.php', 'slug' => 'mcp-adapter', 'name' => 'x' ),
+		)
+	);
+	return array( (int) wp_remote_retrieve_response_code( $response ), (string) wp_remote_retrieve_body( $response ) );
 };
-
-$out = $http( $host, $screen, $as_member );
-$check( 'the Plugins screen opens, in the menu', 200 === $out['code'] && str_contains( $out['body'], 'id="menu-plugins"' ), (string) $out['code'] );
-$check( '... its rows: exactly the visible plugins', $rows( $out['body'] ) === $visible, implode( ', ', $rows( $out['body'] ) ) );
-$check( '... no Add Plugin, no Must-Use or Drop-ins', ! preg_match( '/plugin-install\.php|plugin_status=mustuse|plugin_status=dropins/', $out['body'] ) );
-preg_match( '/href="(plugins\.php\?action=activate&amp;plugin=mody-test-plugin%2Fmody-test-plugin\.php[^"]*)"/', $out['body'], $link );
-preg_match( '/<form [^>]*id="bulk-action-form".*?name="_wpnonce" value="([0-9a-f]+)"/s', $out['body'], $bulk );
-$check( '... the fixture\'s Activate link and the bulk form', isset( $link[1], $bulk[1] ) );
-$out = $http( $host, dirname( $screen ) . '/' . html_entity_decode( $link[1] ?? '' ), $as_member );
-$check( 'Activate (the row\'s link): on', 302 === $out['code'] && in_array( $fixture, $active_on( $site ), true ), $out['code'] . ' ' . $out['location'] );
-$bulk_post = static fn( string $action, array $files ): array => $http(
-	$host,
-	$screen,
-	$as_member,
-	array(
-		'action'        => $action,
-		'checked'       => $files,
-		'_wpnonce'      => $bulk[1] ?? '',
-		'plugin_status' => 'all',
-	)
-);
-$out = $bulk_post( 'deactivate-selected', array( $fixture ) );
-$check( 'bulk Deactivate: off', 302 === $out['code'] && ! in_array( $fixture, $active_on( $site ), true ), (string) $out['code'] );
-$off = ! in_array( $fixture, $active_on( $site ), true );
-$out = $bulk_post( 'activate-selected', array( $fixture, $platform ) );
-$check( 'crafted bulk Activate with mcp-adapter: only the fixture', $off && 302 === $out['code'] && in_array( $fixture, $active_on( $site ), true ) && ! in_array( $platform, $active_on( $site ), true ), (string) $out['code'] );
-// A valid nonce for the crafted links, so only the capability check can stop them.
-$_COOKIE[ LOGGED_IN_COOKIE ] = $as_member[ LOGGED_IN_COOKIE ];
-wp_set_current_user( $member );
-$crafted = static fn( string $action, string $file ): array => $http( $host, $screen . '?action=' . $action . '&plugin=' . rawurlencode( $file ) . '&_wpnonce=' . wp_create_nonce( $action . '-plugin_' . $file ), $as_member );
-$out     = $crafted( 'activate', $platform );
-$check( 'crafted Activate for mcp-adapter: refused', str_contains( $out['body'], 'Sorry, you are not allowed to activate this plugin.' ) && ! in_array( $platform, $active_on( $site ), true ), (string) $out['code'] );
-$out = $crafted( 'deactivate', $network );
-$check( 'crafted Deactivate for the ai plugin (network-active): refused', str_contains( $out['body'], 'Sorry, you are not allowed to deactivate this plugin.' ) && is_plugin_active_for_network( $network ), (string) $out['code'] );
-wp_set_current_user( 0 );
-unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
-$out = $http( $host, $screen, $cookie( $editor ) );
-$check( 'an editor: the screen refuses', in_array( $out['code'], array( 403, 500 ), true ) && str_contains( $out['body'], 'Sorry, you are not allowed to' ), (string) $out['code'] );
-
-// 4. Unchanged ----------------------------------------------------------------------
-
-echo "\nUnchanged\n";
-$main_screen = (string) wp_parse_url( get_admin_url( $main, 'plugins.php' ), PHP_URL_PATH );
-$out         = $http( get_site( $main )->domain, $main_screen, $as_member );
-$check( 'main site: the screen refuses the member', in_array( $out['code'], array( 403, 500 ), true ) && str_contains( $out['body'], 'Sorry, you are not allowed to' ), (string) $out['code'] );
-$out = $http( $host, $screen, $cookie( $super ) );
-$check( 'member site: a super admin sees mcp-adapter', 200 === $out['code'] && in_array( $platform, $rows( $out['body'] ), true ), implode( ', ', $rows( $out['body'] ) ) );
+foreach ( array( 'search-plugins', 'activate-plugin', 'search-install-plugins' ) as $action ) {
+	$codes = array( $ajax( $host, $site, $as_member, $action )[0], $ajax( $main_host, $main, $as_super, $action )[0] );
+	$check( "admin-ajax $action: refused to the member and a super admin", array( 403, 403 ) === $codes, implode( ' ', $codes ) );
+}
+$out = $http( $main_host, (string) wp_parse_url( network_admin_url( 'plugins.php' ), PHP_URL_PATH ), $as_super );
+$check( 'the network Plugins screen: refused to a super admin', 403 === $out['code'], (string) $out['code'] );
+$out = $http( $main_host, $path( $main, 'admin.php' ) . '?page=ai-connector-approval', $as_super );
+$check( 'the ai plugin\'s connector approvals: refused', 403 === $out['code'], (string) $out['code'] );
+// Visible entries only: the ai plugin's scripts also carry the Connectors URL as data, used only without a provider.
+$menu = static fn( string $body ): bool => (bool) preg_match( '/id="menu-plugins"|href="[^"]*plugins\.php"|href="[^"]*options-connectors\.php"|href="[^"]*page=ai-connector-approval|id="wp-admin-bar-network-admin-p"/', $body );
+$out  = $http( $host, $path( $site, 'index.php' ), $as_member );
+$check( 'member dashboard: no Plugins or Connectors in the menus', 200 === $out['code'] && ! $menu( $out['body'] ), (string) $out['code'] );
+$out = $http( $main_host, $path( $main, 'index.php' ), $as_super );
+$check( 'super admin, main site: none either', 200 === $out['code'] && ! $menu( $out['body'] ), (string) $out['code'] );
+$out = $http( $main_host, (string) wp_parse_url( network_admin_url( 'index.php' ), PHP_URL_PATH ), $as_super );
+$check( 'super admin, network admin: none either', 200 === $out['code'] && ! $menu( $out['body'] ), (string) $out['code'] );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

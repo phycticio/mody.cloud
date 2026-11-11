@@ -118,7 +118,9 @@ $toggle->set_param( 'status', 'active' );
 $toggle = rest_do_request( $toggle )->get_status();
 wp_set_current_user( $admin );
 restore_current_blog();
-$check( 'plugins: install refused, a platform plugin not found', 403 === $install && 404 === $toggle && 200 === $list, "install $install, " . $plugin . " $toggle, list $list" );
+// Nobody has the plugin routes since 2026-11-11 (tickets/hide-plugins-and-connectors.md).
+// A hidden plugin's route may answer "not found" first (MemberPlugins).
+$check( 'plugins: list, install and switch all refused', 403 === $install && in_array( $toggle, array( 403, 404 ), true ) && 403 === $list, "install $install, " . $plugin . " $toggle, list $list" );
 
 // 3. Redirect targets -------------------------------------------------------------
 
@@ -182,7 +184,7 @@ $check( 'add a page: the Site Editor\'s pages', 302 === $out['code'] && str_cont
 $out = $get( $admin_path . 'post.php?post=' . $post_id . '&action=edit', $as_member );
 $check( 'edit a post: the post editor', 200 === $out['code'], (string) $out['code'] );
 $out = $get( $admin_path . 'plugins.php', $as_member );
-$check( 'the Plugins screen opens (M4-02)', 200 === $out['code'], (string) $out['code'] );
+$check( 'the Plugins screen refuses (2026-11-11)', 403 === $out['code'], (string) $out['code'] );
 $out = $get( $admin_path . 'plugin-install.php', $as_member );
 $check( 'the plugin install screen refuses', in_array( $out['code'], array( 403, 500 ), true ), $out['code'] . ' (core\'s wp_die() without a status is 500)' );
 $out = $get( $admin_path . 'themes.php?action=activate&stylesheet=twentytwentyfive', $as_member );

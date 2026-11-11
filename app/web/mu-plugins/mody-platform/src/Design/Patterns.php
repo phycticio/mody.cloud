@@ -116,7 +116,8 @@ final class Patterns {
 	 * @return mixed
 	 */
 	public static function refuse_directory( $result, $server, $request ) {
-		if ( $request instanceof WP_REST_Request && str_starts_with( $request->get_route(), '/wp/v2/pattern-directory' ) && ! is_super_admin() ) {
+		// The REST server matches routes regardless of case (`/wp/v2/Pattern-Directory`), so this does too.
+		if ( $request instanceof WP_REST_Request && str_starts_with( strtolower( (string) $request->get_route() ), '/wp/v2/pattern-directory' ) && ! is_super_admin() ) {
 			return new WP_Error( 'mody_pattern_directory_off', __( 'Patterns come from the Mody collection on this platform.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
 		return $result;

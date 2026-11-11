@@ -119,7 +119,8 @@ final class MemberPlugins {
 		if ( null !== $result || ! $request instanceof WP_REST_Request ) {
 			return $result;
 		}
-		if ( ! preg_match( '#^/wp/v2/plugins/(.+)$#', $request->get_route(), $match ) || ! MemberSite::applies_to( get_current_user_id() ) ) {
+		// The REST server matches routes regardless of case (`/wp/v2/Plugins`), so this does too.
+		if ( ! preg_match( '#^/wp/v2/plugins/(.+)$#i', $request->get_route(), $match ) || ! MemberSite::applies_to( get_current_user_id() ) ) {
 			return $result;
 		}
 		if ( self::is_hidden( $match[1] . '.php' ) ) {
@@ -140,7 +141,7 @@ final class MemberPlugins {
 	 * @return mixed
 	 */
 	public static function filter_rest_list( $response, $handler, $request ) {
-		if ( ! $response instanceof WP_HTTP_Response || ! $request instanceof WP_REST_Request || '/wp/v2/plugins' !== $request->get_route() || 'GET' !== $request->get_method() ) {
+		if ( ! $response instanceof WP_HTTP_Response || ! $request instanceof WP_REST_Request || '/wp/v2/plugins' !== strtolower( untrailingslashit( (string) $request->get_route() ) ) || 'GET' !== $request->get_method() ) {
 			return $response;
 		}
 		$data = $response->get_data();
