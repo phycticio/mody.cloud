@@ -144,12 +144,16 @@
 		const started = Date.now();
 		for ( ;; ) {
 			await sleep( config.interval );
-			if ( Date.now() - started > 8000 ) {
-				pending.querySelector( '.mody-agent__text' ).textContent = config.strings.slow;
-			}
 			const { ok, data } = await request( 'GET', null, config.endpoint + '/jobs/' + encodeURIComponent( id ) );
 			if ( ! ok ) {
 				return { turn: { reply: data.message || config.strings.failed, error: true } };
+			}
+			// What the agent is doing now (2026-11-11), else a note when it takes long.
+			const text = pending.querySelector( '.mody-agent__text' );
+			if ( data.progress ) {
+				text.textContent = data.progress;
+			} else if ( Date.now() - started > 8000 ) {
+				text.textContent = config.strings.slow;
 			}
 			if ( 'running' !== data.status ) {
 				return data;
@@ -169,6 +173,8 @@
 		show( 'user', text );
 		const pending = show( 'assistant', config.strings.working );
 		pending.classList.add( 'is-pending' );
+		pending.setAttribute( 'aria-live', 'polite' ); // The progress line is read out as it changes.
+		pending.querySelector( '.mody-agent__text' ).before( element( 'span', 'mody-agent__spinner' ) );
 
 		try {
 			const { ok, data: started } = await start();
@@ -236,6 +242,8 @@
 		show( 'user', config.decisions[ choice ] );
 		const pending = show( 'assistant', config.strings.working );
 		pending.classList.add( 'is-pending' );
+		pending.setAttribute( 'aria-live', 'polite' ); // The progress line is read out as it changes.
+		pending.querySelector( '.mody-agent__text' ).before( element( 'span', 'mody-agent__spinner' ) );
 		try {
 			// Only save and discard touch the editor; apply (a confirmed setting) and cancel do not.
 			if ( ( 'save' === choice || 'discard' === choice ) && ! ( 'function' === typeof config.settle && await config.settle( decision.record, choice ) ) ) {

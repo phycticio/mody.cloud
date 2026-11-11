@@ -12,6 +12,9 @@
  *   "Authorization: Bearer <token>".
  * - INFOMANIAK_AI_MODEL (optional): the model used when a prompt names none.
  *   Default: Qwen/Qwen3.8-27B-FP8.
+ * - INFOMANIAK_AI_WRITER_MODEL (optional, 2026-11-11): the model that writes
+ *   and changes pages (PageGenerator). Default: the model above. The agent,
+ *   which only chooses tools, stays on the model above.
  *
  * @package Mody\Platform
  */
@@ -44,6 +47,33 @@ class InfomaniakProvider extends AbstractApiProvider {
 	 * Model used when neither the prompt nor INFOMANIAK_AI_MODEL names one.
 	 */
 	public const DEFAULT_MODEL = 'Qwen/Qwen3.8-27B-FP8';
+
+	/**
+	 * The model that writes and changes block markup: INFOMANIAK_AI_WRITER_MODEL,
+	 * else the default model. Filter `mody_writer_model` (tests compare models).
+	 *
+	 * @return string The model ID.
+	 */
+	public static function writer_model(): string {
+		$model = getenv( 'INFOMANIAK_AI_WRITER_MODEL' );
+		if ( false === $model || '' === $model ) {
+			$model = defined( 'INFOMANIAK_AI_WRITER_MODEL' ) ? (string) constant( 'INFOMANIAK_AI_WRITER_MODEL' ) : '';
+		}
+		$model = trim( $model, " \t\n\r\0\x0B\"'" );
+		return (string) apply_filters( 'mody_writer_model', '' !== $model ? $model : self::default_model() );
+	}
+
+	/**
+	 * The API token (INFOMANIAK_API_KEY), for requests made outside the AI
+	 * Client (PageGenerator's parallel section edits). Never logged.
+	 */
+	public static function api_key(): string {
+		$key = getenv( 'INFOMANIAK_API_KEY' );
+		if ( false === $key || '' === $key ) {
+			$key = defined( 'INFOMANIAK_API_KEY' ) ? (string) constant( 'INFOMANIAK_API_KEY' ) : '';
+		}
+		return trim( $key, " \t\n\r\0\x0B\"'" );
+	}
 
 	/**
 	 * Returns the default model ID (INFOMANIAK_AI_MODEL, or DEFAULT_MODEL).

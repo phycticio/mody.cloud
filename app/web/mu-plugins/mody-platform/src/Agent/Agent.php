@@ -8,6 +8,7 @@
 namespace Mody\Platform\Agent;
 
 use Mody\Platform\AI\PageGenerator;
+use Mody\Platform\AI\PageOutline;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Site\Menu;
 use Mody\Platform\Site\Settings;
@@ -87,6 +88,35 @@ final class Agent {
 	 * what is open in the editor. The result goes back to the editor, unsaved.
 	 */
 	public const EDIT_CONTENT = 'edit_content';
+
+	/** The most sections one message changes (review, 2026-11-11: a whole-page change fans out to one call per section). */
+	public const MAX_SECTIONS = 30;
+
+	/**
+	 * Receives what the agent is doing now, for the chat's progress line
+	 * (ChatController sets it for a job; 2026-11-11).
+	 *
+	 * @var callable|null
+	 */
+	private static $progress = null;
+
+	/**
+	 * What each ability is doing, for the progress line.
+	 *
+	 * @return array<string, string>
+	 */
+	private static function doing(): array {
+		return array(
+			'mody/generate-page'        => __( 'Writing the page…', 'mody_cloud' ),
+			'mody/update-design'        => __( 'Changing the colors…', 'mody_cloud' ),
+			'mody/update-styles'        => __( 'Changing the styles…', 'mody_cloud' ),
+			'mody/publish-page'         => __( 'Publishing the page…', 'mody_cloud' ),
+			'mody/update-settings'      => __( 'Changing the settings…', 'mody_cloud' ),
+			'mody/update-site-settings' => __( 'Changing the settings…', 'mody_cloud' ),
+			'mody/update-menu'          => __( 'Changing the menu…', 'mody_cloud' ),
+			'mody/open-editor'          => __( 'Opening the screen…', 'mody_cloud' ),
+		);
+	}
 
 	/** Longest accepted member message, in characters. */
 	public const MAX_MESSAGE_LENGTH = 2000;
@@ -224,7 +254,14 @@ final class Agent {
 		$agent->context = $context;
 		$agent->screen  = $screen;
 		$agent->unsaved = array_values( array_intersect( array_unique( array_values( self::REFRESH ) ), $unsaved ) );
-		return $agent->run( $history );
+		// One `turn` row per message: time, model calls, tokens, the cache, the writer (2026-11-11).
+		TurnMetrics::start();
+		$turn    = $agent->run( $history );
+		$metrics = TurnMetrics::finish( $turn, array_map( static fn( array $made ): string => (string) preg_replace( '/^wpab__mody__/', '', (string) $made['name'] ), (array) ( $turn['calls'] ?? array() ) ) );
+		if ( '' !== $agent->input ) {
+			AgentEvents::log( $agent->input, TurnMetrics::TOOL, null, (string) wp_json_encode( $metrics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $agent->started );
+		}
+		return $turn;
 	}
 
 	/**
@@ -473,6 +510,9 @@ final class Agent {
 		}
 
 		++$this->executed;
+		if ( isset( self::doing()[ $ability ] ) ) {
+			self::progress( self::doing()[ $ability ] );
+		}
 		$response = $resolver->execute_ability( $call )->getResponse();
 		AgentEvents::log( $this->input, $ability, $args, (string) wp_json_encode( $response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $started );
 
@@ -493,6 +533,29 @@ final class Agent {
 			'result' => is_string( $json ) && strlen( $json ) <= self::MAX_KEPT_RESULT ? $response : array_filter( (array) $response, 'is_scalar' ),
 		);
 		return $response;
+	}
+
+	/**
+	 * Sets who receives the progress lines (null: nobody).
+	 *
+	 * @param callable|null $receiver Called with one line of text.
+	 */
+	public static function on_progress( ?callable $receiver ): void {
+		self::$progress = $receiver;
+	}
+
+	/**
+	 * Says what the agent is doing now, when someone listens.
+	 *
+	 * @param string $text One line for the owner.
+	 */
+	private static function progress( string $text ): void {
+		if ( self::$progress ) {
+			try {
+				( self::$progress )( $text );
+			} catch ( \Throwable $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Progress never stops the work.
+			}
+		}
 	}
 
 	/**
@@ -520,8 +583,8 @@ final class Agent {
 			$error = array( 'mody_empty_prompt', 'Give the owner\'s instruction.' );
 		} elseif ( 'selection' === $scope && ! $selected ) {
 			$error = array( 'mody_no_selection', 'No block is selected. Use scope content, or ask the owner to select the block.' );
-		} elseif ( 'content' === $scope && ! empty( $this->context['too_long'] ) ) {
-			$error = array( 'mody_too_long', 'This page is too long to change all at once. Ask the owner to select the block to change (or the section that holds it), then ask again.' );
+		} elseif ( 'content' === $scope && ! empty( $this->context['too_long'] ) && in_array( $this->context['post_type'], EditorContext::TEMPLATE_TYPES, true ) ) {
+			$error = array( 'mody_too_long', 'This template is too long to change all at once. Ask the owner to select the block to change (or the section that holds it), then ask again.' );
 		}
 		if ( $error ) {
 			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, 'refused: ' . $error[0], $started );
@@ -531,9 +594,16 @@ final class Agent {
 			);
 		}
 
-		++$this->executed;
 		$fragment = 'selection' === $scope;
 		$template = in_array( $this->context['post_type'], EditorContext::TEMPLATE_TYPES, true );
+		$numbers  = array_values( array_unique( array_filter( array_map( 'intval', (array) ( $args['sections'] ?? array() ) ), static fn( int $n ): bool => $n > 0 ) ) );
+		// A long page, or chosen sections: section by section (decided 2026-11-11).
+		if ( ! $fragment && ! $template && ( ! empty( $this->context['too_long'] ) || $numbers ) ) {
+			return $this->edit_sections( $call, $args, $started, $instruction, $numbers );
+		}
+
+		++$this->executed;
+		self::progress( $fragment ? __( 'Changing the selected block…', 'mody_cloud' ) : __( 'Changing the page…', 'mody_cloud' ) );
 		$markup   = PageGenerator::edit_markup( get_current_blog_id(), $fragment ? $selected['markup'] : (string) $this->context['content'], $instruction, $fragment, $template );
 		if ( is_wp_error( $markup ) ) {
 			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, $markup->get_error_code() . ': ' . $markup->get_error_message(), $started );
@@ -552,6 +622,143 @@ final class Agent {
 		$response = array(
 			'changed' => $fragment ? 'the selected block' : 'the whole ' . str_replace( array( 'wp_template_part', 'wp_template' ), array( 'template part', 'template' ), $this->context['post_type'] ),
 			'shown'   => 'The change is shown in the editor now. The owner can undo it, and it is saved only when they save.',
+		);
+		AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, (string) wp_json_encode( $response + array( 'bytes' => strlen( $markup ) ) ), $started );
+		$this->calls[] = array(
+			'id'     => (string) $call->getId(),
+			'name'   => self::EDIT_CONTENT,
+			'args'   => $args,
+			'result' => $response,
+		);
+		return $response;
+	}
+
+	/**
+	 * Changes the open page section by section (decided by the maintainer
+	 * on 2026-11-11): a page too long to rewrite at once, or the sections
+	 * the agent chose. Each section goes to the writer with the whole page
+	 * as a compact view; the others stay exactly as they are. The chat shows
+	 * which section is being changed. Sections that fail are left as they
+	 * were and reported; the rest are shown in the editor as one change.
+	 *
+	 * @param FunctionCall         $call        The call.
+	 * @param array<string, mixed> $args        The call's arguments.
+	 * @param float                $started     When the call started.
+	 * @param string               $instruction The owner's instruction.
+	 * @param int[]                $numbers     The sections to change, from 1; empty for all.
+	 * @return array<string, mixed> What the model gets back.
+	 */
+	private function edit_sections( FunctionCall $call, array $args, float $started, string $instruction, array $numbers ): array {
+		$content  = (string) $this->context['content'];
+		$sections = PageOutline::sections( $content );
+		$total    = count( $sections );
+		$targets  = $numbers ? array_values( array_filter( $numbers, static fn( int $n ): bool => $n <= $total ) ) : range( 1, max( 1, $total ) );
+		if ( $total && ( ! $numbers || count( $targets ) === count( $numbers ) ) && count( $targets ) > self::MAX_SECTIONS ) {
+			// One message never fans out to more than MAX_SECTIONS model calls (review, 2026-11-11).
+			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, 'refused: mody_too_many_sections', $started );
+			return array(
+				'error' => sprintf( 'This change would go through %1$d sections; at most %2$d are changed in one message. Nothing was changed. Ask the owner which sections to change, and pass them as sections.', count( $targets ), self::MAX_SECTIONS ),
+				'code'  => 'mody_too_many_sections',
+			);
+		}
+		if ( ! $total || ( $numbers && count( $targets ) !== count( $numbers ) ) ) {
+			$error = sprintf( 'The page has %d sections; there is no section %s. Nothing was changed.', $total, implode( ', ', array_diff( $numbers, $targets ) ) );
+			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, 'refused: mody_no_section', $started );
+			return array(
+				'error' => $error,
+				'code'  => 'mody_no_section',
+			);
+		}
+
+		++$this->executed;
+		if ( function_exists( 'set_time_limit' ) ) {
+			set_time_limit( 900 ); // Each batch of sections is a model call; never unbounded.
+		}
+		$failed = array();
+		// Classic HTML outside blocks stays as it is, and a section too large to return whole is
+		// left for the owner to narrow down (review, 2026-11-11): neither costs a model call.
+		foreach ( $targets as $index => $number ) {
+			$section = $sections[ $number - 1 ];
+			if ( ! $section['block'] ) {
+				unset( $targets[ $index ] );
+				if ( $numbers ) {
+					$failed[ $number ] = 'this part is classic HTML outside blocks; it stays as it is.';
+				}
+			} elseif ( strlen( $section['markup'] ) > PageGenerator::MAX_SECTION ) {
+				unset( $targets[ $index ] );
+				$failed[ $number ] = 'this section is too large to change at once; ask the owner to select the block to change in it.';
+			}
+		}
+		$targets = array_values( $targets );
+		$page  = PageOutline::compact( $content );
+		$count = count( $targets );
+		$first = $count ? $sections[ $targets[0] - 1 ]['label'] : '';
+		self::progress(
+			1 === $count
+				/* translators: 1: section number, 2: its heading. */
+				? sprintf( __( 'Changing section %1$d: %2$s…', 'mody_cloud' ), $targets[0], $first )
+				/* translators: 1: how many sections, 2: how many at a time. */
+				: sprintf( __( 'Changing %1$d sections, %2$d at a time…', 'mody_cloud' ), $count, min( $count, PageGenerator::PARALLEL ) )
+		);
+		$finished = 0;
+		$results  = ! $count ? array() : PageGenerator::edit_sections(
+			get_current_blog_id(),
+			array_combine( $targets, array_map( static fn( int $n ): string => $sections[ $n - 1 ]['markup'], $targets ) ),
+			$instruction,
+			$page,
+			$total,
+			static function ( int $number ) use ( &$finished, $count, $sections ): void {
+				++$finished;
+				if ( $count > 1 && $finished < $count ) {
+					/* translators: 1: sections done, 2: all of them, 3: the last one's heading. */
+					self::progress( sprintf( __( '%1$d of %2$d sections done (last: %3$s)…', 'mody_cloud' ), $finished, $count, $sections[ $number - 1 ]['label'] ) );
+				}
+			}
+		);
+		$changed = array();
+		foreach ( $targets as $number ) {
+			$markup = $results[ $number ] ?? new WP_Error( 'mody_edit_failed', 'No answer.' );
+			if ( is_wp_error( $markup ) ) {
+				$failed[ $number ] = $markup->get_error_message();
+			} elseif ( trim( $markup ) !== trim( $sections[ $number - 1 ]['markup'] ) ) {
+				$changed[ $number - 1 ] = $markup;
+			}
+		}
+
+		$result = array(
+			'sections' => $total,
+			'changed'  => array_map( static fn( int $index ): int => $index + 1, array_keys( $changed ) ),
+		);
+		if ( $failed ) {
+			$result['failed'] = array_map( static fn( int $n, string $why ): string => 'section ' . $n . ': ' . $why, array_keys( $failed ), $failed );
+		}
+		if ( ! $changed ) {
+			$response = $result + array(
+				'error' => $failed ? 'The change could not be made. Nothing was changed.' : 'No section needed a change for this instruction. Nothing was changed.',
+				'code'  => $failed ? 'mody_edit_failed' : 'mody_unchanged',
+			);
+			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, (string) wp_json_encode( $response ), $started );
+			return $response;
+		}
+
+		$markup = PageOutline::splice( $sections, $changed );
+		if ( '' === trim( $markup ) ) {
+			// Every section removed: the editor would show nothing (review, 2026-11-11).
+			$response = $result + array(
+				'error' => 'This would remove every section of the page. Nothing was changed. To remove a page, the owner moves it to the trash in the editor.',
+				'code'  => 'mody_empty_page',
+			);
+			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, (string) wp_json_encode( $response ), $started );
+			return $response;
+		}
+		$this->edited          = true;
+		$this->turn['edits'][] = array(
+			'post_id'   => $this->context['post_id'],
+			'client_id' => null,
+			'markup'    => $markup,
+		);
+		$response = $result + array(
+			'shown' => 'The change is shown in the editor now. The owner can undo it, and it is saved only when they save.' . ( $failed ? ' The failed sections were left as they were: tell the owner which.' : '' ),
 		);
 		AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, (string) wp_json_encode( $response + array( 'bytes' => strlen( $markup ) ) ), $started );
 		$this->calls[] = array(
@@ -936,6 +1143,10 @@ final class Agent {
 						'scope'       => array(
 							'type' => 'string',
 							'enum' => array( 'selection', 'content' ),
+						),
+						'sections'    => array(
+							'type'  => 'array',
+							'items' => array( 'type' => 'integer' ),
 						),
 					),
 					'required'   => array( 'instruction' ),

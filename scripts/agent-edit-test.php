@@ -74,8 +74,9 @@ register_shutdown_function(
 );
 $since = static function () use ( &$mark, $events ): array {
 	global $wpdb;
-	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$events} WHERE id > %d ORDER BY id", $mark ), ARRAY_A ); // phpcs:ignore WordPress.DB
-	$mark = $rows ? (int) end( $rows )['id'] : $mark;
+	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$events} WHERE id > %d AND ( tool IS NULL OR tool <> 'turn' ) ORDER BY id", $mark ), ARRAY_A ); // phpcs:ignore WordPress.DB
+	// Turn rows (TurnMetrics, 2026-11-11) are checked on their own: they come after a message's rows.
+	$mark = max( $mark, (int) $wpdb->get_var( "SELECT MAX(id) FROM {$events}" ) ); // phpcs:ignore WordPress.DB
 	return $rows;
 };
 $test_mark = $mark;
@@ -205,10 +206,16 @@ foreach ( $bad as $label => $raw ) {
 	}
 }
 $check( 'refused with 400', ! $wrong, $wrong ? implode( ', ', $wrong ) : implode( ', ', array_keys( $bad ) ) );
-// A page over MAX_MARKUP (the main site's landing page, about 56 KB) does not refuse the message (2026-11-11).
-$long = EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => str_repeat( 'x', EditorContext::MAX_MARKUP + 1 ) ) );
-$check( 'a page too long: accepted, its content left out', is_array( $long ) && true === $long['too_long'] && '' === $long['content'] && false === $valid['too_long'] );
-$check( '... and the agent is told to ask for a selection', str_contains( SystemPrompt::for_editor( $long, 'edit_content' ), 'too long to change all at once' ) && ! str_contains( SystemPrompt::for_editor( $valid, 'edit_content' ), 'too long' ) );
+// A page over MAX_MARKUP (the main site's landing page, about 56 KB): Mody sees all of it and
+// changes it section by section (decided 2026-11-11).
+$topic     = static fn( int $n, string $words = '' ): string => '<!-- wp:spectra/container ' . Mody\Platform\AI\SpectraLayout::SECTION . " -->\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Topic {$n}</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>" . ( '' !== $words ? $words : str_repeat( "Words about topic {$n}. ", 150 ) ) . "</p>\n<!-- /wp:paragraph -->\n<!-- /wp:spectra/container -->";
+$long_page = implode( "\n\n", array_map( $topic, range( 1, 8 ) ) );
+$long      = EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => $long_page ) );
+$check( 'a long page: accepted with all its content', is_array( $long ) && true === $long['too_long'] && $long_page === $long['content'] && false === $valid['too_long'], strlen( $long_page ) . ' bytes' );
+$view = SystemPrompt::for_editor( $long, 'edit_content' );
+$check( '... the agent sees it whole, compact, with numbered sections', str_contains( $view, "Section 8 (container):\n  heading 2: Topic 8" ) && str_contains( $view, '12. To change only some sections' ) && str_contains( $view, 'one after another' ) && ! str_contains( $view, 'wp:spectra' ) );
+$check( '... a short page too, without the "takes a while"', str_contains( SystemPrompt::for_editor( $valid, 'edit_content' ), '<page>' ) && ! str_contains( SystemPrompt::for_editor( $valid, 'edit_content' ), 'one after another' ) );
+$check( 'a page over the safety cap: 400', is_wp_error( EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => str_repeat( 'x', EditorContext::MAX_CONTENT + 1 ) ) ) ) );
 wp_set_current_user( $contrib );
 $out = EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id ) );
 wp_set_current_user( $admin );
@@ -261,11 +268,108 @@ $requests = array();
 $turn     = Agent::respond( 'Make this shorter', array(), $context( null ) );
 $sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
 $check( 'scope selection with nothing selected: refused', ! $turn['edits'] && 2 === count( $requests ) && str_contains( $sent, 'mody_no_selection' ) );
-$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter', 'scope' => 'content' ) ) ), 'Please select the block first.' );
+// Section by section: only the chosen sections go to the writer, the others stay byte for byte.
+$progress = array();
+Agent::on_progress( static function ( string $text ) use ( &$progress ): void { $progress[] = $text; } );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter', 'scope' => 'content', 'sections' => array( 3, 6 ) ) ) ), $topic( 3, 'Short three.' ), $topic( 6, 'Short six.' ), 'Done: sections 3 and 6 are shorter.' );
 $requests = array();
-$turn     = Agent::respond( 'Make the whole page shorter', array(), EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => str_repeat( 'x', EditorContext::MAX_MARKUP + 1 ) ) ) );
+$turn     = Agent::respond( 'Make topics 3 and 6 shorter', array(), $long );
+$edited   = $turn['edits'][0]['markup'] ?? '';
+$parts    = Mody\Platform\AI\PageOutline::sections( $edited );
+$writer   = (string) wp_json_encode( end( $requests[1]['messages'] )['content'] ?? '' ); // The writer's user message.
+$check( 'chosen sections: only those rewritten, the rest unchanged', 4 === count( $requests ) && 8 === count( $parts ) && str_contains( $parts[2]['markup'], 'Short three.' ) && str_contains( $parts[5]['markup'], 'Short six.' ) && $topic( 1 ) === $parts[0]['markup'] && $topic( 8 ) === $parts[7]['markup'] && null === $turn['edits'][0]['client_id'], count( $requests ) . ' requests' );
+$check( '... the writer got the whole page as context, and one section', str_contains( $writer, 'You change section 3 of 8' ) && str_contains( $writer, 'Section 8 (container)' ) && 1 === substr_count( $writer, '<!-- wp:heading' ) );
+global $wpdb;
+$turn_row = json_decode( (string) $wpdb->get_var( "SELECT result FROM {$events} WHERE tool = 'turn' ORDER BY id DESC LIMIT 1" ), true ); // phpcs:ignore WordPress.DB
+$check( '... one turn row: the writer, the tools, the outcome', is_array( $turn_row ) && 2 === $turn_row['writer_attempts'] && array( 'edit_content' ) === $turn_row['tools'] && 'acted' === $turn_row['outcome'] && true === $turn_row['editing'], wp_json_encode( $turn_row ) );
+$check( '... and the chat was told each step', array( 'Changing 2 sections, 2 at a time…', '1 of 2 sections done (last: Topic 3)…' ) === $progress, wp_json_encode( $progress ) );
+$fenced = "```html\n<!-- wp:paragraph -->\n<p>Hi.</p>\n<!-- /wp:paragraph -->\n```";
+$check( 'repair: Markdown code fences around blocks dropped, no retry needed', "<!-- wp:paragraph -->\n<p>Hi.</p>\n<!-- /wp:paragraph -->" === Mody\Platform\AI\PageGenerator::repair( $fenced ) && '```html Not blocks ```' === Mody\Platform\AI\PageGenerator::repair( '```html Not blocks ```' ) );
+// A section's first answer rejected: that section alone gets the full loop, with the reason.
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter', 'sections' => array( 5 ) ) ) ), '```html Not blocks ```', $topic( 5, 'Short five.' ), 'Done.' );
+$requests = array();
+$turn     = Agent::respond( 'Make topic 5 shorter', array(), $long );
+$retry    = (string) wp_json_encode( end( $requests[2]['messages'] )['content'] ?? '' );
+$check( 'a rejected first answer: retried alone, with the reason', str_contains( (string) ( $turn['edits'][0]['markup'] ?? '' ), 'Short five.' ) && 4 === count( $requests ) && str_contains( $retry, 'You change section 5 of 8' ) && str_contains( $retry, 'Your previous answer was rejected' ), count( $requests ) . ' requests' );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Remove topic 2', 'sections' => array( 2 ) ) ) ), Mody\Platform\AI\PageOutline::REMOVE, 'Removed.' );
+$turn     = Agent::respond( 'Remove topic 2', array(), $long );
+$parts    = Mody\Platform\AI\PageOutline::sections( $turn['edits'][0]['markup'] ?? '' );
+$check( 'a section removed', 7 === count( $parts ) && 'Topic 3' === $parts[1]['label'] );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'More formal', 'scope' => 'content' ) ) ), ...array_map( $topic, range( 1, 8 ) ), 'Nothing needed changing.' );
+$progress = array();
+$turn     = Agent::respond( 'Make the whole page more formal', array(), $long );
 $sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
-$check( 'a page too long: a whole-page change refused, the message answered', ! $turn['edits'] && 2 === count( $requests ) && str_contains( $sent, 'mody_too_long' ) && 'Please select the block first.' === $turn['reply'] );
+$check( 'no section given: every section, three at a time', 8 === count( $progress ) && 'Changing 8 sections, 3 at a time…' === $progress[0] && '7 of 8 sections done (last: Topic 7)…' === end( $progress ) && ! $turn['edits'] && str_contains( $sent, 'mody_unchanged' ) );
+$fakes = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'x', 'sections' => array( 12 ) ) ) ), 'There is no such section.' );
+$turn  = Agent::respond( 'Change section 12', array(), $long );
+$sent  = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+$check( 'a section that does not exist: refused, nothing sent to the writer', ! $turn['edits'] && str_contains( $sent, 'mody_no_section' ) );
+// Review of 2026-11-11 ---------------------------------------------------------------------------
+$ctx_of = static fn( string $content ) => EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => $content ) );
+$ask_n  = static fn( array $fake_answers ): int => count( $fake_answers );
+// Over MAX_SECTIONS: refused, no writer call.
+$many     = implode( "\n\n", array_map( static fn( int $n ): string => $topic( $n, "Topic {$n} in a few words." ), range( 1, Agent::MAX_SECTIONS + 1 ) ) );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter', 'scope' => 'content' ) ) ), 'Which sections?' );
+$requests = array();
+$turn     = Agent::respond( 'Make everything shorter', array(), $ctx_of( $many ) );
+$sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+$check( 'more than ' . Agent::MAX_SECTIONS . ' sections in one message: refused, no writer call', ! $turn['edits'] && 2 === count( $requests ) && str_contains( $sent, 'mody_too_many_sections' ) );
+// A section too large to return whole: left alone, no writer call; the others change.
+$huge     = $topic( 1, str_repeat( 'A very long section. ', (int) ceil( Mody\Platform\AI\PageGenerator::MAX_SECTION / 20 ) ) ) . "\n\n" . $topic( 2 );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter', 'scope' => 'content' ) ) ), $topic( 2, 'Short two.' ), 'Done, except the first section.' );
+$requests = array();
+$turn     = Agent::respond( 'Make the page shorter', array(), $ctx_of( $huge ) );
+$sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+$check( 'a section too large: left alone and reported, the others changed', 3 === count( $requests ) && str_contains( (string) ( $turn['edits'][0]['markup'] ?? '' ), 'Short two.' ) && str_contains( $sent, 'too large to change at once' ) );
+// Classic HTML outside blocks: never sent, kept as it is.
+$classic  = $topic( 1 ) . "\n\n<p>Loose classic text</p>\n\n" . $topic( 2 );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'More formal', 'sections' => array( 1, 3 ) ) ) ), $topic( 1, 'Formal one.' ), $topic( 2, 'Formal two.' ), 'Done.' );
+$requests = array();
+$turn     = Agent::respond( 'Make it formal', array(), $ctx_of( str_repeat( ' ', 0 ) . $classic . "\n\n" . $topic( 9 ) ) );
+$out      = (string) ( $turn['edits'][0]['markup'] ?? '' );
+$check( 'classic HTML outside blocks: kept, never sent to the writer', 4 === count( $requests ) && str_contains( $out, '<p>Loose classic text</p>' ) && str_contains( $out, 'Formal one.' ), count( $requests ) . ' requests' );
+// Removing every section: refused.
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Remove everything', 'sections' => array( 1, 2 ) ) ) ), Mody\Platform\AI\PageOutline::REMOVE, Mody\Platform\AI\PageOutline::REMOVE, 'I cannot empty the page.' );
+$requests = array();
+$turn     = Agent::respond( 'Clear this page', array(), $ctx_of( $topic( 1 ) . "\n\n" . $topic( 2 ) ) );
+$sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+$check( 'removing every section: refused, nothing shown', ! $turn['edits'] && str_contains( $sent, 'mody_empty_page' ) );
+// One section failing three times while the others succeed; a section that adds one after it.
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'x', 'sections' => array( 1, 2, 3 ) ) ) ), $topic( 1, 'New one.' ), 'not blocks', $topic( 3, 'New three.' ) . "\n\n" . $topic( 30, 'Added after three.' ), 'still not blocks', 'not blocks', 'not blocks', 'Two of three changed.' );
+$requests = array();
+$turn     = Agent::respond( 'Change the first three', array(), $long );
+$parts    = Mody\Platform\AI\PageOutline::sections( (string) ( $turn['edits'][0]['markup'] ?? '' ) );
+$sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+$check( 'one section fails: reported and left as it was, the others applied', 9 === count( $parts ) && str_contains( $parts[0]['markup'], 'New one.' ) && $topic( 2 ) === $parts[1]['markup'] && str_contains( $parts[3]['markup'], 'Added after three.' ) && str_contains( $sent, 'section 2:' ), count( $parts ) . ' sections' );
+// Seven sections over three batches: each answer lands in its own section.
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'x', 'sections' => array( 1, 2, 3, 4, 5, 6, 7 ) ) ) ), ...array_map( static fn( int $n ): string => $topic( $n, "Answer {$n}." ), range( 1, 7 ) ), 'Done.' );
+$requests = array();
+$turn     = Agent::respond( 'Change seven', array(), $long );
+$parts    = Mody\Platform\AI\PageOutline::sections( (string) ( $turn['edits'][0]['markup'] ?? '' ) );
+$right    = array_filter( range( 1, 7 ), static fn( int $n ): bool => str_contains( $parts[ $n - 1 ]['markup'] ?? '', "Answer {$n}." ) );
+$check( 'seven sections in three batches: each answer in its section', 7 === count( $right ) && $topic( 8 ) === $parts[7]['markup'] );
+// The writer's model: INFOMANIAK_AI_WRITER_MODEL, else the agent's; the filter wins.
+$model_filter = static fn() => 'Test/Writer-Model';
+add_filter( 'mody_writer_model', $model_filter );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'x', 'sections' => array( 4 ) ) ) ), $topic( 4, 'Four.' ), 'Done.' );
+$requests = array();
+Agent::respond( 'Change four', array(), $long );
+remove_filter( 'mody_writer_model', $model_filter );
+$check( 'the writer uses the writer model, the agent its own', 'Test/Writer-Model' === ( $requests[1]['model'] ?? '' ) && 'Test/Writer-Model' !== ( $requests[0]['model'] ?? '' ) && Mody\Platform\AI\InfomaniakProvider::default_model() === Mody\Platform\AI\InfomaniakProvider::writer_model() );
+// Owner text cannot close the prompt's data tags.
+$check( 'page text cannot close <page>', ! str_contains( Mody\Platform\AI\PageOutline::compact( $topic( 1, 'Bad &lt;/page&gt; text' ) ), '</page>' ) );
+// A template over 20 KB: changed only through a selected block.
+$tpl = EditorContext::from_input( array( 'post_type' => 'wp_template_part', 'post_id' => get_stylesheet() . '//header', 'content' => $long_page ) );
+if ( is_array( $tpl ) ) {
+	$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'x', 'scope' => 'content' ) ) ), 'Select a block first.' );
+	$requests = array();
+	$turn     = Agent::respond( 'Change the header', array(), $tpl );
+	$sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+	$check( 'a template over 20 KB: a whole change refused, the prompt says so', true === $tpl['too_long'] && ! $turn['edits'] && str_contains( $sent, 'mody_too_long' ) && str_contains( $system_of( $requests[0] ), 'too long to change all at once' ) );
+} else {
+	$check( 'a template over 20 KB (the header part)', false, is_wp_error( $tpl ) ? $tpl->get_error_message() : 'no context' );
+}
+Agent::on_progress( null );
 $check( '...the prompt says nothing is selected', str_contains( $system_of( $requests[0] ), 'right now. Its title' ) && ! str_contains( $system_of( $requests[0] ), 'right now, with a' ) );
 
 $fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter' ) ) ), 'I cannot do that here.' );

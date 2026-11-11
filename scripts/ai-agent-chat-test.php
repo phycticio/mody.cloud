@@ -74,8 +74,9 @@ $events  = AgentEvents::table();
 $mark    = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$events}" ); // phpcs:ignore WordPress.DB
 $since   = static function () use ( &$mark, $events ): array {
 	global $wpdb;
-	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$events} WHERE id > %d ORDER BY id", $mark ), ARRAY_A ); // phpcs:ignore WordPress.DB
-	$mark = $rows ? (int) end( $rows )['id'] : $mark;
+	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$events} WHERE id > %d AND ( tool IS NULL OR tool <> 'turn' ) ORDER BY id", $mark ), ARRAY_A ); // phpcs:ignore WordPress.DB
+	// Turn rows (TurnMetrics, 2026-11-11) are checked on their own: they come after a message's rows.
+	$mark = max( $mark, (int) $wpdb->get_var( "SELECT MAX(id) FROM {$events}" ) ); // phpcs:ignore WordPress.DB
 	return $rows;
 };
 $test_mark = $mark;
