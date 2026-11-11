@@ -111,10 +111,84 @@ HTML;
 	 * @param string $markup Validated block markup.
 	 */
 	public static function normalize( string $markup ): string {
-		if ( ! preg_match( '#wp:spectra/(?:accordion|tabs)\b#', $markup ) ) {
+		if ( ! preg_match( '#wp:spectra/(?:accordion|tabs|icon|list|modal|countdown|post|content)\b#', $markup ) ) {
 			return $markup;
 		}
+		self::$modal_ids = array();
 		return serialize_blocks( self::walk( parse_blocks( $markup ) ) );
+	}
+
+	/** The modal IDs given on this page, to keep them unique. */
+	private static array $modal_ids = array();
+
+	/**
+	 * What the editor sets on load for the families taught on 2026-11-11
+	 * (tickets/agent-knows-gutenberg-spectra-settings.md, parts 5 to 7; each
+	 * found by opening the card's example in the editor):
+	 *
+	 * - an icon's color as the palette color's CSS variable: Spectra prints
+	 *   it as CSS as it is, so a bare slug ("primary") gave invalid CSS and
+	 *   the icon took the text's color;
+	 * - list items numbered by position (`index`, and `itemIndex` on the
+	 *   item's icon): an ordered list showed "1." on every item without them;
+	 * - a modal's `modalId` (unique on the page) and `isVisible`, first;
+	 * - a countdown's end as the editor writes it (UTC, toISOString) and its
+	 *   `displayEndDateTime` in the site's timezone (the date picker opens on it);
+	 * - `variationSelected` on post lists and their template (otherwise the
+	 *   editor shows the layout picker);
+	 * - `isRootBlock: false` on content blocks inside another block.
+	 *
+	 * @param array<string, mixed> $block A parsed block.
+	 * @param bool                 $inner Whether it is inside another block.
+	 * @return array<string, mixed>
+	 */
+	private static function editor_attributes( array $block, bool $inner ): array {
+		$name  = (string) $block['blockName'];
+		$attrs = (array) $block['attrs'];
+		if ( 'spectra/icon' === $name && isset( $attrs['textColor'] ) && is_string( $attrs['textColor'] ) && preg_match( '/^[a-z0-9-]+$/', $attrs['textColor'] ) ) {
+			$attrs['textColor'] = 'var(--wp--preset--color--' . $attrs['textColor'] . ')';
+		}
+		if ( 'spectra/list' === $name ) {
+			$index = 0;
+			foreach ( $block['innerBlocks'] as $i => $item ) {
+				if ( 'spectra/list-child-item' !== $item['blockName'] ) {
+					continue;
+				}
+				++$index;
+				$item['attrs'] = array( 'index' => $index ) + array_diff_key( (array) $item['attrs'], array( 'index' => true ) );
+				foreach ( $item['innerBlocks'] as $j => $icon ) {
+					if ( 'spectra/list-child-icon' === $icon['blockName'] ) {
+						$item['innerBlocks'][ $j ]['attrs'] = array( 'itemIndex' => $index ) + array_diff_key( (array) $icon['attrs'], array( 'itemIndex' => true ) );
+						break;
+					}
+				}
+				$block['innerBlocks'][ $i ] = $item;
+			}
+		}
+		if ( 'spectra/modal' === $name ) {
+			$id = is_string( $attrs['modalId'] ?? null ) && preg_match( '/^[a-z0-9]{4,}$/', $attrs['modalId'] ) && ! in_array( $attrs['modalId'], self::$modal_ids, true ) ? $attrs['modalId'] : substr( md5( wp_generate_uuid4() ), 0, 8 );
+			self::$modal_ids[] = $id;
+			$attrs             = array(
+				'modalId'   => $id,
+				'isVisible' => true,
+			) + array_diff_key( $attrs, array_flip( array( 'modalId', 'isVisible' ) ) );
+		}
+		if ( 'spectra/countdown' === $name && isset( $attrs['endDateTime'] ) && false !== strtotime( (string) $attrs['endDateTime'] ) ) {
+			$end   = date_create_immutable( (string) $attrs['endDateTime'], preg_match( '/(?:Z|[+-]\d{2}:?\d{2})$/', (string) $attrs['endDateTime'] ) ? null : wp_timezone() );
+			$rest  = array_diff_key( $attrs, array_flip( array( 'endDateTime', 'displayEndDateTime' ) ) );
+			$attrs = array(
+				'endDateTime'        => $end->setTimezone( new \DateTimeZone( 'UTC' ) )->format( 'Y-m-d\TH:i:s.000\Z' ),
+				'displayEndDateTime' => $end->setTimezone( wp_timezone() )->format( 'Y-m-d H:i:s' ),
+			) + $rest;
+		}
+		if ( in_array( $name, array( 'spectra/post', 'spectra/post-template' ), true ) && empty( $attrs['variationSelected'] ) ) {
+			$attrs['variationSelected'] = true;
+		}
+		if ( 'spectra/content' === $name && $inner && ! array_key_exists( 'isRootBlock', $attrs ) ) {
+			$attrs['isRootBlock'] = false;
+		}
+		$block['attrs'] = $attrs;
+		return $block;
 	}
 
 	/**
@@ -123,11 +197,12 @@ HTML;
 	 * @param array<int, array<string, mixed>> $blocks Parsed blocks.
 	 * @return array<int, array<string, mixed>>
 	 */
-	private static function walk( array $blocks ): array {
+	private static function walk( array $blocks, bool $inner = false ): array {
 		foreach ( $blocks as $i => $block ) {
 			if ( null === $block['blockName'] ) {
 				continue;
 			}
+			$block = self::editor_attributes( $block, $inner );
 			if ( preg_match( '#^spectra/(?:accordion|tabs)#', (string) $block['blockName'] ) ) {
 				$block['attrs'] = self::without_defaults( (string) $block['blockName'], (array) $block['attrs'] );
 			}
@@ -150,7 +225,7 @@ HTML;
 					'currentTab'        => is_int( $open ) && $open >= 0 && $open < $panel ? $open : 0,
 				) + $block['attrs'];
 			}
-			$block['innerBlocks'] = self::walk( (array) $block['innerBlocks'] );
+			$block['innerBlocks'] = self::walk( (array) $block['innerBlocks'], true );
 			$blocks[ $i ]         = $block;
 		}
 		return $blocks;

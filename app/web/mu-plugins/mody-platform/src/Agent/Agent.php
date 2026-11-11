@@ -9,6 +9,8 @@ namespace Mody\Platform\Agent;
 
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SystemPrompt;
+use Mody\Platform\Site\Menu;
+use Mody\Platform\Site\Settings;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\DTO\ModelMessage;
@@ -45,7 +47,8 @@ final class Agent {
 		'open_editor'          => 'mody/open-editor',
 		'update_design'        => 'mody/update-design',
 		'publish_page'         => 'mody/publish-page',
-		'update_site_settings' => 'mody/update-site-settings',
+		'update_settings'      => 'mody/update-settings', // 2026-11-11, replaces mody/update-site-settings.
+		'update_menu'          => 'mody/update-menu', // 2026-11-11.
 		'update_styles'        => 'mody/update-styles', // M3-10 part B.
 	);
 
@@ -59,6 +62,8 @@ final class Agent {
 		'mody/update-design'        => 'styles',
 		'mody/update-styles'        => 'styles',
 		'mody/update-site-settings' => 'site',
+		'mody/update-settings'      => 'site',
+		'mody/update-menu'          => 'navigation',
 	);
 
 	/**
@@ -250,7 +255,7 @@ final class Agent {
 
 		$editing      = null !== $this->context;
 		$system       = SystemPrompt::for_agent( self::tool_names() )
-			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_site_settings'] ?? 'the site settings tool', self::tool_names()['open_editor'] ?? 'the open-editor tool' ) : '' )
+			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_settings'] ?? 'the settings tool', self::tool_names()['open_editor'] ?? 'the open-editor tool' ) : '' )
 			. ( null !== $this->screen ? "\n\n" . SystemPrompt::for_screen( $this->screen ) : '' );
 		$declarations = self::declarations( $editing );
 		$resolver     = new Resolver( ...array_values( self::ABILITIES ) );
@@ -409,7 +414,7 @@ final class Agent {
 
 		if ( self::REFUSE === $name ) {
 			$reason                = sanitize_text_field( (string) ( $args['reason'] ?? '' ) );
-			$this->turn['reply']   = '' !== $reason ? $reason : __( 'I cannot do that here. I can create and publish pages, change the site\'s colors, title and tagline, and open the editor for you.', 'mody_cloud' );
+			$this->turn['reply']   = '' !== $reason ? $reason : __( 'I cannot do that here. I can create and publish pages, change the site\'s styles and settings, and open the editor for you.', 'mody_cloud' );
 			$this->turn['refused'] = true;
 			$this->done            = true;
 			AgentEvents::log( $this->input, $name, $args, 'refused: ' . $this->turn['reply'], $started );
@@ -446,7 +451,7 @@ final class Agent {
 		}
 
 		// Opening what is already open (M3-09). Probed 2026-11-08: "add a short FAQ at the end of
-		// this page" opened the open page instead of editing it 1 to 2 times in 6, despite rule 10.
+		// this page" opened the open page instead of editing it 1 to 2 times in 6, despite rule 11 (rule 10 until 2026-11-11).
 		if ( 'mody/open-editor' === $ability && $this->opens_what_is_open( (array) $args ) ) {
 			AgentEvents::log( $this->input, $ability, $args, 'refused: already open', $started );
 			return array(
@@ -459,6 +464,12 @@ final class Agent {
 		// maintainer on 2026-11-09): the call waits, as made, for their decision in the chat.
 		if ( isset( self::REFRESH[ $ability ] ) && in_array( self::REFRESH[ $ability ], $this->unsaved, true ) ) {
 			return $this->hold( $call, $ability, $args, $started );
+		}
+
+		// Settings that need the owner's confirmation, and a menu that loses an item (decided by the maintainer on 2026-11-11):
+		// the call waits, as made, for Apply or Cancel in the chat. The model cannot confirm.
+		if ( ( 'mody/update-settings' === $ability && Settings::to_confirm( $args ) ) || ( 'mody/update-menu' === $ability && Menu::to_confirm( $args ) ) ) {
+			return $this->hold( $call, $ability, $args, $started, 'confirm' );
 		}
 
 		++$this->executed;
@@ -564,7 +575,7 @@ final class Agent {
 	 * @param float                $started When the call started (microtime).
 	 * @return array<string, mixed> What the model gets back.
 	 */
-	private function hold( FunctionCall $call, string $ability, array $args, float $started ): array {
+	private function hold( FunctionCall $call, string $ability, array $args, float $started, string $kind = 'unsaved' ): array {
 		if ( isset( $this->turn['decision'] ) ) {
 			AgentEvents::log( $this->input, $ability, $args, 'refused: a change already waits for the owner', $started );
 			return array(
@@ -596,6 +607,7 @@ final class Agent {
 			'ability' => $ability,
 			'args'    => $args,
 			'record'  => $record,
+			'kind'    => $kind,
 			'name'    => (string) $call->getName(),
 			'message' => $this->input,
 			'time'    => time(),
@@ -605,19 +617,26 @@ final class Agent {
 		++$this->executed;
 		$this->done             = true;
 		$this->turn['decision'] = array(
-			'id'     => $held['id'],
-			'record' => $record,
+			'id'      => $held['id'],
+			'record'  => $record,
+			'choices' => self::choices( $kind ),
 		);
-		$this->turn['reply']    = sprintf(
+		$this->turn['reply']    = 'confirm' === $kind ? sprintf(
+			/* translators: %s: the change, such as "search_engines_visible false". */
+			__( 'This change needs your confirmation before I make it: %s. Shall I apply it?', 'mody_cloud' ),
+			self::describe( $ability, $args )
+		) : sprintf(
 			/* translators: 1: "the styles" or "the site settings", 2: the change, such as "primary color #2e8b57". */
 			__( 'You have unsaved changes to %1$s in the editor, so I have not made this change yet: %2$s. What should I do with your changes first?', 'mody_cloud' ),
-			'site' === $record ? __( 'the site settings', 'mody_cloud' ) : __( 'the styles', 'mody_cloud' ),
+			'site' === $record ? __( 'the site settings', 'mody_cloud' ) : ( 'navigation' === $record ? __( 'the menu', 'mody_cloud' ) : __( 'the styles', 'mody_cloud' ) ),
 			self::describe( $ability, $args )
 		);
 
 		$response      = array(
 			'held'    => true,
-			'message' => 'Not done yet: the owner has unsaved changes to this in the editor. The chat asks them to save theirs first, discard them, or cancel, and runs this call as it is if they choose to.',
+			'message' => 'confirm' === $kind
+				? 'Not done yet: this change needs the owner\'s confirmation. The chat shows them Apply and Cancel, and runs this call as it is if they apply it. Do not say it is done.'
+				: 'Not done yet: the owner has unsaved changes to this in the editor. The chat asks them to save theirs first, discard them, or cancel, and runs this call as it is if they choose to.',
 		);
 		$this->calls[] = array(
 			'id'     => (string) $call->getId(),
@@ -625,7 +644,7 @@ final class Agent {
 			'args'   => $args,
 			'result' => $response,
 		);
-		AgentEvents::log( $this->input, $ability, $args, 'held: unsaved ' . $record . ' in the editor', $started );
+		AgentEvents::log( $this->input, $ability, $args, 'confirm' === $kind ? 'held: needs the owner\'s confirmation' : 'held: unsaved ' . $record . ' in the editor', $started );
 		return $response;
 	}
 
@@ -648,6 +667,19 @@ final class Agent {
 					$parts[] = sprintf( __( '%1$s color %2$s', 'mody_cloud' ), $slug, strtolower( (string) $args[ $slug ] ) );
 				}
 			}
+		} elseif ( 'mody/update-settings' === $ability ) {
+			foreach ( (array) ( $args['changes'] ?? array() ) as $name => $value ) {
+				$shown   = is_bool( $value ) ? ( $value ? 'true' : 'false' ) : ( is_array( $value ) ? implode( ', ', array_map( 'strval', array_filter( $value, 'is_scalar' ) ) ) : (string) $value );
+				/* translators: 1: a setting's name, 2: its new value. */
+				$parts[] = sprintf( __( '%1$s → "%2$s"', 'mody_cloud' ), sanitize_key( (string) $name ), mb_strimwidth( sanitize_text_field( $shown ), 0, 120, '…' ) );
+			}
+		} elseif ( 'mody/update-menu' === $ability ) {
+			$labels = array();
+			foreach ( (array) ( $args['items'] ?? array() ) as $item ) {
+				$labels[] = is_array( $item ) ? (string) ( $item['label'] ?? $item['page'] ?? '' ) : (string) $item;
+			}
+			/* translators: %s: the menu's items, such as "Home, About, Contact". */
+			$parts[] = sprintf( __( 'the menu becomes: %s', 'mody_cloud' ), mb_strimwidth( sanitize_text_field( implode( ', ', array_filter( $labels ) ) ), 0, 200, '…' ) );
 		} elseif ( 'mody/update-site-settings' === $ability ) {
 			foreach ( array( 'title', 'tagline', 'mission', 'tone' ) as $field ) {
 				if ( isset( $args[ $field ] ) ) {
@@ -656,7 +688,7 @@ final class Agent {
 				}
 			}
 		}
-		return $parts ? implode( ', ', $parts ) : __( 'a change to the site\'s styles', 'mody_cloud' );
+		return $parts ? implode( ', ', $parts ) : ( 'mody/update-settings' === $ability ? __( 'a change to the site\'s settings', 'mody_cloud' ) : __( 'a change to the site\'s styles', 'mody_cloud' ) );
 	}
 
 	/**
@@ -670,8 +702,21 @@ final class Agent {
 		return array(
 			'save'    => __( 'Save my changes, then apply', 'mody_cloud' ),
 			'discard' => __( 'Discard my changes, then apply', 'mody_cloud' ),
+			'apply'   => __( 'Apply', 'mody_cloud' ),
 			'cancel'  => __( 'Cancel', 'mody_cloud' ),
 		);
+	}
+
+	/**
+	 * The choices a held change offers: `unsaved` (the owner has unsaved
+	 * changes in the editor) or `confirm` (a setting that needs their
+	 * confirmation, 2026-11-11).
+	 *
+	 * @param string $kind unsaved or confirm.
+	 * @return string[]
+	 */
+	public static function choices( string $kind ): array {
+		return 'confirm' === $kind ? array( 'apply', 'cancel' ) : array( 'save', 'discard', 'cancel' );
 	}
 
 	/**
@@ -685,7 +730,7 @@ final class Agent {
 	 */
 	public static function decide( string $id, string $choice ): array|WP_Error {
 		$held = self::held();
-		if ( ! $held || ! hash_equals( (string) $held['id'], $id ) || ! isset( self::decision_labels()[ $choice ] ) ) {
+		if ( ! $held || ! hash_equals( (string) $held['id'], $id ) || ! in_array( $choice, self::choices( (string) ( $held['kind'] ?? 'unsaved' ) ), true ) ) {
 			return new WP_Error( 'mody_decision_expired', __( 'This change is no longer waiting. Ask me again.', 'mody_cloud' ), array( 'status' => 410 ) );
 		}
 		self::forget_held();
@@ -865,7 +910,7 @@ final class Agent {
 		);
 		$declarations[] = new FunctionDeclaration(
 			self::REFUSE,
-			'Declines a request that no tool covers or that is not allowed: deleting anything, the database, files, code, users, passwords, other sites. Ends your turn.',
+			'Declines a request that no tool covers or that is not allowed: deleting anything, the database, files, code, users, passwords, the admin email, plugins, other sites. Ends your turn.',
 			array(
 				'type'       => 'object',
 				'properties' => array(

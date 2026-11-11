@@ -90,6 +90,7 @@ final class EditorBubble {
 		$settings['strings']['unsaved'] = __( 'You also have unsaved changes here. Where they overlap with this change, the editor shows yours, and saving keeps them.', 'mody_cloud' );
 		// A change held for the owner's decision (Agent::hold()): the three choices, and a save that failed.
 		$settings['decisions']               = Agent::decision_labels();
+		$settings['menu']                    = \Mody\Platform\Site\Menu::id(); // Reloaded after mody/update-menu (2026-11-11).
 		$settings['strings']['settleFailed'] = __( 'Your changes could not be saved, so I made no change. Save them with the editor\'s Save button, then ask me again.', 'mody_cloud' );
 		return $settings;
 	}

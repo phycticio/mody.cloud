@@ -1,0 +1,42 @@
+{
+    "family": "preformatted",
+    "label": "Preformatted text",
+    "top": "core/preformatted",
+    "blocks": [
+        "core/preformatted"
+    ],
+    "when": "text whose spacing and line breaks must stay as typed (aligned columns, a recipe card)",
+    "keywords": [
+        "preformatted",
+        "preformatted text",
+        "pre formatted",
+        "monospaced text",
+        "fixed width text",
+        "ascii art",
+        "keep the spacing",
+        "keep line breaks",
+        "texto preformateado",
+        "preformateado",
+        "texto monoespaciado",
+        "arte ascii",
+        "texte preformate",
+        "preformate",
+        "vorformatierter text",
+        "vorformatiert",
+        "festbreitenschrift",
+        "testo preformattato",
+        "preformattato",
+        "testo a larghezza fissa",
+        "texto preformatado",
+        "preformatado",
+        "texto monoespacado",
+        "vooraf opgemaakte tekst",
+        "voorgeformatteerde tekst",
+        "tekst met vaste breedte",
+        "text preformatat",
+        "preformatat",
+        "text monoespaiat"
+    ],
+    "rules": "One core/preformatted block per piece, no inner blocks: <pre class=\"wp-block-preformatted\">the text</pre>, plain text with real line breaks and the spaces exactly as typed, so columns line up (no <br>, no <p>). Write < > & as &lt; &gt; &amp;. Only for text whose spacing matters (aligned columns, a recipe card, ASCII art). Poems and lyrics: the Poetry block. Facts in rows and columns: the Table block. Code: the Code block. No attributes.",
+    "example": "<!-- wp:preformatted -->\n<pre class=\"wp-block-preformatted\">Flour    500 g\nWater    350 g\nSalt      10 g\nYeast      3 g</pre>\n<!-- /wp:preformatted -->\n\n<!-- wp:preformatted -->\n<pre class=\"wp-block-preformatted\">Crust    crisp, deep golden\nCrumb    open and soft\nFlavour  mild, slightly sweet</pre>\n<!-- /wp:preformatted -->"
+}

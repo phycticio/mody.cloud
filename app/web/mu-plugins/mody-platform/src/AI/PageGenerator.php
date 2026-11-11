@@ -70,7 +70,7 @@ final class PageGenerator {
 		}
 
 
-		$markup = self::ask( $site_id, self::on_site( $site_id, static fn() => SystemPrompt::for_page() ), $prompt, '', self::MAX_TOKENS, 'generate_page' );
+		$markup = self::ask( $site_id, self::on_site( $site_id, static fn() => SystemPrompt::for_page( $prompt ) ), $prompt, '', self::MAX_TOKENS, 'generate_page', false, BlockReference::select( $prompt ) );
 		if ( is_wp_error( $markup ) && 'mody_invalid_answers' === $markup->get_error_code() ) {
 			return new WP_Error(
 				'mody_generation_failed',
@@ -111,7 +111,7 @@ final class PageGenerator {
 		// Room for the whole content again, plus what the instruction adds.
 		$tokens = min( self::MAX_EDIT_TOKENS, max( self::MAX_TOKENS, (int) ceil( strlen( $markup ) / 3 ) + 1500 ) );
 
-		$result = self::ask( $site_id, self::on_site( $site_id, static fn() => SystemPrompt::for_edit( $fragment, $template ) ), $prompt, $markup, $tokens, 'edit_markup', $template );
+		$result = self::ask( $site_id, self::on_site( $site_id, static fn() => SystemPrompt::for_edit( $fragment, $template, $instruction, $markup ) ), $prompt, $markup, $tokens, 'edit_markup', $template, BlockReference::select( $instruction, $markup ) );
 		if ( is_wp_error( $result ) && 'mody_invalid_answers' === $result->get_error_code() ) {
 			return new WP_Error(
 				'mody_edit_failed',
@@ -134,10 +134,12 @@ final class PageGenerator {
 	 * @param int    $max_tokens Answer size.
 	 * @param string $label      Name in the log.
 	 * @param bool   $template   Validate as a template or template part.
+	 * @param array  $had        The block families whose cards the system prompt carries:
+	 *                           a rejected answer's feedback adds the others it used.
 	 * @return string|WP_Error Valid markup, an AI Client error, or `mody_invalid_answers`
 	 *                         after MAX_ATTEMPTS invalid answers.
 	 */
-	private static function ask( int $site_id, string $system, string $prompt, string $original, int $max_tokens, string $label, bool $template = false ): string|WP_Error {
+	private static function ask( int $site_id, string $system, string $prompt, string $original, int $max_tokens, string $label, bool $template = false, array $had = array() ): string|WP_Error {
 		$feedback = '';
 		$problem  = '';
 		$timeout  = $max_tokens > self::MAX_TOKENS ? self::EDIT_TIMEOUT : self::TIMEOUT;
@@ -165,7 +167,10 @@ final class PageGenerator {
 
 			$problem = $valid->get_error_message();
 			self::log( $site_id, $attempt, 'invalid markup: ' . $problem, $label );
-			$feedback = "\n\n(Your previous answer was rejected: " . $problem . ' Return the whole markup again, following every output rule.)';
+			// The cards of the block families it used without one (BlockReference, 2026-11-11).
+			$cards    = BlockReference::cards_for_markup( $markup, $had );
+			$had      = array_merge( $had, BlockReference::select( '', $markup ) );
+			$feedback = "\n\n(Your previous answer was rejected: " . $problem . ' Return the whole markup again, following every output rule.)' . $cards;
 		}
 
 		return new WP_Error(

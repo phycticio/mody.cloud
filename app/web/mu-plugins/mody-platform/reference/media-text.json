@@ -1,0 +1,43 @@
+{
+    "family": "media-text",
+    "label": "Image and text",
+    "top": "core/media-text",
+    "blocks": [
+        "core/media-text"
+    ],
+    "when": "a picture beside a block of text (about us, a service, a feature), the picture on one side and the words on the other",
+    "media": true,
+    "keywords": [
+        "media and text",
+        "media text",
+        "image and text",
+        "image with text",
+        "image next to",
+        "picture and text",
+        "photo and text",
+        "photo with text",
+        "imagen y texto",
+        "imagen con texto",
+        "foto y texto",
+        "image et texte",
+        "image avec texte",
+        "photo et texte",
+        "bild und text",
+        "bild mit text",
+        "foto und text",
+        "immagine e testo",
+        "immagine con testo",
+        "foto e testo",
+        "imagem e texto",
+        "imagem com texto",
+        "foto e texto",
+        "afbeelding en tekst",
+        "afbeelding met tekst",
+        "foto en tekst",
+        "imatge i text",
+        "imatge amb text",
+        "foto i text"
+    ],
+    "rules": "core/media-text, always \"mediaType\":\"image\"; the text blocks go in its content div. Use only an image from \"The site's media library\": its address as src, its ID as \"mediaId\" in the comment, class=\"wp-image-<ID> size-full\" on the img after alt, its alt text as alt (the example is a placeholder, so no mediaId or class). None in the list: no media-text. Picture on the right: \"mediaPosition\":\"right\", class has-media-on-the-right, the content div before the figure. Width not 50: \"mediaWidth\":N and style=\"grid-template-columns:N% auto\" (\"auto N%\" on the right) after the class. No other attributes.",
+    "example": "<!-- wp:media-text {\"mediaType\":\"image\"} -->\n<div class=\"wp-block-media-text is-stacked-on-mobile\"><figure class=\"wp-block-media-text__media\"><img src=\"/mody-placeholder/1200x800.svg\" alt=\"A baker pulling loaves from the oven\"/></figure><div class=\"wp-block-media-text__content\"><!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Baked every morning</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>We start at four and the first loaves are out by six, so what you buy is never more than a few hours old.</p>\n<!-- /wp:paragraph --></div></div>\n<!-- /wp:media-text -->"
+}

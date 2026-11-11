@@ -1,0 +1,41 @@
+{
+    "family": "gallery",
+    "label": "Gallery",
+    "top": "core/gallery",
+    "blocks": [
+        "core/gallery"
+    ],
+    "when": "several pictures shown together in a grid (the work, the products, the place, the team)",
+    "media": true,
+    "keywords": [
+        "gallery",
+        "galleries",
+        "photos",
+        "pictures",
+        "images",
+        "galeria",
+        "galerias",
+        "fotos",
+        "imagenes",
+        "fotografias",
+        "galerie",
+        "galerien",
+        "bilder",
+        "bildergalerie",
+        "fotogalerie",
+        "galleria",
+        "gallerie",
+        "foto",
+        "immagini",
+        "fotografie",
+        "imagens",
+        "galerij",
+        "galerijen",
+        "foto s",
+        "afbeeldingen",
+        "imatges",
+        "fotografies"
+    ],
+    "rules": "One core/gallery with one complete core/image block per picture, as in the example; never a bare <img>. Use only images from \"The site's media library\": its exact address as src, its ID first in the image's comment {\"id\":<ID>,\"sizeSlug\":\"large\",\"linkDestination\":\"none\"}, class=\"wp-image-<ID>\" on the img after alt, its alt text as alt. The example's placeholders have no id or class. Fewer than 2 images in the list: no gallery. A caption is optional: a figcaption after the img. \"columns\" is 2, 3 or 4, not above the image count, and the figure's class has the same columns-N. No other attributes.",
+    "example": "<!-- wp:gallery {\"columns\":3,\"linkTo\":\"none\"} -->\n<figure class=\"wp-block-gallery has-nested-images columns-3 is-cropped\"><!-- wp:image {\"sizeSlug\":\"large\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"/mody-placeholder/1200x800.svg\" alt=\"Fresh sourdough loaves on a wooden board\"/><figcaption class=\"wp-element-caption\">Sourdough, baked at dawn</figcaption></figure>\n<!-- /wp:image -->\n\n<!-- wp:image {\"sizeSlug\":\"large\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"/mody-placeholder/1200x800.svg\" alt=\"A baker shaping dough by hand\"/><figcaption class=\"wp-element-caption\">Shaped by hand</figcaption></figure>\n<!-- /wp:image -->\n\n<!-- wp:image {\"sizeSlug\":\"large\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"/mody-placeholder/1200x800.svg\" alt=\"Croissants cooling on a rack\"/><figcaption class=\"wp-element-caption\">Croissants, still warm</figcaption></figure>\n<!-- /wp:image --></figure>\n<!-- /wp:gallery -->"
+}

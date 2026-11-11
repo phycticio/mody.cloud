@@ -181,7 +181,8 @@ $check( 'kept as they were: accepted', true === BlockValidator::validate( $own .
 $check( '...not accepted as new content', is_wp_error( BlockValidator::validate( $own ) ) );
 $changed = str_replace( 'Made by hand.', 'Changed by the model.', $own );
 $check( 'a changed one is checked (hex refused)', is_wp_error( BlockValidator::validate( $changed, $original ) ), $message( BlockValidator::validate( $changed, $original ) ) );
-$check( 'a new block outside the list is refused', is_wp_error( BlockValidator::validate( $original . "\n\n<!-- wp:code -->\n<pre class=\"wp-block-code\"><code>y = 2</code></pre>\n<!-- /wp:code -->", $original ) ) );
+// core/code is allowed since 2026-11-11; core/html stays out (raw, unchecked markup).
+$check( 'a new block outside the list is refused', is_wp_error( BlockValidator::validate( $original . "\n\n<!-- wp:html -->\n<p>y = 2</p>\n<!-- /wp:html -->", $original ) ) );
 
 // 2. EditorContext -------------------------------------------------------------------
 

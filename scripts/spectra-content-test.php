@@ -100,9 +100,15 @@ $prompts   = array(
 	'block edit'      => SystemPrompt::for_edit( true ),
 	'template edit'   => SystemPrompt::for_edit( false, true ),
 );
+// Since 2026-11-11 the families are cards (Mody\Platform\AI\BlockReference): every prompt lists them all,
+// and carries the cards of the families its request names or its markup uses.
 foreach ( $prompts as $label => $prompt ) {
-	$check( $label . ': the reference, and accordion and tabs on the list', str_contains( $prompt, $reference ) && str_contains( $prompt, 'and the Spectra content blocks below (accordion and tabs' ) );
+	$check( $label . ': every family listed, accordion and tabs among them', str_contains( $prompt, Mody\Platform\AI\BlockReference::index() ) && str_contains( $prompt, '- Accordion (spectra/accordion)' ) && str_contains( $prompt, '- Tabs (spectra/tabs)' ) && str_contains( $prompt, 'and the block families listed below' ) );
 }
+$check( 'an FAQ request gets the accordion card, not the tabs one', str_contains( SystemPrompt::for_page( 'An FAQ page about our repairs' ), SpectraBlocks::ACCORDION ) && ! str_contains( SystemPrompt::for_page( 'An FAQ page about our repairs' ), SpectraBlocks::TABS ) );
+$check( '... in Spanish too', str_contains( SystemPrompt::for_page( 'Una página de preguntas frecuentes' ), SpectraBlocks::ACCORDION ) );
+$check( 'an edit of markup with tabs gets the tabs card', str_contains( SystemPrompt::for_edit( true, false, 'Rename the second tab', SpectraBlocks::TABS ), SpectraBlocks::TABS ) );
+$check( 'an about page gets no card', ! str_contains( SystemPrompt::for_page( 'An about page for our bakery' ), 'How to write the ones this request needs' ) );
 $check( 'the reference holds both examples', str_contains( $reference, SpectraBlocks::ACCORDION ) && str_contains( $reference, SpectraBlocks::TABS ), strlen( $reference ) . ' characters' );
 $check( 'one family per example', array( 'spectra/accordion', 'spectra/tabs' ) === SpectraBlocks::FAMILIES );
 

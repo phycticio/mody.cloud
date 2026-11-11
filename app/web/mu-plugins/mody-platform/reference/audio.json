@@ -1,0 +1,42 @@
+{
+    "family": "audio",
+    "label": "Audio",
+    "top": "core/audio",
+    "blocks": [
+        "core/audio"
+    ],
+    "when": "an audio file from the media library: a recording, a podcast episode, a song",
+    "media": true,
+    "keywords": [
+        "audio",
+        "audios",
+        "podcast",
+        "podcasts",
+        "mp3",
+        "song",
+        "songs",
+        "cancion",
+        "canciones",
+        "chanson",
+        "chansons",
+        "lied",
+        "lieder",
+        "canzone",
+        "canzoni",
+        "cancao",
+        "cancoes",
+        "liedje",
+        "liedjes",
+        "canco",
+        "cancons",
+        "grabacion",
+        "enregistrement",
+        "aufnahme",
+        "registrazione",
+        "gravacao",
+        "opname",
+        "enregistrament"
+    ],
+    "rules": "Use only an audio file from \"The site's media library\" (an \"audio\" line): its exact address as \"src\" in the HTML and its ID as \"id\" in the comment, like {\"id\":2481}. The comment holds only \"id\"; controls, src and the caption are HTML. Keep \"controls\"; no autoplay or loop. A caption is the figcaption after the audio and says what it is. If no audio file is in the list, write no audio block.",
+    "example": "<!-- wp:audio -->\n<figure class=\"wp-block-audio\"><audio controls src=\"/web/uploads/example.mp3\"></audio><figcaption class=\"wp-element-caption\">Our latest episode</figcaption></figure>\n<!-- /wp:audio -->"
+}

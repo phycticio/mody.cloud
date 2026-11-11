@@ -1,0 +1,39 @@
+{
+    "family": "image",
+    "label": "Image",
+    "top": "core/image",
+    "blocks": [
+        "core/image"
+    ],
+    "when": "one picture from the media library, with an optional caption (a photo of the team, the shop, a product)",
+    "media": true,
+    "keywords": [
+        "image",
+        "images",
+        "picture",
+        "pictures",
+        "photo",
+        "photos",
+        "photograph",
+        "imagen",
+        "imagenes",
+        "foto",
+        "fotos",
+        "fotografia",
+        "photographie",
+        "bild",
+        "bilder",
+        "abbildung",
+        "immagine",
+        "immagini",
+        "imagem",
+        "imagens",
+        "afbeelding",
+        "afbeeldingen",
+        "plaatje",
+        "imatge",
+        "imatges"
+    ],
+    "rules": "One picture, only from \"The site's media library\": write {\"id\":<ID>,\"sizeSlug\":\"large\",\"linkDestination\":\"none\"}, the img src is its exact address, alt is its alt text from the list (or a short description), and class=\"wp-image-<ID>\" goes after alt on the img. The example's address is a stand-in without an id: replace it. Never an address that is not in the list; if none fits, or the library is empty, write no image. The figcaption is optional: a short caption in the page's language. No width, height, align, link or other attributes.",
+    "example": "<!-- wp:image {\"sizeSlug\":\"large\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"/mody-placeholder/1200x800.svg\" alt=\"The workshop at sunrise, bikes lined up outside\"/><figcaption class=\"wp-element-caption\">The workshop at sunrise, before the first customer.</figcaption></figure>\n<!-- /wp:image -->"
+}

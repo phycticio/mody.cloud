@@ -445,8 +445,8 @@ $result = $opened( 'I want to change my logo' );
 $check( '"I want to change my logo": the Identity screen', 'identity' === ( $result['args']['target'] ?? '' ) && 'the Identity screen' === $result['place'], $result['detail'] );
 $settings_args  = static function ( array $turn ): ?array {
 	foreach ( $turn['calls'] ?? array() as $made_call ) {
-		if ( str_ends_with( (string) $made_call['name'], 'update-site-settings' ) ) {
-			return (array) $made_call['args'];
+		if ( str_ends_with( (string) $made_call['name'], 'update-settings' ) ) {
+			return (array) ( $made_call['args']['changes'] ?? array() );
 		}
 	}
 	return null;

@@ -1,0 +1,42 @@
+{
+    "family": "archives",
+    "label": "Archives",
+    "top": "core/archives",
+    "blocks": [
+        "core/archives"
+    ],
+    "when": "the posts by month or year as a list or a dropdown (a blog archive)",
+    "keywords": [
+        "blog archive",
+        "post archive",
+        "monthly archive",
+        "monthly archives",
+        "archive of posts",
+        "archives dropdown",
+        "archivo del blog",
+        "archivo mensual",
+        "archivos mensuales",
+        "archivo de entradas",
+        "archives du blog",
+        "archives mensuelles",
+        "archives des articles",
+        "blog archiv",
+        "monatsarchiv",
+        "beitragsarchiv",
+        "archiv nach monat",
+        "archivio del blog",
+        "archivio mensile",
+        "archivi mensili",
+        "arquivo do blog",
+        "arquivo mensal",
+        "arquivos mensais",
+        "blogarchief",
+        "maandarchief",
+        "berichtenarchief",
+        "arxiu del blog",
+        "arxiu mensual",
+        "arxius mensuals"
+    ],
+    "rules": "One self-closing comment, no inner blocks. It lists the periods that have published posts, each linking to that period's posts, so never write dates or links. \"type\" is \"monthly\" (default), \"yearly\", \"weekly\" or \"daily\". \"showPostCounts\":true adds the number of posts. \"displayAsDropdown\":true shows a select instead of a list (\"showLabel\":false hides its label). A list gets a heading above it, a dropdown does not.",
+    "example": "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Archive</h2>\n<!-- /wp:heading -->\n\n<!-- wp:archives {\"showPostCounts\":true,\"type\":\"yearly\"} /-->\n\n<!-- wp:archives {\"displayAsDropdown\":true} /-->"
+}

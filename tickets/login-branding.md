@@ -1,6 +1,6 @@
 # The login page in each site's brand, and Settings → Login
 
-**Milestone:** design follow-up (M1/M4) · **Status:** built locally (2026-11-10), not yet deployed; review and the maintainer's browser check pending
+**Milestone:** design follow-up (M1/M4) · **Status:** deployed to production on 2026-11-10 (`fd4a42d`); the maintainer's browser check pending
 
 ## Asked for
 By the maintainer on 2026-11-10, first:
@@ -59,5 +59,5 @@ docker exec -i -u www-data mody_cloud_app \
 ```
 
 ## Still open
-- The review and the maintainer's browser check.
+- The maintainer's browser check. An independent review was started and stopped before it reported (2026-11-10); the test passes.
 - **The agent cannot choose a scheme yet** (no `mody/*` ability). Add one if members should be able to ask Mody for it.

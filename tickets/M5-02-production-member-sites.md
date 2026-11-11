@@ -1,6 +1,6 @@
 # M5-02 · Member sites in production: wildcard DNS and TLS, `home`, mail
 
-**Milestone:** M5 (split from [M5-01](M5-01-hardening-launch.md) on 2026-11-08) · **Spec:** documentation/mvp-spec.md §12 (Wildcard TLS), §16 questions 2 and 3; documentation/architecture.md (Production: Request path, Host, Deviations to resolve 1 to 3) · **Status:** todo. Instructions prepared 2026-11-08. Steps 1 to 4 and 6 are the maintainer's: Cloudflare, Nginx Proxy Manager, the server's `.env`. The certificate option is decided (step 2, 2026-11-08); the SMTP relay is not (step 6).
+**Milestone:** M5 (split from [M5-01](M5-01-hardening-launch.md) on 2026-11-08) · **Spec:** documentation/mvp-spec.md §12 (Wildcard TLS), §16 questions 2 and 3; documentation/architecture.md (Production: Request path, Host, Deviations to resolve 1 to 3) · **Status:** todo (step 5 done 2026-11-10). Instructions prepared 2026-11-08. Steps 1 to 4 and 6 are the maintainer's: Cloudflare, Nginx Proxy Manager, the server's `.env`. The certificate option is decided (step 2, 2026-11-08); the SMTP relay is not (step 6).
 
 ## Goal
 A site created with the wizard in production opens at `https://<slug>.mody.cloud`, with correct links, and WordPress mail (password resets, the welcome email) is delivered. Until then everything built in M2 to M4 works only locally. One production member site already exists (`phycticio.mody.cloud`, seen 2026-11-07), and it cannot be reached.
@@ -53,6 +53,13 @@ Both `home` and `siteurl` lose `/wp`, not only `home`: wp-admin, wp-login.php an
 6. Check: `/`, `/es/`, wp-login.php, wp-admin, Network Admin, the Site Editor, `phycticio.mody.cloud`, and an old `/wp/es/` link.
 
 Rehearsed locally on 2026-11-10: 7 replacements (the main site's `siteurl`, the five language menus' "Log in" links, one user URL), then wp-admin, Network Admin, the Site Editor and the Pages screen answered 200 at the root with no `/wp/` link, and `/wp/wp-admin/edit.php` answered 308 to `/wp-admin/edit.php`. New sites need no change: `Pipeline::urls()` copies the main site's form, now without `/wp`.
+
+**Done in production on 2026-11-10** (deployed `dc1e0e6`, then nginx restarted):
+- the dump `backups/mody_cloud-prod-before-no-wp-20261110-234714.sql`;
+- 10 replacements: the main site's `home` and `siteurl`, the network's `siteurl`, the header menus' links in English, Spanish, German and Italian, one dashboard link and one user URL. `aliris.mody.cloud` already had no `/wp`;
+- left alone: 33 `guid` values, the agent's audit log (`wp_mody_agent_events`) and Wordfence's traffic log;
+- checked: `/`, `/es/`, `/de/`, `/it/`, `/register/`, wp-login.php, `/wp-json/` and `aliris.mody.cloud` answer 200 with no `/wp/` link; `/wp/`, `/wp/es/`, `/wp/register/` and `/wp/wp-admin/` answer 308 to the same address without `/wp`; no 500 in nginx's log. Between the nginx restart and the replacement (about a minute) the home page looped between `/` and `/wp/`.
+- **Not checked:** wp-admin while logged in, in production (it was checked locally). The network's `siteurl` changed, so WordPress's cookie names did too: everyone logs in once more.
 
 ### 6. Mail (decided on 2026-11-09: Brevo's API; since 2026-11-10 through the `mody-mail` MU plugin)
 - **The relay:** the maintainer chose Brevo on 2026-11-09, for now, as a temporary exception to rule 1 ([architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1)). Spec §16 question 2 had named Infomaniak Mail or self-hosted.

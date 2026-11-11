@@ -1,0 +1,32 @@
+{
+    "family": "tabs",
+    "label": "Tabs",
+    "top": "spectra/tabs",
+    "blocks": [
+        "spectra/tabs",
+        "spectra/tabs-child-tab-wrapper",
+        "spectra/tabs-child-tab-button",
+        "spectra/tabs-child-tabpanel",
+        "spectra/tabs-child-tab-trigger"
+    ],
+    "when": "a few parallel groups of content the reader picks one of (a menu by meal, prices by service)",
+    "keywords": [
+        "tab",
+        "tabs",
+        "pestana",
+        "pestanas",
+        "reiter",
+        "registerkarte",
+        "schede",
+        "scheda",
+        "onglet",
+        "onglets",
+        "abas",
+        "aba",
+        "tabbladen",
+        "tabblad",
+        "pestanyes"
+    ],
+    "rules": "tabs-child-tab-wrapper holds one tabs-child-tab-button per tab, its label as \"text\"; then one tabs-child-tabpanel per tab, in the same order, holding that tab's blocks. \"currentTab\" numbers the tabs from 0, on each button and on its panel.",
+    "example": "<!-- wp:spectra/tabs {\"variationSelected\":true,\"currentTab\":0} -->\n<!-- wp:spectra/tabs-child-tab-wrapper -->\n<!-- wp:spectra/tabs-child-tab-button {\"currentTab\":0,\"text\":\"City bikes\"} /-->\n\n<!-- wp:spectra/tabs-child-tab-button {\"currentTab\":1,\"text\":\"E-bikes\"} /-->\n<!-- /wp:spectra/tabs-child-tab-wrapper -->\n\n<!-- wp:spectra/tabs-child-tabpanel {\"currentTab\":0} -->\n<!-- wp:paragraph -->\n<p>A full service: brakes, gears, chain and tyres checked and adjusted.</p>\n<!-- /wp:paragraph -->\n<!-- /wp:spectra/tabs-child-tabpanel -->\n\n<!-- wp:spectra/tabs-child-tabpanel {\"currentTab\":1} -->\n<!-- wp:paragraph -->\n<p>Everything in the city bike service, plus a battery and motor check.</p>\n<!-- /wp:paragraph -->\n<!-- /wp:spectra/tabs-child-tabpanel -->\n<!-- /wp:spectra/tabs -->"
+}

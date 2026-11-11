@@ -1,0 +1,43 @@
+{
+    "family": "verse",
+    "label": "Poetry",
+    "top": "core/verse",
+    "blocks": [
+        "core/verse"
+    ],
+    "when": "a poem or song lyrics, with their line breaks",
+    "keywords": [
+        "poem",
+        "poems",
+        "poetry",
+        "song lyrics",
+        "lyrics",
+        "stanza",
+        "poema",
+        "poemas",
+        "poesia",
+        "versos",
+        "letra de la cancion",
+        "estrofa",
+        "poeme",
+        "poemes",
+        "poesie",
+        "paroles de chanson",
+        "strophe",
+        "gedicht",
+        "gedichte",
+        "liedtext",
+        "versi",
+        "testo della canzone",
+        "strofa",
+        "letra da musica",
+        "estrofe",
+        "gedichten",
+        "poezie",
+        "songtekst",
+        "liedtekst",
+        "lletra de la canco"
+    ],
+    "rules": "One core/verse block per poem or lyric, no inner blocks: <pre class=\"wp-block-verse\">the lines</pre>, one line of the poem per line, real line breaks (no <br>, no <p>), a blank line between stanzas inside the same block. Write < > & as &lt; &gt; &amp;. Never copy someone else's poem or lyric: use the member's own words or write a short original. Centered: \"style\":{\"typography\":{\"textAlign\":\"center\"}} and class has-text-align-center on the pre. Colors only as palette slugs: \"textColor\", with its classes.",
+    "example": "<!-- wp:verse -->\n<pre class=\"wp-block-verse\">The oven wakes before the town,\nthe flour settles like soft snow.\n\nEach loaf comes slowly down\nto where the morning light can go.</pre>\n<!-- /wp:verse -->\n\n<!-- wp:verse {\"style\":{\"typography\":{\"textAlign\":\"center\"}}} -->\n<pre class=\"wp-block-verse has-text-align-center\">Warm bread, warm hands,\na table set for two.</pre>\n<!-- /wp:verse -->"
+}

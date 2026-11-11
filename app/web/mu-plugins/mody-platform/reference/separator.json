@@ -1,0 +1,42 @@
+{
+    "family": "separator",
+    "label": "Separator",
+    "top": "spectra/separator",
+    "blocks": [
+        "spectra/separator"
+    ],
+    "when": "a decorative divider line between two parts of a section (a short accent line, a row of leaves)",
+    "keywords": [
+        "separator",
+        "separators",
+        "divider",
+        "dividers",
+        "horizontal rule",
+        "horizontal line",
+        "dotted line",
+        "dashed line",
+        "separador",
+        "separadores",
+        "divisor",
+        "linea divisoria",
+        "linea separadora",
+        "separateur",
+        "separateurs",
+        "ligne de separation",
+        "trennlinie",
+        "trennlinien",
+        "trenner",
+        "separatore",
+        "separatori",
+        "linea di separazione",
+        "linha divisoria",
+        "linha separadora",
+        "scheidingslijn",
+        "scheidingslijnen",
+        "separadors",
+        "linia divisoria",
+        "linia separadora"
+    ],
+    "rules": "A divider line, self-closing. Use it rarely, never as empty space. \"separatorStyle\": solid (the default, leave it out), dashed, dotted, double, or the patterns rectangles, parallelogram, slash, leaves. \"separatorWidth\", \"separatorHeight\" and \"separatorSize\" are unit STRINGS such as \"80px\" or \"50%\", never numbers. A pattern needs \"separatorHeight\" (about \"16px\") and \"separatorSize\", the length of one repeat (\"16px\"). \"separatorAlign\": left or right (center is the default). \"separatorColor\" is a palette slug.",
+    "example": "<!-- wp:spectra/separator {\"separatorWidth\":\"80px\",\"separatorColor\":\"accent\"} /-->\n\n<!-- wp:paragraph -->\n<p>Every bike gets the same careful check before it leaves the workshop.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:spectra/separator {\"separatorStyle\":\"leaves\",\"separatorHeight\":\"16px\",\"separatorColor\":\"primary\",\"separatorSize\":\"16px\"} /-->"
+}

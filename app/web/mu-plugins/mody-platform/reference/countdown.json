@@ -1,0 +1,42 @@
+{
+    "family": "countdown",
+    "label": "Countdown",
+    "top": "spectra/countdown",
+    "blocks": [
+        "spectra/countdown",
+        "spectra/countdown-child-day",
+        "spectra/countdown-child-hour",
+        "spectra/countdown-child-minute",
+        "spectra/countdown-child-second",
+        "spectra/countdown-child-separator",
+        "spectra/countdown-child-number",
+        "spectra/countdown-child-label"
+    ],
+    "when": "a live timer counting down to a date and time the member gave (an opening, a sale's end, an event)",
+    "keywords": [
+        "countdown",
+        "countdowns",
+        "count down",
+        "countdown timer",
+        "cuenta atras",
+        "cuenta regresiva",
+        "contador regresivo",
+        "temporizador regresivo",
+        "compte a rebours",
+        "decompte",
+        "ruckwartszahler",
+        "conto alla rovescia",
+        "contagem regressiva",
+        "contagem decrescente",
+        "contador decrescente",
+        "aftellen",
+        "afteller",
+        "afteltimer",
+        "aftelklok",
+        "compte enrere",
+        "compte endarrere",
+        "comptador enrere"
+    ],
+    "rules": "Only when the request gives the end date and time; never invent them. \"endDateTime\" is that moment in UTC, like 2027-09-04T09:00:00.000Z (convert the member's local time; if no time zone is known, take it as UTC). Each unit block (day, hour, minute, second) holds a number block, no attributes, and a label block whose \"text\" is the unit's plural name; separator blocks go between units. To drop a unit, set \"showDays\", \"showHours\", \"showMinutes\" or \"showSeconds\" to false and omit its block and a separator. Not in English: also set \"dayLabel\", \"daysLabel\" (same for hour, minute, second).",
+    "example": "<!-- wp:spectra/countdown {\"endDateTime\":\"2027-09-04T09:00:00.000Z\",\"showSeconds\":false} -->\n<!-- wp:spectra/countdown-child-day -->\n<!-- wp:spectra/countdown-child-number /-->\n\n<!-- wp:spectra/countdown-child-label {\"text\":\"Days\"} /-->\n<!-- /wp:spectra/countdown-child-day -->\n\n<!-- wp:spectra/countdown-child-separator /-->\n\n<!-- wp:spectra/countdown-child-hour -->\n<!-- wp:spectra/countdown-child-number /-->\n\n<!-- wp:spectra/countdown-child-label {\"text\":\"Hours\"} /-->\n<!-- /wp:spectra/countdown-child-hour -->\n\n<!-- wp:spectra/countdown-child-separator /-->\n\n<!-- wp:spectra/countdown-child-minute -->\n<!-- wp:spectra/countdown-child-number /-->\n\n<!-- wp:spectra/countdown-child-label {\"text\":\"Minutes\"} /-->\n<!-- /wp:spectra/countdown-child-minute -->\n<!-- /wp:spectra/countdown -->"
+}

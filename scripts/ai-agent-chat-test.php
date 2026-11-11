@@ -137,7 +137,12 @@ $page_statuses = wp_list_pluck(
 $site_options  = array(
 	'blogname'        => get_option( 'blogname' ),
 	'blogdescription' => get_option( 'blogdescription' ),
+	// mody/update-settings (2026-11-11): what the confirmation checks change.
+	'blog_public'     => get_option( 'blog_public' ),
+	'posts_per_page'  => get_option( 'posts_per_page' ),
+	'show_on_front'   => get_option( 'show_on_front' ),
 );
+$start_posts_per_page = $site_options['posts_per_page'];
 $restore_site  = static function () use ( $page_statuses, $site_options ): void {
 	foreach ( $site_options as $option => $value ) {
 		update_option( $option, $value );
@@ -305,7 +310,7 @@ $rows     = $since();
 $sent     = array_column( array_column( $requests[0]['tools'] ?? array(), 'function' ), 'name' );
 $check( 'plain answer', 'I can create pages and open the editor.' === $turn['reply'] && ! $turn['actions'] && ! $turn['error'], $turn['reply'] );
 $check( '...nothing for the editor to reload', array() === $turn['refresh'] );
-$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 8 === count( $sent ), implode( ', ', $sent ) );
+$check( '...tools offered', array() === array_diff( array_values( $names ), $sent ) && 9 === count( $sent ), implode( ', ', $sent ) );
 $check( '...tools JSON size', strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) < 4000, strlen( (string) wp_json_encode( $requests[0]['tools'] ?? array() ) ) . ' bytes (see ai-engine.md "Prompt size")' );
 $check( '...brand in the system prompt', str_contains( wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ) && 'system' === ( $requests[0]['messages'][0]['role'] ?? '' ) );
 $check( '...temperature 0.1', 0.1 === (float) ( $requests[0]['temperature'] ?? 0 ) );
@@ -429,13 +434,13 @@ $check( 'a bare offer: asked once more, then it acts', 3 === count( $requests ) 
 $saved_tagline_for_done = (string) get_option( 'blogdescription' );
 $fakes                  = array(
 	'Done! Your tagline is now "Fresh bread every morning".',
-	array( array( $names['update_site_settings'], array( 'tagline' => 'Fresh bread every morning' ) ) ),
+	array( array( $names['update_settings'], array( 'changes' => array( 'tagline' => 'Fresh bread every morning' ) ) ) ),
 	'Done! Your tagline is now "Fresh bread every morning".',
 );
 $requests = array();
 $turn     = Agent::respond( 'Change the slogan to Fresh bread every morning' );
 $rows     = $since();
-$check( '"Done" with no tool run: asked once more, then the tool runs', 3 === count( $requests ) && in_array( 'mody/update-site-settings', $tools_of( $rows ), true ) && 'Fresh bread every morning' === SiteSettings::get( 'tagline' ), count( $requests ) . ' requests' );
+$check( '"Done" with no tool run: asked once more, then the tool runs', 3 === count( $requests ) && in_array( 'mody/update-settings', $tools_of( $rows ), true ) && 'Fresh bread every morning' === SiteSettings::get( 'tagline' ), count( $requests ) . ' requests' );
 update_option( 'blogdescription', $saved_tagline_for_done );
 
 // Opening what is already open in the editor (M3-09): refused, so the model edits instead.
@@ -655,7 +660,7 @@ $since();
 
 // 5. Publish and site settings ----------------------------------------------
 
-echo "\nPublish and site settings (mody/publish-page, mody/update-site-settings)\n";
+echo "\nPublish and site settings (mody/publish-page, mody/update-site-settings, mody/update-settings)\n";
 $publish  = wp_get_ability( 'mody/publish-page' );
 $settings = wp_get_ability( 'mody/update-site-settings' );
 $status   = static function ( int $id ): string {
@@ -674,7 +679,7 @@ $make     = static function ( string $title, string $post_status = 'draft', stri
 	$cleanup_ids[] = $id;
 	return $id;
 };
-$check( 'agent prompt: publish on demand', str_contains( $system, $names['publish_page'] ) && str_contains( $system, $names['update_site_settings'] ) && str_contains( $system, 'Never ask whether to publish it' ) && ! str_contains( $system, 'publish it there' ) );
+$check( 'agent prompt: publish on demand', str_contains( $system, $names['publish_page'] ) && str_contains( $system, $names['update_settings'] ) && str_contains( $system, 'Never ask whether to publish it' ) && ! str_contains( $system, 'publish it there' ) );
 
 $draft_id     = $make( 'Mody publish test draft' );
 $published_id = $make( 'Mody publish test published', 'publish' );
@@ -840,7 +845,7 @@ update_option( BrandSettings::TONE, $start_site[3] );
 
 $old_tagline = SiteSettings::get( 'tagline' );
 $fakes       = array(
-	array( array( $names['update_site_settings'], array( 'tagline' => "Fresh <b>sourdough</b>\nfor offices & teams" ) ) ),
+	array( array( $names['update_settings'], array( 'changes' => array( 'tagline' => "Fresh <b>sourdough</b>\nfor offices & teams" ) ) ) ),
 	'Done: the tagline is updated.',
 );
 $requests    = array();
@@ -853,13 +858,56 @@ $check( '...old and new sent back', str_contains( $sent, '"new":"Fresh sourdough
 $check( '...the editor reloads the site settings (refresh)', array( 'site' ) === $turn['refresh'], wp_json_encode( $turn['refresh'] ) );
 $check(
 	'...logged with old and new',
-	array( 'mody/update-site-settings' ) === $tools_of( $rows ) && array(
-		'tagline' => array(
-			'old' => $old_tagline,
-			'new' => 'Fresh sourdough for offices & teams',
+	array( 'mody/update-settings' ) === $tools_of( $rows ) && array(
+		'changed' => array(
+			'tagline' => array(
+				'old' => $old_tagline,
+				'new' => 'Fresh sourdough for offices & teams',
+			),
 		),
 	) === json_decode( (string) $rows[0]['result'], true )
 );
+
+// Settings that wait for the owner's confirmation (2026-11-11): held, Apply or Cancel.
+$check( 'agent prompt: the settings, their values, [confirm]', str_contains( $system, "The site's settings (name = current value" ) && str_contains( $system, 'search_engines_visible = ' ) && str_contains( $system, '[confirm]' ) );
+$public_before = (string) get_option( 'blog_public' );
+$fakes         = array(
+	array(
+		array(
+			$names['update_settings'],
+			array(
+				'changes' => array(
+					'search_engines_visible' => false,
+					'posts_per_page'         => 4,
+				),
+			),
+		),
+	),
+	'This change waits for your confirmation below.',
+);
+$requests = array();
+$turn     = Agent::respond( 'Hide the site from search engines and show 4 posts per page' );
+$rows     = $since();
+$check( 'a [confirm] setting: held, nothing changed', $public_before === (string) get_option( 'blog_public' ) && 4 !== (int) get_option( 'posts_per_page' ) && array( 'apply', 'cancel' ) === ( $turn['decision']['choices'] ?? null ), wp_json_encode( $turn['decision'] ?? null ) );
+$check( '...the owner is told what will change', str_contains( $turn['reply'], 'search_engines_visible' ) && str_contains( $turn['reply'], 'confirmation' ), $turn['reply'] );
+$check( '...the model heard it is not done', str_contains( (string) wp_json_encode( $turn['calls'][0]['result'] ?? array() ), 'needs the owner' ) && 2 > count( $requests ), count( $requests ) . ' requests' );
+$check( '...logged as held', str_contains( (string) ( $rows[0]['result'] ?? '' ), 'held: needs the owner' ) );
+$check( '...save or discard are not choices for it', is_wp_error( Agent::decide( (string) $turn['decision']['id'], 'save' ) ) );
+$fakes = array( array( array( $names['update_settings'], array( 'changes' => array( 'search_engines_visible' => false, 'posts_per_page' => 4 ) ) ) ), 'Waiting.' );
+$turn  = Agent::respond( 'Hide the site from search engines and show 4 posts per page' );
+$done  = Agent::decide( (string) ( $turn['decision']['id'] ?? '' ), 'apply' );
+$check( 'Apply: the call runs as it was made', is_array( $done ) && '0' === (string) get_option( 'blog_public' ) && 4 === (int) get_option( 'posts_per_page' ) && array( 'site' ) === $done['refresh'], is_array( $done ) ? $done['reply'] : $done->get_error_message() );
+$check( '...only once', is_wp_error( Agent::decide( (string) ( $turn['decision']['id'] ?? '' ), 'apply' ) ) );
+update_option( 'blog_public', $public_before );
+$fakes = array( array( array( $names['update_settings'], array( 'changes' => array( 'homepage' => 'latest posts' ) ) ) ), 'Waiting.' );
+$turn  = Agent::respond( 'Show the latest posts on the home page' );
+$front = (string) get_option( 'show_on_front' );
+$done  = Agent::decide( (string) $turn['decision']['id'], 'cancel' );
+$check( 'Cancel: nothing changed', is_array( $done ) && $front === (string) get_option( 'show_on_front' ) && ! Agent::held(), is_array( $done ) ? $done['reply'] : '' );
+$fakes = array( array( array( $names['update_settings'], array( 'changes' => array( 'posts_per_page' => 6 ) ) ) ), 'Done.' );
+$turn  = Agent::respond( 'Show 6 posts per page' );
+$check( 'a direct setting: changed at once, nothing held', 6 === (int) get_option( 'posts_per_page' ) && ! isset( $turn['decision'] ) );
+update_option( 'posts_per_page', $start_posts_per_page );
 $result = $settings->execute(
 	array(
 		'title'   => 'Ogia Bakery & Co',
@@ -1171,7 +1219,7 @@ if ( $created && ! getenv( 'MODY_TEST_KEEP_PAGE' ) ) {
 $tagline = 'Sourdough bread for Zurich offices';
 $turn    = $real( "Change the tagline to \"$tagline\"" );
 $check( '"Change the tagline to …": updated', $tagline === rtrim( SiteSettings::get( 'tagline' ), '.' ) && $site_options['blogname'] === get_option( 'blogname' ), SiteSettings::get( 'tagline' ) . ', ' . $turn['secs'] );
-$check( '...logged', array( 'mody/update-site-settings' ) === array_values( array_filter( $tools_of( $turn['events'] ), static fn( $tool ) => str_starts_with( $tool, 'mody/' ) ) ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
+$check( '...logged', array( 'mody/update-settings' ) === array_values( array_filter( $tools_of( $turn['events'] ), static fn( $tool ) => str_starts_with( $tool, 'mody/' ) ) ), mb_strimwidth( $turn['reply'], 0, 90, '...' ) );
 $restore_site();
 
 foreach ( array( 'Delete all pages', 'Show me the database' ) as $text ) {

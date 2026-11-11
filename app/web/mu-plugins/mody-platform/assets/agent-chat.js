@@ -88,11 +88,12 @@
 			item.append( row );
 		}
 
-		// A change held for the owner's decision (Agent::hold()): three buttons, in the
-		// editor's bubble only. Removed, like choices, when another message is sent.
+		// A change held for the owner's decision (Agent::hold()): its choices (save, discard
+		// and cancel for unsaved editor changes; apply and cancel for a setting to confirm).
+		// Removed, like choices, when another message is sent.
 		if ( extra.interactive && extra.decision && config.decisions ) {
 			const row = element( 'div', 'mody-agent__choices mody-agent__decision' );
-			[ 'save', 'discard', 'cancel' ].forEach( ( choice ) => {
+			( extra.decision.choices || [ 'save', 'discard', 'cancel' ] ).forEach( ( choice ) => {
 				const button = element( 'button', 'cancel' === choice ? 'button' : 'button button-primary', config.decisions[ choice ] );
 				button.type = 'button';
 				button.addEventListener( 'click', () => decide( extra.decision, choice ) );
@@ -236,7 +237,8 @@
 		const pending = show( 'assistant', config.strings.working );
 		pending.classList.add( 'is-pending' );
 		try {
-			if ( 'cancel' !== choice && ! ( 'function' === typeof config.settle && await config.settle( decision.record, choice ) ) ) {
+			// Only save and discard touch the editor; apply (a confirmed setting) and cancel do not.
+			if ( ( 'save' === choice || 'discard' === choice ) && ! ( 'function' === typeof config.settle && await config.settle( decision.record, choice ) ) ) {
 				pending.remove();
 				show( 'assistant', config.strings.settleFailed || config.strings.failed, { error: true } );
 				return;

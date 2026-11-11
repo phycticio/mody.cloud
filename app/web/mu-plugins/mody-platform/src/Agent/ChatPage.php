@@ -83,13 +83,16 @@ final class ChatPage {
 				'message' => $running['message'],
 			) : null,
 			'interval' => 1500,
+			// A change held for the owner's decision (Agent::hold()): a setting to confirm
+			// can be held on this page too, not only in the editor's bubble (2026-11-11).
+			'decisions' => Agent::decision_labels(),
 			'strings'  => array(
 				'you'      => __( 'You', 'mody_cloud' ),
 				'agent'    => __( 'Mody', 'mody_cloud' ),
 				'working'  => __( 'Working on it…', 'mody_cloud' ),
 				'slow'     => __( 'Still working. Creating a page can take a minute.', 'mody_cloud' ),
 				'failed'   => __( 'The request failed. Reload the page and try again.', 'mody_cloud' ),
-				'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts) and publish them when you ask, change its colors, title and tagline, and open the editor for you.', 'mody_cloud' ),
+				'greeting' => __( 'Hello! Tell me what you would like to do with your site. I can create pages (as drafts) and publish them when you ask, change its styles and settings, and open the editor for you.', 'mody_cloud' ),
 			),
 		);
 	}

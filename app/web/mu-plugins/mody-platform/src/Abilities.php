@@ -13,6 +13,8 @@ use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Design\SiteStyles;
 use Mody\Platform\Site\PagePublisher;
+use Mody\Platform\Site\Menu;
+use Mody\Platform\Site\Settings;
 use Mody\Platform\Site\SiteSettings;
 
 defined( 'ABSPATH' ) || exit;
@@ -56,7 +58,7 @@ final class Abilities {
 			'mody/generate-page',
 			array(
 				'label'               => __( 'Generate page', 'mody_cloud' ),
-				'description'         => __( 'Generates a new page from a description, in the site\'s brand identity, and saves it as a draft. Returns the page ID and the Site Editor link to review and publish it.', 'mody_cloud' ),
+				'description'         => __( 'Generates a new page from a description, in the site\'s brand identity, and saves it as a draft.', 'mody_cloud' ),
 				'category'            => self::CATEGORY,
 				'input_schema'        => array(
 					'type'                 => 'object',
@@ -69,7 +71,7 @@ final class Abilities {
 						),
 						'title'  => array(
 							'type'        => 'string',
-							'description' => __( 'Optional page title. Defaults to the generated main heading.', 'mody_cloud' ),
+							'description' => __( 'Optional page title.', 'mody_cloud' ),
 							'maxLength'   => 200,
 						),
 					),
@@ -278,6 +280,92 @@ final class Abilities {
 				),
 				'execute_callback'    => array( SiteStyles::class, 'update' ),
 				'permission_callback' => array( SiteStyles::class, 'can_update' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		/*
+		 * 2026-11-11 (tickets/agent-knows-gutenberg-spectra-settings.md): the
+		 * site's settings by name, in tiers. One short sentence and one
+		 * property; the names, current values and tiers are in the agent's
+		 * system prompt (Settings::catalog()). The agent holds a call with a
+		 * setting of the `confirm` tier for the owner (Agent::hold()).
+		 */
+		wp_register_ability(
+			'mody/update-settings',
+			array(
+				'label'               => __( 'Update settings', 'mody_cloud' ),
+				'description'         => __( 'Changes the site\'s settings: `changes`, setting name => new value.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'changes' => array(
+							'type'          => 'object',
+							'minProperties' => 1,
+						),
+					),
+					'required'             => array( 'changes' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'changed' => array( 'type' => 'object' ),
+					),
+					'required'   => array( 'changed' ),
+				),
+				'execute_callback'    => array( Settings::class, 'update' ),
+				'permission_callback' => array( Settings::class, 'can_update' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		/*
+		 * 2026-11-11, part 3: the header's menu as a whole list of items. The
+		 * current items and how to write them are in the agent's system prompt
+		 * (Menu::context()); the blocks are built in PHP.
+		 */
+		wp_register_ability(
+			'mody/update-menu',
+			array(
+				'label'               => __( 'Update the menu', 'mody_cloud' ),
+				'description'         => __( 'Replaces the site\'s menu: `items`, all its links in order.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'items' => array( 'type' => 'array' ),
+					),
+					'required'             => array( 'items' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'old'   => array( 'type' => 'array' ),
+						'new'   => array( 'type' => 'array' ),
+						'url'   => array( 'type' => 'string' ),
+						'label' => array( 'type' => 'string' ),
+					),
+					'required'   => array( 'old', 'new' ),
+				),
+				'execute_callback'    => array( Menu::class, 'update' ),
+				'permission_callback' => array( Menu::class, 'can_update' ),
 				'meta'                => array(
 					'public'      => true, // REST, MCP and the agent.
 					'annotations' => array(

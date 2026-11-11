@@ -1,0 +1,37 @@
+{
+    "family": "slider",
+    "label": "Slider",
+    "top": "spectra/slider",
+    "blocks": [
+        "spectra/slider",
+        "spectra/slider-child"
+    ],
+    "when": "a few slides shown one at a time, with dots to flip through them (testimonials, quotes, short messages)",
+    "keywords": [
+        "slider",
+        "sliders",
+        "carousel",
+        "carousels",
+        "slideshow",
+        "slides",
+        "carrusel",
+        "carruseles",
+        "deslizador",
+        "diapositivas",
+        "carrousel",
+        "carrousels",
+        "diaporama",
+        "karussell",
+        "bildkarussell",
+        "diashow",
+        "carosello",
+        "caroselli",
+        "carrossel",
+        "carrosseis",
+        "diavoorstelling",
+        "carrusels",
+        "diapositives"
+    ],
+    "rules": "A slider shows one slide at a time: spectra/slider holds only spectra/slider-child blocks, one per slide, each holding ordinary blocks (a quote and a name). Never set slidesPerView or slideCount. Arrows cover the edges of text slides: set \"navigation\":false (the dots stay); \"pagination\":false hides the dots. \"loop\":true goes back to the first slide after the last; \"autoplay\":true moves on by itself (\"autoplaySpeed\" in ms, 3000 to 10000). A slide's \"backgroundColor\" is a palette slug; text color is the slider's \"textColor\" (base on primary). No images or gradients.",
+    "example": "<!-- wp:spectra/slider {\"loop\":true,\"navigation\":false} -->\n<!-- wp:spectra/slider-child -->\n<!-- wp:paragraph {\"style\":{\"typography\":{\"textAlign\":\"center\"}},\"fontSize\":\"large\"} -->\n<p class=\"has-text-align-center has-large-font-size\">The bike came back running better than new, and the price was just what they quoted.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph {\"style\":{\"typography\":{\"textAlign\":\"center\"}}} -->\n<p class=\"has-text-align-center\"><strong>Maria, city commuter</strong></p>\n<!-- /wp:paragraph -->\n<!-- /wp:spectra/slider-child -->\n\n<!-- wp:spectra/slider-child -->\n<!-- wp:paragraph {\"style\":{\"typography\":{\"textAlign\":\"center\"}},\"fontSize\":\"large\"} -->\n<p class=\"has-text-align-center has-large-font-size\">I dropped it off before work and rode it home that evening. Friendly people, honest advice.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph {\"style\":{\"typography\":{\"textAlign\":\"center\"}}} -->\n<p class=\"has-text-align-center\"><strong>Tom, weekend rider</strong></p>\n<!-- /wp:paragraph -->\n<!-- /wp:spectra/slider-child -->\n\n<!-- wp:spectra/slider-child -->\n<!-- wp:paragraph {\"style\":{\"typography\":{\"textAlign\":\"center\"}},\"fontSize\":\"large\"} -->\n<p class=\"has-text-align-center has-large-font-size\">They fixed my e-bike battery when two other shops had given up on it.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph {\"style\":{\"typography\":{\"textAlign\":\"center\"}}} -->\n<p class=\"has-text-align-center\"><strong>Ana, daily rider</strong></p>\n<!-- /wp:paragraph -->\n<!-- /wp:spectra/slider-child -->\n<!-- /wp:spectra/slider -->"
+}

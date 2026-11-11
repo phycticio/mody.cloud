@@ -68,6 +68,21 @@ final class BlockValidator {
 		'core/query',
 		'core/post-template',
 		...self::SPECTRA_BLOCKS,
+		// 2026-11-11, part 8: text formats and lists of the site's content.
+		'core/table',
+		'core/pullquote',
+		'core/code',
+		'core/preformatted',
+		'core/verse',
+		'core/latest-posts',
+		'core/categories',
+		'core/archives',
+		// Part 9: media from the site's library (SystemPrompt::media_context()).
+		'core/gallery',
+		'core/media-text',
+		'core/video',
+		'core/audio',
+		'core/file',
 	);
 
 	/**
@@ -143,6 +158,51 @@ final class BlockValidator {
 	public const REPLACED_BY_CONTAINER = array( 'core/group', 'core/columns', 'core/column' );
 
 	/**
+	 * Core blocks new pages build with Spectra's instead (decided by the
+	 * maintainer on 2026-11-11: one way to build each thing, and Spectra's are
+	 * rendered on the server, so the editor never marks them invalid). Blocks
+	 * already on a page stay as they are.
+	 */
+	public const REPLACED_BY_SPECTRA = array(
+		'core/buttons'   => 'spectra/buttons',
+		'core/button'    => 'spectra/button',
+		'core/list'      => 'spectra/list',
+		'core/list-item' => 'spectra/list-child-item',
+		'core/separator' => 'spectra/separator',
+	);
+
+	/**
+	 * Core blocks that show one post of a list: allowed in templates, and
+	 * anywhere inside a spectra/post-template (2026-11-11, the post family).
+	 */
+	public const POST_ITEM_BLOCKS = array( 'core/post-featured-image', 'core/post-title', 'core/post-date', 'core/post-excerpt', 'core/read-more' );
+
+	/**
+	 * Values Spectra's blocks accept that their block.json does not say
+	 * (2026-11-11, checked against their renderers): another value passes the
+	 * schema but renders nothing, or the wrong thing.
+	 */
+	private const SPECTRA_ENUMS = array(
+		'spectra/separator' => array(
+			'separatorStyle' => array( 'solid', 'dashed', 'dotted', 'double', 'rectangles', 'parallelogram', 'slash', 'leaves' ),
+			'separatorAlign' => array( 'left', 'center', 'right' ),
+		),
+		'spectra/counter'   => array(
+			'counterStyle' => array( 'simple', 'circular', 'bar' ),
+		),
+		'spectra/list'      => array(
+			'listType'  => array( 'unordered', 'ordered' ),
+			'listStyle' => array( 'decimal', 'upper-alpha', 'lower-alpha', 'upper-roman', 'lower-roman', 'decimal-leading-zero' ),
+		),
+		'spectra/modal'     => array(
+			'modalTrigger' => array( 'button', 'icon', 'text' ),
+		),
+	);
+
+	/** Spectra's icon names and aliases, loaded once when needed. */
+	private static ?array $icons = null;
+
+	/**
 	 * The container attributes a new page may use (SpectraLayout's recipe), and
 	 * where: top-level keys, keys of `style` and of its `@tablet` and `@mobile`
 	 * states, and keys of `layout`.
@@ -182,6 +242,7 @@ final class BlockValidator {
 		'core/page-list',
 		// The mody-languages switcher, placed after every navigation block (tickets/site-languages.md).
 		'mody/language-switcher',
+		'core/read-more', // 2026-11-11, the post family.
 	);
 
 	/** Blocks a template must keep when it has them: without them, its pages show nothing. */
@@ -198,6 +259,10 @@ final class BlockValidator {
 		'A', 'ABBR', 'ARTICLE', 'ASIDE', 'B', 'BLOCKQUOTE', 'BR', 'CITE', 'CODE', 'DEL', 'DIV', 'EM', 'FIGCAPTION',
 		'FIGURE', 'FOOTER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER', 'HR', 'I', 'IMG', 'INS', 'KBD', 'LI', 'MAIN',
 		'MARK', 'NAV', 'OL', 'P', 'Q', 'S', 'SECTION', 'SMALL', 'SPAN', 'STRONG', 'SUB', 'SUP', 'TIME', 'U', 'UL',
+		// Tables and preformatted text (2026-11-11, part 8 of tickets/agent-knows-gutenberg-spectra-settings.md).
+		'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD', 'CAPTION', 'PRE',
+		// Video and audio (part 9). No SOURCE, TRACK or OBJECT: the cards use a single src.
+		'VIDEO', 'AUDIO',
 	);
 
 	/** Elements without a closing tag. */
@@ -216,6 +281,18 @@ final class BlockValidator {
 		'core/column'    => 'DIV',
 		'core/spacer'    => 'DIV',
 		'core/cover'     => 'DIV',
+		// 2026-11-11, part 8.
+		'core/table'        => 'FIGURE',
+		'core/pullquote'    => 'FIGURE',
+		'core/code'         => 'PRE',
+		'core/preformatted' => 'PRE',
+		'core/verse'        => 'PRE',
+		// Part 9.
+		'core/gallery'      => 'FIGURE',
+		'core/media-text'   => 'DIV',
+		'core/video'        => 'FIGURE',
+		'core/audio'        => 'FIGURE',
+		'core/file'         => 'DIV',
 	);
 
 	/** A color literal: hex, or a CSS color function (CSS allows no space before the parenthesis). */
@@ -366,7 +443,10 @@ final class BlockValidator {
 		}
 		$name = (string) $block['blockName'];
 
-		if ( ! in_array( $name, $allowed, true ) ) {
+		if ( ! in_array( $name, $allowed, true ) && ! ( in_array( $name, self::POST_ITEM_BLOCKS, true ) && in_array( 'spectra/post-template', $outer, true ) ) ) {
+			if ( in_array( $name, self::POST_ITEM_BLOCKS, true ) ) {
+				return self::error( sprintf( 'The block "%s" goes inside a spectra/post-template, where it shows one post of the list.', $name ) );
+			}
 			return self::error( sprintf( 'The block "%s" is not allowed. Use only the blocks listed in the instructions.', $name ) );
 		}
 		if ( ! WP_Block_Type_Registry::get_instance()->is_registered( $name ) ) {
@@ -375,7 +455,14 @@ final class BlockValidator {
 		if ( $new_page && in_array( $name, self::REPLACED_BY_CONTAINER, true ) ) {
 			return self::error( sprintf( 'Do not use the "%s" block. Every section, row and column is a spectra/container, as the layout rules say.', $name ) );
 		}
+		if ( $new_page && isset( self::REPLACED_BY_SPECTRA[ $name ] ) ) {
+			return self::error( sprintf( 'Do not use the "%1$s" block: write %2$s instead, as in the example.', $name, self::REPLACED_BY_SPECTRA[ $name ] ) );
+		}
 		$result = self::check_nesting( $name, $outer );
+		if ( true !== $result ) {
+			return $result;
+		}
+		$result = self::check_schema( $name, (array) $block['attrs'] );
 		if ( true !== $result ) {
 			return $result;
 		}
@@ -535,7 +622,10 @@ final class BlockValidator {
 				return self::error( sprintf( 'The attribute "%s" of %s has a loose color value "%s". Use a palette slug instead.', $key_path, $name, $value ) );
 			}
 			// textColor, backgroundColorHover, iconColor…: a palette slug (Spectra resolves it, M3-11).
-			if ( is_string( $key ) && str_contains( $key, 'Color' ) && '' !== $value && ! in_array( $value, $palette, true ) ) {
+			// The CSS variable of a palette color is accepted too: SpectraBlocks::normalize() writes
+			// it for an icon's color, which Spectra prints as CSS as it is (2026-11-11).
+			$variable = preg_match( '/^var\(--wp--preset--color--([a-z0-9-]+)\)$/', $value, $slug ) && in_array( $slug[1], $palette, true );
+			if ( is_string( $key ) && str_contains( $key, 'Color' ) && '' !== $value && ! in_array( $value, $palette, true ) && ! $variable ) {
 				return self::error( sprintf( 'The attribute "%s" of %s uses "%s", which is not a palette slug. Use one of: %s.', $key_path, $name, $value, implode( ', ', $palette ) ) );
 			}
 			// style.color.text, style.border.color…: a palette color, written as a preset.
@@ -552,7 +642,7 @@ final class BlockValidator {
 			if ( true !== $result ) {
 				return $result;
 			}
-			if ( 'url' === $key && in_array( $name, array( 'core/image', 'core/cover' ), true ) ) {
+			if ( ( 'url' === $key && in_array( $name, array( 'core/image', 'core/cover' ), true ) ) || ( 'href' === $key && 'core/file' === $name ) ) {
 				$result = self::check_media_url( $value, $name );
 				if ( true !== $result ) {
 					return $result;
@@ -681,6 +771,16 @@ final class BlockValidator {
 			}
 		}
 
+		// A file block's links are the file itself: on this network, like other media (part 9).
+		if ( 'core/file' === $name ) {
+			foreach ( $hrefs[2] as $href ) {
+				$result = self::check_media_url( html_entity_decode( $href ), $name );
+				if ( true !== $result ) {
+					return $result;
+				}
+			}
+		}
+
 		// Media sources: src, srcset, poster and CSS url().
 		preg_match_all( '/\s(?:src|poster)\s*=\s*(["\'])(.*?)\1/is', $html, $sources );
 		preg_match_all( '/\ssrcset\s*=\s*(["\'])(.*?)\1/is', $html, $srcsets );
@@ -697,6 +797,50 @@ final class BlockValidator {
 			}
 		}
 
+		return true;
+	}
+
+	/**
+	 * Attributes Spectra's editor script adds that its blocks do not register
+	 * in PHP (SpectraLayout::with_ids() writes them too).
+	 */
+	private const UNREGISTERED = array( 'spectraId' );
+
+	/**
+	 * Checks a block's attributes against what the block registers
+	 * (2026-11-11, part 4 of tickets/agent-knows-gutenberg-spectra-settings.md):
+	 * no invented attribute, none that core keeps in the block's HTML, and
+	 * each of its type and allowed values. Older forms the editor still
+	 * migrates (a heading's `textAlign`) are refused too: new content uses
+	 * the current ones.
+	 *
+	 * @param string               $name  Block name.
+	 * @param array<string, mixed> $attrs Its attributes.
+	 * @return true|WP_Error
+	 */
+	private static function check_schema( string $name, array $attrs ): true|WP_Error {
+		$type = WP_Block_Type_Registry::get_instance()->get_registered( $name );
+		if ( ! $type ) {
+			return true;
+		}
+		foreach ( $attrs as $key => $value ) {
+			$schema = $type->attributes[ $key ] ?? null;
+			if ( null === $schema ) {
+				if ( str_starts_with( $name, 'spectra/' ) && in_array( $key, self::UNREGISTERED, true ) ) {
+					continue;
+				}
+				$names = array_keys( array_filter( (array) $type->attributes, static fn( $spec ): bool => ! isset( $spec['source'] ) ) );
+				return self::error( sprintf( 'The %1$s block has no attribute "%2$s". Its attributes are: %3$s.', $name, $key, implode( ', ', array_slice( $names, 0, 60 ) ) ) );
+			}
+			// Spectra marks two editor-only attributes with a source, but its blocks save no HTML.
+			if ( isset( $schema['source'] ) && ! str_starts_with( $name, 'spectra/' ) ) {
+				return self::error( sprintf( 'The "%1$s" of the %2$s block is not written in its comment: it is the block\'s HTML content.', $key, $name ) );
+			}
+			$valid = rest_validate_value_from_schema( $value, array_intersect_key( (array) $schema, array_flip( array( 'type', 'enum', 'items', 'properties' ) ) ), $key );
+			if ( is_wp_error( $valid ) ) {
+				return self::error( sprintf( 'In the %1$s block: %2$s', $name, $valid->get_error_message() ) );
+			}
+		}
 		return true;
 	}
 
@@ -751,6 +895,15 @@ final class BlockValidator {
 			if ( isset( $attrs[ $key ] ) && ( ! is_string( $attrs[ $key ] ) || ! preg_match( '/^[a-z0-9-]*$/', $attrs[ $key ] ) ) ) {
 				return self::error( sprintf( 'The "%s" of %s is an icon name, such as "star" or "arrow-right".', $key, $name ) );
 			}
+			// A name outside Spectra's library renders an empty icon.
+			if ( isset( $attrs[ $key ] ) && '' !== $attrs[ $key ] && ! self::is_icon( $attrs[ $key ] ) ) {
+				return self::error( sprintf( 'The icon "%1$s" of %2$s does not exist. Use a Font Awesome name from the icons card, such as "star", "phone", "envelope" or "arrow-right".', $attrs[ $key ], $name ) );
+			}
+		}
+		foreach ( self::SPECTRA_ENUMS[ $name ] ?? array() as $key => $values ) {
+			if ( isset( $attrs[ $key ] ) && ! in_array( $attrs[ $key ], $values, true ) ) {
+				return self::error( sprintf( 'The "%1$s" of %2$s must be one of: %3$s.', $key, $name, implode( ', ', $values ) ) );
+			}
 		}
 		foreach ( self::TAG_KEYS as $key ) {
 			if ( isset( $attrs[ $key ] ) && ! in_array( $attrs[ $key ], self::SAFE_TAGS, true ) ) {
@@ -792,6 +945,25 @@ final class BlockValidator {
 	}
 
 	/**
+	 * Whether an icon name is in Spectra's library, or one of its aliases
+	 * (the lookup Spectra's renderer does). Without Spectra, any name passes.
+	 *
+	 * @param string $icon An icon name.
+	 */
+	private static function is_icon( string $icon ): bool {
+		if ( null === self::$icons ) {
+			self::$icons = array();
+			if ( class_exists( '\\SpectraBlocks\\Helpers\\Renderer' ) && method_exists( '\\SpectraBlocks\\Helpers\\Renderer', 'icons' ) ) {
+				self::$icons = array_fill_keys( array_keys( (array) \SpectraBlocks\Helpers\Renderer::icons() ), true );
+				if ( class_exists( '\\SpectraBlocks\\Helpers\\Core' ) && method_exists( '\\SpectraBlocks\\Helpers\\Core', 'backend_load_font_awesome_icon_aliases' ) ) {
+					self::$icons += array_fill_keys( array_keys( (array) \SpectraBlocks\Helpers\Core::backend_load_font_awesome_icon_aliases() ), true );
+				}
+			}
+		}
+		return ! self::$icons || isset( self::$icons[ $icon ] );
+	}
+
+	/**
 	 * What a Spectra family needs to work (M3-11 part 3): tabs have one label
 	 * per panel (a label without a panel shows nothing), and an accordion item
 	 * has its question and then its answer.
@@ -807,6 +979,16 @@ final class BlockValidator {
 			$panels   = count( array_keys( $inner, 'spectra/tabs-child-tabpanel', true ) );
 			if ( 1 !== count( $wrappers ) || 0 === $panels || $labels !== $panels ) {
 				return self::error( sprintf( 'A spectra/tabs block holds one tabs-child-tab-wrapper with one tabs-child-tab-button per tab, then one tabs-child-tabpanel per tab, as in the example. Found %d wrapper(s), %d tab label(s) and %d panel(s).', count( $wrappers ), $labels, $panels ) );
+			}
+		}
+		if ( 'spectra/countdown' === $block['blockName'] ) {
+			$end = (string) ( $block['attrs']['endDateTime'] ?? '' );
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $end ) || false === strtotime( $end ) ) {
+				return self::error( 'A spectra/countdown needs "endDateTime", the date and time it counts down to, as in the example (2027-09-04T07:00:00.000Z). Use a countdown only when the request gives the date and time.' );
+			}
+			$shown = array_filter( array( 'showDays', 'showHours', 'showMinutes', 'showSeconds' ), static fn( $flag ) => false !== ( $block['attrs'][ $flag ] ?? true ) );
+			if ( ! $shown ) {
+				return self::error( 'A spectra/countdown must show at least one of days, hours, minutes or seconds.' );
 			}
 		}
 		if ( 'spectra/accordion-child-item' === $block['blockName'] && array( 'spectra/accordion-child-header', 'spectra/accordion-child-details' ) !== $inner ) {

@@ -1,0 +1,42 @@
+{
+    "family": "code",
+    "label": "Code",
+    "top": "core/code",
+    "blocks": [
+        "core/code"
+    ],
+    "when": "code, commands or markup the reader will copy",
+    "keywords": [
+        "code snippet",
+        "code snippets",
+        "code block",
+        "code example",
+        "source code",
+        "command line",
+        "fragmento de codigo",
+        "bloque de codigo",
+        "codigo fuente",
+        "ejemplo de codigo",
+        "extrait de code",
+        "bloc de code",
+        "code source",
+        "exemple de code",
+        "codebeispiel",
+        "codeblock",
+        "quellcode",
+        "kommandozeile",
+        "frammento di codice",
+        "blocco di codice",
+        "codice sorgente",
+        "trecho de codigo",
+        "bloco de codigo",
+        "codigo fonte",
+        "codefragment",
+        "codeblok",
+        "broncode",
+        "fragment de codi",
+        "bloc de codi"
+    ],
+    "rules": "One core/code block per snippet, no inner blocks: <pre class=\"wp-block-code\"><code>the code</code></pre>, the code as plain text with real line breaks and the spaces as typed (no <br>, no <p>). Write < > & as &lt; &gt; &amp; and [ as &#91;. Only for code, commands or markup the reader will copy, never for ordinary text, prices or addresses. No attributes and no colors: the theme styles it. Never invent commands, keys, passwords or links: use the member's, or a plain placeholder word like YOUR_NAME.",
+    "example": "<!-- wp:code -->\n<pre class=\"wp-block-code\"><code>&lt;a href=\"#contact\"&gt;Contact us&lt;/a&gt;</code></pre>\n<!-- /wp:code -->\n\n<!-- wp:code -->\n<pre class=\"wp-block-code\"><code>cd my-site\nnpm install &amp;&amp; npm run build</code></pre>\n<!-- /wp:code -->"
+}
