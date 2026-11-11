@@ -38,10 +38,11 @@ final class EditorContext {
 	 * Checks the context of a chat request.
 	 *
 	 * @param mixed $raw The `context` parameter.
-	 * @return array{post_type: string, post_id: int|string, title: string, area: string, selected: array{client_id: string, name: string, markup: string}|null, content: string}|null|WP_Error
+	 * @return array{post_type: string, post_id: int|string, title: string, area: string, selected: array{client_id: string, name: string, markup: string}|null, content: string, too_long: bool}|null|WP_Error
 	 *         Null when there is nothing the agent may edit (no context, another
 	 *         type); a WP_Error (with an HTTP status) for a bad one. A template's
 	 *         post_id is its ID (`theme//header`), and `area` a part's area.
+	 *         `too_long`: the content was over MAX_MARKUP and is left out.
 	 */
 	public static function from_input( $raw ): array|null|WP_Error {
 		if ( ! is_array( $raw ) || ! $raw ) {
@@ -78,8 +79,13 @@ final class EditorContext {
 		}
 
 		$content = is_string( $raw['content'] ?? null ) ? $raw['content'] : '';
-		if ( strlen( $content ) > self::MAX_MARKUP ) {
-			return new WP_Error( 'mody_bad_context', __( 'This page is too long for the assistant to change at once. Select the block to change, then ask again.', 'mody_cloud' ), array( 'status' => 400 ) );
+		// A page longer than the edit writer takes (the main site's landing page is about
+		// 56 KB) no longer refuses every message (found 2026-11-11): the content is
+		// dropped, the agent still does everything else and edits a selected block, and
+		// only a change to the whole page is refused (Agent::edit_content()).
+		$too_long = strlen( $content ) > self::MAX_MARKUP;
+		if ( $too_long ) {
+			$content = '';
 		}
 
 		$selected = null;
@@ -104,6 +110,7 @@ final class EditorContext {
 			'area'      => $area,
 			'selected'  => $selected,
 			'content'   => $content,
+			'too_long'  => $too_long,
 		);
 	}
 }

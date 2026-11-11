@@ -193,7 +193,6 @@ $check( 'nothing sent, or a type the agent does not edit: no context', null === 
 $bad = array(
 	'unknown post'      => array( 'post_type' => 'page', 'post_id' => 999999999 ),
 	'type mismatch'     => array( 'post_type' => 'post', 'post_id' => $page_id ),
-	'content too long'  => array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => str_repeat( 'x', EditorContext::MAX_MARKUP + 1 ) ),
 	'bad client ID'     => array( 'post_type' => 'page', 'post_id' => $page_id, 'selected' => array( 'client_id' => 'x', 'markup' => $paragraph ) ),
 	'two blocks'        => array( 'post_type' => 'page', 'post_id' => $page_id, 'selected' => array( 'client_id' => $client_id, 'markup' => $paragraph . "\n\n" . $paragraph ) ),
 	'empty selection'   => array( 'post_type' => 'page', 'post_id' => $page_id, 'selected' => array( 'client_id' => $client_id, 'markup' => '' ) ),
@@ -206,6 +205,10 @@ foreach ( $bad as $label => $raw ) {
 	}
 }
 $check( 'refused with 400', ! $wrong, $wrong ? implode( ', ', $wrong ) : implode( ', ', array_keys( $bad ) ) );
+// A page over MAX_MARKUP (the main site's landing page, about 56 KB) does not refuse the message (2026-11-11).
+$long = EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => str_repeat( 'x', EditorContext::MAX_MARKUP + 1 ) ) );
+$check( 'a page too long: accepted, its content left out', is_array( $long ) && true === $long['too_long'] && '' === $long['content'] && false === $valid['too_long'] );
+$check( '... and the agent is told to ask for a selection', str_contains( SystemPrompt::for_editor( $long, 'edit_content' ), 'too long to change all at once' ) && ! str_contains( SystemPrompt::for_editor( $valid, 'edit_content' ), 'too long' ) );
 wp_set_current_user( $contrib );
 $out = EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id ) );
 wp_set_current_user( $admin );
@@ -258,6 +261,11 @@ $requests = array();
 $turn     = Agent::respond( 'Make this shorter', array(), $context( null ) );
 $sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
 $check( 'scope selection with nothing selected: refused', ! $turn['edits'] && 2 === count( $requests ) && str_contains( $sent, 'mody_no_selection' ) );
+$fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter', 'scope' => 'content' ) ) ), 'Please select the block first.' );
+$requests = array();
+$turn     = Agent::respond( 'Make the whole page shorter', array(), EditorContext::from_input( array( 'post_type' => 'page', 'post_id' => $page_id, 'content' => str_repeat( 'x', EditorContext::MAX_MARKUP + 1 ) ) ) );
+$sent     = (string) wp_json_encode( $tool_msgs( end( $requests ) )[0]['content'] ?? '' );
+$check( 'a page too long: a whole-page change refused, the message answered', ! $turn['edits'] && 2 === count( $requests ) && str_contains( $sent, 'mody_too_long' ) && 'Please select the block first.' === $turn['reply'] );
 $check( '...the prompt says nothing is selected', str_contains( $system_of( $requests[0] ), 'right now. Its title' ) && ! str_contains( $system_of( $requests[0] ), 'right now, with a' ) );
 
 $fakes    = array( array( array( Agent::EDIT_CONTENT, array( 'instruction' => 'Shorter' ) ) ), 'I cannot do that here.' );

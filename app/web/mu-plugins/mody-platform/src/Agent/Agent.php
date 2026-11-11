@@ -520,6 +520,8 @@ final class Agent {
 			$error = array( 'mody_empty_prompt', 'Give the owner\'s instruction.' );
 		} elseif ( 'selection' === $scope && ! $selected ) {
 			$error = array( 'mody_no_selection', 'No block is selected. Use scope content, or ask the owner to select the block.' );
+		} elseif ( 'content' === $scope && ! empty( $this->context['too_long'] ) ) {
+			$error = array( 'mody_too_long', 'This page is too long to change all at once. Ask the owner to select the block to change (or the section that holds it), then ask again.' );
 		}
 		if ( $error ) {
 			AgentEvents::log( $this->input, self::EDIT_CONTENT, $args, 'refused: ' . $error[0], $started );
