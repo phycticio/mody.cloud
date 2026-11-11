@@ -2,7 +2,7 @@
  * The Mody agent as a chat bubble in the editors (ticket M3-05).
  *
  * Plain script, no build step. Builds a round button at the bottom right and
- * a chat panel holding the same elements as the chat page (#mody-agent-log,
+ * a chat panel holding the chat's elements (#mody-agent-log,
  * #mody-agent-form, #mody-agent-input, #mody-agent-reset). agent-chat.js,
  * loaded right after, runs the conversation in them. All text is inserted
  * with textContent, never as HTML.

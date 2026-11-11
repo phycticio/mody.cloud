@@ -158,7 +158,7 @@ if ( ! $member_sites ) {
 $admins = get_super_admins();
 $super  = get_user_by( 'login', $admins[0] )->ID;
 $scheme = (string) get_user_option( 'admin_color', $super );
-$out    = $get( $main, (string) wp_parse_url( get_admin_url( $main, 'admin.php?page=' . Mody\Platform\Agent\ChatPage::SLUG ), PHP_URL_PATH ) . '?page=' . Mody\Platform\Agent\ChatPage::SLUG, $cookie( $super ) );
-$check( 'agent page (main site, super admin): their color', 200 === $out['code'] && $has_color( $out['body'], AdminColors::second_color( $super ) ), $out['code'] . ', ' . $scheme . ' ' . AdminColors::second_color( $super ) );
+$out    = $get( $main, (string) wp_parse_url( get_admin_url( $main, 'site-editor.php' ), PHP_URL_PATH ), $cookie( $super ) );
+$check( 'Site Editor (main site, super admin): the bubble in their color', 200 === $out['code'] && $has_color( $out['body'], AdminColors::second_color( $super ) ), $out['code'] . ', ' . $scheme . ' ' . AdminColors::second_color( $super ) );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";
