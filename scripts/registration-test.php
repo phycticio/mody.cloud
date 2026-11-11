@@ -273,6 +273,7 @@ $check( '... the starter site: done, no model call, no site email', $job && 'don
 switch_to_blog( $site_id );
 $front = get_post( (int) get_option( 'page_on_front' ) );
 $check( '... the site\'s name, an empty tagline, the starter front page', 'Ada\'s Analytical Bakery' === wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) && '' === get_option( 'blogdescription' ) && $front && 'Home' === $front->post_title && 'publish' === $front->post_status && has_block( 'spectra/container', $front ) );
+$check( '... hidden from search engines until it has real pages', '0' === (string) get_site( $site_id )->public && '0' === (string) get_option( 'blog_public' ) && ! empty( wp_robots_no_robots( array() )['noindex'] ) );
 restore_current_blog();
 // Core also tells the network admin about each new site (the network option `registrationnotification`).
 $to_member = array_values( array_filter( $mails, static fn( array $mail ): bool => $emails['a'] === $mail['to'] ) );
