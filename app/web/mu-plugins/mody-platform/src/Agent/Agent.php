@@ -258,6 +258,13 @@ final class Agent {
 		TurnMetrics::start();
 		$turn    = $agent->run( $history );
 		$metrics = TurnMetrics::finish( $turn, array_map( static fn( array $made ): string => (string) preg_replace( '/^wpab__mody__/', '', (string) $made['name'] ), (array) ( $turn['calls'] ?? array() ) ) );
+		if ( is_array( $context ) ) {
+			// What was open in the editor, by type and ID only: the dashboard lists the pages Mody worked on most.
+			$metrics['open'] = array(
+				'type' => (string) ( $context['post_type'] ?? '' ),
+				'id'   => is_int( $context['post_id'] ?? null ) ? $context['post_id'] : (string) ( $context['post_id'] ?? '' ),
+			);
+		}
 		if ( '' !== $agent->input ) {
 			AgentEvents::log( $agent->input, TurnMetrics::TOOL, null, (string) wp_json_encode( $metrics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $agent->started );
 		}

@@ -40,6 +40,7 @@ A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no c
   - whether to call Mollie's REST API with `wp_remote_*` (no new dependency) or add its PHP client to Composer (a dependency, so ask first).
 
 ### Part 4 · The dashboard: My sites and Plan & billing (spec §5)
+**Built on 2026-11-11 as every site's Dashboard** ([mody-dashboard.md](mody-dashboard.md)): Your sites (cards, space, New site, "1 of 3 sites used") and Plan & billing (the plan, the trial's days, the three plans monthly or yearly, Choose). The plans of part 3 are in code (`sites_1`, `sites_3`, `sites_10`, `billing_period`). Still to do: Update card and Cancel (with Mollie), Delete site (WP-Cron).
 - **My sites:** a card per site (name, subdomain, status, created), with Open, Site editor and wp-admin. Delete: soft, typing the slug, 30-day trash. Also "+ New site" and "2 of 3 sites used".
 - **Plan & billing:** the current plan, the trial countdown or next charge date, Change plan (three plans, monthly or yearly, with the yearly saving; effective at the next billing date), Update card (a new Mollie checkout) and Cancel (end of cycle).
 

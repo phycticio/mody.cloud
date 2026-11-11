@@ -1,0 +1,363 @@
+/*
+ * The Mody dashboard (Dashboard\DashboardPage). It wears the Brand page's
+ * layout and classes (brand-page.css, loaded first); this file adds only
+ * what the dashboard has and the Brand page has not: meters, number tiles,
+ * the daily chart, the plans.
+ */
+
+.mody-dashboard__address {
+	margin: 0;
+	color: #50575e;
+}
+
+.mody-dashboard__address a {
+	color: inherit;
+}
+
+.mody-dashboard__note {
+	display: block;
+	margin-top: 4px;
+	color: #50575e;
+	font-size: 12px;
+}
+
+/* A used-of-allowed meter -------------------------------------------------------- */
+
+.mody-dashboard__meter {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 12px;
+}
+
+.mody-dashboard__meter.is-full .mody-brand__bar span {
+	background: #d63638;
+}
+
+/* Number tiles ------------------------------------------------------------------- */
+
+.mody-dashboard__tiles {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: 12px;
+	margin: 12px 0 20px;
+}
+
+.mody-dashboard__tile {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 12px 16px;
+	border: 1px solid #f0f0f1;
+	border-radius: 4px;
+	background: #fcfcfc;
+}
+
+.mody-dashboard__tile-label {
+	color: #50575e;
+}
+
+.mody-dashboard__tile-value {
+	font-size: 28px;
+	font-weight: 600;
+	line-height: 1.25;
+	color: #1d2327;
+	font-variant-numeric: tabular-nums;
+}
+
+.mody-dashboard__tile-detail {
+	color: #50575e;
+	font-size: 12px;
+}
+
+/* The daily chart: one series, so no legend; the caption names it -------------------- */
+
+.mody-dashboard__chart {
+	margin: 0 0 20px;
+}
+
+.mody-dashboard__chart figcaption {
+	margin-bottom: 8px;
+	font-weight: 600;
+}
+
+.mody-dashboard__plot {
+	position: relative;
+	padding-top: 18px;
+	border-bottom: 1px solid #c3c4c7;
+}
+
+.mody-dashboard__scale {
+	position: absolute;
+	top: 0;
+	left: 0;
+	color: #646970;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+.mody-dashboard__plot::before {
+	/* A faint line at the highest day, the scale's value. */
+	content: "";
+	position: absolute;
+	top: 18px;
+	left: 0;
+	right: 0;
+	border-top: 1px dashed #e0e0e0;
+}
+
+.mody-dashboard__bars {
+	display: grid;
+	grid-template-columns: repeat(var(--mody-days, 30), minmax(0, 1fr));
+	gap: 2px;
+	align-items: end;
+	height: 140px;
+}
+
+.mody-dashboard__bar {
+	position: relative;
+	display: flex;
+	align-items: flex-end;
+	height: 100%;
+}
+
+.mody-dashboard__bar > span {
+	display: block;
+	width: 100%;
+	max-width: 28px;
+	margin: 0 auto;
+	background: var(--wp-admin-theme-color);
+	border-radius: 4px 4px 0 0;
+}
+
+.mody-dashboard__bar:hover > span {
+	background: var(--wp-admin-theme-color-darker-20, #1d2327);
+}
+
+.mody-dashboard__bar:hover::after {
+	content: attr(data-tip);
+	position: absolute;
+	bottom: calc(100% + 6px);
+	left: 50%;
+	z-index: 2;
+	transform: translateX(-50%);
+	padding: 4px 8px;
+	white-space: nowrap;
+	color: #fff;
+	background: #1d2327;
+	border-radius: 3px;
+	font-size: 12px;
+	pointer-events: none;
+}
+
+.mody-dashboard__bar:first-child:hover::after {
+	left: 0;
+	transform: none;
+}
+
+.mody-dashboard__bar:last-child:hover::after {
+	left: auto;
+	right: 0;
+	transform: none;
+}
+
+.mody-dashboard__axis {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 4px;
+	color: #646970;
+	font-size: 11px;
+}
+
+/* Top lists ---------------------------------------------------------------------- */
+
+.mody-dashboard__lists {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 16px 24px;
+	margin-bottom: 16px;
+}
+
+.mody-dashboard__list h3 {
+	display: flex;
+	justify-content: space-between;
+	margin: 0 0 8px;
+	font-size: 13px;
+}
+
+.mody-dashboard__list h3 span:last-child {
+	color: #646970;
+	font-weight: 400;
+}
+
+.mody-dashboard__list ol {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-dashboard__list li {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 0 0 4px;
+	padding: 4px 8px;
+	background: linear-gradient(to right, #f0f6fc var(--mody-share, 0%), transparent var(--mody-share, 0%));
+	border-radius: 3px;
+}
+
+.mody-dashboard__list-name {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.mody-dashboard__list-count {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Your sites ---------------------------------------------------------------------- */
+
+.mody-dashboard__sites-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px 16px;
+	margin: 12px 0 16px;
+}
+
+.mody-dashboard__sites-head p {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 0;
+	font-weight: 600;
+}
+
+.mody-dashboard__sites {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-dashboard__site {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px 20px;
+	margin: 0 0 12px;
+	padding: 16px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-dashboard__site.is-current {
+	border-color: var(--wp-admin-theme-color);
+}
+
+.mody-dashboard__site-text {
+	flex: 1 1 240px;
+	min-width: 0;
+}
+
+.mody-dashboard__site-text p {
+	margin: 0 0 2px;
+}
+
+.mody-dashboard__site-name {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	font-size: 15px;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+/* Plan & billing ------------------------------------------------------------------ */
+
+.mody-dashboard__plans-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-end;
+	gap: 0 16px;
+	margin: 24px 0 12px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.mody-dashboard__plans-head h3 {
+	margin: 12px 0;
+	font-size: 14px;
+}
+
+.mody-dashboard__plans {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 12px;
+	margin: 0 0 12px;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-dashboard__plan {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 0;
+	padding: 16px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-dashboard__plan.is-chosen {
+	border: 2px solid var(--wp-admin-theme-color);
+	padding: 15px;
+}
+
+.mody-dashboard__plan p {
+	margin: 0;
+}
+
+.mody-dashboard__plan-name {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.mody-dashboard__plan-price {
+	font-size: 24px;
+	font-weight: 600;
+	line-height: 1.25;
+	font-variant-numeric: tabular-nums;
+}
+
+.mody-dashboard__plan-price span {
+	color: #50575e;
+	font-size: 13px;
+	font-weight: 400;
+}
+
+.mody-dashboard__plan-features {
+	flex: 1;
+	margin: 4px 0 8px;
+	padding-left: 18px;
+	list-style: disc;
+}
+
+.mody-dashboard__plan-features li {
+	margin: 0 0 2px;
+}
+
+/* Mody's work ---------------------------------------------------------------------- */
+
+.mody-dashboard__usage {
+	margin-bottom: 24px;
+}
+
+.mody-dashboard__usage thead th {
+	width: auto;
+	color: #50575e;
+	font-weight: 400;
+}
