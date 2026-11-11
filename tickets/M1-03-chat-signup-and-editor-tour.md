@@ -18,7 +18,7 @@ A visitor answers four questions in a chat on `mody.cloud/register/` and gets, a
 4. **The first password logs the member in.** WordPress normally shows "Your password has been reset. Log in"; for a member who has never set a password (user meta `mody_onboarding` = `password`), Mody logs them in and opens the Identity screen. Later password resets behave as in WordPress.
 5. **The tour belongs to the member, not the site:** user meta `mody_onboarding` = `tour` until it is finished or skipped. It shows on any member site's Site Editor while pending, and with `?mody-tour=start` for anyone who wants it again.
 6. **The tour replaces core's "Welcome to the site editor" guide** for that member (the `core/edit-site` preference `welcomeGuide`). Two guides at once would clash, and core's guide loads its pictures from `s.w.org` (rule 1).
-7. **Reserved addresses:** `www`, `mail`, `api`, `admin`, `plugins` and the other infrastructure names in `Provisioning\Pipeline::RESERVED_SLUGS` are refused for every new site, from the signup and from the wizard.
+7. **Reserved addresses:** `www`, `mail`, `api`, `admin`, `plugins` and the other infrastructure names in `Provisioning\Pipeline::RESERVED_SLUGS` are refused for every new site, from the signup and from the wizard. Only a site, a pending signup or one of these names takes an address. An account's login does not, although WordPress would keep such an address for that user: logins come from email addresses, so any account would block one. Fixed on 2026-11-11, after `phycticio.mody.cloud` was refused because of the maintainer's own login.
 
 ## Parts (each 1 to 2 hours)
 
