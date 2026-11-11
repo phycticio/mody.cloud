@@ -140,9 +140,14 @@ final class Pipeline {
 		$slug   = strtolower( trim( $slug ) );
 		$title  = sanitize_text_field( $title );
 		$check  = wpmu_validate_blog_signup( $slug, $title, $user ?? '' );
+		// Core also keeps an address that matches someone's login for that user. Logins
+		// here come from email addresses (hello@… is `hello`), so that rule would let any
+		// account block an address nobody has: only a site or a pending signup takes one.
+		$by_login = __( 'Sorry, that site is reserved!' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string, as it adds it.
 		foreach ( array( 'blogname' => 'slug', 'blog_title' => 'title' ) as $code => $field ) {
-			if ( $check['errors']->get_error_message( $code ) ) {
-				$errors[ $field ] = $check['errors']->get_error_message( $code );
+			$messages = array_values( array_diff( $check['errors']->get_error_messages( $code ), 'blogname' === $code ? array( $by_login ) : array() ) );
+			if ( $messages ) {
+				$errors[ $field ] = $messages[0];
 			}
 		}
 		if ( ! isset( $errors['slug'] ) && in_array( $slug, self::RESERVED_SLUGS, true ) ) {

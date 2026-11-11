@@ -168,6 +168,21 @@ $check(
 		&& '' === Registration::check( 'slug', $slugs['a'] ),
 	$taken
 );
+// Core keeps an address that matches a login for that user; here a login takes no address.
+$login    = "reglogin{$suffix}";
+$login_id = (int) wpmu_create_user( $login, wp_generate_password(), "modyreglogin{$suffix}@mody.local" );
+$check(
+	'slug: someone\'s login does not take the address (a site does)',
+	$login_id
+		&& str_contains( (string) wpmu_validate_blog_signup( $login, 'X' )['errors']->get_error_message( 'blogname' ), 'reserved' )
+		&& '' === Registration::check( 'slug', $login )
+		&& ! isset( Pipeline::check_address( $login, 'X', $super )['slug'] )
+		&& ( ! $first || isset( Pipeline::check_address( strstr( $first[0]->domain, '.', true ), 'X', $super )['slug'] ) ),
+	$login
+);
+if ( $login_id ) {
+	wpmu_delete_user( $login_id );
+}
 $check( 'the wizard refuses reserved names too', isset( Pipeline::check_address( 'admin', 'X', $super )['slug'] ) && isset( Pipeline::check_address( 'webmail', 'X', $super )['slug'] ) );
 $check( 'addresses as typed are cleaned', 'myshop' === Registration::normalize_slug( 'https://My-Shop' . Registration::address_suffix() ) && 'bakery' === Registration::normalize_slug( 'Bäkery!' ) );
 $check( 'an address is suggested for the project\'s name', 'linasbakery' === Registration::suggest_slug( 'Lina\'s Bäkery!' ) && 'mailsite' !== Registration::suggest_slug( 'Mail' ) && '' === Registration::check( 'slug', Registration::suggest_slug( 'Mail' ) ), Registration::suggest_slug( 'Mail' ) );
