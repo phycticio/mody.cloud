@@ -98,6 +98,8 @@ The statuses `pending_payment` and `expired_signup` stay in the table for the ca
 
 ## 5. Member dashboard (Network Admin)
 
+> **Changed on 2026-11-11** ([tickets/mody-dashboard.md](../tickets/mody-dashboard.md)): the dashboard is every site's own Dashboard (`admin.php?page=mody-dashboard`, replacing core's), not a Network Admin page. Overview and storage; Visitors (the `mody-analytics` MU plugin); Mody's work (messages and tokens on design and configuration); Your sites and Plan & billing for members. The wizard stays in Network Admin as **New site**. Deleting a site and payments are not built yet. What follows is the original plan.
+
 A `Mody` top-level menu in `/wp-admin/network/` for members:
 
 - **My sites:** card per site (name, subdomain, status, created), buttons: *Open*, *Site editor*, *wp-admin*, *Delete* (soft; requires typing the slug; 30-day trash). Prominent **+ New site** (starts section 6) and a disabled state with the remaining quota ("2 of 3 sites used").

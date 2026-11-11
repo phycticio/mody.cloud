@@ -272,9 +272,9 @@ $out = $http( $main_host, $path( $main, 'admin.php' ) . '?page=ai-connector-appr
 $check( 'the ai plugin\'s connector approvals: refused', 403 === $out['code'], (string) $out['code'] );
 // Visible entries only: the ai plugin's scripts also carry the Connectors URL as data, used only without a provider.
 $menu = static fn( string $body ): bool => (bool) preg_match( '/id="menu-plugins"|href="[^"]*plugins\.php"|href="[^"]*options-connectors\.php"|href="[^"]*page=ai-connector-approval|id="wp-admin-bar-network-admin-p"/', $body );
-$out  = $http( $host, $path( $site, 'index.php' ), $as_member );
+$out  = $http( $host, $path( $site, 'admin.php' ) . '?page=mody-dashboard', $as_member ); // The Mody dashboard replaced core's on 2026-11-11.
 $check( 'member dashboard: no Plugins or Connectors in the menus', 200 === $out['code'] && ! $menu( $out['body'] ), (string) $out['code'] );
-$out = $http( $main_host, $path( $main, 'index.php' ), $as_super );
+$out = $http( $main_host, $path( $main, 'admin.php' ) . '?page=mody-dashboard', $as_super );
 $check( 'super admin, main site: none either', 200 === $out['code'] && ! $menu( $out['body'] ), (string) $out['code'] );
 $out = $http( $main_host, (string) wp_parse_url( network_admin_url( 'index.php' ), PHP_URL_PATH ), $as_super );
 $check( 'super admin, network admin: none either', 200 === $out['code'] && ! $menu( $out['body'] ), (string) $out['code'] );

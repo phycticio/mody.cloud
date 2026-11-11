@@ -8,6 +8,7 @@
 
 namespace Mody\Platform\Members;
 
+use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Wizard\WizardPage;
 use WP_Error;
 
@@ -16,14 +17,14 @@ defined( 'ABSPATH' ) || exit;
 /**
  * One row per member account, network-wide.
  *
- * - **Plans** (mvp-spec decisions 3 and 5, section 4): the trial and
- *   Collaborator have 3 sites, Member 10, Patron 50. The fees are the
- *   documented ones, still to confirm before launch (spec section 16,
- *   question 6). A plan is a column, not a WordPress role (decided
- *   2026-11-08): roles are per site in Multisite, and members are
- *   `administrator` of their own sites. During the trial `plan` is `trial`
- *   and `next_plan` holds the plan chosen at signup, charged when the trial
- *   ends; later it holds a plan change for the next billing date.
+ * - **Plans** (membership-tiers.md, decided 2026-11-10; in code since
+ *   2026-11-11): the trial has 3 sites; the paid plans 1, 3 and 10, paid
+ *   monthly or yearly (`billing_period`). A plan is a column, not a
+ *   WordPress role (decided 2026-11-08): roles are per site in Multisite,
+ *   and members are `administrator` of their own sites. During the trial
+ *   `plan` is `trial` and `next_plan` holds the plan the member chose on
+ *   the dashboard (choose_plan()), charged when the trial ends; later it
+ *   holds a plan change for the next billing date.
  * - **Statuses** (spec section 4): `active` (the trial included: since
  *   2026-11-08 it starts without a card, start_trial(), M1-03),
  *   `pending_payment` until a card is verified, `past_due` after a failed
@@ -40,35 +41,49 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Members {
 
-	/** Plans: slug => label, monthly fee in EUR, sites. */
+	/**
+	 * Plans: slug => sites, and the prices in EUR, monthly and yearly
+	 * (decided by the maintainer on 2026-11-10, membership-tiers.md). The
+	 * slugs replaced Collaborator, Member and Patron on 2026-11-11.
+	 */
 	public const PLANS = array(
-		'trial'        => array(
-			'label' => 'Trial',
-			'fee'   => 0,
-			'sites' => 3,
+		'trial'    => array(
+			'sites'   => 3,
+			'monthly' => 0,
+			'yearly'  => 0,
 		),
-		'collaborator' => array(
-			'label' => 'Collaborator',
-			'fee'   => 5,
-			'sites' => 3,
+		'sites_1'  => array(
+			'sites'   => 1,
+			'monthly' => 9.99,
+			'yearly'  => 89.99,
 		),
-		'member'       => array(
-			'label' => 'Member',
-			'fee'   => 15,
-			'sites' => 10,
+		'sites_3'  => array(
+			'sites'   => 3,
+			'monthly' => 25.99,
+			'yearly'  => 249.99,
 		),
-		'patron'       => array(
-			'label' => 'Patron',
-			'fee'   => 50,
-			'sites' => 50,
+		'sites_10' => array(
+			'sites'   => 10,
+			'monthly' => 49.99,
+			'yearly'  => 499.99,
 		),
+	);
+
+	/** The billing periods of a paid plan. */
+	public const PERIODS = array( 'monthly', 'yearly' );
+
+	/** The plans before 2026-11-11, and the plan each became. */
+	private const OLD_PLANS = array(
+		'collaborator' => 'sites_3',
+		'member'       => 'sites_10',
+		'patron'       => 'sites_10',
 	);
 
 	/** How long the trial lasts (spec decision 3). */
 	public const TRIAL_DAYS = 30;
 
 	/** The plans a member chooses during the trial or later; the trial is not one of them. */
-	public const PAID_PLANS = array( 'collaborator', 'member', 'patron' );
+	public const PAID_PLANS = array( 'sites_1', 'sites_3', 'sites_10' );
 
 	/** Statuses whose card is not verified yet (spec section 4): no site may be created. */
 	public const UNPAID_STATUSES = array( 'pending_payment', 'expired_signup' );
@@ -77,7 +92,7 @@ final class Members {
 	public const STATUSES = array( 'pending_payment', 'active', 'past_due', 'expired_signup', 'expired' );
 
 	/** Bump when the table definition in install() changes. */
-	private const DB_VERSION = '2'; // 2: next_plan (M1-01 part 2).
+	private const DB_VERSION = '3'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period.
 
 	/** Network option that records the installed table version. */
 	private const DB_VERSION_OPTION = 'mody_members_db_version';
@@ -113,12 +128,25 @@ final class Members {
 		$table   = self::table();
 		$charset = $wpdb->get_charset_collate();
 
+		// Version 3: the old plans become the new ones. Both sets are allowed for the update, then dbDelta() keeps the new.
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Schema check.
+			$both = "'trial','" . implode( "','", array_keys( self::OLD_PLANS ) ) . "','" . implode( "','", self::PAID_PLANS ) . "'";
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Own table; constants only.
+			$wpdb->query( "ALTER TABLE {$table} MODIFY plan enum({$both}) NOT NULL DEFAULT 'trial', MODIFY next_plan enum({$both}) DEFAULT NULL" );
+			foreach ( self::OLD_PLANS as $old => $new ) {
+				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET plan = %s WHERE plan = %s", $new, $old ) );
+				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET next_plan = %s WHERE next_plan = %s", $new, $old ) );
+			}
+			// phpcs:enable
+		}
+
 		// dbDelta() needs this exact layout: one column per line, two spaces after PRIMARY KEY.
 		dbDelta(
 			"CREATE TABLE {$table} (
   user_id bigint(20) unsigned NOT NULL,
-  plan enum('trial','collaborator','member','patron') NOT NULL DEFAULT 'trial',
-  next_plan enum('collaborator','member','patron') DEFAULT NULL,
+  plan enum('trial','sites_1','sites_3','sites_10') NOT NULL DEFAULT 'trial',
+  next_plan enum('sites_1','sites_3','sites_10') DEFAULT NULL,
+  billing_period enum('monthly','yearly') NOT NULL DEFAULT 'monthly',
   status enum('pending_payment','active','past_due','expired_signup','expired') NOT NULL,
   trial_ends_at datetime DEFAULT NULL,
   billing_due_at datetime DEFAULT NULL,
@@ -267,12 +295,62 @@ final class Members {
 	 */
 	public static function plan_label( string $plan ): string {
 		return match ( $plan ) {
-			'trial'        => __( 'Trial', 'mody_cloud' ),
-			'collaborator' => __( 'Collaborator', 'mody_cloud' ),
-			'member'       => __( 'Member', 'mody_cloud' ),
-			'patron'       => __( 'Patron', 'mody_cloud' ),
-			default        => $plan,
+			'trial' => __( 'Trial', 'mody_cloud' ),
+			default => isset( self::PLANS[ $plan ] )
+				/* translators: %d: the number of sites a plan includes. */
+				? sprintf( _n( '%d site', '%d sites', self::PLANS[ $plan ]['sites'], 'mody_cloud' ), self::PLANS[ $plan ]['sites'] )
+				: $plan,
 		};
+	}
+
+	/**
+	 * A member chooses the plan that follows the trial, or a change for the
+	 * next billing date: `next_plan` and `billing_period`. The card and the
+	 * charge come with Mollie (M1-01 part 3).
+	 *
+	 * @param int    $user_id A member.
+	 * @param string $plan    One of PAID_PLANS.
+	 * @param string $period  One of PERIODS.
+	 * @return true|WP_Error `mody_plan_too_small` when the member has more sites than the plan includes.
+	 */
+	public static function choose_plan( int $user_id, string $plan, string $period ): bool|WP_Error {
+		if ( ! self::get( $user_id ) ) {
+			return new WP_Error( 'mody_member_none', __( 'This account has no plan.', 'mody_cloud' ) );
+		}
+		if ( ! in_array( $plan, self::PAID_PLANS, true ) || ! in_array( $period, self::PERIODS, true ) ) {
+			return new WP_Error( 'mody_member_plan', __( 'There is no such plan.', 'mody_cloud' ) );
+		}
+		$used = Quota::used( $user_id );
+		if ( $used > self::PLANS[ $plan ]['sites'] ) {
+			return new WP_Error(
+				'mody_plan_too_small',
+				/* translators: 1: sites in use, 2: sites the plan includes. */
+				sprintf( __( 'You have %1$d sites, and this plan includes %2$d. Delete sites first, or choose a larger plan.', 'mody_cloud' ), $used, self::PLANS[ $plan ]['sites'] )
+			);
+		}
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
+		$wpdb->update(
+			self::table(),
+			array(
+				'next_plan'      => $plan,
+				'billing_period' => $period,
+			),
+			array( 'user_id' => $user_id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+		unset( self::$rows[ $user_id ] );
+		return true;
+	}
+
+	/**
+	 * What a yearly plan saves on twelve monthly payments, in EUR.
+	 *
+	 * @param string $plan One of PAID_PLANS.
+	 */
+	public static function yearly_saving( string $plan ): float {
+		return isset( self::PLANS[ $plan ] ) ? round( 12 * self::PLANS[ $plan ]['monthly'] - self::PLANS[ $plan ]['yearly'], 2 ) : 0.0;
 	}
 
 	/**

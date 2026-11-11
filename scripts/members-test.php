@@ -12,7 +12,7 @@
  * 2. create(): refuses a missing user, an unknown plan or status, and a
  *    second row; creates a pending trial by default.
  * 3. Site limits: a user without a row keeps the default (3); each plan gives
- *    its own (3, 3, 10, 50), through Provisioning\Quota.
+ *    its own (3, 1, 3, 10; the plans of 2026-11-10), through Provisioning\Quota.
  * 4. The dashboard capability: only with a row (super admins pass anyway).
  * 5. Over HTTP: with a row, a user who is not a super admin opens Network
  *    Admin → Mody → New site and sees the plan's limit; without one, the page
@@ -67,14 +67,14 @@ $columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}" );
 $status  = $wpdb->get_row( "SHOW COLUMNS FROM {$table} LIKE 'status'", ARRAY_A );
 $plan    = $wpdb->get_row( "SHOW COLUMNS FROM {$table} LIKE 'plan'", ARRAY_A );
 // phpcs:enable
-$expected = array( 'user_id', 'plan', 'next_plan', 'status', 'trial_ends_at', 'billing_due_at', 'past_due_since', 'mollie_customer_id', 'mollie_payment_method_id', 'created_at', 'updated_at' );
+$expected = array( 'user_id', 'plan', 'next_plan', 'billing_period', 'status', 'trial_ends_at', 'billing_due_at', 'past_due_since', 'mollie_customer_id', 'mollie_payment_method_id', 'created_at', 'updated_at' );
 $sorted   = (array) $columns;
 sort( $sorted );
 sort( $expected );
 // Order aside: dbDelta() appends next_plan (version 2) at the end of an existing table.
-$check( 'network-wide, with the spec\'s columns and next_plan', $wpdb->base_prefix . 'mody_members' === $table && $expected === $sorted, implode( ', ', (array) $columns ) );
+$check( 'network-wide, with the spec\'s columns, next_plan and billing_period', $wpdb->base_prefix . 'mody_members' === $table && $expected === $sorted, implode( ', ', (array) $columns ) );
 $check( 'statuses: the five of the signup and billing flow', "enum('" . implode( "','", Members::STATUSES ) . "')" === ( $status['Type'] ?? '' ), (string) ( $status['Type'] ?? '' ) );
-$check( 'plans: trial, collaborator, member, patron', "enum('" . implode( "','", array_keys( Members::PLANS ) ) . "')" === ( $plan['Type'] ?? '' ) && 'trial' === ( $plan['Default'] ?? '' ), (string) ( $plan['Type'] ?? '' ) );
+$check( 'plans: trial, sites_1, sites_3, sites_10', "enum('" . implode( "','", array_keys( Members::PLANS ) ) . "')" === ( $plan['Type'] ?? '' ) && 'trial' === ( $plan['Default'] ?? '' ), (string) ( $plan['Type'] ?? '' ) );
 
 // 2. create() -----------------------------------------------------------------------
 
@@ -90,7 +90,7 @@ $check( 'nothing was written', null === Members::get( $member ) );
 $created = Members::create( $member );
 $row     = Members::get( $member );
 $check( 'creates a pending trial by default', true === $created && 'trial' === ( $row['plan'] ?? '' ) && 'pending_payment' === ( $row['status'] ?? '' ), wp_json_encode( array_intersect_key( (array) $row, array_flip( array( 'plan', 'status' ) ) ) ) );
-$again = Members::create( $member, 'patron', 'active' );
+$again = Members::create( $member, 'sites_10', 'active' );
 $check( 'refuses a trial as the next plan', is_wp_error( Members::create( $stranger, 'trial', 'pending_payment', 'trial' ) ) && null === Members::get( $stranger ) );
 $check( 'refuses a second row', is_wp_error( $again ) && 'mody_member_exists' === $again->get_error_code() && 'trial' === Members::get( $member )['plan'] );
 
@@ -104,11 +104,11 @@ foreach ( array_keys( Members::PLANS ) as $slug ) {
 	Members::create( $member, $slug, 'active' );
 	$limits[ $slug ] = Quota::limit( $member );
 }
-$check( 'each plan its own: 3, 3, 10, 50', array(
-	'trial'        => 3,
-	'collaborator' => 3,
-	'member'       => 10,
-	'patron'       => 50,
+$check( 'each plan its own: 3, 1, 3, 10', array(
+	'trial'    => 3,
+	'sites_1'  => 1,
+	'sites_3'  => 3,
+	'sites_10' => 10,
 ) === $limits, wp_json_encode( $limits ) );
 
 // 4. The dashboard capability -------------------------------------------------------
@@ -123,7 +123,7 @@ $check( 'nothing else is granted', ! user_can( $member, 'manage_network' ) && ! 
 
 echo "\nOver HTTP\n";
 Members::delete( $member );
-Members::create( $member, 'member', 'active' );
+Members::create( $member, 'sites_10', 'active' );
 $cookie = static function ( int $user_id ): array {
 	$expiration = time() + 300;
 	$token      = WP_Session_Tokens::get_instance( $user_id )->create( $expiration );
