@@ -361,3 +361,81 @@
 	color: #50575e;
 	font-weight: 400;
 }
+
+/* Work in progress: a watermark over sections still being built ------------------------ */
+
+.mody-brand__panel-body.has-wip {
+	position: relative;
+}
+
+.mody-dashboard__wip {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	overflow: hidden;
+	pointer-events: none; /* The numbers under it stay usable: tooltips, the table, the links. */
+}
+
+.mody-dashboard__wip > span {
+	transform: rotate(-14deg);
+	color: rgba(29, 35, 39, 0.1);
+	font-size: clamp(20px, 5.5vw, 72px);
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	user-select: none;
+}
+
+.mody-dashboard__dots span {
+	animation: mody-dashboard-dot 1.4s infinite both;
+}
+
+.mody-dashboard__dots span:nth-child(2) {
+	animation-delay: 0.2s;
+}
+
+.mody-dashboard__dots span:nth-child(3) {
+	animation-delay: 0.4s;
+}
+
+@keyframes mody-dashboard-dot {
+	0%,
+	80%,
+	100% {
+		opacity: 0;
+	}
+
+	40% {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mody-dashboard__dots span {
+		animation: none;
+	}
+}
+
+/* Narrow screens: Mody's work stays a table (brand-page.css stacks every row's cells) */
+
+@media (max-width: 782px) {
+	.mody-dashboard__usage th,
+	.mody-dashboard__usage td {
+		display: table-cell;
+		min-width: 0;
+		padding-right: 8px;
+		border-bottom: 1px solid #f0f0f1;
+	}
+
+	.mody-dashboard__usage th[scope="row"] {
+		width: 55%;
+	}
+
+	.mody-dashboard__usage .mody-brand__bar {
+		display: none;
+	}
+}

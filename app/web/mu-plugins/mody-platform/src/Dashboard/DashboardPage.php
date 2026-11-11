@@ -40,6 +40,9 @@ final class DashboardPage {
 	/** Who sees the site's numbers: its administrators. */
 	public const SITE_CAPABILITY = 'manage_options';
 
+	/** Sections still being built: a "Work in progress" watermark over them (the maintainer, 2026-11-11). */
+	public const WORK_IN_PROGRESS = array( 'visitors', 'mody' );
+
 	/** The admin-post action that records the chosen plan. */
 	public const PLAN_ACTION = 'mody_dashboard_plan';
 
@@ -216,8 +219,13 @@ final class DashboardPage {
 								</nav>
 							<?php endif; ?>
 						</div>
-						<div class="mody-brand__panel-body">
+						<div class="mody-brand__panel-body<?php echo in_array( $section, self::WORK_IN_PROGRESS, true ) ? ' has-wip' : ''; ?>">
 							<?php self::render_section( $section ); ?>
+							<?php if ( in_array( $section, self::WORK_IN_PROGRESS, true ) ) : ?>
+								<div class="mody-dashboard__wip" role="note">
+									<span><?php esc_html_e( 'Work in progress', 'mody_cloud' ); ?><span class="mody-dashboard__dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+								</div>
+							<?php endif; ?>
 						</div>
 					</section>
 				</div>
