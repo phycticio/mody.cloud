@@ -86,6 +86,15 @@ add_action( 'init', array( Brand\BrandSettings::class, 'migrate' ), 1 ); // Once
 add_action( 'init', array( Brand\BrandSettings::class, 'register' ) );
 add_action( 'admin_init', array( Brand\BrandSettings::class, 'general_fields' ) );
 add_action( 'admin_enqueue_scripts', array( Brand\BrandSettings::class, 'enqueue_identity_fields' ) );
+
+/*
+ * Your brand (2026-11-11, tickets/your-brand-page.md): Settings → Brand, the
+ * rest of what Mody knows about the business (voice, audience, offer, story,
+ * values, facts) in one site setting, read by every prompt.
+ */
+add_action( 'init', array( Brand\BrandBook::class, 'register' ) );
+add_action( 'admin_menu', array( Brand\BrandPage::class, 'register_menu' ) );
+add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::class, 'save' ) );
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 add_action( 'init', array( Members\Members::class, 'install' ), 1 );

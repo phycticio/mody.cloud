@@ -29,7 +29,7 @@ defined( 'ABSPATH' ) || exit;
 final class SiteEditor {
 
 	/** What mody/open-editor can open. */
-	public const TARGETS = array( 'page', 'template', 'part', 'list', 'styles', 'navigation', 'patterns', 'home', 'identity' );
+	public const TARGETS = array( 'page', 'template', 'part', 'list', 'styles', 'navigation', 'patterns', 'home', 'identity', 'brand' );
 
 	/**
 	 * Styles screens: key => `section` path. Additional CSS is left out:
@@ -128,8 +128,8 @@ final class SiteEditor {
 			return false;
 		}
 		$target = is_array( $input ) ? (string) ( $input['target'] ?? 'page' ) : 'page';
-		if ( 'identity' === $target ) {
-			return current_user_can( 'manage_options' ); // Site settings (M2-08).
+		if ( 'identity' === $target || 'brand' === $target ) {
+			return current_user_can( 'manage_options' ); // Site settings (M2-08), Your brand (2026-11-11).
 		}
 		return 'page' === $target ? current_user_can( 'edit_pages' ) : current_user_can( 'edit_theme_options' );
 	}
@@ -170,6 +170,9 @@ final class SiteEditor {
 			case 'identity':
 				// The site's title, tagline, logo, icon, mission and tone (M2-08).
 				return self::result( 'identity', self::url( '/identity' ), __( 'Open Identity', 'mody_cloud' ), __( 'the Identity screen', 'mody_cloud' ) );
+			case 'brand':
+				// Your brand (Settings → Brand, 2026-11-11): a wp-admin page, so the owner gets a button.
+				return self::result( 'brand', \Mody\Platform\Brand\BrandPage::url(), __( 'Open Your brand', 'mody_cloud' ), __( 'the Your brand page', 'mody_cloud' ) );
 			case 'home':
 				return self::result( 'home', self::url( '/' ), __( 'Open the Site Editor', 'mody_cloud' ), __( 'the Site Editor\'s start screen', 'mody_cloud' ) );
 		}
