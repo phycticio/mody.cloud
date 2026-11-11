@@ -1,5 +1,6 @@
 /**
- * Mission and tone of voice on the Site Editor's Identity screen (ticket M2-08).
+ * Mission and tone of voice on the Site Editor's Identity screen (ticket M2-08),
+ * and a button to Your brand (Settings → Brand, 2026-11-11).
  *
  * WordPress 7.1's Identity screen (site-editor.php?p=/identity) has a fixed
  * list of fields and no slot to add one. These two are real site settings
@@ -20,7 +21,7 @@
 		return;
 	}
 	const el = wp.element.createElement;
-	const { TextareaControl, RadioControl } = wp.components;
+	const { TextareaControl, RadioControl, Button } = wp.components;
 	const { useSelect, useDispatch } = wp.data;
 	const ID = 'mody-identity-fields';
 
@@ -49,6 +50,13 @@
 					options: Object.keys( config.tones ).map( ( value ) => ( { value, label: config.tones[ value ] } ) ),
 					onChange: ( value ) => edit( { [ config.tone ]: value } ),
 				} )
+			),
+			// Your brand (2026-11-11): the rest of what Mody knows, on Settings → Brand.
+			config.brandUrl && el(
+				'div',
+				{ className: 'mody-identity-fields__brand', style: { marginTop: '24px' } },
+				el( Button, { variant: 'secondary', href: config.brandUrl, __next40pxDefaultSize: true }, config.strings.brand ),
+				el( 'p', { style: { margin: '8px 0 0', color: '#757575', fontSize: '12px' } }, config.strings.brandHelp )
 			)
 		);
 	}

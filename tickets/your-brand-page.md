@@ -1,6 +1,6 @@
 # Your brand: a Brand settings page that Mody reads with every request
 
-**Builds on:** [M2-08](M2-08-brand-profile-wordpress-settings.md) (the brand is the site's own settings), the agent (M3), [login-branding.md](login-branding.md) (Settings → Login's tabs layout) · **Status:** planned on 2026-11-11, not built. The maintainer answered questions 1 to 4 the same day, all as recommended; 5 and 6 do not block part 1.
+**Builds on:** [M2-08](M2-08-brand-profile-wordpress-settings.md) (the brand is the site's own settings), the agent (M3), [login-branding.md](login-branding.md) (Settings → Login's tabs layout) · **Status:** built and deployed on 2026-11-11 (parts 1 to 6). The maintainer answered questions 1 to 4 the same day, all as recommended. Question 5 is a follow-up. Question 6 is built as recommended: the main site gets the page too.
 
 ## Asked for
 By the maintainer on 2026-11-11:
@@ -97,3 +97,48 @@ Test file: `scripts/brand-page-test.php`, offline with `MODY_TEST_OFFLINE=1`.
 ## Open questions
 5. **The signup and the wizard:** should the editor tour send new members to Your brand instead of asking Mody "what do you do"? Recommended as a follow-up, not part of this ticket.
 6. **The main site:** it gets the page too (recommended), and its brand is Mody Cloud's.
+
+## Built (2026-11-11)
+All six parts. What changed from the plan:
+- **Flat keys.** `mody_brand` holds 16 fields by flat name (`voice`, `address_form`, `words_to_use`…), not nested sections. `BrandSettings::brand()` is unchanged; `BrandBook::get()` reads the rest.
+- **The thin-brand suggestion was not built.** Mody writes placeholders for missing facts, as before, and does not yet suggest filling in the brand. It is left for later, with question 5.
+- **Lists for the agent** are `{name, description}` objects, and the names are quoted in `<brand>`. The review of 2026-11-11 found that names with a colon ("Q&A: support") were split when Mody re-sent the list; 21 of 21 real requests then passed in three runs, adding a service next to such a name included.
+- **Saving goes to `admin-post.php`, not `options.php`.** `options.php` writes every option of a settings group on each post, and empties the ones a form leaves out. A section's form would then have emptied the name or the tone. `BrandPage::save()` writes only the posted section's values, with a nonce per section.
+- **Limits** (`BrandBook::FIELDS`):
+  - vision 200 characters;
+  - how we sound, audience, needs and difference 400 each;
+  - story 600;
+  - address 200;
+  - opening hours 300;
+  - words 15 per list, 30 characters each;
+  - products and services 12, values 6: each a name of 80 or 60 characters and a line of 120.
+- **Size, measured** (it replaces the 3,000-character **Inference**): the example brand in the test adds 956 characters to a prompt. With every field at its limit it adds 8,155 characters, about 2,000 tokens. The test keeps it under 8,500.
+- **Words** are one per line, or separated by commas, in a text box, not rows. Products and values are rows with Add and Remove.
+- **The agent** first wrote its own one-line description for each service the owner named. Agent rule 7 now says "in the owner's words, adding nothing they did not say", and the test checks it.
+
+Code:
+- `src/Brand/BrandBook.php` (the setting), `src/Brand/BrandPage.php` (the page);
+- `assets/brand-page.css` and `assets/brand-page.js`;
+- the button in `assets/identity-fields.js`, the Settings → General row in `BrandSettings::general_fields()`;
+- `SystemPrompt::brand_context()`, page rule 8, edit rule 7, agent rule 7;
+- the `brand_` settings in `Site\Settings`;
+- the `brand` target in `SiteEditor`.
+
+## Results
+- **`scripts/brand-page-test.php`:**
+  - 47 offline checks pass;
+  - the seven real requests passed in each of three runs (21 of 21): a contact page with the real phone and hours, a German page with "du", the services saved with nothing added, the audience and the hours saved, "show me my brand", and a service added next to "Q&A: support".
+- **In a browser** (headless Chromium on the `alpha` member site, as a throwaway administrator):
+  - the page and its sections;
+  - Add and Remove on the products;
+  - saving and the notice;
+  - no horizontal scroll at 390 px;
+  - the Identity screen's **Your brand** button opening the page;
+  - no console errors;
+  - after the review: "Add another" hidden at 12 products, and a click there adds nothing.
+- **Related suites:**
+  - `update-settings-test.php` (offline and the agent for real), `brand-settings-test.php` and `ai-agent-chat-test.php` pass. The tools JSON is 3,919 bytes, under 4,000.
+  - `editor-navigation-test.php` still has its three list failures from before this work.
+
+Still to do: the maintainer's own look at the page.
+

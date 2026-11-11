@@ -7,6 +7,7 @@
 
 namespace Mody\Platform\Site;
 
+use Mody\Platform\Brand\BrandBook;
 use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Login\Schemes;
 use Mody\Platform\SiteEditor;
@@ -82,118 +83,130 @@ final class Settings {
 		foreach ( array( 'aside', 'chat', 'gallery', 'link', 'image', 'quote', 'status', 'video', 'audio' ) as $format ) {
 			$formats[ $format ] = $format;
 		}
-		return array(
-			// General.
-			'title'                        => $text( 'blogname', 120 ),
-			'tagline'                      => $text( 'blogdescription', 200 ),
-			'mission'                      => $text( BrandSettings::MISSION, BrandSettings::MAX_MISSION ),
-			'tone'                         => $enum( BrandSettings::TONE, array_combine( BrandSettings::TONES, BrandSettings::TONES ) ),
-			'timezone'                     => array(
-				'option' => 'timezone_string',
-				'type'   => 'timezone',
-				'tier'   => self::DIRECT,
-			),
-			'date_format'                  => $text( 'date_format', 40 ),
-			'time_format'                  => $text( 'time_format', 40 ),
-			'week_starts_on'               => $enum( 'start_of_week', array_flip( array( 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday' ) ) ),
-			// Writing and reading.
-			'default_category'             => array(
-				'option' => 'default_category',
-				'type'   => 'category',
-				'tier'   => self::DIRECT,
-			),
-			'default_post_format'          => $enum( 'default_post_format', $formats ),
-			'emoticons_as_images'          => $bool( 'use_smilies' ),
-			'posts_per_page'               => $int( 'posts_per_page', 1, 100 ),
-			'feed_items'                   => $int( 'posts_per_rss', 1, 100 ),
-			'feed_content'                 => $enum(
-				'rss_use_excerpt',
-				array(
-					'full text' => '0',
-					'excerpt'   => '1',
-				)
-			),
-			'homepage'                     => array(
-				'option' => 'page_on_front',
-				'type'   => 'homepage',
-				'tier'   => self::CONFIRM,
-			),
-			'posts_page'                   => array(
-				'option' => 'page_for_posts',
-				'type'   => 'page',
-				'tier'   => self::CONFIRM,
-			),
-			'search_engines_visible'       => $bool( 'blog_public', self::CONFIRM ),
-			// Discussion.
-			'comments_on_new_posts'        => $bool( 'default_comment_status', self::DIRECT, 'open', 'closed' ),
-			'pingbacks_on_new_posts'       => $bool( 'default_ping_status', self::DIRECT, 'open', 'closed' ),
-			'comments_need_name_and_email' => $bool( 'require_name_email' ),
-			'comments_only_registered'     => $bool( 'comment_registration', self::CONFIRM ),
-			'comments_held_for_approval'   => $bool( 'comment_moderation' ),
-			'comments_known_authors_approved' => $bool( 'comment_previously_approved' ),
-			'email_on_new_comment'         => $bool( 'comments_notify' ),
-			'email_on_held_comment'        => $bool( 'moderation_notify' ),
-			'threaded_comments'            => $bool( 'thread_comments' ),
-			'thread_depth'                 => $int( 'thread_comments_depth', 2, 10 ),
-			'comments_in_pages'            => $bool( 'page_comments' ),
-			'comments_per_page'            => $int( 'comments_per_page', 1, 200 ),
-			'comment_order'                => $enum(
-				'comment_order',
-				array(
-					'oldest first' => 'asc',
-					'newest first' => 'desc',
-				)
-			),
-			'comments_first_page'          => $enum(
-				'default_comments_page',
-				array(
-					'newest' => 'newest',
-					'oldest' => 'oldest',
-				)
-			),
-			'close_old_comments'           => $bool( 'close_comments_for_old_posts' ),
-			'close_comments_after_days'    => $int( 'close_comments_days_old', 1, 3650 ),
-			'show_avatars'                 => $bool( 'show_avatars' ),
-			'comment_moderation_words'     => array(
-				'option' => 'moderation_keys',
-				'type'   => 'lines',
-				'tier'   => self::CONFIRM,
-			),
-			'comment_blocklist_words'      => array(
-				'option' => 'disallowed_keys',
-				'type'   => 'lines',
-				'tier'   => self::CONFIRM,
-			),
-			// Media.
-			'thumbnail_width'              => $int( 'thumbnail_size_w', 0, 4096 ),
-			'thumbnail_height'             => $int( 'thumbnail_size_h', 0, 4096 ),
-			'thumbnail_crop'               => $bool( 'thumbnail_crop' ),
-			'medium_width'                 => $int( 'medium_size_w', 0, 4096 ),
-			'medium_height'                => $int( 'medium_size_h', 0, 4096 ),
-			'large_width'                  => $int( 'large_size_w', 0, 4096 ),
-			'large_height'                 => $int( 'large_size_h', 0, 4096 ),
-			// Permalinks.
-			'permalinks'                   => $enum(
-				'permalink_structure',
-				array(
-					'post name'      => '/%postname%/',
-					'day and name'   => '/%year%/%monthnum%/%day%/%postname%/',
-					'month and name' => '/%year%/%monthnum%/%postname%/',
-					'numeric'        => '/archives/%post_id%',
+		$brand = array();
+		foreach ( array_keys( BrandBook::FIELDS ) as $field ) {
+			$brand[ 'brand_' . $field ] = array(
+				'option' => BrandBook::OPTION,
+				'type'   => 'brand',
+				'tier'   => self::DIRECT, // Decided 2026-11-11: the owner is telling Mody about their own business.
+				'field'  => $field,
+			);
+		}
+		return array_merge(
+			array(
+				// General.
+				'title'                        => $text( 'blogname', 120 ),
+				'tagline'                      => $text( 'blogdescription', 200 ),
+				'mission'                      => $text( BrandSettings::MISSION, BrandSettings::MAX_MISSION ),
+				'tone'                         => $enum( BrandSettings::TONE, array_combine( BrandSettings::TONES, BrandSettings::TONES ) ),
+				'timezone'                     => array(
+					'option' => 'timezone_string',
+					'type'   => 'timezone',
+					'tier'   => self::DIRECT,
 				),
-				self::CONFIRM
+				'date_format'                  => $text( 'date_format', 40 ),
+				'time_format'                  => $text( 'time_format', 40 ),
+				'week_starts_on'               => $enum( 'start_of_week', array_flip( array( 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday' ) ) ),
+				// Writing and reading.
+				'default_category'             => array(
+					'option' => 'default_category',
+					'type'   => 'category',
+					'tier'   => self::DIRECT,
+				),
+				'default_post_format'          => $enum( 'default_post_format', $formats ),
+				'emoticons_as_images'          => $bool( 'use_smilies' ),
+				'posts_per_page'               => $int( 'posts_per_page', 1, 100 ),
+				'feed_items'                   => $int( 'posts_per_rss', 1, 100 ),
+				'feed_content'                 => $enum(
+					'rss_use_excerpt',
+					array(
+						'full text' => '0',
+						'excerpt'   => '1',
+					)
+				),
+				'homepage'                     => array(
+					'option' => 'page_on_front',
+					'type'   => 'homepage',
+					'tier'   => self::CONFIRM,
+				),
+				'posts_page'                   => array(
+					'option' => 'page_for_posts',
+					'type'   => 'page',
+					'tier'   => self::CONFIRM,
+				),
+				'search_engines_visible'       => $bool( 'blog_public', self::CONFIRM ),
+				// Discussion.
+				'comments_on_new_posts'        => $bool( 'default_comment_status', self::DIRECT, 'open', 'closed' ),
+				'pingbacks_on_new_posts'       => $bool( 'default_ping_status', self::DIRECT, 'open', 'closed' ),
+				'comments_need_name_and_email' => $bool( 'require_name_email' ),
+				'comments_only_registered'     => $bool( 'comment_registration', self::CONFIRM ),
+				'comments_held_for_approval'   => $bool( 'comment_moderation' ),
+				'comments_known_authors_approved' => $bool( 'comment_previously_approved' ),
+				'email_on_new_comment'         => $bool( 'comments_notify' ),
+				'email_on_held_comment'        => $bool( 'moderation_notify' ),
+				'threaded_comments'            => $bool( 'thread_comments' ),
+				'thread_depth'                 => $int( 'thread_comments_depth', 2, 10 ),
+				'comments_in_pages'            => $bool( 'page_comments' ),
+				'comments_per_page'            => $int( 'comments_per_page', 1, 200 ),
+				'comment_order'                => $enum(
+					'comment_order',
+					array(
+						'oldest first' => 'asc',
+						'newest first' => 'desc',
+					)
+				),
+				'comments_first_page'          => $enum(
+					'default_comments_page',
+					array(
+						'newest' => 'newest',
+						'oldest' => 'oldest',
+					)
+				),
+				'close_old_comments'           => $bool( 'close_comments_for_old_posts' ),
+				'close_comments_after_days'    => $int( 'close_comments_days_old', 1, 3650 ),
+				'show_avatars'                 => $bool( 'show_avatars' ),
+				'comment_moderation_words'     => array(
+					'option' => 'moderation_keys',
+					'type'   => 'lines',
+					'tier'   => self::CONFIRM,
+				),
+				'comment_blocklist_words'      => array(
+					'option' => 'disallowed_keys',
+					'type'   => 'lines',
+					'tier'   => self::CONFIRM,
+				),
+				// Media.
+				'thumbnail_width'              => $int( 'thumbnail_size_w', 0, 4096 ),
+				'thumbnail_height'             => $int( 'thumbnail_size_h', 0, 4096 ),
+				'thumbnail_crop'               => $bool( 'thumbnail_crop' ),
+				'medium_width'                 => $int( 'medium_size_w', 0, 4096 ),
+				'medium_height'                => $int( 'medium_size_h', 0, 4096 ),
+				'large_width'                  => $int( 'large_size_w', 0, 4096 ),
+				'large_height'                 => $int( 'large_size_h', 0, 4096 ),
+				// Permalinks.
+				'permalinks'                   => $enum(
+					'permalink_structure',
+					array(
+						'post name'      => '/%postname%/',
+						'day and name'   => '/%year%/%monthnum%/%day%/%postname%/',
+						'month and name' => '/%year%/%monthnum%/%postname%/',
+						'numeric'        => '/archives/%post_id%',
+					),
+					self::CONFIRM
+				),
+				// Mody's own screens.
+				'login_color_scheme'           => array(
+					'option' => Schemes::OPTION,
+					'type'   => 'scheme',
+					'tier'   => self::DIRECT,
+				),
+				'other_languages'              => array(
+					'option' => 'mody_languages',
+					'type'   => 'locales',
+					'tier'   => self::CONFIRM,
+				),
 			),
-			// Mody's own screens.
-			'login_color_scheme'           => array(
-				'option' => Schemes::OPTION,
-				'type'   => 'scheme',
-				'tier'   => self::DIRECT,
-			),
-			'other_languages'              => array(
-				'option' => 'mody_languages',
-				'type'   => 'locales',
-				'tier'   => self::CONFIRM,
-			),
+			$brand // Your brand (2026-11-11): brand_vision, brand_offer…
 		);
 	}
 
@@ -263,6 +276,8 @@ final class Settings {
 				return Schemes::chosen();
 			case 'locales':
 				return array_values( array_map( 'strval', (array) $stored ) );
+			case 'brand':
+				return BrandBook::display( $spec['field'] );
 			default:
 				return wp_specialchars_decode( (string) $stored, ENT_QUOTES );
 		}
@@ -299,6 +314,8 @@ final class Settings {
 			case 'locales':
 				$offered = class_exists( \Mody\Languages\Languages::class ) ? array_keys( \Mody\Languages\Languages::OFFERED ) : array();
 				return 'a list of locales from ' . implode( ', ', $offered ) . ', besides the default language';
+			case 'brand':
+				return BrandBook::allowed( $spec['field'] );
 		}
 		return '';
 	}
@@ -368,6 +385,8 @@ final class Settings {
 				$offered = array_keys( \Mody\Languages\Languages::OFFERED );
 				$locales = array_map( static fn( $locale ): string => is_scalar( $locale ) ? (string) $locale : '', $value );
 				return array_diff( $locales, $offered ) ? $wrong() : array_values( array_unique( $locales ) );
+			case 'brand':
+				return BrandBook::check_field( $spec['field'], $value );
 		}
 		return $wrong();
 	}
@@ -446,6 +465,9 @@ final class Settings {
 				update_option( $spec['option'], $value );
 				$ok = Schemes::chosen() === $value;
 				break;
+			case 'brand':
+				$ok = BrandBook::update( array( $spec['field'] => $value ) )[ $spec['field'] ] === $value;
+				break;
 			case 'enum':
 				if ( 'permalink_structure' === $spec['option'] ) {
 					// As Settings → Permalinks does: the rewrite object holds the structure in memory.
@@ -473,6 +495,10 @@ final class Settings {
 	public static function catalog(): string {
 		$lines = array();
 		foreach ( array_keys( self::specs() ) as $name ) {
+			if ( 'brand' === self::specs()[ $name ]['type'] ) {
+				$lines[] = '- ' . $name . ' (' . self::allowed( $name ) . ')'; // Its value is in <brand>, when filled in.
+				continue;
+			}
 			$value   = self::current( $name );
 			$shown   = is_bool( $value ) ? ( $value ? 'true' : 'false' ) : ( is_array( $value ) ? '[' . implode( ', ', $value ) . ']' : '"' . mb_strimwidth( (string) $value, 0, 80, '…' ) . '"' );
 			$lines[] = '- ' . $name . ' = ' . $shown . ' (' . self::allowed( $name ) . ')' . ( self::CONFIRM === self::specs()[ $name ]['tier'] ? ' [confirm]' : '' );

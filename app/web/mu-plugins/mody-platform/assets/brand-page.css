@@ -1,0 +1,471 @@
+/*
+ * Settings → Brand (Brand\BrandPage): the sections on the left; on the right
+ * the brand's card, the notice and the section's panel with its Overview and
+ * Edit tabs. The site's theme variables are printed with this file, for the
+ * Visual style section's gradients.
+ */
+
+.mody-brand__intro {
+	max-width: 760px;
+}
+
+.mody-brand__layout {
+	display: grid;
+	grid-template-columns: minmax(170px, 220px) minmax(0, 1fr);
+	gap: 24px;
+	margin-top: 16px;
+	align-items: start;
+}
+
+/* The sections ---------------------------------------------------------------- */
+
+.mody-brand__sections ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.mody-brand__sections li {
+	margin: 0;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.mody-brand__sections li:last-child {
+	border-bottom: 0;
+}
+
+.mody-brand__section-link {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 16px;
+	color: #1d2327;
+	text-decoration: none;
+	border-left: 3px solid transparent;
+}
+
+.mody-brand__section-link:hover {
+	color: var(--wp-admin-theme-color);
+	background: #f6f7f7;
+}
+
+.mody-brand__section-link:focus {
+	box-shadow: inset 0 0 0 2px var(--wp-admin-theme-color);
+	outline: 2px solid transparent;
+}
+
+.mody-brand__section-link.is-active {
+	font-weight: 600;
+	color: #1d2327;
+	background: #f0f6fc;
+	border-left-color: var(--wp-admin-theme-color);
+}
+
+.mody-brand__filled {
+	color: #00a32a;
+	font-weight: 600;
+}
+
+/* The card --------------------------------------------------------------------- */
+
+.mody-brand__main {
+	min-width: 0;
+}
+
+.mody-brand__card {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 16px 20px;
+	padding: 20px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-brand__logo {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	flex: 0 1 160px;
+	min-width: 0;
+	min-height: 56px;
+	padding: 8px;
+	box-sizing: border-box;
+	background: var(--wp--preset--color--base, #fff);
+	color: var(--wp--preset--color--contrast, #1d2327);
+	border: 1px solid #f0f0f1;
+	border-radius: 4px;
+}
+
+.mody-brand__logo .mody-login-logo {
+	display: block;
+	width: auto;
+	height: auto;
+	max-width: 100%;
+	max-height: 56px;
+}
+
+.mody-brand__logo .mody-login-name {
+	font-size: 16px;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.mody-brand__card-text {
+	flex: 1 1 240px;
+	min-width: 0;
+}
+
+.mody-brand__name {
+	margin: 0 0 2px;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+
+.mody-brand__tagline {
+	margin: 0 0 8px;
+	color: #50575e;
+}
+
+.mody-brand__progress {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	margin: 0;
+	color: #50575e;
+}
+
+.mody-brand__bar {
+	display: inline-block;
+	width: 140px;
+	height: 6px;
+	background: #f0f0f1;
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.mody-brand__bar span {
+	display: block;
+	height: 100%;
+	background: var(--wp-admin-theme-color);
+}
+
+.mody-brand__notice {
+	margin: 16px 0 0 !important;
+}
+
+/* The panel -------------------------------------------------------------------- */
+
+.mody-brand__panel {
+	margin-top: 16px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-brand__panel-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-end;
+	gap: 0 16px;
+	padding: 0 20px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.mody-brand__panel-head h2 {
+	margin: 16px 0;
+	font-size: 16px;
+}
+
+.mody-brand__tabs {
+	display: flex;
+	gap: 4px;
+}
+
+.mody-brand__tab {
+	display: block;
+	padding: 12px 16px;
+	margin-bottom: -1px;
+	color: #50575e;
+	text-decoration: none;
+	border-bottom: 3px solid transparent;
+}
+
+.mody-brand__tab:hover {
+	color: var(--wp-admin-theme-color);
+}
+
+.mody-brand__tab:focus {
+	box-shadow: inset 0 0 0 2px var(--wp-admin-theme-color);
+	outline: 2px solid transparent;
+}
+
+.mody-brand__tab.is-active {
+	font-weight: 600;
+	color: #1d2327;
+	border-bottom-color: var(--wp-admin-theme-color);
+}
+
+.mody-brand__panel-body {
+	padding: 8px 20px 20px;
+}
+
+/* Label and value rows ----------------------------------------------------------- */
+
+.mody-brand__rows {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.mody-brand__rows th,
+.mody-brand__rows td {
+	padding: 10px 12px 10px 0;
+	text-align: left;
+	vertical-align: top;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.mody-brand__rows th {
+	width: 30%;
+	min-width: 140px;
+	font-weight: 600;
+}
+
+.mody-brand__rows td {
+	overflow-wrap: anywhere;
+}
+
+.mody-brand__rows tr:last-child th,
+.mody-brand__rows tr:last-child td {
+	border-bottom: 0;
+}
+
+.mody-brand__empty {
+	color: #757575;
+	font-style: italic;
+}
+
+.mody-brand__state {
+	width: 1%;
+	white-space: nowrap;
+	text-align: right !important;
+}
+
+.mody-brand__badge {
+	display: inline-block;
+	padding: 2px 10px;
+	border: 1px solid var(--wp-admin-theme-color);
+	border-radius: 12px;
+	font-size: 12px;
+	text-decoration: none;
+}
+
+.mody-brand__badge.is-filled {
+	color: #00650f;
+	background: #edfaef;
+	border-color: #68de7c;
+}
+
+.mody-brand__items,
+.mody-brand__words {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-brand__items li {
+	margin: 0 0 6px;
+}
+
+.mody-brand__words {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.mody-brand__words li {
+	margin: 0;
+	padding: 2px 10px;
+	background: #f0f0f1;
+	border-radius: 12px;
+}
+
+.mody-brand__prompt {
+	margin-top: 16px;
+}
+
+.mody-brand__prompt summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.mody-brand__prompt pre {
+	margin: 8px 0 0;
+	padding: 12px;
+	max-height: 360px;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	background: #f6f7f7;
+	border-radius: 4px;
+}
+
+/* The forms -------------------------------------------------------------------- */
+
+.mody-brand__field {
+	margin: 16px 0 20px;
+	padding: 0;
+	border: 0;
+}
+
+.mody-brand__field > label,
+.mody-brand__field > legend {
+	display: block;
+	margin-bottom: 6px;
+	padding: 0;
+	font-weight: 600;
+}
+
+.mody-brand__field .large-text {
+	max-width: 720px;
+}
+
+.mody-brand__choice {
+	display: block;
+	margin: 4px 0;
+}
+
+.mody-brand__items-edit {
+	margin: 8px 0;
+	padding: 0;
+	list-style: none;
+	max-width: 760px;
+}
+
+.mody-brand__item {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+	gap: 8px 12px;
+	align-items: end;
+	margin: 0 0 10px;
+	padding: 10px;
+	background: #f6f7f7;
+	border-radius: 4px;
+}
+
+.mody-brand__item label span {
+	display: block;
+	margin-bottom: 4px;
+	font-size: 12px;
+	color: #50575e;
+}
+
+.mody-brand__item input {
+	width: 100%;
+}
+
+.mody-brand__remove {
+	padding: 6px 0 !important;
+	color: #b32d2e !important;
+}
+
+/* Visual style ---------------------------------------------------------------- */
+
+.mody-brand__swatches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 18px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-brand__swatches li {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+}
+
+.mody-brand__swatch {
+	display: inline-block;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.2);
+}
+
+.mody-brand__swatch.is-gradient {
+	width: 44px;
+	border-radius: 10px;
+}
+
+.wp-core-ui .mody-brand__add[hidden],
+.mody-brand__remove[hidden] {
+	display: none;
+}
+
+.mody-brand__links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* Narrow screens: the sections become a row above the panel --------------------- */
+
+@media (max-width: 782px) {
+	.mody-brand__layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.mody-brand__sections ul {
+		display: flex;
+		overflow-x: auto;
+	}
+
+	.mody-brand__sections li {
+		flex: 0 0 auto;
+		border-bottom: 0;
+		border-right: 1px solid #f0f0f1;
+	}
+
+	.mody-brand__section-link {
+		border-left: 0;
+		border-bottom: 3px solid transparent;
+		white-space: nowrap;
+	}
+
+	.mody-brand__section-link.is-active {
+		border-bottom-color: var(--wp-admin-theme-color);
+	}
+
+	.mody-brand__rows th,
+	.mody-brand__rows td {
+		display: block;
+		width: auto;
+		padding-right: 0;
+	}
+
+	.mody-brand__rows th {
+		padding-bottom: 0;
+		border-bottom: 0;
+	}
+
+	.mody-brand__state {
+		text-align: left !important;
+	}
+
+	.mody-brand__item {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

@@ -167,6 +167,19 @@ final class BrandSettings {
 			},
 			'general'
 		);
+		add_settings_field(
+			'mody_brand_link',
+			esc_html__( 'Your brand', 'mody_cloud' ),
+			static function (): void {
+				printf(
+					'<a class="button" href="%1$s">%2$s</a><p class="description">%3$s</p>',
+					esc_url( BrandPage::url() ),
+					esc_html__( 'Open Your brand', 'mody_cloud' ),
+					esc_html__( 'Tell Mody more about the business: its voice, customers, offer, story and facts.', 'mody_cloud' )
+				);
+			},
+			'general'
+		);
 	}
 
 	/**
@@ -190,7 +203,10 @@ final class BrandSettings {
 					'maxMission'  => self::MAX_MISSION,
 					'defaultTone' => self::DEFAULT_TONE,
 					'tones'       => self::tone_labels(),
+					'brandUrl'    => BrandPage::url(),
 					'strings'     => array(
+						'brand'       => __( 'Your brand', 'mody_cloud' ),
+						'brandHelp'   => __( 'Tell Mody more about the business: its voice, customers, offer, story and facts.', 'mody_cloud' ),
 						'mission'     => __( 'Mission', 'mody_cloud' ),
 						'missionHelp' => __( 'What the business does, in one sentence. The Mody agent writes with it.', 'mody_cloud' ),
 						'tone'        => __( 'Tone of voice', 'mody_cloud' ),
