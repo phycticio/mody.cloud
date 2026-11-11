@@ -55,7 +55,15 @@ final class SiteStyles {
 		'typography.fontSizes'    => array( 'font-size', 'size' ),
 		'typography.fontFamilies' => array( 'font-family', 'fontFamily' ),
 		'spacing.spacingSizes'    => array( 'spacing', 'size' ),
+		// 2026-11-11: gradients, made only of palette colors (gradient_value()).
+		'color.gradients'         => array( 'gradient', 'gradient' ),
 	);
+
+	/** Most color stops in a gradient. */
+	public const MAX_STOPS = 5;
+
+	/** The palette's slugs while a change is applied: what gradient stops may use. */
+	private static array $palette_slugs = array();
 
 	/** Layout settings a member may change. */
 	public const LAYOUT = array( 'contentSize', 'wideSize' );
@@ -254,6 +262,7 @@ final class SiteStyles {
 		return array(
 			'styles'     => $styles,
 			'palette'    => $list( 'color.palette', 'color', 'theme' ),
+			'gradients'  => array_map( static fn( string $value ): string => (string) preg_replace( '/var\(--wp--preset--color--([a-z0-9-]+)\)/', 'var:preset|color|$1', $value ), $list( 'color.gradients', 'gradient', 'theme' ) + $list( 'color.gradients', 'gradient', 'custom' ) ),
 			'custom'     => $list( 'color.palette', 'color', 'custom' ),
 			'font_sizes' => $list( 'typography.fontSizes', 'size', 'theme' ) + $list( 'typography.fontSizes', 'size', 'custom' ),
 			'spacing'    => $list( 'spacing.spacingSizes', 'size', 'theme' ) + $list( 'spacing.spacingSizes', 'size', 'custom' ),
@@ -281,7 +290,7 @@ final class SiteStyles {
 			return $config;
 		}
 		$allowed = array(
-			'color'      => array( 'palette' ),
+			'color'      => array( 'palette', 'gradients' ),
 			'typography' => array( 'fontSizes', 'fontFamilies' ),
 			'spacing'    => array( 'spacingSizes' ),
 			'layout'     => self::LAYOUT,
@@ -290,6 +299,10 @@ final class SiteStyles {
 			if ( ! isset( $allowed[ $group ] ) || ! is_array( $values ) || array_is_list( $values ) ) {
 				$errors[] = self::not_allowed( 'settings.' . $group );
 				continue;
+			}
+			if ( 'color' === $group && isset( $values['palette'], $values['gradients'] ) ) {
+				// The palette first: a gradient may use a color added in the same change.
+				$values = array( 'palette' => $values['palette'] ) + $values;
 			}
 			foreach ( $values as $key => $value ) {
 				$path = $group . '.' . $key;
@@ -335,6 +348,13 @@ final class SiteStyles {
 		list( $type, $value_key ) = self::PRESETS[ $path ];
 		list( $group, $key )      = explode( '.', $path );
 		$label                    = 'settings.' . $path;
+		if ( 'gradient' === $type ) {
+			// The palette as this change leaves it (palette entries are applied first): a color
+			// added in the same change can be used in a gradient.
+			$palette             = (array) ( $config['settings']['color']['palette'] ?? array() );
+			$theme_palette       = isset( $palette['theme'] ) && is_array( $palette['theme'] ) ? $palette['theme'] : self::theme_presets( 'color.palette' );
+			self::$palette_slugs = array_values( array_unique( array_merge( array_column( $theme_palette, 'slug' ), array_column( (array) ( $palette['custom'] ?? array() ), 'slug' ) ) ) );
+		}
 
 		// A plain list (theme.json's own form), or lists keyed by origin.
 		$entries = array();
@@ -491,12 +511,68 @@ final class SiteStyles {
 			$errors[] = sprintf( __( 'The color "%s" must be a six-digit hex code such as #ff7f50.', 'mody_cloud' ), $slug );
 			return null;
 		}
+		if ( 'gradient' === $type ) {
+			return self::gradient_value( $value, $slug, $errors );
+		}
 		if ( is_string( $value ) && '' !== trim( $value ) && self::is_safe( $value ) && ! self::has_raw_color( $value ) ) {
 			return trim( $value );
 		}
 		/* translators: %s: a preset slug. */
 		$errors[] = sprintf( __( 'The size of "%s" must be a CSS size such as 1.5rem.', 'mody_cloud' ), $slug );
 		return null;
+	}
+
+	/**
+	 * A gradient preset's value, or null (2026-11-11): a linear gradient (an
+	 * angle in degrees, or `to <side>`) or a radial one (`circle` or
+	 * `ellipse`, optionally `at <position>`), with two to MAX_STOPS stops,
+	 * each a palette color (`var:preset|color|<slug>` or its CSS variable) or
+	 * `transparent`, optionally at a percentage. Never a color code, so a
+	 * gradient follows the palette when its colors change. Written back with
+	 * CSS variables, as WordPress stores the theme's own.
+	 *
+	 * @param mixed        $value  The value given.
+	 * @param string       $slug   The preset's slug, for errors.
+	 * @param list<string> $errors Filled with what is refused.
+	 */
+	private static function gradient_value( $value, string $slug, array &$errors ): ?string {
+		$fail = static function ( string $why ) use ( $slug, &$errors ): ?string {
+			/* translators: 1: a gradient slug, 2: why it is refused. */
+			$errors[] = sprintf( __( 'The gradient "%1$s" %2$s Write it as linear-gradient(135deg, var:preset|color|primary 0%%, var:preset|color|accent 100%%) or radial-gradient(circle, var:preset|color|base 0%%, var:preset|color|primary 100%%), with the palette\'s colors only.', 'mody_cloud' ), $slug, $why );
+			return null;
+		};
+		if ( ! is_string( $value ) || strlen( $value ) > 400 || ! preg_match( '/^\s*(linear|radial)-gradient\(\s*(.+)\)\s*$/is', $value, $m ) ) {
+			return $fail( __( 'is not a linear or radial gradient.', 'mody_cloud' ) );
+		}
+		$parts = array_map( 'trim', explode( ',', $m[2] ) );
+		$first = strtolower( $parts[0] );
+		$shape = 'linear' === strtolower( $m[1] )
+			? (bool) preg_match( '/^(?:-?\d{1,3}(?:\.\d+)?deg|to (?:top|bottom|left|right)(?: (?:top|bottom|left|right))?)$/', $first )
+			: (bool) preg_match( '/^(?:circle|ellipse)?(?:\s*at (?:center|top|bottom|left|right)(?: (?:center|top|bottom|left|right))?)?$/', $first ) && '' !== $first;
+		if ( $shape ) {
+			array_shift( $parts );
+		}
+		if ( count( $parts ) < 2 || count( $parts ) > self::MAX_STOPS ) {
+			/* translators: %d: the most stops. */
+			return $fail( sprintf( __( 'needs 2 to %d color stops.', 'mody_cloud' ), self::MAX_STOPS ) );
+		}
+		$stops = array();
+		foreach ( $parts as $part ) {
+			if ( ! preg_match( '/^(?:var:preset\|color\|([a-z0-9-]+)|var\(--wp--preset--color--([a-z0-9-]+)\)|(transparent))(?:\s+(\d{1,3}(?:\.\d+)?)%)?$/i', $part, $stop ) ) {
+				/* translators: %s: a color stop. */
+				return $fail( sprintf( __( 'has the color stop "%s", which is not a palette color.', 'mody_cloud' ), $part ) );
+			}
+			$color = '' !== ( $stop[1] ?? '' ) ? $stop[1] : ( $stop[2] ?? '' );
+			if ( '' !== $color && ! in_array( $color, self::$palette_slugs, true ) ) {
+				/* translators: %s: a color slug. */
+				return $fail( sprintf( __( 'uses "%s", which is not in the palette.', 'mody_cloud' ), $color ) );
+			}
+			if ( isset( $stop[4] ) && '' !== $stop[4] && (float) $stop[4] > 100 ) {
+				return $fail( __( 'has a stop beyond 100%.', 'mody_cloud' ) );
+			}
+			$stops[] = ( '' !== $color ? 'var(--wp--preset--color--' . $color . ')' : 'transparent' ) . ( isset( $stop[4] ) && '' !== $stop[4] ? ' ' . $stop[4] . '%' : '' );
+		}
+		return strtolower( $m[1] ) . '-gradient(' . ( $shape ? $first . ', ' : '' ) . implode( ', ', $stops ) . ')';
 	}
 
 	/**
@@ -787,6 +863,17 @@ final class SiteStyles {
 				} elseif ( isset( $changed[ $path ] ) && 'font-family' !== $type ) {
 					/* translators: 1: a preset type, 2: a slug, 3: the slugs that exist. */
 					$errors[] = sprintf( __( 'There is no %1$s preset "%2$s". The site has: %3$s.', 'mody_cloud' ), $type, $slug, $existing[ $type ] ? implode( ', ', $existing[ $type ] ) : __( 'none', 'mody_cloud' ) );
+				}
+			}
+		}
+		// A color removed by the changes may not still be in one of the site's gradients (2026-11-11).
+		foreach ( (array) ( $config['settings']['color']['gradients'] ?? array() ) as $list ) {
+			foreach ( (array) $list as $gradient ) {
+				foreach ( self::refs( (string) ( $gradient['gradient'] ?? '' ) ) as list( $type, $slug ) ) {
+					if ( 'color' === $type && isset( $removed[ 'color|' . $slug ] ) ) {
+						/* translators: 1: a color slug, 2: a gradient slug. */
+						$errors[] = sprintf( __( '"%1$s" cannot be removed: the gradient "%2$s" still uses it. Change or remove that gradient too.', 'mody_cloud' ), $slug, (string) ( $gradient['slug'] ?? '' ) );
+					}
 				}
 			}
 		}

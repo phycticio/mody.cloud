@@ -208,7 +208,7 @@ final class BlockValidator {
 	 * states, and keys of `layout`.
 	 */
 	private const CONTAINER_KEYS = array(
-		'attrs'  => array( 'variationSelected', 'htmlTag', 'align', 'isBlockRootParent', 'backgroundColor', 'textColor', 'style', 'layout', 'anchor', 'spectraId', 'metadata' ),
+		'attrs'  => array( 'variationSelected', 'htmlTag', 'align', 'isBlockRootParent', 'backgroundColor', 'backgroundGradient', 'textColor', 'style', 'layout', 'anchor', 'spectraId', 'metadata' ),
 		'style'  => array( 'spacing', 'layout', '@tablet', '@mobile' ),
 		'state'  => array( 'spacing', 'layout' ),
 		'layout' => array( 'type', 'columnCount', 'minimumColumnWidth', 'orientation', 'justifyContent', 'verticalAlignment', 'flexWrap', 'columnSpan', 'rowSpan', 'selfStretch', 'flexSize' ),
@@ -632,8 +632,13 @@ final class BlockValidator {
 			if ( self::is_style_color( $key_path ) && ! preg_match( '/^(?:var:preset\|color\|[a-z0-9-]+|var\(--wp--preset--color--[a-z0-9-]+\)|transparent|inherit|currentcolor)$/i', $value ) ) {
 				return self::error( sprintf( 'The attribute "%s" of %s uses "%s". Colors in style are palette presets, such as "var:preset|color|accent".', $key_path, $name, $value ) );
 			}
-			if ( is_string( $key ) && ( 'gradient' === $key || str_contains( $key, 'Gradient' ) ) && '' !== $value ) {
-				return self::error( sprintf( 'The attribute "%s" of %s is a gradient. Generated pages use no gradients: use a palette color.', $key_path, $name ) );
+			// Gradients (2026-11-11): one of the site's gradient presets, on Spectra blocks only
+			// (core's static blocks would need a matching class this check cannot see).
+			if ( ( is_string( $key ) && ( 'gradient' === $key || str_contains( $key, 'Gradient' ) ) ) || 'style.color.gradient' === $key_path ) {
+				$result = self::check_gradient( $name, (string) $key, $key_path, $value );
+				if ( true !== $result ) {
+					return $result;
+				}
 			}
 			if ( is_string( $key ) && in_array( $key, self::LINK_KEYS, true ) && preg_match( '/^\s*(?:javascript|data|vbscript):/i', $value ) ) {
 				return self::error( sprintf( 'The link "%s" of %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', $key_path, $name ) );
@@ -995,6 +1000,54 @@ final class BlockValidator {
 			return self::error( 'Each spectra/accordion-child-item holds one accordion-child-header (the question) and then one accordion-child-details (the answer), as in the example.' );
 		}
 		return true;
+	}
+
+	/**
+	 * The site's gradient presets' slugs (the theme's and the owner's own).
+	 *
+	 * @return list<string>
+	 */
+	public static function gradients(): array {
+		$slugs = array();
+		foreach ( (array) wp_get_global_settings( array( 'color', 'gradients' ) ) as $origin => $list ) {
+			if ( 'default' !== $origin ) {
+				$slugs = array_merge( $slugs, array_column( (array) $list, 'slug' ) );
+			}
+		}
+		return array_values( array_unique( array_map( 'strval', $slugs ) ) );
+	}
+
+	/**
+	 * A gradient attribute: on a Spectra block, a gradient preset of this
+	 * site, by its slug (`"gradient"`, `"backgroundGradient"` and its hover,
+	 * active and secondary forms) or as its CSS variable, which
+	 * SpectraBlocks::normalize() writes; `style.color.gradient` as
+	 * `var:preset|gradient|<slug>`. Raw CSS gradients and Spectra's
+	 * "advanced" gradients (their own colors) are refused.
+	 *
+	 * @param string $name     Block name.
+	 * @param string $key      The attribute.
+	 * @param string $key_path Its path.
+	 * @param string $value    Its value.
+	 * @return true|WP_Error
+	 */
+	private static function check_gradient( string $name, string $key, string $key_path, string $value ): true|WP_Error {
+		if ( '' === $value ) {
+			return true;
+		}
+		$slugs = self::gradients();
+		$named = static fn( string $slug ): bool => in_array( $slug, $slugs, true );
+		$list  = $slugs ? implode( ', ', $slugs ) : 'none';
+		if ( ! str_starts_with( $name, 'spectra/' ) ) {
+			return self::error( sprintf( 'The %1$s block cannot have a gradient here: put the gradient on a Spectra block (a section\'s spectra/container "backgroundGradient", a spectra/button "gradient"). The site\'s gradients: %2$s.', $name, $list ) );
+		}
+		$ok = false;
+		if ( 'style.color.gradient' === $key_path ) {
+			$ok = (bool) preg_match( '/^(?:var:preset\|gradient\||var\(--wp--preset--gradient--)([a-z0-9-]+)\)?$/', $value, $m ) && $named( $m[1] );
+		} elseif ( 'gradient' === $key || preg_match( '/^backgroundGradient(?:Hover|Active|ActiveHover|Secondary|HoverSecondary|Tertiary)?$/', $key ) ) {
+			$ok = $named( $value ) || ( preg_match( '/^var\(--wp--preset--gradient--([a-z0-9-]+)\)$/', $value, $m ) && $named( $m[1] ) );
+		}
+		return $ok ? true : self::error( sprintf( 'The attribute "%1$s" of %2$s must be one of the site\'s gradients, by its slug: %3$s. To use other colors, create a gradient preset first (the styles tool).', $key_path, $name, $list ) );
 	}
 
 	/**
