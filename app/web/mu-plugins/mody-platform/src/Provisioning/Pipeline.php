@@ -484,7 +484,9 @@ final class Pipeline {
 				array_merge(
 					self::urls( $domain, $path ),
 					array(
-						'public'                => 1,
+						// A starter site (the signup's) starts hidden from search engines
+						// until it has real pages (tickets/seo.md, question 4).
+						'public'                => empty( $job['input']['starter'] ) ? 1 : 0,
 						'template'              => self::THEME,
 						'stylesheet'            => self::THEME,
 						'blogdescription'       => $input['mission'],
