@@ -7,19 +7,19 @@
  *   docker exec -i -u www-data mody_cloud_app \
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/agent-bubble-test.php
  *
- * 1. The Mody Agent page: gone on member sites, super admins only on the main site.
- * 2. The bubble's settings: the chat page's, plus its own; the brand profile flag.
+ * 1. The Mody Agent page: removed everywhere on 2026-11-11 (the bubble is
+ *    the one way to talk to Mody).
+ * 2. The bubble's settings: the chat's, plus its own; the brand profile flag.
  * 3. Where it loads: the Site Editor and the post editor, for users who may
  *    use the agent; not on other screens or for other users.
  * 4. Over HTTP: the Site Editor and the post editor carry the bubble, on the
- *    main site and on a member site (through the Host header); the page is
- *    refused on the member site.
+ *    main site and on a member site (through the Host header); the old
+ *    page's address opens the Site Editor with the chat open.
  *
  * A test user (administrator of a member site), a subscriber and a post are
  * created and removed. No model call.
  */
 
-use Mody\Platform\Agent\ChatPage;
 use Mody\Platform\Agent\EditorBubble;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
@@ -76,26 +76,15 @@ register_shutdown_function(
 // 1. The page ------------------------------------------------------------------
 
 echo "The Mody Agent page\n";
-$shows = static function ( int $site_id, int $user_id ): bool {
-	switch_to_blog( $site_id );
-	wp_set_current_user( $user_id );
-	$shown = ChatPage::shows_menu();
-	restore_current_blog();
-	return $shown;
-};
-$check( 'main site, super admin: shown', $shows( $main, $admin ) );
-$check( 'main site, another administrator: hidden', ! $shows( $main, $member ) );
-$check( 'member site, its administrator: hidden', ! $shows( $site, $member ) );
-$check( 'member site, super admin: hidden (the bubble)', ! $shows( $site, $admin ) );
+$check( 'removed: no class, no menu hook', ! class_exists( 'Mody\\Platform\\Agent\\ChatPage' ) && ! has_action( 'admin_menu', 'Mody\\Platform\\Agent\\ChatPage::register_menu' ) );
 wp_set_current_user( $admin );
 
 // 2. Settings ---------------------------------------------------------------------
 
 echo "\nSettings\n";
 $settings = EditorBubble::settings();
-$page     = ChatPage::settings();
-$check( 'the chat page\'s settings', $settings['endpoint'] === $page['endpoint'] && $settings['interval'] === $page['interval'] && array_intersect_key( $settings['strings'], $page['strings'] ) === $page['strings'] );
-$check( '...plus the bubble\'s', true === $settings['bubble'] && ChatPage::chips() === $settings['chips'] && isset( $settings['strings']['open'] ) );
+$check( 'the chat\'s settings', str_ends_with( $settings['endpoint'], '/mody-platform/v1/chat' ) && 1500 === $settings['interval'] && isset( $settings['nonce'], $settings['decisions'], $settings['strings']['greeting'], $settings['strings']['working'] ) && array_key_exists( 'pending', $settings ) );
+$check( '...plus the bubble\'s', true === $settings['bubble'] && EditorBubble::chips() === $settings['chips'] && 4 === count( $settings['chips'] ) && isset( $settings['strings']['open'] ) );
 $check( 'screens open in place: the strings', isset( $settings['strings']['opened'], $settings['strings']['back'] ) && str_contains( $settings['strings']['opened'], '%s' ) );
 $script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-bubble.js' );
 $check( '...the script: pushState, popstate, the screen sent', str_contains( $script, 'history.pushState' ) && str_contains( $script, "new PopStateEvent( 'popstate'" ) && str_contains( $script, 'config.screen' ) && str_contains( (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-chat.js' ), 'body.screen' ) );
@@ -147,8 +136,9 @@ $get = static function ( int $site_id, string $path, array $cookies ): array {
 		)
 	);
 	return array(
-		'code' => (int) wp_remote_retrieve_response_code( $response ),
-		'body' => (string) wp_remote_retrieve_body( $response ),
+		'code'     => (int) wp_remote_retrieve_response_code( $response ),
+		'location' => (string) wp_remote_retrieve_header( $response, 'location' ),
+		'body'     => (string) wp_remote_retrieve_body( $response ),
 	);
 };
 $has_bubble = static fn( array $out ): bool => 200 === $out['code'] && str_contains( $out['body'], 'assets/agent-bubble.js' ) && str_contains( $out['body'], '"bubble":true' );
@@ -160,9 +150,11 @@ $out       = $get( $site, 'site-editor.php', $as_member );
 $check( 'member site: the Site Editor has the bubble', $has_bubble( $out ), (string) $out['code'] );
 $out = $get( $site, 'post.php?post=' . $post_id . '&action=edit', $as_member );
 $check( '...and the post editor', $has_bubble( $out ), (string) $out['code'] );
-$out = $get( $site, 'index.php', $as_member );
+$out = $get( $site, 'admin.php?page=mody-dashboard', $as_member );
 $check( '...not the dashboard', 200 === $out['code'] && ! str_contains( $out['body'], 'assets/agent-bubble.js' ), (string) $out['code'] );
-$out = $get( $site, 'admin.php?page=' . ChatPage::SLUG, $as_member );
-$check( '...the Mody Agent page is gone', 403 === $out['code'] && ! str_contains( $out['body'], 'id="mody-agent-form"' ), (string) $out['code'] );
+$out = $get( $site, 'admin.php?page=mody-agent', $as_member );
+$check( '...the old Mody Agent page opens the Site Editor with the chat open', 302 === $out['code'] && str_contains( $out['location'] ?? '', 'site-editor.php' ) && str_contains( $out['location'] ?? '', EditorBubble::OPEN_PARAM . '=open' ), $out['code'] . ' ' . ( $out['location'] ?? '' ) );
+$out = $get( $main, 'admin.php?page=mody-agent', $cookie( $admin ) );
+$check( '...on the main site too', 302 === $out['code'] && str_contains( $out['location'] ?? '', 'site-editor.php' ), $out['code'] . ' ' . ( $out['location'] ?? '' ) );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

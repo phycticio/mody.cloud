@@ -1,8 +1,8 @@
 /*
- * Mody Agent chat in wp-admin. Follows the user's admin color scheme: buttons
- * and borders use its accent (--wp-admin-theme-color), the user's messages its
- * second palette color (--mody-agent-user-message, set inline by
- * Admin\AdminColors).
+ * The Mody chat, in the editors' bubble (assets/agent-bubble.js). It follows
+ * the user's admin color scheme: buttons and borders use its accent
+ * (--wp-admin-theme-color), the user's messages its second palette color
+ * (--mody-agent-user-message, set inline by Admin\AdminColors).
  */
 
 .mody-agent {
