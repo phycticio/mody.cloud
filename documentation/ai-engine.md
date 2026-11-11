@@ -224,6 +224,15 @@ Built 2026-11-08 for [M3-10](../tickets/M3-10-agent-edits-global-styles.md) part
    - **Measured:** the ticket's ten phrases, plus a font that is not installed, a vague wish and a brand color, checked on the saved styles (`scripts/site-styles-test.php`, section 7). That was 40 of 40 in four runs, then 20 of 20 after each of the two prompt changes.
 6. **Next:** part C, `mody/undo-styles`.
 
+### Gradients (2026-11-11)
+
+Asked for by the maintainer on 2026-11-11: "Give the agent the ability to create gradients."
+
+- **Creating:** `mody/update-styles` takes `settings.color.gradients`, like the palette: the theme's gradients keep their slugs (their value may change), the owner's own are added, renamed and removed. A gradient is linear (an angle, or `to <side>`) or radial (`circle` or `ellipse`, optionally `at <position>`), with 2 to 5 stops, each a palette color (`var:preset|color|<slug>`) or `transparent`, optionally at a percentage (`SiteStyles::gradient_value()`). Never a color code: a gradient follows the palette. A color added in the same change can be used (the palette is applied first); a color a gradient still uses cannot be removed. Stored with CSS variables, as WordPress keeps the theme's.
+- **Showing one as a style:** `"gradient":"var:preset|gradient|<slug>"` under `color` (the buttons: `styles.elements.button.color.gradient`), as before.
+- **On pages:** the writers get the site's gradients (`SystemPrompt::gradients_context()`) and use them only when asked, by slug: a section's `"backgroundGradient"` on its `spectra/container`, a button's `"gradient"` on a `spectra/button`, with a text color that reads on it. `SpectraBlocks::normalize()` turns a `backgroundGradient` slug into the preset's CSS variable, which Spectra prints as it is. The validator accepts only the site's gradients, on Spectra blocks only (core's static blocks would need a class it cannot check), and refuses raw CSS gradients and Spectra's "advanced" gradients (`BlockValidator::check_gradient()`).
+- **Tests:** `scripts/gradients-test.php` (creating, eight refusals, the same-change color, removal protection, the theme's slugs, the validator, normalize and render, the prompts; then four real requests: "create a gradient … secondary to primary, top to bottom", "make all the buttons use the primary to accent gradient", a page whose first section has a gradient, an edit of a section: 4 of 4, and the buttons request 4 of 4 more).
+
 ### Publishing and site settings
 
 Built 2026-11-06 for M3-03 (`src/Site/`). Pages are published **on demand** (decided by the maintainer on 2026-11-06): when the member asks the agent, or with the Publish button in the Site Editor. The agent never publishes by itself.

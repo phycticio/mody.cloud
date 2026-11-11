@@ -69,3 +69,6 @@ Each part: offline checks, real runs paced for Infomaniak's rate limit, and a he
 - Eight requests, one per new family group (a table of hours, a countdown, a services list with icons, testimonials in a slider, counters, a grid of posts, terms in a popup, a gallery): 8 of 8 used the family and passed the validator.
 - `spectra-content-test`, `spectra-layout-test`, `ai-generate-page-test`, `agent-edit-test` (real): pass. `ai-agent-chat-test` (real, 173 checks) passed after the settings tool; `update-settings-test` 29 of 30 (the 30th the service's rate limit); `update-menu-test` 15 of 15.
 - **Found and fixed:** two prompt rules numbered 10 (the settings rule, and the editor context's "edit what is open"): the selected paragraph was edited 6 times in 8. Renumbered, 10 in 10.
+
+### Gradients (built 2026-11-11, not deployed)
+Asked for by the maintainer the same day: "Give the agent the ability to create gradients." Mody creates gradient presets from the palette (`mody/update-styles`, `settings.color.gradients`) and uses them as styles and on pages (a section's or a Spectra button's background, by slug). Details: ai-engine.md, "Gradients". Test: `scripts/gradients-test.php`.

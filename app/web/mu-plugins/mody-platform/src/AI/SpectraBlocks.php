@@ -111,7 +111,7 @@ HTML;
 	 * @param string $markup Validated block markup.
 	 */
 	public static function normalize( string $markup ): string {
-		if ( ! preg_match( '#wp:spectra/(?:accordion|tabs|icon|list|modal|countdown|post|content)\b#', $markup ) ) {
+		if ( ! preg_match( '#wp:spectra/(?:accordion|tabs|icon|list|modal|countdown|post|content)\b|"backgroundGradient#', $markup ) ) {
 			return $markup;
 		}
 		self::$modal_ids = array();
@@ -145,6 +145,13 @@ HTML;
 	private static function editor_attributes( array $block, bool $inner ): array {
 		$name  = (string) $block['blockName'];
 		$attrs = (array) $block['attrs'];
+		// A section's or block's background gradient, given by slug: as the preset's CSS
+		// variable, which Spectra prints as CSS as it is (2026-11-11).
+		foreach ( $attrs as $key => $value ) {
+			if ( is_string( $value ) && preg_match( '/^backgroundGradient/', (string) $key ) && preg_match( '/^[a-z0-9-]+$/', $value ) ) {
+				$attrs[ $key ] = 'var(--wp--preset--gradient--' . $value . ')';
+			}
+		}
 		if ( 'spectra/icon' === $name && isset( $attrs['textColor'] ) && is_string( $attrs['textColor'] ) && preg_match( '/^[a-z0-9-]+$/', $attrs['textColor'] ) ) {
 			$attrs['textColor'] = 'var(--wp--preset--color--' . $attrs['textColor'] . ')';
 		}
