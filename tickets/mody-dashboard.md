@@ -65,3 +65,11 @@ By the maintainer on 2026-11-11:
   - the legal pages, when written, should describe the visitor counting;
   - deleting a site from the dashboard (needs the WP-Cron decision);
   - the card, payments and invoices (M1-01 part 3, the Mollie keys).
+
+## Work in progress watermark (2026-11-11)
+The maintainer asked for "a watermark to visitors and Mody's work that says Work in progress with an ellipsis animation". `DashboardPage::WORK_IN_PROGRESS` lists the two sections:
+- a large, faint, tilted "Work in progress" over the panel, with three dots that fade in one after another (still under `prefers-reduced-motion`);
+- it does not block the numbers: tooltips, the table and the links still work through it;
+- screen readers read it once, as a note.
+
+Remove a section from the list when it is finished. Checked in `scripts/dashboard-test.php` and in headless Chromium at 1440 and 390 px. The same pass fixed Mody's work's table on phones, which stacked its cells and was wider than the screen.
