@@ -337,7 +337,7 @@ PROMPT;
 			$tool,
 			$layout,
 			$open
-		);
+		) . ( empty( $context['too_long'] ) ? '' : sprintf( ' This %s is too long to change all at once: %s changes only a selected block. For a change to it, with no block selected, ask the owner to select the block or section to change first.', $type, $tool ) );
 	}
 
 	/**
