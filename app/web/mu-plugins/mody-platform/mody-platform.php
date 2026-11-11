@@ -49,6 +49,7 @@ Spectra\SpectraLoader::boot();
  * WordPress runs.
  */
 Design\Patterns::serve_placeholder();
+Users\Avatars::serve_initials(); // Initials in place of Gravatar (tickets/network-profile-local-avatars.md).
 add_filter( 'should_load_remote_block_patterns', '__return_false' );
 add_action( 'after_setup_theme', array( Design\Patterns::class, 'remove_core_patterns' ), 20 );
 add_action( 'rest_api_init', array( Design\Patterns::class, 'register' ), 5 );
@@ -183,6 +184,31 @@ add_action( 'wp_dashboard_setup', array( Gating\HiddenScreens::class, 'hide_widg
 add_action( 'admin_init', array( Gating\HiddenScreens::class, 'refuse_screens' ) );
 add_filter( 'register_setting_args', array( Gating\HiddenScreens::class, 'hide_settings' ), 10, 4 );
 add_filter( 'rest_pre_dispatch', array( Gating\HiddenScreens::class, 'refuse_routes' ), 10, 3 );
+
+/*
+ * One profile for the network, edited on the main site only, and pictures
+ * stored there instead of Gravatar (decided 2026-11-11,
+ * tickets/network-profile-local-avatars.md).
+ */
+add_action( 'load-profile.php', array( Users\NetworkProfile::class, 'redirect' ) );
+add_action( 'load-user-edit.php', array( Users\NetworkProfile::class, 'redirect' ) );
+add_filter( 'edit_profile_url', array( Users\NetworkProfile::class, 'profile_url' ), 10, 2 );
+add_filter( 'allowed_redirect_hosts', array( Users\NetworkProfile::class, 'allow_main_host' ) );
+add_filter( 'rest_pre_dispatch', array( Users\NetworkProfile::class, 'refuse_rest_writes' ), 10, 3 );
+add_filter( 'pre_get_avatar_data', array( Users\Avatars::class, 'avatar_data' ), 10, 2 );
+add_filter( 'avatar_defaults', array( Users\Avatars::class, 'defaults' ) );
+add_action( 'user_edit_form_tag', array( Users\Avatars::class, 'form_tag' ) );
+add_filter( 'user_profile_picture_description', array( Users\Avatars::class, 'description' ), 10, 2 );
+add_action( 'show_user_profile', array( Users\Avatars::class, 'section' ) );
+add_action( 'edit_user_profile', array( Users\Avatars::class, 'section' ) );
+add_action( 'personal_options_update', array( Users\Avatars::class, 'save' ) );
+add_action( 'edit_user_profile_update', array( Users\Avatars::class, 'save' ) );
+add_filter( 'ajax_query_attachments_args', array( Users\Avatars::class, 'hide_from_media' ) );
+add_filter( 'rest_attachment_query', array( Users\Avatars::class, 'hide_from_media' ) );
+add_action( 'delete_attachment', array( Users\Avatars::class, 'forget_attachment' ) );
+add_action( 'wpmu_delete_user', array( Users\Avatars::class, 'forget_user' ) );
+add_action( 'delete_user', array( Users\Avatars::class, 'forget_user' ) );
+add_filter( 'wp_is_application_passwords_available_for_user', array( Users\NetworkProfile::class, 'application_passwords' ), 10, 2 );
 
 /*
  * Updates only through the repository (decided 2026-11-08): nobody updates
