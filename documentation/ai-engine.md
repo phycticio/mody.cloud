@@ -233,6 +233,82 @@ Asked for by the maintainer on 2026-11-11: "Give the agent the ability to create
 - **On pages:** the writers get the site's gradients (`SystemPrompt::gradients_context()`) and use them only when asked, by slug: a section's `"backgroundGradient"` on its `spectra/container`, a button's `"gradient"` on a `spectra/button`, with a text color that reads on it. `SpectraBlocks::normalize()` turns a `backgroundGradient` slug into the preset's CSS variable, which Spectra prints as it is. The validator accepts only the site's gradients, on Spectra blocks only (core's static blocks would need a class it cannot check), and refuses raw CSS gradients and Spectra's "advanced" gradients (`BlockValidator::check_gradient()`).
 - **Tests:** `scripts/gradients-test.php` (creating, eight refusals, the same-change color, removal protection, the theme's slugs, the validator, normalize and render, the prompts; then four real requests: "create a gradient … secondary to primary, top to bottom", "make all the buttons use the primary to accent gradient", a page whose first section has a gradient, an edit of a section: 4 of 4, and the buttons request 4 of 4 more).
 
+### Long pages: section by section (2026-11-11)
+
+Asked for by the maintainer on 2026-11-11, after "This page is too long for the assistant to change at once" stopped every message on the main site's 56 KB landing page: Mody should see the open page whatever its size.
+
+- **What made the page long:** not its text (7.4 KB) and not images (none), but block comments: 41 KB, 31 KB of them block settings, 18 KB the section containers' fixed layout.
+- **What Mody sees: the compact view** (`AI\PageOutline::compact()`). The page's sections (its top-level blocks) are numbered, with one line per block and its text. Spectra text attributes are included, and media is a reference (`[image 12: "Shop front"]`). Layout settings are left out. The 56 KB page becomes about 9.5 KB. The agent gets it in `<page>` tags for every page or post open in the editor, as data (`SystemPrompt::page_view()`, agent rule 12). It answers questions about the page from it.
+- **How a long page changes: section by section** (`Agent::edit_sections()`, `PageGenerator::edit_section()`).
+  - `edit_content` takes `sections`: numbers from the view. The agent passes them when the change concerns some sections ("shorten the FAQ").
+  - Without them, a page over 20 KB goes through every section, three at a time (`PageGenerator::edit_sections()`, since the same day; see [Performance](#performance-and-measurement-2026-11-11)). A short page is still rewritten whole, as before.
+  - Each section goes to the writer with the whole page as the compact view, for context. The writer returns that section: changed, unchanged, followed by a new section, or `<!-- mody:remove -->` to remove it.
+  - The sections are put back (`PageOutline::splice()`). Each untouched section comes back exactly as it was; only the whitespace between sections is normalized.
+  - **Limits** (review of 2026-11-11):
+    - at most 30 sections in one message (`Agent::MAX_SECTIONS`; beyond that Mody asks which sections);
+    - a section too large to return whole (`PageGenerator::MAX_SECTION`, 19.5 KB) is left alone and reported, so the owner selects a block in it;
+    - classic HTML outside blocks stays as it is;
+    - a change that would remove every section is refused.
+
+    A section whose first answer is rejected gets the writer's full loop alone, starting with the reason. The editor gets the whole page as one change, with Undo.
+  - Sections that fail are left as they were and reported.
+- **Progress in the chat.** While the agent works, the chat shows a spinner and what it is doing. A long change shows as "Changing 9 sections, 3 at a time…", then "4 of 9 sections done (last: Pricing)…"; one section as "Changing section 8: Before you start…", and other tools as "Writing the page…", "Changing the styles…" and so on.
+  - `Agent::on_progress()` writes the line into the job.
+  - `ChatController` returns it as `progress` while the job runs.
+  - `agent-chat.js` shows it, read out politely to screen readers.
+  - Each line also counts as a sign of life, so a long run is not stopped as stale: the 5-minute timeout counts from the last line, and the one-message-at-a-time lock is renewed with it. The stored job no longer keeps the open page once its turn starts.
+- **Measured on the real 56 KB page** (Qwen, 2026-11-11):
+  - "What does the pricing section say about the 3-site plan?": answered from the view, no tool, 2.8 s.
+  - "Make the FAQ section shorter…": section 8 only, the other eight byte for byte, valid, 15 s.
+  - "Make the whole page sound more formal": nine sections, all valid. One after another it took 50 s; for three at a time, see [Performance](#performance-and-measurement-2026-11-11).
+  - In the Site Editor, the spinner and the section lines showed, and the change came with Undo.
+- **Tests:** `scripts/agent-edit-test.php`, with fake answers:
+  - chosen sections only, the rest byte for byte;
+  - the writer's context;
+  - the progress lines;
+  - removing a section;
+  - every section;
+  - an unknown section refused.
+
+### Performance and measurement (2026-11-11)
+
+The maintainer asked for six recommendations on the same day. What was found and built:
+
+1. **Long pages, three sections at a time** (`PageGenerator::edit_sections()`, `PARALLEL` = 3, because Infomaniak's rate limit is shared with production).
+   - **How:** each section's first attempt goes out with the others in its batch (`WpOrg\Requests\Requests::request_multiple()`; the `pre_http_request` filter is honored, so the tests' fakes still answer). Largest sections go first.
+   - **Fallback:** an answer that fails, on the network or in the validator, gets `edit_section()`'s full loop with the reason, for that section alone.
+   - **Measured on the 56 KB landing page,** "make the whole page more formal": 50 s one at a time, 29 to 30 s three at a time. The 14 KB FAQ section alone takes 15 to 25 s to rewrite, so it bounds the time. **Next step if needed:** split very large sections.
+2. **No per-message selection of the agent's context.** It was planned, and the measurement ruled it out:
+   - **The cache:** Infomaniak caches repeated prompt beginnings (`prompt_tokens_details.cached_tokens`). From an agent's second message, 6,720 of its 6,841 prompt tokens came from the cache, and the answer took about 1 s instead of 4.2 s.
+   - **Why selection loses:** choosing the styles or settings per message would change the middle of the prompt and lose most of that.
+   - **Instead:** the agent's context stays complete and stable, in an order that changes rarely (rules, menu, lists, styles, settings, brand), with the open page and screen last.
+3. **Fixed first, per request last, in the writers' prompts.** `for_page()` and `for_edit()` used to put the block cards picked for the request in the middle, so the gradients, brand and example after them were never cached. Now they are:
+   - the rules, the layout and `BlockReference::base()` (how blocks are written, and the index);
+   - the gradients, the brand and the example;
+   - then `BlockReference::for_request()` (the request's cards) and the media library.
+
+   In a section edit, the compact page comes before the instruction.
+
+   **Checked on the same requests,** six runs each: "a button that opens the full terms in a popup" used the popup block 5 of 6 times with the new order and 3 of 6 with the old one; the countdown request used its block 6 of 6 with both. The popup request is unsteady either way (it missed once in `block-reference-test.php`'s real run).
+4. **Every turn is measured.** `Agent\TurnMetrics` adds up each turn's model calls, prompt, cached and answer tokens, and the writer's answers and rejection reasons (their kind, without the owner's words). `Agent::respond()` writes one `turn` row in the audit log (`mody_agent_events`).
+   - **`scripts/agent-metrics.php`** summarizes those rows: time per turn (median, 90th percentile), the cache share, the writer's rejection rate and reasons, outcomes, tools. It is read-only, so it can run in production too (`-e MODY_DAYS=30`, `-e MODY_SITE=12`).
+   - **`scripts/agent-eval.php`** is a fixed evaluation set: 31 real requests in ten groups, run on a throwaway site with a bike-shop brand, a draft, a short page and a long one. Each request has its check. Run it before and after every prompt or model change (`-e MODY_EVAL_RUNS=3`, `-e MODY_EVAL_ONLY=pages`).
+   - **The baseline after this work and its review** (the long page over 20 KB, so changed section by section): 31 of 31. Time per turn: median 1.9 s, 90th percentile 5.5 s. About 14,200 prompt tokens per turn, 82% from the cache. The page writer: 14 answers, 0 rejected. "Make the whole page sound more formal" on the 8-section long page: 11.9 s.
+5. **Repairs instead of retries.** The local log is mostly the tests' deliberate bad answers, so it could not say which real mistakes are common. The production log was not read. One safe repair was added: Markdown code fences around the blocks are dropped (`PageGenerator::repair()`). The turn rows now collect the real rejection reasons; read them with `agent-metrics.php` after some weeks of use, and add repairs for the commonest.
+6. **A separate writer model** is possible: `INFOMANIAK_AI_WRITER_MODEL` (default: the agent's model; `InfomaniakProvider::writer_model()`, filter `mody_writer_model`). Compared on 2026-11-11 on three pages each:
+
+   | Model | Valid | Average time |
+   | --- | --- | --- |
+   | Qwen/Qwen3.8-27B-FP8 (the current one) | 3/3 | 5.5 s |
+   | Qwen/Qwen3.5-397B-A17B-FP8 | 3/3 | 15.5 s |
+   | google/gemma-4-31B-it | 3/3 | 23.0 s |
+   | swiss-ai/Apertus-v1.5-70B | 2/3 | 30.8 s |
+   | mistralai/Ministral-3-14B-Instruct-2512 | 2/3 | 37.0 s |
+   | mistralai/Mistral-Small-4-119B-2603 | 0/3 (broken block markup) | 63 s |
+   | moonshotai/Kimi-K2.6 | 0/3 (timed out) | 60 s |
+
+   The texts of the three valid models read alike, and only the current model wrote the checklist the services request asked for. **Decision for now:** Qwen 27B stays for both. Compare again with `agent-eval.php` when Infomaniak marks a larger model ready.
+
 ### Your brand (2026-11-11)
 
 Asked for by the maintainer on 2026-11-11 ([your-brand-page.md](../tickets/your-brand-page.md)): Mody knew a business by its name, tagline, one-sentence mission and tone. Now the owner can tell it much more, on a page or in the chat, and every prompt reads it.
@@ -318,7 +394,7 @@ Decided by the maintainer on 2026-11-06, so that a slow page generation never me
 1. POST stores the job in a transient (`mody_agent_job_<uuid>`, per site, kept for an hour), marks it as the user's running job on this site, and answers `202`.
 2. On `shutdown`, the same PHP-FPM worker flushes the output buffers and calls `fastcgi_finish_request()`, so the response reaches the browser. Then it runs the agent turn and stores the result in the job, with the time it finished. No cron is involved, so it works on subsites, where WP-Cron does not run locally ([architecture.md](architecture.md#open-questions)).
 3. The chat page polls the checker every 1.5 s. After 8 s it shows "Still working. Creating a page can take a minute." If the page is reloaded meanwhile, it resumes waiting for the running job.
-4. One job at a time per user and site; a second message gets 409. A job still `running` after 5 minutes (PHP's `max_execution_time` is 300 s) is reported as `failed` by the checker, logged as `mody_job_timeout`, and no longer blocks. It is not retried. Once a scheduler is decided, a cron sweep could retry such jobs.
+4. One job at a time per user and site; a second message gets 409. A job still `running` 5 minutes after its last sign of life (its start, or since 2026-11-11 its last progress line, which also renews the one-job lock) is reported as `failed` by the checker, logged as `mody_job_timeout`, and no longer blocks. It is not retried. Once a scheduler is decided, a cron sweep could retry such jobs.
 5. Without PHP-FPM (WP-CLI, `rest_do_request()` in tests), the turn runs before the response, which is then `200` with `status` `done` and the `turn`.
 
 Each running turn holds one PHP-FPM worker until it ends, as it did when the turn ran inside the request. `pm.max_children` is 5, so five page generations at once would leave no worker for other requests. **Inference:** fine for the MVP; watch it before launch (M5).
@@ -339,7 +415,7 @@ Each assistant message is stored with the abilities it ran (`calls`): the call I
 - `result` holds the result as JSON, or `refused: …`;
 - `duration_ms` is the time taken.
 
-Input and result are capped at 4,000 characters. Tokens are never logged.
+Input and result are capped at 4,000 characters. Since 2026-11-11 each message also writes one `turn` row (`Agent\TurnMetrics`): counts only, as JSON. It holds model calls, prompt, cached and answer tokens, the writer's answers and the kind of each rejection (cut before any quoted text), the tools, and the outcome. It never holds prompt or answer text, and never the API token. `scripts/agent-metrics.php` summarizes these rows; see [Performance](#performance-and-measurement-2026-11-11).
 
 **Retention** (decided 2026-11-06): events are kept for the number of days set in Network Admin → Settings → **Mody Agent**, 90 by default. Older rows are deleted once a day without cron: writing an event checks the network transient `mody_agent_events_purged`. If it is missing, the event sets it for a day and purges (`AgentEvents::maybe_purge()`). Saving the settings purges at once. **Who sees them** (decided 2026-11-06): only the maintainer, for now (a one-person project). There is no viewer; events are read in the database.
 
@@ -361,9 +437,9 @@ These times are for the agent turn itself, measured in-process. In the browser, 
 **Editing what is open** (built 2026-11-07, M3-06). From the editor's bubble, the agent changes the page or post that is open, in the editor itself.
 
 1. **The bubble sends what is open** with each message (`config.context()` in `assets/agent-bubble.js`): the post type and ID, the edited content (unsaved changes included) and the selected block, all from `core/editor` and `core/block-editor`. When a page is shown inside its template, a selected block outside the page's own content counts as no selection.
-2. **`Agent\EditorContext`** checks it. Only pages and posts the user may edit (403 otherwise), a UUID client ID, exactly one selected block of at most 20 KB. A bad context gets 400. **A page over 20 KB** (the main site's landing page is about 56 KB) is accepted without its content (`too_long`, fixed 2026-11-11: before, it refused every message with "This page is too long for the assistant to change at once"). The agent does everything else and edits a selected block; a change to the whole page is refused (`mody_too_long`), and the prompt tells it to ask the owner to select the block or section first. Templates and parts give no context until [M3-07](../tickets/M3-07-agent-templates-parts.md).
+2. **`Agent\EditorContext`** checks it. Only pages and posts the user may edit (403 otherwise), a UUID client ID, exactly one selected block of at most 20 KB. A bad context gets 400. **The whole open page, whatever its size** (decided by the maintainer on 2026-11-11; a 2 MB safety cap): pages over 20 KB are flagged `too_long` and changed section by section, see [Long pages](#long-pages-section-by-section-2026-11-11). A template or part over 20 KB is changed only through a selected block (`mody_too_long`). Templates and parts give no context until [M3-07](../tickets/M3-07-agent-templates-parts.md).
 3. **The agent's prompt gets a short paragraph** (`SystemPrompt::for_editor()`): what is open, with the title as data, and rule 9.
-   - The tool `edit_content(instruction, scope)` is declared only then; the tools JSON is 3,887 bytes with it.
+   - The tool `edit_content(instruction, scope, sections)` is declared only then (`sections` since 2026-11-11, for long pages); the tools JSON is 4,365 bytes with it (about 4,290 before `sections`), and the 4,000-byte check applies to the tools without it (3,919). The editor cases of `agent-eval.php` pass with it.
    - One edit per message.
    - Probe, 5 runs each, 20 of 20 correct: "make this paragraph shorter" → `edit_content(selection)`; "make the whole page sound more formal" → `edit_content(content)`; "create an About page" → `generate-page`; "publish this page" → `publish-page` with the open page's ID.
 4. **The page writer changes it** (`PageGenerator::edit_markup()`, `SystemPrompt::for_edit()`). It gets the brand, the instruction and the markup between `<markup>` tags as data; it changes only what is asked and keeps the rest byte for byte. Then the same repair, validation and retries as generation, with room for the whole content again (up to 8,000 tokens, 120 s).

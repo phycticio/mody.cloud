@@ -167,8 +167,25 @@ final class BlockReference {
 	 * @param string[] $families The families to give in full.
 	 */
 	public static function reference( array $families ): string {
-		$text = 'Block families: use them only where the content calls for them; most sections need none. Each is listed with its top block. Write them exactly like the examples, with the same attributes and no others. Spectra blocks save no HTML of their own: a block without inner blocks is one self-closing comment ending in /-->, and the others hold only their inner blocks. Their "text" attributes are plain text, without HTML tags. Like headings and paragraphs, they go inside a section or a column.' . "\n" . self::index();
+		return self::base() . self::for_request( $families );
+	}
+
+	/**
+	 * The part of the reference that is the same for every request: how
+	 * these blocks are written, and the index. Prompts put it before what
+	 * changes per request, so it is cached (2026-11-11).
+	 */
+	public static function base(): string {
+		return 'Block families: use them only where the content calls for them; most sections need none. Each is listed with its top block. Write them exactly like the examples, with the same attributes and no others. Spectra blocks save no HTML of their own: a block without inner blocks is one self-closing comment ending in /-->, and the others hold only their inner blocks. Their "text" attributes are plain text, without HTML tags. Like headings and paragraphs, they go inside a section or a column.' . "\n" . self::index();
+	}
+
+	/**
+	 * The part that changes per request: the cards of its families.
+	 *
+	 * @param string[] $families The families to give in full.
+	 */
+	public static function for_request( array $families ): string {
 		$cards = self::cards_text( $families );
-		return $text . ( '' !== $cards ? "\n\nHow to write the ones this request needs:\n" . $cards : "\n\nIf you use one, write only attributes you are sure of; the answer is checked." );
+		return '' !== $cards ? "\n\nHow to write the ones this request needs:\n" . $cards : "\n\nIf you use one, write only attributes you are sure of; the answer is checked.";
 	}
 }

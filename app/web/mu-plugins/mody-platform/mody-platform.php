@@ -96,6 +96,7 @@ add_action( 'init', array( Brand\BrandBook::class, 'register' ) );
 add_action( 'admin_menu', array( Brand\BrandPage::class, 'register_menu' ) );
 add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::class, 'save' ) );
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
+add_filter( 'http_response', array( Agent\TurnMetrics::class, 'observe' ), 10, 3 ); // Each agent turn's tokens and cache (2026-11-11).
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 add_action( 'init', array( Members\Members::class, 'install' ), 1 );
 

@@ -222,10 +222,30 @@ final class ChatController {
 		if ( ! $job || 'running' !== $job['status'] ) {
 			return $job ? self::public_job( $job ) : array();
 		}
+		// The open page can be large (2 MB at most): the turn takes it from here, and the
+		// stored job, rewritten by every progress line, no longer carries it.
+		$context = $job['context'] ?? null;
+		unset( $job['context'] );
+		self::save_job( $job );
 
+		// What the agent is doing now, for the chat's progress line (2026-11-11). Each
+		// line also counts as a sign of life: a long page changed section by section
+		// is not stopped as stale while it reports.
+		Agent::on_progress(
+			static function ( string $text ) use ( $id ): void {
+				$current = self::load_job( $id );
+				if ( $current && 'running' === $current['status'] ) {
+					$current['progress'] = $text;
+					$current['updated']  = time();
+					self::save_job( $current );
+					// The one-message-at-a-time lock lives as long as the job reports (review, 2026-11-11).
+					set_transient( self::running_key(), $id, self::JOB_TIMEOUT );
+				}
+			}
+		);
 		try {
 			$history = self::history();
-			$turn    = Agent::respond( $job['message'], $history, $job['context'] ?? null, $job['screen'] ?? null, $job['unsaved'] ?? array() );
+			$turn    = Agent::respond( $job['message'], $history, $context, $job['screen'] ?? null, $job['unsaved'] ?? array() );
 			$calls   = (array) ( $turn['calls'] ?? array() );
 			unset( $turn['calls'] ); // Context for the model, kept on the server.
 
@@ -249,6 +269,7 @@ final class ChatController {
 			$job['status'] = 'failed';
 			$job['turn']   = self::failed_turn( __( 'Something went wrong. Please try again.', 'mody_cloud' ) );
 		}
+		Agent::on_progress( null );
 
 		$job['finished'] = microtime( true );
 		self::save_job( $job );
@@ -360,7 +381,7 @@ final class ChatController {
 	 * @param array<string, mixed> $job The job.
 	 */
 	private static function is_stale( array $job ): bool {
-		return 'running' === $job['status'] && time() - (int) $job['started'] > self::JOB_TIMEOUT;
+		return 'running' === $job['status'] && time() - max( (int) $job['started'], (int) ( $job['updated'] ?? 0 ) ) > self::JOB_TIMEOUT;
 	}
 
 	/**
@@ -406,7 +427,8 @@ final class ChatController {
 		return array(
 			'job'    => $job['id'],
 			'status' => $job['status'],
-		) + ( isset( $job['turn'] ) ? array( 'turn' => $job['turn'] ) : array() );
+		) + ( isset( $job['turn'] ) ? array( 'turn' => $job['turn'] ) : array() )
+			+ ( 'running' === $job['status'] && ! empty( $job['progress'] ) ? array( 'progress' => (string) $job['progress'] ) : array() );
 	}
 
 	/**

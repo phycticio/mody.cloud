@@ -231,7 +231,7 @@ No delete tools, no arbitrary option writes, no file or DB access. Any tool call
 ### Safety and audit
 
 - Every request carries the site's brand (its settings) in the system prompt (constraint 4) — there is no code path that calls the model without it.
-- Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration), and so is every chat request with its reply (built 2026-11-06).
+- Every tool call is logged in `mody_agent_events` (user, site, input, tool, args, result, duration), and so is every chat request with its reply (built 2026-11-06). Since 2026-11-11 each message also writes a `turn` row of counts (model calls, tokens, cache, the page writer's answers, the outcome), never text ([ai-engine.md](ai-engine.md#performance-and-measurement-2026-11-11)).
 - A past-due account gets no tool execution (read-only, section 4). Not built yet: it needs `mody_members` (M1).
 - Tools run in-process with the member's capabilities checked on every call (the ability's permission callback). There is no internal endpoint or shared secret (constraint 6).
 

@@ -28,8 +28,14 @@ final class EditorContext {
 	/** Template types: their ID is a string, `theme//slug`. */
 	public const TEMPLATE_TYPES = array( 'wp_template', 'wp_template_part' );
 
-	/** Longest markup accepted, in bytes (a generated page is about 5 KB). */
+	/**
+	 * Longest markup the edit writer rewrites at once, in bytes (a generated
+	 * page is about 5 KB). A longer page is changed section by section.
+	 */
 	public const MAX_MARKUP = 20000;
+
+	/** A safety cap on the open page, in bytes; no real page is near it. */
+	public const MAX_CONTENT = 2000000;
 
 	/** A block's client ID in the editor: a UUID. */
 	private const CLIENT_ID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
@@ -42,7 +48,7 @@ final class EditorContext {
 	 *         Null when there is nothing the agent may edit (no context, another
 	 *         type); a WP_Error (with an HTTP status) for a bad one. A template's
 	 *         post_id is its ID (`theme//header`), and `area` a part's area.
-	 *         `too_long`: the content was over MAX_MARKUP and is left out.
+	 *         `too_long`: the content is over MAX_MARKUP (changed section by section).
 	 */
 	public static function from_input( $raw ): array|null|WP_Error {
 		if ( ! is_array( $raw ) || ! $raw ) {
@@ -79,14 +85,14 @@ final class EditorContext {
 		}
 
 		$content = is_string( $raw['content'] ?? null ) ? $raw['content'] : '';
-		// A page longer than the edit writer takes (the main site's landing page is about
-		// 56 KB) no longer refuses every message (found 2026-11-11): the content is
-		// dropped, the agent still does everything else and edits a selected block, and
-		// only a change to the whole page is refused (Agent::edit_content()).
-		$too_long = strlen( $content ) > self::MAX_MARKUP;
-		if ( $too_long ) {
-			$content = '';
+		// Mody sees the whole open page, whatever its size (decided 2026-11-11). A page
+		// over MAX_MARKUP (the main site's landing page is about 56 KB) is changed
+		// section by section (Agent::edit_sections()); a template that long is changed
+		// only through a selected block.
+		if ( strlen( $content ) > self::MAX_CONTENT ) {
+			return new WP_Error( 'mody_bad_context', __( 'This page is too large for the assistant to read.', 'mody_cloud' ), array( 'status' => 400 ) );
 		}
+		$too_long = strlen( $content ) > self::MAX_MARKUP;
 
 		$selected = null;
 		if ( is_array( $raw['selected'] ?? null ) ) {
