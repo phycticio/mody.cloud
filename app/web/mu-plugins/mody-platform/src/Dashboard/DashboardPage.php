@@ -54,6 +54,7 @@ final class DashboardPage {
 		add_action( 'admin_menu', array( self::class, 'adopt_submenu' ), PHP_INT_MAX );
 		add_action( 'load-index.php', array( self::class, 'redirect' ) );
 		add_action( 'admin_post_' . self::PLAN_ACTION, array( self::class, 'save_plan' ) );
+		ExportPanel::register(); // Download your site (tickets/take-your-site-with-you.md).
 	}
 
 	/**
@@ -130,6 +131,7 @@ final class DashboardPage {
 		LoginPage::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
 		LoginPage::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-brand-page' ) );
 		wp_add_inline_style( 'mody-brand-page', LoginPage::variables_css() );
+		ExportPanel::enqueue();
 	}
 
 	/**
@@ -144,6 +146,9 @@ final class DashboardPage {
 		}
 		if ( current_user_can( self::SITE_CAPABILITY ) ) {
 			$sections['mody'] = __( 'Mody\'s work', 'mody_cloud' );
+		}
+		if ( ExportPanel::available() ) {
+			$sections[ ExportPanel::SECTION ] = __( 'Download your site', 'mody_cloud' );
 		}
 		if ( Members::get( get_current_user_id() ) ) {
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
@@ -247,6 +252,9 @@ final class DashboardPage {
 			case 'mody':
 				self::render_usage();
 				break;
+			case ExportPanel::SECTION:
+				ExportPanel::render();
+				break;
 			case 'sites':
 				self::render_sites();
 				break;
@@ -280,6 +288,9 @@ final class DashboardPage {
 				<a class="button" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Visit site', 'mody_cloud' ); ?></a>
 				<?php if ( current_user_can( 'edit_theme_options' ) ) : ?>
 					<a class="button button-primary" href="<?php echo esc_url( admin_url( 'site-editor.php' ) ); ?>"><?php esc_html_e( 'Edit site', 'mody_cloud' ); ?></a>
+				<?php endif; ?>
+				<?php if ( ExportPanel::available() ) : ?>
+					<a class="button" href="<?php echo esc_url( ExportPanel::url() ); ?>"><?php esc_html_e( 'Download your site', 'mody_cloud' ); ?></a>
 				<?php endif; ?>
 			</p>
 		</section>
@@ -589,6 +600,7 @@ final class DashboardPage {
 							<a class="button" href="<?php echo esc_url( $site['home'] ); ?>"><?php esc_html_e( 'Visit', 'mody_cloud' ); ?></a>
 							<a class="button" href="<?php echo esc_url( $site['admin'] ); ?>"><?php esc_html_e( 'Dashboard' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own word. ?></a>
 							<a class="button" href="<?php echo esc_url( $site['editor'] ); ?>"><?php esc_html_e( 'Edit site', 'mody_cloud' ); ?></a>
+							<a class="button" href="<?php echo esc_url( $site['export'] ); ?>"><?php esc_html_e( 'Download', 'mody_cloud' ); ?></a>
 						</p>
 					</li>
 				<?php endforeach; ?>
@@ -601,7 +613,7 @@ final class DashboardPage {
 	 * A member's sites: those they administer, not the main site.
 	 *
 	 * @param int $user_id The member.
-	 * @return array<int, array{id: int, name: string, address: string, home: string, admin: string, editor: string, created: int, used: int, allowed: int}>
+	 * @return array<int, array{id: int, name: string, address: string, home: string, admin: string, export: string, editor: string, created: int, used: int, allowed: int}>
 	 */
 	public static function member_sites( int $user_id ): array {
 		global $wpdb;
@@ -619,6 +631,7 @@ final class DashboardPage {
 				'address' => self::address(),
 				'home'    => home_url( '/' ),
 				'admin'   => self::url(),
+				'export'  => ExportPanel::url(), // That site's own Download your site section.
 				'editor'  => admin_url( 'site-editor.php' ),
 				'created' => (int) strtotime( (string) get_site( $id )->registered . ' UTC' ),
 				'used'    => (int) round( get_space_used() * MB_IN_BYTES ),

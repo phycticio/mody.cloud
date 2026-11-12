@@ -1,5 +1,18 @@
 <?php
 /**
+ * Plugin Name:       Mody Languages
+ * Description:       A multilingual site: translations as ordinary pages, language prefixes in addresses (/es/), a language switcher and the translation matrix (Settings → Languages).
+ * Version:           1.0.0
+ * Author:            Mody Cloud
+ * License:           GPL-2.0-or-later
+ * Requires PHP:      8.1
+ * Update URI:        false
+ * Text Domain:       mody_cloud
+ *
+ * On the platform, mu-plugins/mody-languages.php loads this file; a site
+ * downloaded from Mody Cloud (tickets/take-your-site-with-you.md) runs it
+ * as a normal plugin, so it carries its own header.
+ *
  * Mody Languages: a multilingual site on every site of the network
  * (decided by the maintainer on 2026-11-10, tickets/site-languages.md).
  *

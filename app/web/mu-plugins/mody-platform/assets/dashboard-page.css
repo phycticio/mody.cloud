@@ -439,3 +439,239 @@
 		display: none;
 	}
 }
+
+/* Download your site (Dashboard\ExportPanel) -------------------------------------------- */
+
+.mody-export__intro {
+	max-width: 70ch;
+	margin: 0 0 8px;
+}
+
+.mody-export__box {
+	margin: 16px 0 24px;
+	padding: 20px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-export__box > :first-child {
+	margin-top: 0;
+}
+
+.mody-export__form {
+	margin: 0;
+}
+
+.mody-export__message {
+	margin: 0 0 12px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.mody-export__message.is-failed {
+	color: #b32d2e;
+}
+
+/* The steps: Database → Media → Code, the current one highlighted. */
+
+.mody-export__steps {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 0;
+	margin: 0 0 16px;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-export__steps li {
+	position: relative;
+	margin: 0;
+	color: #757575;
+}
+
+.mody-export__steps li + li {
+	margin-left: 32px;
+}
+
+.mody-export__steps li + li::before {
+	/* The arrow sits outside the item, so the current step's underline stays under its name. */
+	content: "\2192";
+	position: absolute;
+	left: -22px;
+	color: #a7aaad;
+}
+
+.mody-export__steps li.is-done {
+	color: #00650f;
+}
+
+.mody-export__steps li.is-done::after {
+	content: "\2713";
+	margin-left: 6px;
+	font-weight: 700;
+}
+
+.mody-export__steps li.is-current {
+	color: #1d2327;
+	font-weight: 600;
+	padding-bottom: 2px;
+	border-bottom: 2px solid var(--wp-admin-theme-color);
+}
+
+/* The bar: the current step's progress; a sliding block when the step cannot say. */
+
+.mody-export__meter {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.mody-export__bar {
+	flex: 1 1 auto;
+	width: auto;
+	max-width: 480px;
+	height: 8px;
+	border-radius: 4px;
+}
+
+.mody-export__bar > span {
+	transition: width 0.4s ease;
+}
+
+.mody-export__bar.is-indeterminate > span {
+	width: 35% !important;
+	animation: mody-export-slide 1.6s ease-in-out infinite;
+}
+
+.mody-export__percent {
+	min-width: 3em;
+	color: #50575e;
+	font-variant-numeric: tabular-nums;
+}
+
+@keyframes mody-export-slide {
+	0% {
+		transform: translateX(-100%);
+	}
+
+	100% {
+		transform: translateX(300%);
+	}
+}
+
+/* The three downloads */
+
+.mody-export__files {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 12px;
+	margin: 0 0 12px;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-export__file {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 0;
+	padding: 16px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-export__file p {
+	margin: 0;
+}
+
+.mody-export__file .mody-dashboard__note {
+	flex: 1;
+	margin: 0;
+}
+
+.mody-export__file-name {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.mody-export__file-name span {
+	color: #50575e;
+	font-size: 13px;
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+}
+
+.mody-export__file-file {
+	color: #50575e;
+	font-size: 12px;
+	overflow-wrap: anywhere;
+}
+
+/* The settings left out of the database file */
+
+.mody-export__left-out {
+	max-width: 70ch;
+	margin: 0 0 12px;
+	padding: 10px 12px;
+	border-left: 4px solid #dba617;
+	background: #fcf9e8;
+}
+
+.mody-export__left-out code {
+	overflow-wrap: anywhere;
+}
+
+/* What comes with it, what stays, and how to restore */
+
+.mody-export__lists {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 16px 32px;
+	margin-bottom: 16px;
+}
+
+.mody-export__list h3,
+.mody-export__restore h3 {
+	margin: 0 0 8px;
+	font-size: 14px;
+}
+
+.mody-export__list ul {
+	margin: 0;
+	padding-left: 18px;
+	list-style: disc;
+}
+
+.mody-export__list li,
+.mody-export__restore li {
+	margin: 0 0 4px;
+}
+
+.mody-export__restore {
+	padding-top: 16px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.mody-export__restore p {
+	max-width: 70ch;
+	margin: 0 0 8px;
+}
+
+.mody-export__restore ol {
+	margin: 0;
+	padding-left: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mody-export__bar > span {
+		transition: none;
+	}
+
+	.mody-export__bar.is-indeterminate > span {
+		animation: none;
+		width: 100% !important;
+	}
+}

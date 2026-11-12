@@ -36,7 +36,7 @@ defined( 'ABSPATH' ) || exit;
 final class PatternImport {
 
 	/** Where the placeholders are served on every site (Patterns::serve_placeholder()). */
-	public const PLACEHOLDER_PATH = '/mody-placeholder/';
+	public const PLACEHOLDER_PATH = Patterns::PLACEHOLDER_PATH;
 
 	/** Core's default palette (wp-includes/theme.json), for mapping its slugs. */
 	private const CORE_SLUGS = array(

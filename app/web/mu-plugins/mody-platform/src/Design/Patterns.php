@@ -36,6 +36,9 @@ final class Patterns {
 	/** The collection file, in this plugin. */
 	public const FILE = 'patterns/collection.json';
 
+	/** Where placeholder images are served: `/mody-placeholder/<w>x<h>.svg`. */
+	public const PLACEHOLDER_PATH = '/mody-placeholder/';
+
 	/** Prefix of the registered pattern names. */
 	public const PREFIX = 'mody/';
 
@@ -150,7 +153,7 @@ final class Patterns {
 	 * @return array{0: int, 1: int}|null
 	 */
 	public static function placeholder_size( string $path ): ?array {
-		if ( ! preg_match( '#^' . preg_quote( PatternImport::PLACEHOLDER_PATH, '#' ) . '(\d{1,4})x(\d{1,4})\.svg$#', $path, $match ) ) {
+		if ( ! preg_match( '#^' . preg_quote( self::PLACEHOLDER_PATH, '#' ) . '(\d{1,4})x(\d{1,4})\.svg$#', $path, $match ) ) {
 			return null;
 		}
 		$width  = (int) $match[1];

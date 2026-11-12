@@ -1,0 +1,12 @@
+# Mody Import: this download's manifest and text files are for the plugin and
+# the person restoring the site, not for the web. (Nginx ignores .htaccess:
+# the README's last step deletes this plugin once the site is back.)
+<FilesMatch "\.(json|txt)$">
+	<IfModule mod_authz_core.c>
+		Require all denied
+	</IfModule>
+	<IfModule !mod_authz_core.c>
+		Order allow,deny
+		Deny from all
+	</IfModule>
+</FilesMatch>

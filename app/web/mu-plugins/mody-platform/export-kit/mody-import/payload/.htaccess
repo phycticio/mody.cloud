@@ -1,0 +1,10 @@
+# Mody Import: the payload is copied into wp-content (by hand or by the
+# importer) and never needs to be served. It holds a second copy of the theme
+# and the plugins that nobody updates, so the web gets none of it.
+<IfModule mod_authz_core.c>
+	Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+	Order allow,deny
+	Deny from all
+</IfModule>
