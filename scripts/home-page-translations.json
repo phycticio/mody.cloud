@@ -2,7 +2,8 @@
 	"_about": "Translations of the main site home page (scripts/home-page.php), applied by scripts/home-page-translations.php. Keys are the English texts exactly as in the page; edit both together.",
 	"es_ES": {
 		"title": "Inicio",
-		"excerpt": "Mody Cloud: sitios WordPress escritos con tu marca por un agente de IA que funciona en Suiza. Desde 9,99 € al mes, todo incluido; 30 días gratis, sin tarjeta.",
+		"seo_title": "Webs WordPress creadas con IA, alojadas en Europa | Mody Cloud",
+		"excerpt": "Mody, una IA soberana, escribe tu web WordPress con la voz de tu marca, alojada en Europa. 30 días gratis, sin tarjeta; luego desde 9,99 € al mes.",
 		"menu": {
 			"How it works": "Cómo funciona",
 			"Mody": "Mody",
@@ -124,7 +125,8 @@
 	},
 	"de_DE": {
 		"title": "Startseite",
-		"excerpt": "Mody Cloud: WordPress-Websites in deiner Marke, geschrieben von einem KI-Agenten, der in der Schweiz läuft. Ab 9,99 € im Monat, alles inklusive; 30 Tage kostenlos, ohne Karte.",
+		"seo_title": "KI-Websites mit WordPress, gehostet in Europa | Mody Cloud",
+		"excerpt": "Mody, eine souveräne KI, schreibt deine WordPress-Website im Ton deiner Marke, gehostet in Europa. 30 Tage gratis, ohne Karte; dann ab 9,99 €/Monat.",
 		"menu": {
 			"How it works": "So funktioniert's",
 			"Mody": "Mody",
@@ -246,7 +248,8 @@
 	},
 	"it_IT": {
 		"title": "Home",
-		"excerpt": "Mody Cloud: siti WordPress scritti con il tuo marchio da un agente IA che gira in Svizzera. Da 9,99 € al mese, tutto incluso; 30 giorni gratis, senza carta.",
+		"seo_title": "Siti WordPress creati con l'IA, ospitati in Europa | Mody Cloud",
+		"excerpt": "Mody, un'IA sovrana, scrive il tuo sito WordPress con la voce del tuo marchio, ospitato in Europa. 30 giorni gratis, senza carta; poi da 9,99 € al mese.",
 		"menu": {
 			"How it works": "Come funziona",
 			"Mody": "Mody",
