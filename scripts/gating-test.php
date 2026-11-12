@@ -11,7 +11,9 @@
  * not the main one) and of the main site.
  *
  * 1. Capabilities: on the member site it loses the blocked plugin and theme
- *    capabilities (install, upload, update, delete, edit; themes) and keeps
+ *    capabilities (install, upload, update, delete, edit; themes) and
+ *    delete_site (Tools -> Delete Site only soft-deletes, security pass
+ *    2026-11-12; scripts/security-isolation-test.php has the details) and keeps
  *    the rest, the Plugins screen included (M4-02); on the main site
  *    nothing changes; super admins keep everything.
  * 2. REST: installing a plugin is refused on the member site, and a
@@ -89,6 +91,7 @@ $can  = static fn( int $site_id, int $user_id, string $cap ): bool => user_can_f
 echo "Capabilities (member site $site)\n";
 $granted = array_filter( MemberSite::BLOCKED_CAPS, static fn( $cap ) => $can( $site, $user, $cap ) );
 $check( 'no plugin or theme capability', ! $granted, $granted ? implode( ', ', $granted ) : count( MemberSite::BLOCKED_CAPS ) . ' refused' );
+$check( '...nor delete_site (it is one of them)', in_array( 'delete_site', MemberSite::BLOCKED_CAPS, true ) && ! $can( $site, $user, 'delete_site' ) && $can( $site, $admin, 'delete_site' ) );
 $missing = array_filter( $kept, static fn( $cap ) => ! $can( $site, $user, $cap ) );
 $check( '...the rest kept: content, media, users, settings, styles', ! $missing, $missing ? implode( ', ', $missing ) : implode( ', ', $kept ) );
 $check( '...and the Plugins screen (M4-02)', $can( $site, $user, 'activate_plugins' ) );

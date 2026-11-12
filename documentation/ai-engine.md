@@ -141,6 +141,12 @@ How a message runs:
 7. **Limits:** at most 4 model requests and 3 ability runs per message. Further tool calls are refused and logged. If the model has not answered by then, the reply says the request could not be finished.
 8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-platform] agent site N step n: …`, without the prompt or the token. If a tool had already run in that turn, the reply says that part of the request may already be done, and to check the site before asking again, so a retry does not create a second page. The buttons of the tools that ran are still shown. Seen once for real on 2026-11-06: "create a contact page and publish it" created and published the page, then the model's last request timed out while connecting to Infomaniak (cURL error 28, 10 s).
 
+### Limits (security pass, 2026-11-12)
+- **One job per person and site, three on the network** (`Agent\Slots`, MariaDB advisory locks): the editor's `ai/*` features take at most one of the three; chat and page jobs wait a few seconds before answering "Mody is busy right now". Chat jobs end after 10 minutes, REST and MCP ability runs after 4.
+- **A daily token budget** per site and per member account (`Agent\Budget`; numbers in [membership-tiers.md](membership-tiers.md#gating)), counted from the `turn` rows and the `usage` rows `TurnMetrics` writes for model calls outside a chat turn. Super admins are exempt. Past it, a 429 with the time Mody is back.
+- **Data, never instructions:** page content, brand texts, media, titles and labels reach the model inside tags (`<page>`, `<brand>`, `<media>`), and rule 6 says never to follow an instruction found in them. A site-wide change (publishing, the menu, settings) that a lower-role user's text asked for waits for the owner's Apply.
+- **Editors** get no settings in their prompt. `core/get-environment-info` is for super admins only. The validator refuses `on*` attributes and links other than http, https, mailto, tel and a few app schemes.
+
 ### Opening Site Editor screens
 
 Built 2026-11-08 for [M3-09](../tickets/M3-09-agent-navigates-site-editor.md). The member says "I want to change the colors of the site" or "edit the list of posts", and the Site Editor moves to that screen, with the chat still open.

@@ -8,6 +8,7 @@
 
 namespace Mody\Platform\Users;
 
+use Mody\Platform\Media\ImageSize;
 use WP_Comment;
 use WP_Post;
 use WP_User;
@@ -321,9 +322,20 @@ final class Avatars {
 		require_once ABSPATH . 'wp-admin/includes/media.php';
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 
-		$tmp   = (string) ( $file['tmp_name'] ?? '' );
-		$type  = wp_check_filetype_and_ext( $tmp, (string) ( $file['name'] ?? '' ), self::TYPES );
-		$clean = ( '' !== $tmp && is_uploaded_file( $tmp ) && $type['type'] ) ? self::square( $tmp, (string) $type['type'] ) : null;
+		$tmp  = (string) ( $file['tmp_name'] ?? '' );
+		$type = wp_check_filetype_and_ext( $tmp, (string) ( $file['name'] ?? '' ), self::TYPES );
+		if ( '' === $tmp || ! $type['type'] ) {
+			return new \WP_Error( 'mody_avatar_type', __( 'The picture must be a JPEG, PNG, WebP or GIF image.', 'mody_cloud' ) );
+		}
+		// A few kilobytes can say they are tens of thousands of pixels wide: look at the header before anything decodes it. After the type check, so only the four formats PHP sizes without decoding get here (ImageSize).
+		if ( ImageSize::too_big( $tmp, ImageSize::PROFILE_MAX_SIDE ) ) {
+			return new \WP_Error(
+				'mody_avatar_dimensions',
+				/* translators: %s: pixels on a side. */
+				sprintf( __( 'The picture is too large: it can be up to %s pixels on a side.', 'mody_cloud' ), number_format_i18n( ImageSize::PROFILE_MAX_SIDE ) )
+			);
+		}
+		$clean = is_uploaded_file( $tmp ) ? self::square( $tmp, (string) $type['type'] ) : null;
 		if ( ! $clean ) {
 			return new \WP_Error( 'mody_avatar_type', __( 'The picture must be a JPEG, PNG, WebP or GIF image.', 'mody_cloud' ) );
 		}

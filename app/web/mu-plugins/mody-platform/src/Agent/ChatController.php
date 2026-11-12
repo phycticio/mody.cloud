@@ -31,6 +31,14 @@ defined( 'ABSPATH' ) || exit;
  * never meets a proxy timeout and no cron is needed. Without PHP-FPM (WP-CLI,
  * tests) the turn runs before the response, which then holds the result.
  * One job at a time per user and site.
+ *
+ * What keeps a worker from being pinned (security pass, 2026-11-12): the job
+ * takes its locks (Slots: one job per user and site, and at most three on the
+ * network) before anything else, atomically, and gives them back only when the
+ * worker finishes; a daily token allowance is checked first (Budget); the job
+ * has a wall-clock deadline (JOB_DEADLINE); and a job the checker gave up as
+ * stale is told to stop (Agent::on_alive()) and never overwrites its
+ * "failed" state. A stale job does not free the lock: only its worker ending does.
  */
 final class ChatController {
 
@@ -39,6 +47,14 @@ final class ChatController {
 
 	/** A running job older than this is reported as failed (PHP's max_execution_time is 300). */
 	public const JOB_TIMEOUT = 5 * MINUTE_IN_SECONDS;
+
+	/**
+	 * Wall-clock seconds a job may keep calling the model, from when it starts
+	 * running. PHP's own time limit counts CPU time on Linux, not the minutes
+	 * spent waiting for the model, so this one is enforced by Hardening on
+	 * every model request and by the agent before each step.
+	 */
+	public const JOB_DEADLINE = 10 * MINUTE_IN_SECONDS;
 
 	/** Messages kept per conversation. */
 	private const KEPT_MESSAGES = 20;
@@ -159,8 +175,20 @@ final class ChatController {
 			);
 		}
 
+		// The cheap refusals and the locks come before the expensive work (the editor's context can be 2 MB),
+		// so that parallel messages cannot all get past the check: the lock is atomic (security pass, 2026-11-12).
+		$over = Budget::check();
+		if ( $over ) {
+			return $over;
+		}
+		$taken = Slots::take( 'job', __( 'I am still working on your previous message. Please wait for it to finish.', 'mody_cloud' ) );
+		if ( is_wp_error( $taken ) ) {
+			return $taken;
+		}
+
 		$context = EditorContext::from_input( $request->get_param( 'context' ) );
 		if ( is_wp_error( $context ) ) {
+			Slots::release( $taken );
 			return $context;
 		}
 		$screen = SiteEditor::screen_from_input( $request->get_param( 'screen' ) ); // M3-09.
@@ -180,14 +208,22 @@ final class ChatController {
 		set_transient( self::running_key(), $job['id'], self::JOB_TIMEOUT );
 
 		if ( ! function_exists( 'fastcgi_finish_request' ) ) {
-			return new WP_REST_Response( self::run( $job['id'] ) );
+			try {
+				return new WP_REST_Response( self::run( $job['id'] ) );
+			} finally {
+				Slots::release( $taken );
+			}
 		}
 
 		add_action(
 			'shutdown',
-			static function () use ( $job ): void {
+			static function () use ( $job, $taken ): void {
 				self::finish_response();
-				self::run( $job['id'] );
+				try {
+					self::run( $job['id'] );
+				} finally {
+					Slots::release( $taken ); // Only when the worker is done, never earlier.
+				}
 			},
 			0
 		);
@@ -243,6 +279,14 @@ final class ChatController {
 				}
 			}
 		);
+		// A job the checker gave up as stale stops at its next step, and the model is not called after the deadline.
+		Agent::on_alive(
+			static function () use ( $id ): bool {
+				$current = self::load_job( $id );
+				return ! $current || 'running' === $current['status'];
+			}
+		);
+		$deadline = Slots::set_deadline( self::JOB_DEADLINE );
 		try {
 			$history = self::history();
 			$turn    = Agent::respond( $job['message'], $history, $context, $job['screen'] ?? null, $job['unsaved'] ?? array() );
@@ -270,6 +314,15 @@ final class ChatController {
 			$job['turn']   = self::failed_turn( __( 'Something went wrong. Please try again.', 'mody_cloud' ) );
 		}
 		Agent::on_progress( null );
+		Agent::on_alive( null );
+		Slots::restore_deadline( $deadline );
+
+		// The checker gave this job up while its worker was still going: the member was told it stopped, so
+		// its result does not come back as "done" later (and nothing ran after the stop: Agent::alive()).
+		$latest = self::load_job( $id );
+		if ( $latest && 'running' !== $latest['status'] ) {
+			return self::public_job( $latest );
+		}
 
 		$job['finished'] = microtime( true );
 		self::save_job( $job );

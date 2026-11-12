@@ -210,6 +210,7 @@ add_action( 'admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 99
 add_action( 'network_admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
 add_action( 'admin_bar_menu', array( Gating\HiddenScreens::class, 'hide_toolbar' ), 999 );
 add_action( 'wp_dashboard_setup', array( Gating\HiddenScreens::class, 'hide_widgets' ), 999 );
+add_action( 'admin_notices', array( Gating\HiddenScreens::class, 'hide_notices' ), 0 ); // The ai plugin's notice that links to the hidden approvals screen.
 add_action( 'admin_init', array( Gating\HiddenScreens::class, 'refuse_screens' ) );
 add_filter( 'register_setting_args', array( Gating\HiddenScreens::class, 'hide_settings' ), 10, 4 );
 add_filter( 'rest_pre_dispatch', array( Gating\HiddenScreens::class, 'refuse_routes' ), 10, 3 );
@@ -320,3 +321,11 @@ if ( function_exists( 'wp_ai_client_prompt' ) ) {
 	add_action( 'admin_page_access_denied', array( Agent\EditorBubble::class, 'redirect_old_page' ) ); // Before WordPress refuses an unknown page.
 	add_action( 'enqueue_block_editor_assets', array( Agent\EditorBubble::class, 'enqueue' ) ); // The chat bubble in the editors (M3-05).
 }
+
+/*
+ * Security pass (2026-11-12, tickets/M5-01-hardening-launch.md): one line per
+ * group; each group's class registers its own hooks.
+ */
+Security\Hardening::register(); // Own keys and salts, XML-RPC off, no public logins, passwords of ten characters, the beacon's rate limit (signup, login and comment limits: Security\FormGuard, Members\Registration).
+Agent\Hardening::register(); // Model work: one job per user and site, three on the network, a daily token allowance, the ai plugin's abilities, server details for super admins only.
+Gating\Isolation::register(); // Widgets, Application Passwords, deleting a site, owners, mail limits and picture sizes (SpectraGuard handles block script).

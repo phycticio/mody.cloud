@@ -7,6 +7,7 @@
 
 namespace Mody\Platform;
 
+use Mody\Platform\Agent\Hardening;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Design\Presets;
@@ -93,7 +94,8 @@ final class Abilities {
 					),
 					'required'   => array( 'page_id', 'title', 'status', 'edit_url' ),
 				),
-				'execute_callback'    => static fn( $input ) => PageGenerator::create_draft( (string) $input['prompt'], (string) ( $input['title'] ?? '' ) ),
+				// A model job: the daily allowance, one at a time per user and site, and the network's slots (Agent\Hardening, 2026-11-12).
+				'execute_callback'    => static fn( $input ) => Hardening::model_job( 'job', static fn() => PageGenerator::create_draft( (string) $input['prompt'], (string) ( $input['title'] ?? '' ) ) ),
 				'permission_callback' => static fn() => is_user_logged_in() && current_user_can( 'edit_pages' ),
 				'meta'                => array(
 					'public'      => true, // REST, MCP and the agent.

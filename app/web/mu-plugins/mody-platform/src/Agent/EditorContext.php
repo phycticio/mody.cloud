@@ -16,9 +16,14 @@ defined( 'ABSPATH' ) || exit;
  *
  * The bubble reads it from the editor's public data stores: the post type
  * and ID being edited, the content as it is in the editor (unsaved changes
- * included), and the selected block. The content is the member's own data:
- * it goes to the page writer between <markup> tags, never into the agent's
- * prompt, and nothing here is saved.
+ * included), and the selected block. The content is data, not instructions,
+ * and may hold words of other people (an invited Editor's page): it goes to
+ * the page writer between <markup> tags, and to the agent as PageOutline's
+ * compact view between <page> tags (SystemPrompt::page_view(), decided
+ * 2026-11-11), where every `<` and `>` of the page's text is replaced so
+ * nothing in it can close the block. A change to the whole site while the open
+ * page is another person's waits for the owner's Apply (Agent::foreign_content(),
+ * security pass 2026-11-12). Nothing here is saved.
  */
 final class EditorContext {
 

@@ -102,7 +102,6 @@
 			"Questions": "Preguntas",
 			"Before you start": "Antes de empezar",
 			"No. Your trial lasts 30 days and lets you create up to three sites, with no card. Before it ends, we will ask you to choose a plan, and tell you clearly what happens to your sites if you don't.": "No. Tu prueba dura 30 días y te permite crear hasta tres sitios, sin tarjeta. Antes de que termine, te pediremos que elijas un plan y te diremos con claridad qué pasa con tus sitios si no lo haces.",
-			"Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, and the number of sites in your plan.": "Mody Cloud lo lleva un profesional independiente, autónomo en España, que construye y cuida toda la plataforma. Los precios son públicos e iguales para todos, y cada límite es real: 3 GB por sitio y el número de sitios de tu plan.",
 			"A Qwen model, run by Infomaniak AI Services in Switzerland. Before each request, Mody adds your site's brand, so the result fits your site. Every page it writes is checked block by block before it reaches your editor.": "Un modelo Qwen, ejecutado por Infomaniak AI Services en Suiza. Antes de cada petición, Mody añade la marca de tu sitio para que el resultado encaje con él. Cada página que escribe se revisa bloque a bloque antes de llegar a tu editor.",
 			"Yes. Download your theme as a zip from the Site Editor, and your pages and posts with Tools → Export. Your site is built with Gutenberg and Spectra blocks, both free and open source, so it runs on any WordPress host with Spectra installed.": "Sí. Descarga tu tema en un zip desde el Site Editor, y tus páginas y entradas con Tools → Export. Tu sitio está hecho con bloques de Gutenberg y Spectra, ambos libres y de código abierto, así que funciona en cualquier alojamiento WordPress con Spectra instalado.",
 			"Yes: every plugin in our market is available on every site and every plan, and you switch each one on for the site that needs it. You can't upload your own: we check each plugin against our European rules first, and we keep them all up to date.": "Sí: todos los plugins de nuestro mercado están disponibles en cada sitio y en cada plan, y activas cada uno en el sitio que lo necesite. No puedes subir los tuyos: comprobamos antes cada plugin con nuestras reglas europeas y los mantenemos todos al día.",
@@ -120,7 +119,8 @@
 			"Can I use my own domain?": "¿Puedo usar mi propio dominio?",
 			"Do my sites share one Mody?": "¿Mis sitios comparten un mismo Mody?",
 			"What happens if a payment fails?": "¿Qué pasa si falla un pago?",
-			"Which languages can my site use?": "¿Qué idiomas puede usar mi sitio?"
+			"Which languages can my site use?": "¿Qué idiomas puede usar mi sitio?",
+			"Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, a daily allowance of work for each site's Mody, and the number of sites in your plan.": "Mody Cloud lo lleva un profesional independiente, autónomo en España, que construye y cuida toda la plataforma. Los precios son públicos e iguales para todos, y cada límite es real: 3 GB por sitio, una cantidad diaria de trabajo para el Mody de cada sitio y el número de sitios de tu plan."
 		}
 	},
 	"de_DE": {
@@ -225,7 +225,6 @@
 			"Questions": "Fragen",
 			"Before you start": "Bevor du startest",
 			"No. Your trial lasts 30 days and lets you create up to three sites, with no card. Before it ends, we will ask you to choose a plan, and tell you clearly what happens to your sites if you don't.": "Nein. Dein Test dauert 30 Tage und lässt dich bis zu drei Websites anlegen, ohne Karte. Bevor er endet, bitten wir dich, einen Tarif zu wählen, und sagen dir klar, was mit deinen Websites passiert, wenn du es nicht tust.",
-			"Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, and the number of sites in your plan.": "Mody Cloud wird von einem unabhängigen Selbstständigen in Spanien betrieben, der die ganze Plattform baut und betreut. Die Preise sind öffentlich und für alle gleich, und jede Grenze ist echt: 3 GB pro Website und die Zahl der Websites in deinem Tarif.",
 			"A Qwen model, run by Infomaniak AI Services in Switzerland. Before each request, Mody adds your site's brand, so the result fits your site. Every page it writes is checked block by block before it reaches your editor.": "Ein Qwen-Modell, betrieben von Infomaniak AI Services in der Schweiz. Vor jeder Anfrage fügt Mody die Marke deiner Website hinzu, damit das Ergebnis zu ihr passt. Jede Seite, die Mody schreibt, wird Block für Block geprüft, bevor sie in deinem Editor ankommt.",
 			"Yes. Download your theme as a zip from the Site Editor, and your pages and posts with Tools → Export. Your site is built with Gutenberg and Spectra blocks, both free and open source, so it runs on any WordPress host with Spectra installed.": "Ja. Lade dein Theme als ZIP aus dem Site Editor herunter und deine Seiten und Beiträge über Tools → Export. Deine Website besteht aus Gutenberg- und Spectra-Blöcken, beide frei und Open Source, und läuft daher bei jedem WordPress-Hoster mit installiertem Spectra.",
 			"Yes: every plugin in our market is available on every site and every plan, and you switch each one on for the site that needs it. You can't upload your own: we check each plugin against our European rules first, and we keep them all up to date.": "Ja: Jedes Plugin aus unserem Markt steht auf jeder Website und in jedem Tarif bereit, und du aktivierst jedes für die Website, die es braucht. Eigene Plugins kannst du nicht hochladen: Wir prüfen jedes Plugin vorher anhand unserer europäischen Regeln und halten alle aktuell.",
@@ -243,7 +242,8 @@
 			"Can I use my own domain?": "Kann ich meine eigene Domain nutzen?",
 			"Do my sites share one Mody?": "Teilen sich meine Websites einen Mody?",
 			"What happens if a payment fails?": "Was passiert, wenn eine Zahlung fehlschlägt?",
-			"Which languages can my site use?": "Welche Sprachen kann meine Website nutzen?"
+			"Which languages can my site use?": "Welche Sprachen kann meine Website nutzen?",
+			"Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, a daily allowance of work for each site's Mody, and the number of sites in your plan.": "Mody Cloud wird von einem unabhängigen Selbstständigen in Spanien betrieben, der die ganze Plattform baut und betreut. Die Preise sind öffentlich und für alle gleich, und jede Grenze ist echt: 3 GB pro Website, ein tägliches Arbeitskontingent für den Mody jeder Website und die Zahl der Websites in deinem Tarif."
 		}
 	},
 	"it_IT": {
@@ -348,7 +348,6 @@
 			"Questions": "Domande",
 			"Before you start": "Prima di iniziare",
 			"No. Your trial lasts 30 days and lets you create up to three sites, with no card. Before it ends, we will ask you to choose a plan, and tell you clearly what happens to your sites if you don't.": "No. La tua prova dura 30 giorni e ti permette di creare fino a tre siti, senza carta. Prima che finisca, ti chiederemo di scegliere un piano e ti diremo chiaramente cosa succede ai tuoi siti se non lo fai.",
-			"Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, and the number of sites in your plan.": "Mody Cloud è gestito da un professionista indipendente, lavoratore autonomo in Spagna, che costruisce e cura tutta la piattaforma. I prezzi sono pubblici e uguali per tutti, e ogni limite è reale: 3 GB per sito e il numero di siti del tuo piano.",
 			"A Qwen model, run by Infomaniak AI Services in Switzerland. Before each request, Mody adds your site's brand, so the result fits your site. Every page it writes is checked block by block before it reaches your editor.": "Un modello Qwen, eseguito da Infomaniak AI Services in Svizzera. Prima di ogni richiesta, Mody aggiunge il marchio del tuo sito, così il risultato è adatto al tuo sito. Ogni pagina che scrive viene controllata blocco per blocco prima di arrivare nel tuo editor.",
 			"Yes. Download your theme as a zip from the Site Editor, and your pages and posts with Tools → Export. Your site is built with Gutenberg and Spectra blocks, both free and open source, so it runs on any WordPress host with Spectra installed.": "Sì. Scarica il tuo tema in uno zip dal Site Editor, e le tue pagine e i tuoi articoli con Tools → Export. Il tuo sito è fatto di blocchi Gutenberg e Spectra, entrambi liberi e open source, quindi funziona su qualsiasi hosting WordPress con Spectra installato.",
 			"Yes: every plugin in our market is available on every site and every plan, and you switch each one on for the site that needs it. You can't upload your own: we check each plugin against our European rules first, and we keep them all up to date.": "Sì: ogni plugin del nostro market è disponibile su ogni sito e in ogni piano, e attivi ciascuno sul sito che ne ha bisogno. Non puoi caricare i tuoi: controlliamo prima ogni plugin con le nostre regole europee e li teniamo tutti aggiornati.",
@@ -366,7 +365,8 @@
 			"Can I use my own domain?": "Posso usare il mio dominio?",
 			"Do my sites share one Mody?": "I miei siti condividono un unico Mody?",
 			"What happens if a payment fails?": "Cosa succede se un pagamento non va a buon fine?",
-			"Which languages can my site use?": "Quali lingue può usare il mio sito?"
+			"Which languages can my site use?": "Quali lingue può usare il mio sito?",
+			"Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, a daily allowance of work for each site's Mody, and the number of sites in your plan.": "Mody Cloud è gestito da un professionista indipendente, lavoratore autonomo in Spagna, che costruisce e cura tutta la piattaforma. I prezzi sono pubblici e uguali per tutti, e ogni limite è reale: 3 GB per sito, una quantità giornaliera di lavoro per il Mody di ogni sito e il numero di siti del tuo piano."
 		}
 	}
 }

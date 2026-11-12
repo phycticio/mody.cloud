@@ -41,6 +41,18 @@ final class ExportPanel {
 	/** How often the page asks, in milliseconds. */
 	public const POLL_MS = 3000;
 
+	/**
+	 * A site may ask for a new copy this many seconds after its last finished
+	 * copy was asked for (security pass, 2026-11-12). A copy zips the whole 3 GB
+	 * and stays for three days outside the site's space, and the network builds
+	 * only Jobs::MAX_RUNNING at a time: without a pause, a few sites asking in
+	 * a loop would keep every builder busy and fill the disk. Only a copy that
+	 * is done counts: after a failed one, Try again works at once, because there
+	 * are no files to keep. Filter `mody_export_cooldown` changes it (tests set
+	 * it to 0). Super administrators helping a member are not held back.
+	 */
+	public const COOLDOWN = 15 * MINUTE_IN_SECONDS;
+
 	/** How many left-out settings the page names; the rest are counted. */
 	private const LEFT_OUT_SHOWN = 10;
 
@@ -421,6 +433,18 @@ final class ExportPanel {
 			echo '<div class="notice notice-success inline mody-brand__notice"><p>' . esc_html__( 'Started. We will email you when your download is ready: you do not need to stay on this page.', 'mody_cloud' ) . '</p></div>';
 		} elseif ( 'busy' === $result ) {
 			echo '<div class="notice notice-info inline mody-brand__notice"><p>' . esc_html__( 'A download of this site is already being prepared.', 'mody_cloud' ) . '</p></div>';
+		} elseif ( 'cooldown' === $result ) {
+			$left = self::cooldown_left( Jobs::current( get_current_blog_id() ) );
+			echo '<div class="notice notice-info inline mody-brand__notice"><p>' . esc_html(
+				$left > 0
+					? sprintf(
+						/* translators: 1: a time of day, 2: how long from now, such as "9 minutes". */
+						__( 'A copy of this site was prepared a few minutes ago, and the files above are the latest. To keep downloads quick for everyone, you can prepare a fresh copy from %1$s (in %2$s).', 'mody_cloud' ),
+						wp_date( get_option( 'time_format' ), time() + $left ),
+						human_time_diff( time(), time() + $left )
+					)
+					: __( 'You can prepare a fresh copy now.', 'mody_cloud' )
+			) . '</p></div>';
 		} elseif ( '' !== $result ) {
 			echo '<div class="notice notice-error inline mody-brand__notice"><p>' . esc_html__( 'The download could not be started. Please try again.', 'mody_cloud' ) . '</p></div>';
 		} elseif ( 'expired' === $expired ) {
@@ -580,7 +604,7 @@ final class ExportPanel {
 	 *
 	 * @param int $site_id Site.
 	 * @param int $user_id Who asked.
-	 * @return string 'started', 'busy' (one is already queued or running) or 'error'.
+	 * @return string 'started', 'busy' (one is already queued or running), 'cooldown' (the last copy is done and was asked for a moment ago) or 'error'.
 	 */
 	public static function start( int $site_id, int $user_id ): string {
 		global $wpdb;
@@ -594,7 +618,10 @@ final class ExportPanel {
 		}
 		try {
 			$live = Jobs::current( $site_id );
-			$id   = Jobs::create( $site_id, $owner );
+			if ( ! is_super_admin( $user_id ) && self::cooldown_left( $live ) > 0 ) {
+				return 'cooldown'; // The lock is released below; no job, no email.
+			}
+			$id = Jobs::create( $site_id, $owner );
 		} finally {
 			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK( %s )', $lock ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A named lock.
 		}
@@ -608,6 +635,28 @@ final class ExportPanel {
 		self::quietly( static fn() => Notices::started( $id, $user_id ) );
 		self::quietly( array( Runner::class, 'watch' ) );
 		return 'started';
+	}
+
+	/**
+	 * Seconds until a site may ask for another copy, counted from when its
+	 * last copy was asked for; 0 when it may now. Only a finished copy holds
+	 * a site back: a queued or running one is "busy" (Jobs::create() hands it
+	 * back), and a failed one has no files, so asking again is fine.
+	 *
+	 * @param array|null $job The site's latest job (Jobs::current()).
+	 */
+	private static function cooldown_left( ?array $job ): int {
+		if ( ! $job || 'done' !== $job['status'] ) {
+			return 0;
+		}
+		/**
+		 * Filters how long a site waits between two copies, in seconds.
+		 *
+		 * @param int $seconds COOLDOWN.
+		 */
+		$cooldown = max( 0, (int) apply_filters( 'mody_export_cooldown', self::COOLDOWN ) );
+		$asked    = strtotime( $job['created_at'] . ' UTC' ); // The table keeps UTC.
+		return $asked ? max( 0, $asked + $cooldown - time() ) : 0;
 	}
 
 	/**

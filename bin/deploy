@@ -27,6 +27,11 @@
 # config/ssl. Everything outside the allowlist stays local: documentation,
 # tickets, node_modules, backups, .git and so on.
 #
+# Core dumps (app/core, app/core.<pid>) are never sent either: .gitignore hides
+# them from the clean-tree check above, so the sync has to refuse them itself.
+# The script warns when the server has one (it holds the container's whole
+# environment); delete it there by hand.
+#
 # Containers are not restarted. When config/ or a compose file changes, the
 # script prints the command to apply it on the server.
 #
@@ -152,8 +157,18 @@ fi
 REMOTE_COMPOSE_FILE="$(remote_env_value COMPOSE_FILE)"
 case "$REMOTE_COMPOSE_FILE" in
   *"compose.${ENV}.yml"*) ;;
-  *) log "WARNING" "The server's .env does not load compose.${ENV}.yml (COMPOSE_FILE='${REMOTE_COMPOSE_FILE}'). The MariaDB and Xdebug ports may be published on the host. See documentation/architecture.md#production." ;;
+  *) log "WARNING" "The server's .env does not load compose.${ENV}.yml (COMPOSE_FILE='${REMOTE_COMPOSE_FILE}'). The MariaDB and Xdebug ports may be published on the host (on its loopback address, compose.yml binds them to 127.0.0.1) and Nginx publishes 80 and 443. See documentation/architecture.md#production." ;;
 esac
+
+# A core dump in the web root holds the container's environment (database
+# passwords, API keys). Nginx refuses to serve one and compose.yml stops new
+# ones, but an old one is worth knowing about. The sync below never sends or
+# deletes it (the exclude in FILTER protects it), so a warning is all this can do.
+# find, not a glob: the remote login shell may be zsh, which aborts a command whose glob matches nothing.
+STRAY_CORE="$(remote "find '${REMOTE_DIR}/app' -maxdepth 1 \\( -name core -o -name 'core.*' \\) 2>/dev/null" || true)"
+if [ -n "$STRAY_CORE" ]; then
+  log "WARNING" "The server has core dump file(s) in the web root: $(printf '%s' "$STRAY_CORE" | tr '\n' ' '). They hold the container's environment (passwords, API keys): delete them on the server, and rotate those secrets if the file was ever reachable from the internet."
+fi
 
 # The composer files on the server must be the ones from the last deployed
 # commit (REVISION). If they are, a difference from HEAD is a change made in
@@ -234,6 +249,11 @@ FILTER=(
   --exclude='/app/wp/wordfence-waf.php'
   --exclude='.user.ini'
   --exclude='/config/ssl/'
+  # Core dumps: a crashed process in the container writes one into the web root
+  # (they hold the container's environment). .gitignore keeps them out of git
+  # status, which is the check that used to stop them, so exclude them here.
+  --exclude='/app/core'
+  --exclude='/app/core.*'
   # Never shipped from anywhere in the tree.
   --exclude='.git/'
   --exclude='.DS_Store'
