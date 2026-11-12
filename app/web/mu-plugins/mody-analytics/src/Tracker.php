@@ -15,9 +15,11 @@ defined( 'ABSPATH' ) || exit;
  * Collector's route with `navigator.sendBeacon()` (plain text, so the
  * browser sends it without a preflight, and it survives leaving the page).
  *
- * Not printed for logged-in users (the site's own people), previews, the
- * Customizer, embeds and error pages. Automated browsers that say so
- * (`navigator.webdriver`) send nothing.
+ * Printed for everyone who reads the site, logged-in users included: they
+ * count like anyone else, by the same anonymous visit, and no user ID or
+ * email is ever sent or stored (the maintainer's choice, 2026-11-12). Not
+ * printed for previews, the Customizer, embeds, feeds and error pages.
+ * Automated browsers that say so (`navigator.webdriver`) send nothing.
  */
 final class Tracker {
 
@@ -32,7 +34,7 @@ final class Tracker {
 	 * Whether this page view is counted.
 	 */
 	public static function counts(): bool {
-		$counts = ! is_admin() && ! is_user_logged_in() && ! is_preview() && ! is_customize_preview() && ! is_embed() && ! is_404() && ! is_feed();
+		$counts = ! is_admin() && ! is_preview() && ! is_customize_preview() && ! is_embed() && ! is_404() && ! is_feed();
 		/**
 		 * Filters whether the current page view is counted.
 		 *

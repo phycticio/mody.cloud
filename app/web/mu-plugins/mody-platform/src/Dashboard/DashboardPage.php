@@ -210,7 +210,7 @@ final class DashboardPage {
 					<section class="mody-brand__panel" aria-labelledby="mody-dashboard-section-title">
 						<div class="mody-brand__panel-head">
 							<h2 id="mody-dashboard-section-title"><?php echo esc_html( $sections[ $section ] ); ?></h2>
-							<?php if ( in_array( $section, array( 'visitors', 'mody' ), true ) ) : ?>
+							<?php if ( in_array( $section, array( 'visitors', 'mody', 'sites' ), true ) ) : ?>
 								<nav class="mody-brand__tabs" aria-label="<?php esc_attr_e( 'Period', 'mody_cloud' ); ?>">
 									<?php foreach ( self::PERIODS as $days ) : ?>
 										<?php $active = self::period() === $days; ?>
@@ -380,26 +380,32 @@ final class DashboardPage {
 	}
 
 	/**
-	 * The Visitors section (mody-analytics): visits and page views over the
-	 * period, against the period before; a bar per day; the pages, sources
-	 * and devices.
+	 * The Visitors section (mody-analytics), this site only: visits and
+	 * page views over the period, against the period before; a bar per day;
+	 * the journeys visits made; pages, entry and exit pages, sources and
+	 * devices.
 	 */
 	private static function render_visitors(): void {
 		$days  = self::period();
 		$stats = Stats::summary( get_current_blog_id(), $days );
-		$pages = $stats['visitors'] > 0 ? $stats['views'] / $stats['visitors'] : 0;
+		$pages = $stats['visits'] > 0 ? $stats['views'] / $stats['visits'] : 0;
 		?>
 		<div class="mody-dashboard__tiles">
 			<?php
-			self::render_tile( __( 'Visits', 'mody_cloud' ), number_format_i18n( $stats['visitors'] ), self::change( $stats['visitors'], $stats['previous_visitors'] ) );
+			self::render_tile( __( 'Visits', 'mody_cloud' ), number_format_i18n( $stats['visits'] ), self::change( $stats['visits'], $stats['previous_visits'] ) );
 			self::render_tile( __( 'Page views', 'mody_cloud' ), number_format_i18n( $stats['views'] ), self::change( $stats['views'], $stats['previous_views'] ) );
 			self::render_tile( __( 'Pages per visit', 'mody_cloud' ), number_format_i18n( $pages, 1 ), '' );
+			self::render_tile( __( 'Single-page visits', 'mody_cloud' ), $stats['visits'] > 0 ? number_format_i18n( 100 * $stats['single'] / $stats['visits'] ) . '%' : '–', __( 'Left from the page they came in on', 'mody_cloud' ) );
 			?>
 		</div>
 		<?php self::render_chart( $stats['days'] ); ?>
+		<?php self::render_journeys( $stats['journeys'] ); ?>
 		<div class="mody-dashboard__lists">
 			<?php
-			self::render_list( __( 'Pages', 'mody_cloud' ), __( 'Views', 'mody_cloud' ), $stats['pages'], static fn( string $path ): string => $path );
+			$path = static fn( string $path ): string => $path;
+			self::render_list( __( 'Pages', 'mody_cloud' ), __( 'Views', 'mody_cloud' ), $stats['pages'], $path );
+			self::render_list( __( 'Entry pages', 'mody_cloud' ), __( 'Visits', 'mody_cloud' ), $stats['entries'], $path );
+			self::render_list( __( 'Exit pages', 'mody_cloud' ), __( 'Visits', 'mody_cloud' ), $stats['exits'], $path );
 			self::render_list(
 				__( 'Sources', 'mody_cloud' ),
 				__( 'Visits', 'mody_cloud' ),
@@ -418,7 +424,45 @@ final class DashboardPage {
 			);
 			?>
 		</div>
-		<p class="mody-dashboard__note"><?php esc_html_e( 'Counted by Mody Cloud itself, without cookies and without keeping anyone\'s address: a visit is one person\'s day on the site. Your own visits while logged in are not counted.', 'mody_cloud' ); ?></p>
+		<p class="mody-dashboard__note"><?php esc_html_e( 'Counted by Mody Cloud itself, without cookies and without keeping anyone\'s address or name: only visits and the pages they saw, in order. A visit ends after 30 minutes without a new page. Everyone who reads the site counts, you included when you are logged in.', 'mody_cloud' ); ?></p>
+		<?php
+	}
+
+	/**
+	 * The journeys: the most common orders of pages in visits of two pages
+	 * or more, each with its visits.
+	 *
+	 * @param array<int, array{steps: array<int, string>, more: bool, count: int}> $journeys Most common first.
+	 */
+	private static function render_journeys( array $journeys ): void {
+		$max = max( 1, (int) ( $journeys[0]['count'] ?? 1 ) );
+		?>
+		<section class="mody-dashboard__list mody-dashboard__journeys">
+			<h3><span><?php esc_html_e( 'Journeys', 'mody_cloud' ); ?></span><span><?php esc_html_e( 'Visits', 'mody_cloud' ); ?></span></h3>
+			<?php if ( ! $journeys ) : ?>
+				<p class="mody-brand__empty"><?php esc_html_e( 'Nothing yet: journeys show when visits see more than one page.', 'mody_cloud' ); ?></p>
+			<?php else : ?>
+				<ol>
+					<?php foreach ( $journeys as $journey ) : ?>
+						<li style="--mody-share:<?php echo esc_attr( (string) round( 100 * $journey['count'] / $max, 1 ) ); ?>%">
+							<span class="mody-dashboard__list-name mody-dashboard__steps">
+								<?php foreach ( $journey['steps'] as $i => $step ) : ?>
+									<?php if ( $i > 0 ) : ?>
+										<span class="mody-dashboard__step-arrow" aria-hidden="true">→</span><span class="screen-reader-text"><?php esc_html_e( 'then', 'mody_cloud' ); ?></span>
+									<?php endif; ?>
+									<span class="mody-dashboard__step"><?php echo esc_html( $step ); ?></span>
+								<?php endforeach; ?>
+								<?php if ( $journey['more'] ) : ?>
+									<span class="mody-dashboard__step-arrow" aria-hidden="true">→</span>
+									<span class="mody-dashboard__step is-more"><?php esc_html_e( 'more', 'mody_cloud' ); ?></span>
+								<?php endif; ?>
+							</span>
+							<span class="mody-dashboard__list-count"><?php echo esc_html( number_format_i18n( $journey['count'] ) ); ?></span>
+						</li>
+					<?php endforeach; ?>
+				</ol>
+			<?php endif; ?>
+		</section>
 		<?php
 	}
 
@@ -551,6 +595,8 @@ final class DashboardPage {
 		$used  = Quota::used( $user );
 		$limit = Quota::limit( $user );
 		$can   = true === Quota::can_create_site( $user );
+		$days  = self::period();
+		$stats = class_exists( Stats::class ) && $sites ? Stats::sites( array_column( $sites, 'id' ), $days ) : null;
 		?>
 		<div class="mody-dashboard__sites-head">
 			<p>
@@ -569,6 +615,9 @@ final class DashboardPage {
 				</span>
 			<?php endif; ?>
 		</div>
+		<?php if ( $stats ) : ?>
+			<?php self::render_sites_visitors( $sites, $stats ); ?>
+		<?php endif; ?>
 		<?php if ( ! $sites ) : ?>
 			<p class="mody-brand__empty"><?php esc_html_e( 'No site yet.', 'mody_cloud' ); ?></p>
 		<?php else : ?>
@@ -595,6 +644,24 @@ final class DashboardPage {
 								);
 								?>
 							</p>
+							<?php if ( $stats ) : ?>
+								<?php $counts = $stats['sites'][ (int) $site['id'] ]; ?>
+								<p class="mody-dashboard__note">
+									<a href="<?php echo esc_url( add_query_arg( 'days', $days, $site['visitors'] ) ); ?>">
+										<?php
+										echo esc_html(
+											sprintf(
+												/* translators: 1: visits, 2: page views, 3: a number of days. */
+												__( '%1$s visits · %2$s page views in %3$d days', 'mody_cloud' ),
+												number_format_i18n( $counts['visits'] ),
+												number_format_i18n( $counts['views'] ),
+												$days
+											)
+										);
+										?>
+									</a>
+								</p>
+							<?php endif; ?>
 						</div>
 						<p class="mody-brand__links">
 							<a class="button" href="<?php echo esc_url( $site['home'] ); ?>"><?php esc_html_e( 'Visit', 'mody_cloud' ); ?></a>
@@ -610,10 +677,67 @@ final class DashboardPage {
 	}
 
 	/**
+	 * Your sites' visitors (mody-analytics): every site of the member
+	 * together, visits per day, and the sites side by side. Each site's own
+	 * Visitors section has the rest.
+	 *
+	 * @param array<int, array<string, mixed>> $sites The member's sites (member_sites()).
+	 * @param array<string, mixed>             $stats Stats::sites() for them.
+	 */
+	private static function render_sites_visitors( array $sites, array $stats ): void {
+		$days = self::period();
+		$max  = max( 1, max( array_map( static fn( array $site ): int => $site['visits'], $stats['sites'] ) ) );
+		$rows = $sites;
+		usort( $rows, static fn( array $a, array $b ): int => $stats['sites'][ (int) $b['id'] ]['visits'] <=> $stats['sites'][ (int) $a['id'] ]['visits'] );
+		?>
+		<section class="mody-dashboard__across" aria-labelledby="mody-dashboard-across-title">
+			<h3 id="mody-dashboard-across-title"><?php esc_html_e( 'Visitors across your sites', 'mody_cloud' ); ?></h3>
+			<div class="mody-dashboard__tiles">
+				<?php
+				self::render_tile( __( 'Visits', 'mody_cloud' ), number_format_i18n( $stats['visits'] ), self::change( $stats['visits'], $stats['previous_visits'] ) );
+				self::render_tile( __( 'Page views', 'mody_cloud' ), number_format_i18n( $stats['views'] ), self::change( $stats['views'], $stats['previous_views'] ) );
+				self::render_tile( __( 'Pages per visit', 'mody_cloud' ), number_format_i18n( $stats['visits'] > 0 ? $stats['views'] / $stats['visits'] : 0, 1 ), '' );
+				?>
+			</div>
+			<?php self::render_chart( $stats['days'], __( 'Visits per day, all your sites', 'mody_cloud' ) ); ?>
+			<table class="mody-brand__rows mody-dashboard__usage mody-dashboard__compare">
+				<thead>
+					<tr>
+						<th scope="col"><?php esc_html_e( 'Site', 'mody_cloud' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Visits', 'mody_cloud' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Page views', 'mody_cloud' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Most viewed page', 'mody_cloud' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $site ) : ?>
+						<?php $counts = $stats['sites'][ (int) $site['id'] ]; ?>
+						<tr>
+							<th scope="row">
+								<a href="<?php echo esc_url( add_query_arg( 'days', $days, $site['visitors'] ) ); ?>"><?php echo esc_html( '' !== $site['name'] ? $site['name'] : $site['address'] ); ?></a>
+								<span class="mody-dashboard__note"><?php echo esc_html( self::change( $counts['visits'], $counts['previous_visits'] ) ); ?></span>
+							</th>
+							<td>
+								<span class="mody-dashboard__meter">
+									<?php echo esc_html( number_format_i18n( $counts['visits'] ) ); ?>
+									<span class="mody-brand__bar" aria-hidden="true"><span style="width:<?php echo esc_attr( (string) round( 100 * $counts['visits'] / $max, 1 ) ); ?>%"></span></span>
+								</span>
+							</td>
+							<td><?php echo esc_html( number_format_i18n( $counts['views'] ) ); ?></td>
+							<td class="mody-dashboard__path"><?php echo esc_html( '' !== $counts['top'] ? $counts['top'] : '–' ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</section>
+		<?php
+	}
+
+	/**
 	 * A member's sites: those they administer, not the main site.
 	 *
 	 * @param int $user_id The member.
-	 * @return array<int, array{id: int, name: string, address: string, home: string, admin: string, export: string, editor: string, created: int, used: int, allowed: int}>
+	 * @return array<int, array{id: int, name: string, address: string, home: string, admin: string, visitors: string, export: string, editor: string, created: int, used: int, allowed: int}>
 	 */
 	public static function member_sites( int $user_id ): array {
 		global $wpdb;
@@ -630,8 +754,9 @@ final class DashboardPage {
 				'name'    => (string) get_option( 'blogname' ),
 				'address' => self::address(),
 				'home'    => home_url( '/' ),
-				'admin'   => self::url(),
-				'export'  => ExportPanel::url(), // That site's own Download your site section.
+				'admin'    => self::url(),
+				'visitors' => self::url( 'visitors' ),
+				'export'   => ExportPanel::url(), // That site's own Download your site section.
 				'editor'  => admin_url( 'site-editor.php' ),
 				'created' => (int) strtotime( (string) get_site( $id )->registered . ' UTC' ),
 				'used'    => (int) round( get_space_used() * MB_IN_BYTES ),
@@ -884,25 +1009,26 @@ final class DashboardPage {
 	 * Visits per day: one bar each, the highest day's number on the scale,
 	 * a tooltip per bar, and the same numbers as a table.
 	 *
-	 * @param array<string, array{views: int, visitors: int}> $days Day => counts.
+	 * @param array<string, array{views: int, visits: int}> $days    Day => counts.
+	 * @param string                                         $caption The chart's caption; "Visits per day" by default.
 	 */
-	private static function render_chart( array $days ): void {
-		$max    = max( 1, max( array_column( $days, 'visitors' ) ) );
+	private static function render_chart( array $days, string $caption = '' ): void {
+		$max    = max( 1, max( array_column( $days, 'visits' ) ) );
 		$format = count( $days ) > 7 ? 'j M' : 'D j';
 		$label  = static fn( string $day ): string => wp_date( $format, (int) strtotime( $day . ' 12:00:00 UTC' ), new \DateTimeZone( 'UTC' ) );
 		$keys   = array_keys( $days );
 		?>
 		<figure class="mody-dashboard__chart">
-			<figcaption><?php esc_html_e( 'Visits per day', 'mody_cloud' ); ?></figcaption>
+			<figcaption><?php echo esc_html( '' !== $caption ? $caption : __( 'Visits per day', 'mody_cloud' ) ); ?></figcaption>
 			<div class="mody-dashboard__plot" aria-hidden="true">
 				<span class="mody-dashboard__scale"><?php echo esc_html( number_format_i18n( $max ) ); ?></span>
 				<div class="mody-dashboard__bars" style="--mody-days:<?php echo esc_attr( (string) count( $days ) ); ?>">
 					<?php foreach ( $days as $day => $counts ) : ?>
 						<?php
 						/* translators: 1: a date, 2: visits, 3: page views. */
-						$tip = sprintf( __( '%1$s: %2$s visits, %3$s page views', 'mody_cloud' ), $label( $day ), number_format_i18n( $counts['visitors'] ), number_format_i18n( $counts['views'] ) );
+						$tip = sprintf( __( '%1$s: %2$s visits, %3$s page views', 'mody_cloud' ), $label( $day ), number_format_i18n( $counts['visits'] ), number_format_i18n( $counts['views'] ) );
 						?>
-						<span class="mody-dashboard__bar" data-tip="<?php echo esc_attr( $tip ); ?>"><span style="height:<?php echo esc_attr( (string) ( $counts['visitors'] > 0 ? max( 2, round( 100 * $counts['visitors'] / $max, 1 ) ) : 0 ) ); ?>%"></span></span>
+						<span class="mody-dashboard__bar" data-tip="<?php echo esc_attr( $tip ); ?>"><span style="height:<?php echo esc_attr( (string) ( $counts['visits'] > 0 ? max( 2, round( 100 * $counts['visits'] / $max, 1 ) ) : 0 ) ); ?>%"></span></span>
 					<?php endforeach; ?>
 				</div>
 			</div>
@@ -916,7 +1042,7 @@ final class DashboardPage {
 					<thead><tr><th scope="col"><?php esc_html_e( 'Day', 'mody_cloud' ); ?></th><th scope="col"><?php esc_html_e( 'Visits', 'mody_cloud' ); ?></th><th scope="col"><?php esc_html_e( 'Page views', 'mody_cloud' ); ?></th></tr></thead>
 					<tbody>
 						<?php foreach ( array_reverse( $days, true ) as $day => $counts ) : ?>
-							<tr><th scope="row"><?php echo esc_html( $label( $day ) ); ?></th><td><?php echo esc_html( number_format_i18n( $counts['visitors'] ) ); ?></td><td><?php echo esc_html( number_format_i18n( $counts['views'] ) ); ?></td></tr>
+							<tr><th scope="row"><?php echo esc_html( $label( $day ) ); ?></th><td><?php echo esc_html( number_format_i18n( $counts['visits'] ) ); ?></td><td><?php echo esc_html( number_format_i18n( $counts['views'] ) ); ?></td></tr>
 						<?php endforeach; ?>
 					</tbody>
 				</table>
@@ -930,11 +1056,11 @@ final class DashboardPage {
 	 *
 	 * @param string                                       $title  The list's title.
 	 * @param string                                       $counts What the numbers count.
-	 * @param array<int, array{value: string, views: int}> $rows   The rows, largest first.
+	 * @param array<int, array{value: string, count: int}> $rows   The rows, largest first.
 	 * @param callable                                     $name   Value => the text shown.
 	 */
 	private static function render_list( string $title, string $counts, array $rows, callable $name ): void {
-		$max = max( 1, (int) ( $rows[0]['views'] ?? 1 ) );
+		$max = max( 1, (int) ( $rows[0]['count'] ?? 1 ) );
 		?>
 		<section class="mody-dashboard__list">
 			<h3><span><?php echo esc_html( $title ); ?></span><span><?php echo esc_html( $counts ); ?></span></h3>
@@ -943,9 +1069,9 @@ final class DashboardPage {
 			<?php else : ?>
 				<ol>
 					<?php foreach ( $rows as $row ) : ?>
-						<li style="--mody-share:<?php echo esc_attr( (string) round( 100 * $row['views'] / $max, 1 ) ); ?>%">
+						<li style="--mody-share:<?php echo esc_attr( (string) round( 100 * $row['count'] / $max, 1 ) ); ?>%">
 							<span class="mody-dashboard__list-name"><?php echo esc_html( $name( $row['value'] ) ); ?></span>
-							<span class="mody-dashboard__list-count"><?php echo esc_html( number_format_i18n( $row['views'] ) ); ?></span>
+							<span class="mody-dashboard__list-count"><?php echo esc_html( number_format_i18n( $row['count'] ) ); ?></span>
 						</li>
 					<?php endforeach; ?>
 				</ol>

@@ -17,7 +17,7 @@ By the maintainer on 2026-11-11:
 4. **The tracking plugin is our own MU plugin, `mody-analytics`** (rule 1: no Matomo, no outside service). Like `mody-languages` and `mody-mail`, it stands alone, loaded on every site; the dashboard reads it.
    - **No cookies, nothing stored in the browser, no address kept:** a visitor is counted once a day by a hash of the address, the browser and a salt that changes every day; yesterday's hashes are deleted. No consent banner needed for it (**Inference**: the legal pages, when written, should still mention it).
    - **A tiny script** on the front end sends one beacon per page view to the site's own REST route. Logged-in users, bots and previews are not counted.
-   - **Daily totals only:** views and visitors per site and day, views per page, sources (other sites linking in), devices.
+   - **Daily totals only:** views and visitors per site and day, views per page, sources (other sites linking in), devices. **Replaced on 2026-11-12** by one table of page views under anonymous visits, with journeys, logged-in users counted and a view across a member's sites: [analytics-journeys.md](analytics-journeys.md).
    - **The real address through the proxies:** read from Cloudflare's header only when the request came from a private address (our proxy). The same helper serves the signup's rate limit later.
 5. **Mody's work** comes from the agent's `turn` rows (`Agent\TurnMetrics`, since 2026-11-11), counted per site in three groups:
    - **Design:** pages written or changed (`generate-page`, `edit_content`), designs and styles (`update-design`, `update-styles`);
