@@ -11,7 +11,9 @@ use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\PageOutline;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Site\Menu;
+use Mody\Platform\Site\PagePublisher;
 use Mody\Platform\Site\Settings;
+use Mody\Platform\SiteEditor;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\DTO\ModelMessage;
@@ -93,12 +95,37 @@ final class Agent {
 	public const MAX_SECTIONS = 30;
 
 	/**
+	 * Tools that change what visitors see across the whole site. When the page
+	 * open in the editor was written by someone who could not make these
+	 * changes themselves, they wait for the owner's Apply (foreign_content(),
+	 * security pass 2026-11-12).
+	 */
+	private const SITE_WIDE = array(
+		'mody/publish-page',
+		'mody/update-design',
+		'mody/update-styles',
+		'mody/update-settings',
+		'mody/update-site-settings',
+		'mody/update-menu',
+	);
+
+	/**
 	 * Receives what the agent is doing now, for the chat's progress line
 	 * (ChatController sets it for a job; 2026-11-11).
 	 *
 	 * @var callable|null
 	 */
 	private static $progress = null;
+
+	/**
+	 * Tells whether the job that runs this turn is still wanted (ChatController
+	 * sets it). It turns false when the checker gave the job up as stale: a
+	 * worker that outlived its job then runs no more model steps or tools
+	 * (security pass 2026-11-12, finding `agent-worker-exhaustion`).
+	 *
+	 * @var callable|null
+	 */
+	private static $alive = null;
 
 	/**
 	 * What each ability is doing, for the progress line.
@@ -191,6 +218,9 @@ final class Agent {
 	/** Whether edit_content ran in this turn: one edit per message. */
 	private bool $edited = false;
 
+	/** Whether the open page was written or last changed by someone else without admin rights (foreign_content()). */
+	private ?bool $foreign = null;
+
 	/**
 	 * The abilities run in this turn, as the model called them and with the
 	 * result it got (links removed), for the conversation's next turns.
@@ -268,6 +298,7 @@ final class Agent {
 		if ( '' !== $agent->input ) {
 			AgentEvents::log( $agent->input, TurnMetrics::TOOL, null, (string) wp_json_encode( $metrics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $agent->started );
 		}
+		Budget::settle(); // The turn's row holds its tokens now (the daily budget).
 		return $turn;
 	}
 
@@ -307,6 +338,9 @@ final class Agent {
 		$messages[]   = new UserMessage( array( new MessagePart( $this->input ) ) );
 
 		for ( $step = 1; $step <= self::MAX_STEPS && ! $this->done; $step++ ) {
+			if ( ! self::alive() ) {
+				return $this->fail( 'mody_job_stopped', __( 'This took too long and was stopped. Please try again.', 'mody_cloud' ) );
+			}
 			$result = wp_ai_client_prompt( $messages )
 				->using_system_instruction( $system )
 				->using_provider( 'infomaniak' )
@@ -437,6 +471,14 @@ final class Agent {
 		$args    = is_array( $call->getArgs() ) ? $call->getArgs() : array();
 		$started = microtime( true );
 
+		if ( ! self::alive() ) {
+			AgentEvents::log( $this->input, $name, $args, 'refused: the job was stopped', $started );
+			return array(
+				'error' => 'This request was stopped. Nothing was run.',
+				'code'  => 'mody_job_stopped',
+			);
+		}
+
 		// The model sometimes gives these tools the abilities' prefix (wpab__mody__edit_content,
 		// 5 calls in 6 on 2026-11-08). They are the same tools.
 		$plain = (string) preg_replace( '/^wpab__mody__/', '', $name );
@@ -511,9 +553,12 @@ final class Agent {
 		}
 
 		// Settings that need the owner's confirmation, and a menu that loses an item (decided by the maintainer on 2026-11-11):
-		// the call waits, as made, for Apply or Cancel in the chat. The model cannot confirm.
-		if ( ( 'mody/update-settings' === $ability && Settings::to_confirm( $args ) ) || ( 'mody/update-menu' === $ability && Menu::to_confirm( $args ) ) ) {
-			return $this->hold( $call, $ability, $args, $started, 'confirm' );
+		// the call waits, as made, for Apply or Cancel in the chat. The model cannot confirm. Since the security pass
+		// of 2026-11-12 it also waits for a link to another address added to the menu, and for any change to the whole
+		// site while the open page is someone else's words (confirmation()).
+		$why = $this->confirmation( $ability, $args );
+		if ( null !== $why ) {
+			return $this->hold( $call, $ability, $args, $started, 'confirm', $why );
 		}
 
 		++$this->executed;
@@ -552,6 +597,22 @@ final class Agent {
 	}
 
 	/**
+	 * Sets who tells whether the job is still wanted (null: always).
+	 *
+	 * @param callable|null $check Returns false once the job was given up.
+	 */
+	public static function on_alive( ?callable $check ): void {
+		self::$alive = $check;
+	}
+
+	/**
+	 * Whether the job running this turn is still wanted.
+	 */
+	private static function alive(): bool {
+		return null === self::$alive || (bool) ( self::$alive )();
+	}
+
+	/**
 	 * Says what the agent is doing now, when someone listens.
 	 *
 	 * @param string $text One line for the owner.
@@ -561,6 +622,113 @@ final class Agent {
 			try {
 				( self::$progress )( $text );
 			} catch ( \Throwable $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Progress never stops the work.
+			}
+		}
+	}
+
+	/**
+	 * Whether a call waits for the owner's Apply although it is allowed, and why.
+	 *
+	 * - `tier`: a setting of the confirm tier, or a menu that loses an item
+	 *   (decided by the maintainer on 2026-11-11).
+	 * - `link`: a menu that gains a link to another address, a mail address or a
+	 *   phone number: a changed destination is easy to miss (security pass,
+	 *   2026-11-12).
+	 * - `foreign`: a change to the whole site while the page open in the editor
+	 *   was written by someone who could not make that change (foreign_content()).
+	 *
+	 * @param string               $ability The ability's name.
+	 * @param array<string, mixed> $args    The call's arguments.
+	 * @return string|null The reason, or null when the call runs at once.
+	 */
+	private function confirmation( string $ability, array $args ): ?string {
+		if ( ( 'mody/update-settings' === $ability && Settings::to_confirm( $args ) ) || ( 'mody/update-menu' === $ability && Menu::to_confirm( $args ) ) ) {
+			return 'tier';
+		}
+		if ( 'mody/update-menu' === $ability && self::new_links( $args ) ) {
+			return 'link';
+		}
+		if ( in_array( $ability, self::SITE_WIDE, true ) && $this->foreign_content() ) {
+			return 'foreign';
+		}
+		return null;
+	}
+
+	/**
+	 * Whether the page or post open in the editor was written, or last saved,
+	 * by someone else who could not make the changes the agent's tools make:
+	 * a user without `manage_options` on this site (an invited Editor, Author
+	 * or Contributor) or without any role on it. Its words reach the agent's
+	 * prompt (SystemPrompt::page_view()), so they may try to steer it, and
+	 * the owner who asks Mody about that page has more rights than they do
+	 * (the confused deputy; security pass 2026-11-12, finding
+	 * `agent-prompt-injection-confused-deputy`). While this is true, every
+	 * tool that changes the whole site waits for the owner's Apply, which
+	 * shows the change in words and addresses. Pages written by the owner,
+	 * by an administrator or by a super admin (the starter pages are) do not
+	 * trigger it; neither do templates and parts, which an Editor cannot save.
+	 * The page's author and the author of its latest revision (the last
+	 * person who saved) are checked; text saved earlier by someone else and
+	 * resaved by an administrator is not detected.
+	 */
+	private function foreign_content(): bool {
+		if ( null !== $this->foreign ) {
+			return $this->foreign;
+		}
+		$this->foreign = false;
+		$id            = null === $this->context ? null : ( $this->context['post_id'] ?? null );
+		if ( ! is_int( $id ) || ! in_array( $this->context['post_type'], array( 'page', 'post' ), true ) ) {
+			return false;
+		}
+		$authors   = array( (int) get_post_field( 'post_author', $id ) );
+		$revisions = wp_get_latest_revision_id_and_total_count( $id );
+		if ( ! is_wp_error( $revisions ) && ! empty( $revisions['latest_id'] ) ) {
+			$authors[] = (int) get_post_field( 'post_author', (int) $revisions['latest_id'] );
+		}
+		foreach ( array_unique( $authors ) as $author ) {
+			// An author who no longer exists cannot be steering anything.
+			if ( $author > 0 && get_current_user_id() !== $author && get_userdata( $author ) && ! user_can( $author, 'manage_options' ) ) {
+				$this->foreign = true;
+				break;
+			}
+		}
+		return $this->foreign;
+	}
+
+	/**
+	 * The addresses a menu call adds that the menu does not have now and that
+	 * leave this site: another site, a mail address, a phone number.
+	 *
+	 * @param array<string, mixed> $args The call's arguments (`items`).
+	 * @return string[]
+	 */
+	private static function new_links( array $args ): array {
+		$new = array();
+		self::collect_links( (array) ( $args['items'] ?? array() ), $new );
+		$old = array();
+		self::collect_links( Menu::items(), $old );
+		$known = array_map( static fn( string $url ): string => rtrim( strtolower( $url ), '/' ), $old );
+		return array_values( array_filter( array_unique( $new ), static fn( string $url ): bool => ! in_array( rtrim( strtolower( $url ), '/' ), $known, true ) ) );
+	}
+
+	/**
+	 * Collects the addresses of menu items that leave this site, with their submenus'.
+	 *
+	 * @param array<int, mixed> $items Menu items as the menu tool takes them.
+	 * @param string[]          $urls  Collected here.
+	 */
+	private static function collect_links( array $items, array &$urls ): void {
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$url = isset( $item['url'] ) && is_scalar( $item['url'] ) ? trim( (string) $item['url'] ) : '';
+			if ( '' !== $url && ! str_starts_with( $url, '#' ) && ! ( str_starts_with( $url, '/' ) && ! str_starts_with( $url, '//' ) )
+				&& strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) ) !== strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) ) ) {
+				$urls[] = $url;
+			}
+			if ( is_array( $item['children'] ?? null ) ) {
+				self::collect_links( $item['children'], $urls );
 			}
 		}
 	}
@@ -582,7 +750,10 @@ final class Agent {
 		$scope       = in_array( $scope, array( 'selection', 'content' ), true ) ? $scope : ( $selected ? 'selection' : 'content' );
 
 		$error = null;
-		if ( $this->edited ) {
+		$over  = Budget::check(); // The daily allowance: an edit is one or many model runs.
+		if ( $over ) {
+			$error = array( $over->get_error_code(), $over->get_error_message() );
+		} elseif ( $this->edited ) {
 			$error = array( 'mody_one_edit', 'One change per message: the editor already shows a change. Tell the owner what changed.' );
 		} elseif ( $this->executed >= self::MAX_TOOL_CALLS ) {
 			$error = array( 'mody_tool_limit', 'Tool call limit reached for this message. Tell the owner what was done so far.' );
@@ -789,9 +960,11 @@ final class Agent {
 	 * @param string               $ability The ability's name.
 	 * @param array<string, mixed> $args    The call's arguments.
 	 * @param float                $started When the call started (microtime).
+	 * @param string               $kind    `unsaved` (the owner has unsaved changes) or `confirm`.
+	 * @param string               $why     For `confirm`: `tier`, `link` or `foreign` (confirmation()).
 	 * @return array<string, mixed> What the model gets back.
 	 */
-	private function hold( FunctionCall $call, string $ability, array $args, float $started, string $kind = 'unsaved' ): array {
+	private function hold( FunctionCall $call, string $ability, array $args, float $started, string $kind = 'unsaved', string $why = 'tier' ): array {
 		if ( isset( $this->turn['decision'] ) ) {
 			AgentEvents::log( $this->input, $ability, $args, 'refused: a change already waits for the owner', $started );
 			return array(
@@ -817,7 +990,15 @@ final class Agent {
 			return $response;
 		}
 
-		$record = self::REFRESH[ $ability ];
+		// A page named by its title is held by its ID: what the owner reads in the reply is what Apply publishes.
+		if ( 'mody/publish-page' === $ability ) {
+			$page = self::publish_target( $args );
+			if ( $page ) {
+				$args = array( 'page_id' => $page->ID );
+			}
+		}
+
+		$record = self::REFRESH[ $ability ] ?? ''; // Publishing has no record the editor keeps a copy of.
 		$held   = array(
 			'id'      => wp_generate_uuid4(),
 			'ability' => $ability,
@@ -841,7 +1022,7 @@ final class Agent {
 			/* translators: %s: the change, such as "search_engines_visible false". */
 			__( 'This change needs your confirmation before I make it: %s. Shall I apply it?', 'mody_cloud' ),
 			self::describe( $ability, $args )
-		) : sprintf(
+		) . ( 'foreign' === $why ? ' ' . __( 'The page you have open was written by someone else, so I do not change the site because of it without asking you first.', 'mody_cloud' ) : '' ) : sprintf(
 			/* translators: 1: "the styles" or "the site settings", 2: the change, such as "primary color #2e8b57". */
 			__( 'You have unsaved changes to %1$s in the editor, so I have not made this change yet: %2$s. What should I do with your changes first?', 'mody_cloud' ),
 			'site' === $record ? __( 'the site settings', 'mody_cloud' ) : ( 'navigation' === $record ? __( 'the menu', 'mody_cloud' ) : __( 'the styles', 'mody_cloud' ) ),
@@ -865,46 +1046,203 @@ final class Agent {
 	}
 
 	/**
-	 * A short description of a held change, for the owner.
+	 * A short description of a held change, for the owner. It says what will
+	 * really happen: the owner reads it to decide on Apply (security pass,
+	 * 2026-11-12), and the words of a held call may come from a page someone
+	 * else wrote. Every ability that can be held (SITE_WIDE) has its own text;
+	 * the last resort names the area, never another one.
 	 *
 	 * @param string               $ability The ability's name.
 	 * @param array<string, mixed> $args    The call's arguments.
 	 */
 	private static function describe( string $ability, array $args ): string {
 		$parts = array();
-		if ( 'mody/update-design' === $ability ) {
+		if ( 'mody/publish-page' === $ability ) {
+			return self::describe_publish( $args );
+		} elseif ( 'mody/update-design' === $ability ) {
 			if ( isset( $args['preset'] ) ) {
 				/* translators: %s: a design preset, such as "Forest". */
-				$parts[] = sprintf( __( 'the %s preset', 'mody_cloud' ), ucfirst( (string) $args['preset'] ) );
+				$parts[] = sprintf( __( 'the %s preset', 'mody_cloud' ), ucfirst( self::shown( (string) $args['preset'], 40 ) ) );
 			}
 			foreach ( array( 'primary', 'secondary', 'accent' ) as $slug ) {
 				if ( isset( $args[ $slug ] ) ) {
 					/* translators: 1: primary, secondary or accent, 2: a hex color. */
-					$parts[] = sprintf( __( '%1$s color %2$s', 'mody_cloud' ), $slug, strtolower( (string) $args[ $slug ] ) );
+					$parts[] = sprintf( __( '%1$s color %2$s', 'mody_cloud' ), $slug, strtolower( self::shown( (string) $args[ $slug ], 20 ) ) );
 				}
 			}
+		} elseif ( 'mody/update-styles' === $ability ) {
+			$parts = self::describe_styles( $args );
 		} elseif ( 'mody/update-settings' === $ability ) {
 			foreach ( (array) ( $args['changes'] ?? array() ) as $name => $value ) {
-				$shown   = is_bool( $value ) ? ( $value ? 'true' : 'false' ) : ( is_array( $value ) ? implode( ', ', array_map( 'strval', array_filter( $value, 'is_scalar' ) ) ) : (string) $value );
+				$shown = is_bool( $value ) ? ( $value ? 'true' : 'false' ) : ( is_array( $value ) ? implode( ', ', array_map( 'strval', array_filter( $value, 'is_scalar' ) ) ) : ( is_scalar( $value ) ? (string) $value : '' ) );
 				/* translators: 1: a setting's name, 2: its new value. */
 				$parts[] = sprintf( __( '%1$s → "%2$s"', 'mody_cloud' ), sanitize_key( (string) $name ), mb_strimwidth( sanitize_text_field( $shown ), 0, 120, '…' ) );
 			}
 		} elseif ( 'mody/update-menu' === $ability ) {
-			$labels = array();
-			foreach ( (array) ( $args['items'] ?? array() ) as $item ) {
-				$labels[] = is_array( $item ) ? (string) ( $item['label'] ?? $item['page'] ?? '' ) : (string) $item;
-			}
+			$labels = self::menu_labels( (array) ( $args['items'] ?? array() ) );
 			/* translators: %s: the menu's items, such as "Home, About, Contact". */
-			$parts[] = sprintf( __( 'the menu becomes: %s', 'mody_cloud' ), mb_strimwidth( sanitize_text_field( implode( ', ', array_filter( $labels ) ) ), 0, 200, '…' ) );
+			$parts[] = sprintf( __( 'the menu becomes: %s', 'mody_cloud' ), mb_strimwidth( sanitize_text_field( implode( ', ', $labels ) ), 0, 300, '…' ) );
+			// The addresses of links that leave the site are shown in full (security pass, 2026-11-12): a changed destination is easy to miss.
+			$links = array_map( static fn( string $url ): string => mb_strimwidth( sanitize_text_field( $url ), 0, 200, '…' ), array_slice( self::new_links( $args ), 0, 5 ) );
+			if ( $links ) {
+				/* translators: %s: addresses, such as "https://example.com". */
+				$parts[] = sprintf( __( 'new links to: %s', 'mody_cloud' ), implode( ', ', $links ) );
+			}
 		} elseif ( 'mody/update-site-settings' === $ability ) {
 			foreach ( array( 'title', 'tagline', 'mission', 'tone' ) as $field ) {
-				if ( isset( $args[ $field ] ) ) {
+				if ( isset( $args[ $field ] ) && is_scalar( $args[ $field ] ) ) {
 					/* translators: 1: title, tagline, mission or tone, 2: the new value. */
 					$parts[] = sprintf( __( '%1$s "%2$s"', 'mody_cloud' ), $field, mb_strimwidth( sanitize_text_field( (string) $args[ $field ] ), 0, 120, '…' ) );
 				}
 			}
 		}
-		return $parts ? implode( ', ', $parts ) : ( 'mody/update-settings' === $ability ? __( 'a change to the site\'s settings', 'mody_cloud' ) : __( 'a change to the site\'s styles', 'mody_cloud' ) );
+		if ( $parts ) {
+			return implode( ', ', $parts );
+		}
+		switch ( $ability ) {
+			case 'mody/update-settings':
+				return __( 'a change to the site\'s settings', 'mody_cloud' );
+			case 'mody/update-site-settings':
+				return __( 'a change to the site\'s identity (title, tagline, mission or tone)', 'mody_cloud' );
+			case 'mody/update-design':
+			case 'mody/update-styles':
+				return __( 'a change to the site\'s styles', 'mody_cloud' );
+			case 'mody/update-menu':
+				return __( 'a change to the site\'s menu', 'mody_cloud' );
+		}
+		return __( 'a change to the site', 'mody_cloud' );
+	}
+
+	/**
+	 * Text from the model or a page, as the owner reads it in a reply: no angle
+	 * brackets (the title `<b>x</b>` is shown as `‹b›x‹/b›`), one line, cut.
+	 *
+	 * @param string $text  The text.
+	 * @param int    $width The most characters shown.
+	 */
+	private static function shown( string $text, int $width = 120 ): string {
+		$text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$text = str_replace( array( '<', '>' ), array( '‹', '›' ), $text );
+		return mb_strimwidth( trim( (string) preg_replace( '/[\s\x00-\x1f\x7f]+/u', ' ', $text ) ), 0, $width, '…' );
+	}
+
+	/**
+	 * The page a publish-page call names, found the way the ability finds it:
+	 * a draft with the title first, then any page with it.
+	 *
+	 * @param array<string, mixed> $args page_id or page_title.
+	 */
+	private static function publish_target( array $args ): ?\WP_Post {
+		$page_id = (int) ( $args['page_id'] ?? 0 );
+		$title   = sanitize_text_field( (string) ( $args['page_title'] ?? '' ) );
+		if ( ! $page_id && '' === $title ) {
+			return null;
+		}
+		$page = SiteEditor::find_page( $page_id, $title, PagePublisher::PUBLISHABLE );
+		if ( is_wp_error( $page ) && 'mody_page_not_found' === $page->get_error_code() && ! $page_id ) {
+			$any  = SiteEditor::find_page( 0, $title );
+			$page = is_wp_error( $any ) ? $page : $any;
+		}
+		return is_wp_error( $page ) ? null : $page;
+	}
+
+	/**
+	 * What a held publish-page call will publish: the page's title and ID, the
+	 * words an owner needs to see before they apply it.
+	 *
+	 * @param array<string, mixed> $args page_id or page_title.
+	 */
+	private static function describe_publish( array $args ): string {
+		$page = self::publish_target( $args );
+		if ( $page ) {
+			/* translators: 1: a page's title, 2: its ID. */
+			return sprintf( __( 'publish the page "%1$s" (ID %2$d)', 'mody_cloud' ), self::shown( get_the_title( $page ) ), $page->ID );
+		}
+		$page_id = (int) ( $args['page_id'] ?? 0 );
+		$title   = self::shown( (string) ( $args['page_title'] ?? '' ) );
+		if ( $page_id ) {
+			/* translators: %d: a page's ID. */
+			return sprintf( __( 'publish page %d, which I cannot find', 'mody_cloud' ), $page_id );
+		}
+		if ( '' !== $title ) {
+			/* translators: %s: a page's title. */
+			return sprintf( __( 'publish a page titled "%s", which I cannot find', 'mody_cloud' ), $title );
+		}
+		return __( 'publish a page', 'mody_cloud' );
+	}
+
+	/**
+	 * What a held update-styles call changes: each path with its new value, or
+	 * the number of entries for a list (a palette).
+	 *
+	 * @param array<string, mixed> $args `changes`: a partial theme.json.
+	 * @return list<string> At most eight paths, then "and N more".
+	 */
+	private static function describe_styles( array $args ): array {
+		$changes = $args['changes'] ?? null;
+		if ( is_string( $changes ) ) {
+			$changes = json_decode( $changes, true );
+		}
+		if ( ! is_array( $changes ) ) {
+			return array();
+		}
+		$paths = array();
+		self::style_paths( $changes, '', $paths );
+		$more = count( $paths ) - 8;
+		$paths = array_slice( $paths, 0, 8 );
+		if ( $more > 0 ) {
+			/* translators: %d: how many more changes there are. */
+			$paths[] = sprintf( __( 'and %d more', 'mody_cloud' ), $more );
+		}
+		return $paths;
+	}
+
+	/**
+	 * Flattens a partial theme.json into "path → value" lines, to a depth of eight.
+	 *
+	 * @param array<int|string, mixed> $node  The changes at this level.
+	 * @param string                   $path  The path so far.
+	 * @param list<string>             $paths Collected here, at most 60.
+	 * @param int                      $depth How deep it is.
+	 */
+	private static function style_paths( array $node, string $path, array &$paths, int $depth = 0 ): void {
+		foreach ( $node as $key => $value ) {
+			if ( count( $paths ) >= 60 ) {
+				return;
+			}
+			$here = '' === $path ? self::shown( (string) $key, 60 ) : $path . '.' . self::shown( (string) $key, 60 );
+			if ( is_array( $value ) && array_is_list( $value ) ) {
+				/* translators: 1: a path in the styles, such as "settings.color.palette", 2: how many entries it gets. */
+				$paths[] = sprintf( _n( '%1$s (%2$d entry)', '%1$s (%2$d entries)', count( $value ), 'mody_cloud' ), $here, count( $value ) );
+			} elseif ( is_array( $value ) && $value && $depth < 8 ) {
+				self::style_paths( $value, $here, $paths, $depth + 1 );
+			} else {
+				$text = is_bool( $value ) ? ( $value ? 'true' : 'false' ) : ( is_scalar( $value ) ? (string) $value : '' );
+				/* translators: 1: a path in the styles, such as "styles.color.background", 2: its new value. */
+				$paths[] = sprintf( __( '%1$s → "%2$s"', 'mody_cloud' ), $here, self::shown( $text, 60 ) );
+			}
+		}
+	}
+
+	/**
+	 * The labels of a menu call's items, submenus in parentheses.
+	 *
+	 * @param array<int, mixed> $items Menu items as the menu tool takes them.
+	 * @return list<string>
+	 */
+	private static function menu_labels( array $items ): array {
+		$labels = array();
+		foreach ( array_slice( $items, 0, 40 ) as $item ) {
+			$label = is_array( $item ) ? ( $item['label'] ?? $item['page'] ?? '' ) : $item;
+			$label = is_scalar( $label ) ? (string) $label : '';
+			if ( is_array( $item ) && is_array( $item['children'] ?? null ) && $item['children'] ) {
+				$label .= ' (' . implode( ', ', self::menu_labels( $item['children'] ) ) . ')';
+			}
+			if ( '' !== trim( $label ) ) {
+				$labels[] = $label;
+			}
+		}
+		return $labels;
 	}
 
 	/**
@@ -972,7 +1310,9 @@ final class Agent {
 			$agent->turn['reply'] = sprintf( __( 'The change could not be made: %s', 'mody_cloud' ), $result->get_error_message() );
 		} else {
 			$response                 = $agent->take_link( $result );
-			$agent->turn['refresh'][] = (string) $held['record'];
+			if ( '' !== (string) $held['record'] ) {
+				$agent->turn['refresh'][] = (string) $held['record'];
+			}
 			$agent->turn['reply']     = __( 'Done: the change is made.', 'mody_cloud' );
 		}
 		$agent->turn['actions'] = array_values( array_column( $agent->turn['actions'], null, 'url' ) );

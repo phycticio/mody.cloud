@@ -84,6 +84,27 @@ final class HiddenScreens {
 	}
 
 	/**
+	 * Hooked to `admin_notices` (first): the `ai` plugin's "a plugin or theme
+	 * is requesting access to an AI connector" notice links to the connector
+	 * approvals screen, which nobody has (AI_SCREENS), so it is removed.
+	 * Requests stay recorded; WP-CLI still manages them.
+	 */
+	public static function hide_notices(): void {
+		global $wp_filter;
+		if ( ! isset( $wp_filter['admin_notices'] ) ) {
+			return;
+		}
+		foreach ( $wp_filter['admin_notices']->callbacks as $priority => $callbacks ) {
+			foreach ( $callbacks as $callback ) {
+				$function = $callback['function'] ?? null;
+				if ( is_array( $function ) && is_object( $function[0] ) && 'WordPress\\AI\\Connector_Approval\\Admin_Notice' === get_class( $function[0] ) ) {
+					remove_action( 'admin_notices', $function, $priority );
+				}
+			}
+		}
+	}
+
+	/**
 	 * Hooked to `wp_dashboard_setup` (late): the `ai` plugin's status widget,
 	 * whose checklist links to the Connectors screen. AiPlugin::hide_widgets()
 	 * removed it for members before; now nobody has that screen.

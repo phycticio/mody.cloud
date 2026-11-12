@@ -42,6 +42,7 @@ final class Portable {
 		'Login/LoginPage.php',
 		'Login/Schemes.php',
 		'Login/SettingsPage.php',
+		'Media/ImageSize.php',
 		'Security/AntispamBee.php',
 		'Site/Seo.php',
 		'Spectra/SpectraGuard.php',

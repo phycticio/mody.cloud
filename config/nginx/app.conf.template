@@ -2,6 +2,24 @@ map $host $site_proxy_host {
     default ${PROXY_NAME};
 }
 
+# Frame protection: a page may be framed by its own site only (the Site Editor's
+# canvas and the wizard's preview are same-origin frames). WordPress embeds
+# (/post/embed/ and ?embed=true) exist to be framed by other sites, so they are
+# the one exception; an empty value means "send no header".
+map $request_uri $mody_frame_options {
+    default SAMEORIGIN;
+    "~*(?:/embed/?(?:\?|$)|[?&]embed=)" "";
+}
+
+# HSTS only when this Nginx itself ended the TLS connection. A request that
+# came through a proxy (X-Forwarded-Proto is set) is the proxy's to protect: in
+# production TLS ends at Nginx Proxy Manager, which owns the policy (and its
+# includeSubDomains and preload choices), so this one stays silent there.
+map "$scheme:$http_x_forwarded_proto" $mody_hsts {
+    default "";
+    "~^https:$" "max-age=31536000";
+}
+
 ${NGINX_HTTP_REDIRECT_SERVER}
 
 server {
@@ -10,13 +28,28 @@ server {
 
     ${NGINX_APP_SSL_DIRECTIVES}
 
-    client_max_body_size 1024M;
+    # Security hardening (documentation/architecture.md#security-hardening).
+    # Headers set here are not inherited by a location that sets its own
+    # add_header (only the export location below does).
+    server_tokens off;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options $mody_frame_options always;
+    add_header Strict-Transport-Security $mody_hsts always;
+    fastcgi_hide_header X-Powered-By;
+
+    # Request bodies are small everywhere except the upload endpoints below.
+    # Nginx checks this limit in the location a request ends in (after every
+    # rewrite), so an endpoint that takes big files needs a location of its own
+    # that ends in PHP: see "Uploads".
+    client_max_body_size 32M;
 
     root /var/www/html;
     index index.php index.html index.htm;
 
     # Redirects carry no scheme or host: behind the proxies this server sees
-    # http, while visitors use https.
+    # http, while visitors use https. The one redirect that names a host, the
+    # /wp prefix below, hard-codes https.
     absolute_redirect off;
 
     # No address carries /wp (2026-11-10): core lives in app/wp, but every
@@ -24,20 +57,73 @@ server {
     # core from the root. An old /wp/... link goes to the same address without
     # it. 308 keeps the method, for a login form posted to /wp/wp-login.php.
     # $request_uri is what the browser asked for, so the internal rewrites
-    # into /wp/ below never match it.
-    if ($request_uri ~ "^/wp(?:/(?<wp_rest>[^?]*))?(?<wp_query>\?.*)?$") {
-        return 308 /$wp_rest$wp_query;
+    # into /wp/ below never match it. The redirect names the host: a relative
+    # "Location: //evil.example" (from /wp//evil.example) would leave the site,
+    # while https://$host//evil.example stays on it. Case does not matter:
+    # the document root may be a case-insensitive disk (see "Which files are
+    # served").
+    if ($request_uri ~* "^/wp(?:/(?<wp_rest>[^?]*))?(?<wp_query>\?.*)?$") {
+        return 308 https://$host/$wp_rest$wp_query;
     }
 
+    # xmlrpc.php is not rewritten: nothing uses XML-RPC (the editors use REST),
+    # and it would be a password-guessing door that skips ALTCHA.
     rewrite ^/(wp-admin|wp-includes)/(.*)$ /wp/$1/$2 last;
-    rewrite ^/(wp-[^/]+\.php|xmlrpc\.php)$ /wp/$1 last;
+    rewrite ^/(wp-[^/]+\.php)$ /wp/$1 last;
     rewrite ^/wp-admin$ /wp-admin/ permanent;
 
+    # ----------------------------------------------------------------------
+    # Which files are served
+    #
     # The document root is app/, which also holds files that must never be
     # served: Composer credentials (auth.json) and metadata, the vendor
-    # directory, logs and database dumps. Regex locations match in order, so
-    # these come before the PHP handler below.
-    location ~ ^/(auth\.json|composer\.(json|lock)|vendor/|logs/|dumps/) {
+    # directory, logs, database dumps, wp-config.php and, after a crash, core
+    # dumps. The disk can be case-insensitive (production is a Mac behind
+    # Colima's sshfs mount, where /Logs/debug.log is the file /logs/debug.log),
+    # so a rule that matches only the lowercase name is not a rule: every one of
+    # them below is case-insensitive (~*).
+    #
+    # Two layers. First, a deny list for what is known to be sensitive. Then an
+    # allow-list: only the folders in "Static files" below are ever served from
+    # disk, and every other address, including a file that exists under app/,
+    # goes to WordPress, which answers a page or a 404. Regex locations match in
+    # order, so the denies come first, then PHP, then the static files.
+    # ----------------------------------------------------------------------
+
+    # XML-RPC and trackbacks: not used, so not served. Both the original and the
+    # rewritten (/wp/...) address.
+    location ~* ^/(?:wp/)?(?:xmlrpc|wp-trackback)\.php$ {
+        return 404;
+    }
+
+    # Composer credentials and metadata, the vendor directory, logs, dumps.
+    location ~* ^/(?:auth\.json|composer\.(?:json|lock)|vendor/|logs/|dumps/) {
+        deny all;
+    }
+
+    # Files by name, wherever they are: wp-config.php, Composer and npm
+    # metadata, and what editors, backups and database tools leave behind.
+    location ~* (?:\.(?:sql|sql\.gz|log|bak|dump|orig|old|swp|save|md|ya?ml|sh)|~|/wp-config(?:-sample)?\.php|/composer\.(?:json|lock)|/package(?:-lock)?\.json|/pnpm-lock\.yaml|/yarn\.lock)$ {
+        deny all;
+    }
+
+    # Core dumps: a crashed process writes a file called core (or core.<pid>)
+    # into its working directory, and it holds the container's whole
+    # environment. compose.yml stops them; this is for the one that gets
+    # through. Only inside the served folders: /core on its own is a WordPress
+    # address, and a page may be called that.
+    location ~* ^/(?:web|dist|assets|wp)/(?:.*/)?core(?:\.[0-9]+)?$ {
+        deny all;
+    }
+
+    # The text files plugins and themes ship (readme.txt, license.txt,
+    # changelog.md, LICENSE): they tell anyone the exact version of each plugin.
+    location ~* ^/web/(?:plugins|mu-plugins|themes)/(?:.*/)?(?:readme|licen[cs]es?|changelog|changes|copying|authors|notice|contributing|upgrade|security)(?:[-_][a-z0-9_-]+)?(?:\.(?:txt|md|html?|rst))?$ {
+        deny all;
+    }
+
+    # Archives next to code and built assets (uploads may hold zips, so not there).
+    location ~* ^/(?:web/(?:plugins|mu-plugins|themes)|dist|assets)/.*\.(?:zip|tar|t?gz|bz2|7z|rar)$ {
         deny all;
     }
 
@@ -47,7 +133,7 @@ server {
     }
 
     # Never execute PHP from the uploads directory.
-    location ~* ^/web/uploads/.*\.php {
+    location ~* ^/web/uploads/.*\.(?:php[0-9]*|phtml|phar|pht|phps) {
         deny all;
     }
 
@@ -69,8 +155,57 @@ server {
         add_header X-Robots-Tag noindex always;
     }
 
-    location / {
-        try_files $uri $uri/ /index.php?$args;
+    # ----------------------------------------------------------------------
+    # PHP
+    #
+    # Only these run: the front controller (index.php), core (/wp/..., where
+    # the rewrites above send wp-login.php, wp-admin and the rest) and the code
+    # folders. Any other .php address (wp-config.php, files in vendor, assets,
+    # dist or web/, in any letter case) is a 404, so it is never served as text
+    # and never run.
+    # ----------------------------------------------------------------------
+    location ~* ^/(?!index\.php$|wp/|web/(?:plugins|mu-plugins|themes)/).*\.php$ {
+        return 404;
+    }
+
+    # Uploads: the only places that take big bodies (a member's media, up to
+    # PHP's 1 GB per file; the site's quota is 3 GB). Each one is a PHP location
+    # of its own, because the limit is read in the location a request ends in.
+    # Keep the PHP parameters the same as in the main PHP location below.
+    #
+    # The classic uploader and the media modal: async-upload.php (media-new.php
+    # takes the browser uploader's form).
+    location ~* ^/wp/wp-admin/(?:async-upload|media-new)\.php$ {
+        client_max_body_size 1024M;
+        try_files $uri =404;
+        fastcgi_pass wordpress:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param MODY_EXPORT_ACCEL 1;
+
+        fastcgi_buffer_size 32k;
+        fastcgi_buffers 16 16k;
+        fastcgi_busy_buffers_size 64k;
+    }
+
+    # The block editor's uploads and the Font Library's font files: REST routes,
+    # which WordPress answers from index.php. An optional language prefix
+    # (/es/wp-json/...) is allowed. The same routes asked as /?rest_route=... (a
+    # site with plain permalinks, which no Mody site has by default) end in
+    # index.php and keep the 32M limit: files over 32 MB need pretty permalinks.
+    location ~* "^(?:/[a-z]{2,3}(?:-[a-z0-9]+)?)?/wp-json/wp/v2/(?:media|font-families)(?:/|$)" {
+        client_max_body_size 1024M;
+        fastcgi_pass wordpress:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param MODY_EXPORT_ACCEL 1;
+
+        fastcgi_buffer_size 32k;
+        fastcgi_buffers 16 16k;
+        fastcgi_busy_buffers_size 64k;
     }
 
     location ~ \.php$ {
@@ -84,5 +219,31 @@ server {
         fastcgi_buffer_size 32k;
         fastcgi_buffers 16 16k;
         fastcgi_busy_buffers_size 64k;
+    }
+
+    # A .php address in any other letter case (index.PHP, wp-login.Php): the
+    # case-sensitive location above did not take it, so it is refused here
+    # instead of falling through to the static files and being served as text.
+    location ~* \.php$ {
+        return 404;
+    }
+
+    # ----------------------------------------------------------------------
+    # Static files: the allow-list
+    #
+    # The only folders served from disk: uploads, plugins, mu-plugins and
+    # themes under web/, the built assets (dist), the legacy assets folder, and
+    # core's wp-admin and wp-includes (reached through the rewrites above). A
+    # directory address runs its index.php (wp-admin/).
+    # ----------------------------------------------------------------------
+    location ~* ^/(?:web/(?:uploads|plugins|mu-plugins|themes)|dist|assets|wp/wp-admin|wp/wp-includes)/ {
+        try_files $uri $uri/ =404;
+    }
+
+    # Everything else is WordPress's: pages, the REST API, /es/..., /mody-avatar/,
+    # /mody-placeholder/, robots.txt, the sitemaps, /.well-known/ and 404s. An
+    # existing file outside the folders above is never served.
+    location / {
+        rewrite ^ /index.php last;
     }
 }

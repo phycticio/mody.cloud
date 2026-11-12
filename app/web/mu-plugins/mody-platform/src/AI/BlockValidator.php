@@ -148,6 +148,31 @@ final class BlockValidator {
 	/** Attributes that name a link target. Plain links are allowed; scripts and data are not. */
 	private const LINK_KEYS = array( 'linkURL', 'linkUrl', 'href' );
 
+	/** Attribute names that hold an address (`url`, `textLinkHref`, `mediaLink`, `src`…): never a script. */
+	private const ADDRESS_KEY = '/(?:url|href|link|src|uri)$/i';
+
+	/**
+	 * The schemes a link may use: the web, mail and phone, and the harmless app
+	 * schemes a business site links to (a text message, WhatsApp, Skype, Viber,
+	 * a map position, a calendar feed, an FTP download). An address with another
+	 * scheme is refused, unless the markup being edited already had it
+	 * (`$kept_links`).
+	 */
+	private const LINK_SCHEMES = array( 'http', 'https', 'mailto', 'tel', 'sms', 'whatsapp', 'skype', 'viber', 'geo', 'webcal', 'ftp' );
+
+	/**
+	 * The links the original markup of an edit already has, whose scheme is not
+	 * in LINK_SCHEMES (a `steam:` or `facetime:` link the member put there):
+	 * normalized address => true. An edit that touches such a block keeps them.
+	 * Set by validate() for the length of the call; script schemes are never in it.
+	 *
+	 * @var array<string, true>
+	 */
+	private static array $kept_links = array();
+
+	/** Schemes that run code or carry a page of their own: refused in every address. */
+	private const SCRIPT_SCHEMES = array( 'javascript', 'vbscript', 'data', 'livescript' );
+
 	/** Attributes that choose a Spectra block's HTML element. */
 	private const TAG_KEYS = array( 'tagName', 'htmlTag', 'headerElement' );
 
@@ -318,6 +343,24 @@ final class BlockValidator {
 	 *                       with a message the model can act on in a retry.
 	 */
 	public static function validate( string $markup, string $original = '', bool $template = false ): true|WP_Error {
+		// A link the member's own markup already carries is not the model's to refuse (security pass, 2026-11-12).
+		self::$kept_links = '' === trim( $original ) ? array() : self::links_of( parse_blocks( $original ) );
+		try {
+			return self::validate_markup( $markup, $original, $template );
+		} finally {
+			self::$kept_links = array();
+		}
+	}
+
+	/**
+	 * What validate() checks, with `$kept_links` set.
+	 *
+	 * @param string $markup   The markup, exactly as it would be saved.
+	 * @param string $original For an edit: the markup before it. '' for new content.
+	 * @param bool   $template Whether the markup is a template or template part.
+	 * @return true|WP_Error
+	 */
+	private static function validate_markup( string $markup, string $original, bool $template ): true|WP_Error {
 		if ( '' === trim( $markup ) ) {
 			return self::error( 'The response is empty.' );
 		}
@@ -640,8 +683,15 @@ final class BlockValidator {
 					return $result;
 				}
 			}
-			if ( is_string( $key ) && in_array( $key, self::LINK_KEYS, true ) && preg_match( '/^\s*(?:javascript|data|vbscript):/i', $value ) ) {
+			// The validator does not lean on kses: a super admin saves without it (security pass, 2026-11-12).
+			if ( is_string( $key ) && ( ( in_array( $key, self::LINK_KEYS, true ) && self::bad_link( $value ) ) || ( preg_match( self::ADDRESS_KEY, $key ) && self::script_address( $value ) ) ) ) {
 				return self::error( sprintf( 'The link "%s" of %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', $key_path, $name ) );
+			}
+			if ( ! str_starts_with( $name, 'spectra/' ) && str_contains( $value, '<' ) ) {
+				$result = self::check_markup_safety( $name, $value ); // HTML in an attribute (Spectra blocks go through check_html()).
+				if ( true !== $result ) {
+					return $result;
+				}
 			}
 			$result = self::check_preset_references( $value, $palette, $name );
 			if ( true !== $result ) {
@@ -731,6 +781,12 @@ final class BlockValidator {
 	 * @return true|WP_Error
 	 */
 	private static function check_html( string $name, string $html, array $palette ): true|WP_Error {
+		// No event handlers and no script addresses, whatever kses would do later.
+		$result = self::check_markup_safety( $name, $html );
+		if ( true !== $result ) {
+			return $result;
+		}
+
 		// Inline styles: no color literals, and color properties only through palette variables.
 		preg_match_all( '/\sstyle\s*=\s*(["\'])(.*?)\1/is', $html, $styles );
 		foreach ( $styles[2] as $style ) {
@@ -771,8 +827,8 @@ final class BlockValidator {
 		// Links: no scripts or data.
 		preg_match_all( '/\shref\s*=\s*(["\'])(.*?)\1/is', $html, $hrefs );
 		foreach ( $hrefs[2] as $href ) {
-			if ( preg_match( '/^\s*(?:javascript|data|vbscript):/i', html_entity_decode( $href ) ) ) {
-				return self::error( sprintf( 'The link "%s" in %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', $href, $name ) );
+			if ( self::bad_link( $href ) ) {
+				return self::error( sprintf( 'The link "%s" in %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', self::excerpt( $href, 0 ), $name ) );
 			}
 		}
 
@@ -803,6 +859,169 @@ final class BlockValidator {
 		}
 
 		return true;
+	}
+
+	/**
+	 * No event-handler attribute (`onclick`, `onerror`, `onmouseover`…) on any
+	 * element of a piece of HTML, and no link whose address is a script, however
+	 * it is written. The HTML tag processor reads the tags the way a browser does,
+	 * so `<p/onclick=…>` and `<a href="java&#09;script:…">` do not slip by.
+	 *
+	 * @param string $name Block name, for messages.
+	 * @param string $html The block's own HTML, or HTML held in one of its attributes.
+	 * @return true|WP_Error
+	 */
+	private static function check_markup_safety( string $name, string $html ): true|WP_Error {
+		if ( ! str_contains( $html, '<' ) ) {
+			return true;
+		}
+		$processor = new \WP_HTML_Tag_Processor( $html );
+		while ( $processor->next_tag() ) {
+			foreach ( (array) $processor->get_attribute_names_with_prefix( 'on' ) as $attribute ) {
+				return self::error( sprintf( 'The %1$s block has the event attribute "%2$s" on <%3$s>. Scripts and event handlers are not allowed: write plain HTML.', $name, $attribute, strtolower( (string) $processor->get_tag() ) ) );
+			}
+			$href = $processor->get_attribute( 'href' ); // Decoded the way a browser decodes it.
+			if ( is_string( $href ) && self::bad_link( $href ) ) {
+				return self::error( sprintf( 'The link "%s" in %s is not allowed. Links are pages of this site, #anchors, mailto:, tel: or https:// addresses.', self::excerpt( $href, 0 ), $name ) );
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * An address as a browser reads its scheme: character references decoded
+	 * (numeric ones also without the closing semicolon, which browsers accept),
+	 * then every tab, newline, other control character and space removed (a
+	 * browser drops tabs and newlines inside the address and trims the rest), in
+	 * lower case. `java&#09;script:alert(1)` becomes `javascript:alert(1)`.
+	 *
+	 * @param string $address The address as written.
+	 */
+	private static function normalize_address( string $address ): string {
+		$previous = null;
+		for ( $pass = 0; $pass < 3 && $previous !== $address; $pass++ ) {
+			$previous = $address;
+			$address  = (string) preg_replace_callback(
+				'/&#(?:x([0-9a-f]{1,6})|([0-9]{1,7}));?/i',
+				static function ( array $match ): string {
+					$code = '' !== ( $match[1] ?? '' ) ? (int) hexdec( $match[1] ) : (int) ( $match[2] ?? 0 );
+					return $code > 0 && $code < 0x110000 && ( $code < 0xD800 || $code > 0xDFFF ) ? (string) mb_chr( $code, 'UTF-8' ) : '';
+				},
+				$address
+			);
+			$address  = html_entity_decode( $address, ENT_QUOTES | ENT_HTML5, 'UTF-8' ); // Named ones: &colon; &Tab; &NewLine;.
+		}
+		return strtolower( (string) preg_replace( '/[\x00-\x20\x7f]+/', '', $address ) );
+	}
+
+	/**
+	 * The scheme of an address (`https`, `javascript`), or '' for a path, an
+	 * anchor or a query.
+	 *
+	 * @param string $address The address as written.
+	 */
+	private static function scheme_of( string $address ): string {
+		return preg_match( '/^([a-z][a-z0-9+.\-]*):/', self::normalize_address( $address ), $match ) ? $match[1] : '';
+	}
+
+	/**
+	 * Whether an address runs code or carries a page: javascript:, vbscript:,
+	 * data: and the like, however they are spelled.
+	 *
+	 * @param string $address The address as written.
+	 */
+	private static function script_address( string $address ): bool {
+		return in_array( self::scheme_of( $address ), self::SCRIPT_SCHEMES, true );
+	}
+
+	/**
+	 * Whether a link's address is not one a page may carry: a scheme that is not
+	 * in LINK_SCHEMES, unless the original markup of an edit already has that
+	 * very address (and it is not a script). Paths, #anchors and queries have no
+	 * scheme.
+	 *
+	 * @param string $address The address as written.
+	 */
+	private static function bad_link( string $address ): bool {
+		$scheme = self::scheme_of( $address );
+		if ( '' === $scheme || in_array( $scheme, self::LINK_SCHEMES, true ) ) {
+			return false;
+		}
+		return in_array( $scheme, self::SCRIPT_SCHEMES, true ) || ! isset( self::$kept_links[ self::normalize_address( $address ) ] );
+	}
+
+	/**
+	 * The addresses of the links in some parsed blocks, inner blocks included,
+	 * that have a scheme LINK_SCHEMES does not list and that are not scripts:
+	 * what an edit may keep (`$kept_links`). Read from `href` attributes in the
+	 * blocks' HTML and in HTML held in their attributes, and from the link
+	 * attributes (`linkURL`, `href`).
+	 *
+	 * @param array<int, array<string, mixed>> $blocks Parsed blocks of the original markup.
+	 * @return array<string, true>
+	 */
+	private static function links_of( array $blocks ): array {
+		$set = array();
+		foreach ( $blocks as $block ) {
+			if ( null === $block['blockName'] ) {
+				continue;
+			}
+			self::keep_html_links( (string) $block['innerHTML'], $set );
+			self::keep_attribute_links( (array) $block['attrs'], $set );
+			$set += self::links_of( (array) $block['innerBlocks'] );
+		}
+		return $set;
+	}
+
+	/**
+	 * Adds one address to a set of kept links when it may be kept.
+	 *
+	 * @param string              $address The address as written.
+	 * @param array<string, true> $set     The set.
+	 */
+	private static function keep_link( string $address, array &$set ): void {
+		$scheme = self::scheme_of( $address );
+		if ( '' !== $scheme && ! in_array( $scheme, self::LINK_SCHEMES, true ) && ! in_array( $scheme, self::SCRIPT_SCHEMES, true ) ) {
+			$set[ self::normalize_address( $address ) ] = true;
+		}
+	}
+
+	/**
+	 * Adds the links of a piece of HTML to a set of kept links.
+	 *
+	 * @param string              $html The HTML.
+	 * @param array<string, true> $set  The set.
+	 */
+	private static function keep_html_links( string $html, array &$set ): void {
+		if ( ! str_contains( $html, '<' ) ) {
+			return;
+		}
+		$processor = new \WP_HTML_Tag_Processor( $html );
+		while ( $processor->next_tag() ) {
+			$href = $processor->get_attribute( 'href' );
+			if ( is_string( $href ) ) {
+				self::keep_link( $href, $set );
+			}
+		}
+	}
+
+	/**
+	 * Adds the links in a block's attributes to a set of kept links.
+	 *
+	 * @param array<int|string, mixed> $attrs The attributes.
+	 * @param array<string, true>      $set   The set.
+	 */
+	private static function keep_attribute_links( array $attrs, array &$set ): void {
+		foreach ( $attrs as $key => $value ) {
+			if ( is_array( $value ) ) {
+				self::keep_attribute_links( $value, $set );
+			} elseif ( is_string( $value ) ) {
+				if ( is_string( $key ) && in_array( $key, self::LINK_KEYS, true ) ) {
+					self::keep_link( $value, $set );
+				}
+				self::keep_html_links( $value, $set );
+			}
+		}
 	}
 
 	/**

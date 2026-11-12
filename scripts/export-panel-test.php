@@ -77,6 +77,8 @@ if ( ! class_exists( Downloads::class ) ) {
 global $wpdb;
 $entry_blog = get_current_blog_id();
 Jobs::install();
+// The pause between two copies (ExportPanel::COOLDOWN, security pass 2026-11-12) is checked in scripts/security-isolation-test.php; here the presses follow each other.
+add_filter( 'mody_export_cooldown', '__return_zero' );
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $new    = static function ( string $login, string $name ) use ( $suffix ): int {
 	return (int) wp_insert_user(

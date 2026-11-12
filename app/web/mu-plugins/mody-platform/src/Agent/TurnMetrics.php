@@ -30,7 +30,10 @@ final class TurnMetrics {
 	private static ?array $turn = null;
 
 	/**
-	 * `http_response`: a chat completion's usage, while a turn runs.
+	 * `http_response`: a chat completion's usage. While a turn runs it is added
+	 * to the turn; outside one (a `mody/generate-page` call over REST, the `ai`
+	 * plugin's features) it is written as a `usage` row, so the daily budget
+	 * (Budget) counts it too.
 	 *
 	 * @param mixed  $response The response.
 	 * @param array  $args     The request's arguments.
@@ -38,10 +41,21 @@ final class TurnMetrics {
 	 * @return mixed The response, unchanged.
 	 */
 	public static function observe( $response, $args, $url ) {
-		if ( null !== self::$turn && is_string( $url ) && str_ends_with( (string) wp_parse_url( $url, PHP_URL_PATH ), '/chat/completions' ) && is_array( $response ) ) {
-			self::usage( (string) wp_remote_retrieve_body( $response ) );
+		if ( is_string( $url ) && str_ends_with( (string) wp_parse_url( $url, PHP_URL_PATH ), '/chat/completions' ) && is_array( $response ) ) {
+			if ( null !== self::$turn ) {
+				self::usage( (string) wp_remote_retrieve_body( $response ) );
+			} else {
+				Budget::record( (string) wp_remote_retrieve_body( $response ) );
+			}
 		}
 		return $response;
+	}
+
+	/**
+	 * Whether a chat message's turn is being counted now.
+	 */
+	public static function active(): bool {
+		return null !== self::$turn;
 	}
 
 	/**
@@ -74,6 +88,8 @@ final class TurnMetrics {
 			self::$turn['prompt_tokens']     += (int) ( $usage['prompt_tokens'] ?? 0 );
 			self::$turn['cached_tokens']     += (int) ( $usage['prompt_tokens_details']['cached_tokens'] ?? 0 );
 			self::$turn['completion_tokens'] += (int) ( $usage['completion_tokens'] ?? 0 );
+			// The turn's row is written when it ends: until then the daily budget counts these tokens from here.
+			Budget::spend( (int) ( $usage['prompt_tokens'] ?? 0 ) + (int) ( $usage['completion_tokens'] ?? 0 ) );
 		}
 	}
 

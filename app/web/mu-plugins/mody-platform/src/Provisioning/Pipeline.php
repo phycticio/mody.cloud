@@ -501,6 +501,9 @@ final class Pipeline {
 			}
 		}
 
+		// The site's owner counts it against the plan, whatever roles are given later (Quota::used()).
+		Quota::record_owner( (int) $site_id, (int) $job['user_id'] );
+
 		// WordPress's sample post and page: the generated front page replaces them.
 		switch_to_blog( $site_id );
 		$samples = array( get_page_by_path( 'hello-world', OBJECT, 'post' ), get_page_by_path( 'sample-page', OBJECT, 'page' ) );

@@ -29,8 +29,10 @@ Whatever the plan, each site has:
 
 ## Gating
 
-- **Sites:** `Provisioning\Quota::can_create_site()` (M2-01) counts a user's sites: the network sites they administer (not the main site), plus site creations still on the way. A user with a `mody_members` row gets their plan's limit through the `mody_site_limit` filter (`Members\Members::site_limit()`, M1-01 part 1). Users without a row keep 3. The refusal never says "unlimited" (rule 7).
+- **Sites:** `Provisioning\Quota::can_create_site()` (M2-01) counts a user's sites: since the security pass of 2026-11-12, the sites they own (blog meta `mody_owner`, set when the platform creates a site; older sites were backfilled from the provisioning jobs or their first administrator), not every site they administer, plus site creations still on the way. A user with a `mody_members` row gets their plan's limit through the `mody_site_limit` filter (`Members\Members::site_limit()`, M1-01 part 1). Users without a row keep 3. The refusal never says "unlimited" (rule 7).
 - **Space:** 3 GB per site, WordPress's upload quota (see above).
+- **Mody's daily allowance** (security pass, 2026-11-12, `Agent\Budget`): a daily token budget per site and per member account, prompt and answer together, counted from the agent's `turn` and `usage` rows; super admins are exempt. Trial: 800,000 per site and 1,500,000 per account; paid plans: 2,000,000 per site and 4,000,000 per account (filter `mody_agent_daily_token_budget`). A typical message uses about 12,600 tokens and a generated page about 25,000, so a full first day of building a site (8 pages and 40 messages, about 700,000) fits in a trial site's allowance. Past it, Mody says when it is back (the next UTC day). The home page names it among the real limits (rule 7).
+- **Mody at once:** one job per person and site, three on the network, the editor's small AI features one of them (`Agent\Slots`).
 - **Newsletter sends:** out of the MVP ([newsletter.md](newsletter.md)); no per-plan cap is decided.
 
 ## Open questions

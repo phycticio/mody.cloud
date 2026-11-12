@@ -10,6 +10,7 @@ namespace Mody\Platform\Onboarding;
 
 use Mody\Platform\Members\Registration;
 use Mody\Platform\SiteEditor;
+use WP_REST_Response;
 use WP_User;
 
 defined( 'ABSPATH' ) || exit;
@@ -24,7 +25,8 @@ defined( 'ABSPATH' ) || exit;
  *   opened their site's Identity screen, where EditorTour runs until they
  *   finish or skip it.
  * - `done`: the tour was finished or skipped. The member sets it through
- *   `wp/v2/users/me` (the meta is registered in REST for the user themself).
+ *   `wp/v2/users/me` (the meta is registered in REST; only the user themself
+ *   can write it, and hide_stage() shows it to nobody else).
  *
  * Users without the meta (everyone before 2026-11-08, super admins) never
  * see the tour unless they ask for it with `?mody-tour=start`.
@@ -47,7 +49,8 @@ final class Onboarding {
 	public const TOUR_PARAM = 'mody-tour';
 
 	/**
-	 * `init`: the stage in REST, readable and writable by the user only.
+	 * `init`: the stage in REST, writable by the user only (hide_stage() makes it
+	 * readable by the user only).
 	 */
 	public static function register_meta(): void {
 		register_meta(
@@ -67,6 +70,28 @@ final class Onboarding {
 				),
 			)
 		);
+	}
+
+	/**
+	 * `rest_prepare_user`: a user's stage is theirs alone. Core's meta field
+	 * would show it to anyone who can read the user, and the 'password' stage
+	 * marks accounts that have not chosen a password yet.
+	 *
+	 * @param mixed $response The user's REST response.
+	 * @param mixed $user     The user.
+	 * @param mixed $request  The request.
+	 * @return mixed
+	 */
+	public static function hide_stage( $response, $user, $request = null ) {
+		unset( $request );
+		if ( $response instanceof WP_REST_Response && $user instanceof WP_User && get_current_user_id() !== $user->ID ) {
+			$data = $response->get_data();
+			if ( is_array( $data ) && isset( $data['meta'] ) && is_array( $data['meta'] ) ) {
+				unset( $data['meta'][ self::META ] );
+				$response->set_data( $data );
+			}
+		}
+		return $response;
 	}
 
 	/**

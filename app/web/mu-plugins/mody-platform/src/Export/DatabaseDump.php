@@ -153,6 +153,7 @@ final class DatabaseDump {
 		'recovery_keys',
 		'adminhash',
 		'new_admin_email',
+		'delete_blog_hash',
 		'mody_spectra_mu_plugin',
 		'spectra_blocks_block_analytics',
 		'spectra_blocks_daily_block_types',
@@ -161,8 +162,12 @@ final class DatabaseDump {
 		'spectra_extension_analytics',
 	);
 
-	/** ...and by pattern: transients, the `ai` plugin and its connectors, and the platform's own bookkeeping and agent state. */
-	private const OPTION_DROP_PATTERN = '/^(_transient_|_site_transient_|wpai_|connectors_|mody_(agent|analytics|export|members|provisioning|storage|register))/';
+	/**
+	 * ...and by pattern: transients, the `ai` plugin and its connectors, the platform's own bookkeeping and agent state,
+	 * and pending invitations (`new_user_<key>`: the key in the invitation's link adds that user to the site, so
+	 * whoever holds the file must not hold the key).
+	 */
+	private const OPTION_DROP_PATTERN = '/^(_transient_|_site_transient_|wpai_|connectors_|new_user_|mody_(agent|analytics|export|members|provisioning|storage|register))/';
 
 	/** A name that looks like a credential. Dropped and listed, whoever owns the plugin. */
 	private const SECRET_PATTERN = '/(api[_-]?key|auth[_-]?key|secret|token|passwd|password|private[_-]?key|credential|licen[cs]e|salt|(^|[_-])pass($|[_-]))/i';

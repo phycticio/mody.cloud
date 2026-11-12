@@ -30,6 +30,12 @@
  * its script; creating an account needs a solution (403 without one), and a
  * solution works once. The test solves easy challenges in PHP.
  *
+ * The security pass of 2026-11-12 (the limits, the login names, the text of
+ * the welcome email and what a repeated email says) has its own checks in
+ * scripts/security-signup-test.php; here only what changed in this flow: the
+ * email check says nothing about accounts, an email that has one gets the
+ * same answer and nothing is created, names and projects carry no links.
+ *
  * Everything created is removed at the end. No model call.
  */
 
@@ -39,6 +45,7 @@ use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Security\Altcha;
+use Mody\Platform\Security\RateLimit;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -52,6 +59,7 @@ if ( ! is_main_site() ) {
 	echo "Run this on the main site (--url=https://<main host>).\n";
 	return;
 }
+RateLimit::clear(); // Accounts made here count toward the hour's limit; start from zero.
 $suffix      = strtolower( wp_generate_password( 6, false ) );
 $emails      = array( 'a' => "modyreg{$suffix}@mody.local", 'b' => "modyregb{$suffix}@mody.local", 'c' => "modyregc{$suffix}@mody.local" );
 $slugs       = array( 'a' => "regtest{$suffix}", 'b' => "regtestb{$suffix}", 'c' => "regtestc{$suffix}" );
@@ -107,6 +115,19 @@ $http  = static function ( string $method, string $to, array $cookies = array(),
 // A solved ALTCHA challenge (an easy one: counter 3).
 $proof = static fn(): string => Altcha::solve( Altcha::challenge( 3 ) );
 $rest  = static fn( string $route, array $body ): array => $http( 'POST', rest_url( 'mody-platform/v1/' . $route ), array(), $body, true );
+// A signup over HTTP answers before the account exists (the work runs after the response, so the
+// answer takes the same time for a new email and an existing one): wait for its last step, the
+// welcome email's reset key, before looking at what it made.
+$settle = static function ( string $email ): bool {
+	global $wpdb;
+	for ( $i = 0; $i < 120; $i++ ) {
+		if ( '' !== (string) $wpdb->get_var( $wpdb->prepare( "SELECT user_activation_key FROM {$wpdb->users} WHERE user_email = %s", $email ) ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			return true;
+		}
+		usleep( 500000 );
+	}
+	return false;
+};
 // From the database: sites created by another request are not in this process's cache.
 $site_exists = static function ( string $slug ): bool {
 	global $wpdb;
@@ -153,9 +174,9 @@ $check( 'the check route refuses (403)', 403 === $out['code'] && 'mody_registrat
 // 2. The checks ---------------------------------------------------------------------
 
 echo "\nThe checks\n";
-$check( 'name: required, at most 120 characters', '' !== Registration::check( 'name', '  ' ) && '' !== Registration::check( 'name', str_repeat( 'a', 121 ) ) && '' === Registration::check( 'name', 'Ada Lovelace' ) );
-$check( 'email: valid and unused', str_contains( Registration::check( 'email', 'nope' ), 'valid email' ) && str_contains( Registration::check( 'email', $super->user_email ), 'already exists' ) && '' === Registration::check( 'email', $emails['a'] ) );
-$check( 'title: required, at most 120 characters', '' !== Registration::check( 'title', '' ) && '' !== Registration::check( 'title', str_repeat( 'b', 121 ) ) && '' === Registration::check( 'title', 'Lina\'s Bakery' ) );
+$check( 'name: required, at most 60 characters, no links', '' !== Registration::check( 'name', '  ' ) && '' !== Registration::check( 'name', str_repeat( 'a', Registration::MAX_NAME + 1 ) ) && '' === Registration::check( 'name', str_repeat( 'a', Registration::MAX_NAME ) ) && '' === Registration::check( 'name', 'Ada Lovelace' ) && '' !== Registration::check( 'name', 'Call +34 600 000 000 or visit bank-secure.example' ) );
+$check( 'email: valid, and says nothing about accounts', str_contains( Registration::check( 'email', 'nope' ), 'valid email' ) && '' === Registration::check( 'email', $super->user_email ) && '' === Registration::check( 'email', $emails['a'] ) );
+$check( 'title: required, at most 60 characters, no links', '' !== Registration::check( 'title', '' ) && '' !== Registration::check( 'title', str_repeat( 'b', Registration::MAX_TITLE + 1 ) ) && '' !== Registration::check( 'title', 'Log in at evil.example/bank' ) && '' === Registration::check( 'title', 'Lina\'s Bakery' ) );
 $taken = get_site( get_main_site_id() )->domain;
 $first = get_sites( array( 'number' => 1, 'site__not_in' => array( get_main_site_id() ) ) );
 $check(
@@ -216,7 +237,7 @@ $out = $rest( 'register/check', array( 'field' => 'name', 'value' => 'Ada', 'non
 $check( 'check: a wrong nonce is refused (403)', 403 === $out['code'] && 'mody_registration_expired' === ( $out['json']['code'] ?? '' ), (string) $out['code'] );
 $ask = static fn( string $field, string $value ): array => (array) $rest( 'register/check', array( 'field' => $field, 'value' => $value, 'nonce' => $nonce ) )['json'];
 $out = $ask( 'email', $super->user_email );
-$check( 'check: a used email, with "exists" for Log in', false === ( $out['ok'] ?? null ) && ! empty( $out['exists'] ) && str_contains( (string) ( $out['message'] ?? '' ), 'already exists' ) );
+$check( 'check: a used email is fine too, nothing says it has an account', true === ( $out['ok'] ?? null ) && ! isset( $out['exists'] ) && ! isset( $out['message'] ), (string) wp_json_encode( $out ) );
 $out = $ask( 'title', 'Regtest ' . $suffix );
 $check( 'check: a title gives a free address', true === ( $out['ok'] ?? null ) && 'regtest' . $suffix === ( $out['suggestion'] ?? '' ), (string) ( $out['suggestion'] ?? '' ) );
 $out = $ask( 'slug', 'Mail' . Registration::address_suffix() );
@@ -285,10 +306,14 @@ preg_match( '#(https?://\S+wp-login\.php\?action=rp&key=([^&\s]+)&login=([^\s]+)
 $check( '... and the set-password link, with a valid key', isset( $link[2] ) && $user && rawurldecode( $link[3] ) === $user->user_login && check_password_reset_key( $link[2], $user->user_login ) instanceof WP_User );
 
 $out = $rest( 'register', $answers( 'b' ) );
-$b   = get_user_by( 'email', $emails['b'] );
+$settle( $emails['b'] );
+$b = get_user_by( 'email', $emails['b'] );
 $check( 'register over REST: 201 with the email and the address', 201 === $out['code'] && $emails['b'] === ( $out['json']['email'] ?? '' ) && Pipeline::domain( $slugs['b'] ) === ( $out['json']['address'] ?? '' ) && $b && Members::get( $b->ID ), (string) $out['code'] );
-$out = $rest( 'register', $answers( 'b', array( 'slug' => $slugs['c'] ) ) );
-$check( '... the same email again is refused', 400 === $out['code'] && isset( $out['json']['data']['fields']['email'] ) && ! $site_exists( $slugs['c'] ), (string) $out['code'] );
+$users_before = count( get_users( array( 'fields' => 'ID' ) ) );
+$out          = $rest( 'register', $answers( 'b', array( 'slug' => $slugs['c'] ) ) );
+$check( '... the same email again: the same answer, and nothing is created', 201 === $out['code'] && $emails['b'] === ( $out['json']['email'] ?? '' ) && ! $site_exists( $slugs['c'] ) && count( get_users( array( 'fields' => 'ID' ) ) ) === $users_before, (string) $out['code'] );
+$out = $rest( 'register', $answers( 'c', array( 'name' => 'Visit http://phish.example now' ) ) );
+$check( '... a name with a link is refused, nothing created', 400 === $out['code'] && isset( $out['json']['data']['fields']['name'] ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
 $out = $rest( 'register', $answers( 'c', array( 'slug' => $slugs['b'] ) ) );
 $check( '... and so is a taken address', 400 === $out['code'] && str_contains( (string) ( $out['json']['data']['fields']['slug'] ?? '' ), 'already exists' ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
 
@@ -314,8 +339,9 @@ $check( 'a post without the antibot solution: refused, no account', str_contains
 $out = $http( 'POST', $url, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
 $check( 'an expired nonce is refused', str_contains( $out['body'], 'The form expired.' ) && ! get_user_by( 'email', $emails['c'] ) );
 $out = $http( 'POST', $url, array(), $form() );
-$c   = get_user_by( 'email', $emails['c'] );
-$check( 'a good post: "Done!", the account and the site', 200 === $out['code'] && str_contains( $out['body'], 'Done! Your site ' . Pipeline::domain( $slugs['c'] ) . ' is ready.' ) && $c && $site_exists( $slugs['c'] ), (string) $out['code'] );
+$settle( $emails['c'] );
+$c = get_user_by( 'email', $emails['c'] );
+$check( 'a good post: "Done!", the account and the site', 200 === $out['code'] && str_contains( $out['body'], 'Done! I sent an email to ' . $emails['c'] . '.' ) && $c && $site_exists( $slugs['c'] ), (string) $out['code'] );
 
 $cookie    = static function ( int $user_id ): array {
 	$expiration = time() + 300;

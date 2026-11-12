@@ -13,6 +13,7 @@ use Mody\Platform\Agent\ChatController;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Security\Altcha;
+use Mody\Platform\Security\RateLimit;
 use Mody\Platform\Wizard\WizardPage;
 use WP_Error;
 use WP_REST_Request;
@@ -55,6 +56,29 @@ defined( 'ABSPATH' ) || exit;
  *   widget when a field gets focus. Without JavaScript nobody can sign up,
  *   and the form says so.
  *
+ * - **Abuse** (the security pass of 2026-11-12). Nobody proves they own the
+ *   email before the account exists (that is the decision above), so:
+ *   - the account, the site and the mail are rate limited (Security\RateLimit:
+ *     `signup_address`, `signup_email`, `signup_network`; the chat's checks:
+ *     `signup_check`);
+ *   - what the visitor typed goes into the welcome email, so the name and the
+ *     project's name are short (MAX_NAME, MAX_TITLE) and carry no links,
+ *     email addresses or markup (has_link());
+ *   - nothing says whether an email has an account: the chat's check accepts
+ *     any valid address, and register() answers the same for an address that
+ *     has one, creating nothing and mailing that member a short note
+ *     instead (send_existing_note()). It answers in the same time too: in a
+ *     web request the account (user, trial, site, welcome email) or the
+ *     note is made **after the response has been sent**
+ *     (`fastcgi_finish_request()` in a shutdown hook, run_later(), the
+ *     pattern of the wizard and the exports), so what the visitor waits for
+ *     is the same few checks and counters whichever branch ran. Both
+ *     branches also stop alike when the whole network's hourly limit is
+ *     full;
+ *   - the login name is the name's letters and a random suffix, never the
+ *     email's local part, and the public author address (`user_nicename`)
+ *     is another random value.
+ *
  * **Closed unless opened:** the network option `mody_registration_open`.
  * While it is off, nothing creates the page, the block says registration
  * opens soon, and both REST routes refuse. Open it with
@@ -77,8 +101,11 @@ final class Registration {
 	/** The form's action and nonce action. */
 	public const ACTION = 'mody_register';
 
-	/** The longest full name accepted. */
-	public const MAX_NAME = 120;
+	/** The longest full name accepted (it is printed in the welcome email). */
+	public const MAX_NAME = 60;
+
+	/** The longest project name accepted at signup (it is printed in the welcome email). */
+	public const MAX_TITLE = 60;
 
 	/** The questions, in the order the chat asks them. */
 	public const FIELDS = array( 'name', 'email', 'title', 'slug' );
@@ -104,6 +131,13 @@ final class Registration {
 	 * @var array<string, string>
 	 */
 	private static array $created = array();
+
+	/**
+	 * Work queued for after the response (see later()).
+	 *
+	 * @var array<int, callable>
+	 */
+	private static array $later = array();
 
 	/**
 	 * Whether registration is open.
@@ -249,24 +283,70 @@ final class Registration {
 				if ( '' === $name ) {
 					return __( 'Please enter your name.', 'mody_cloud' );
 				}
-				/* translators: %d: the number of characters allowed. */
-				return mb_strlen( $name ) > self::MAX_NAME ? sprintf( __( 'Please use at most %d characters.', 'mody_cloud' ), self::MAX_NAME ) : '';
-			case 'email':
-				$email = sanitize_email( $value );
-				if ( ! is_email( $email ) ) {
-					return __( 'Please enter a valid email address.', 'mody_cloud' );
+				if ( mb_strlen( $name ) > self::MAX_NAME ) {
+					/* translators: %d: the number of characters allowed. */
+					return sprintf( __( 'Please use at most %d characters.', 'mody_cloud' ), self::MAX_NAME );
 				}
-				return email_exists( $email ) ? __( 'An account with this email already exists. Log in instead.', 'mody_cloud' ) : '';
+				return self::has_link( $name ) ? self::no_links_message() : '';
+			case 'email':
+				// Valid or not, never whether an account exists: register() deals with that, quietly.
+				return is_email( sanitize_email( $value ) ) ? '' : __( 'Please enter a valid email address.', 'mody_cloud' );
 			case 'title':
 				$title = sanitize_text_field( $value );
 				if ( '' === $title ) {
 					return __( 'Please enter the name of your project or website.', 'mody_cloud' );
+				}
+				if ( mb_strlen( $title ) > self::MAX_TITLE ) {
+					/* translators: %d: the number of characters allowed. */
+					return sprintf( __( 'Please use at most %d characters.', 'mody_cloud' ), self::MAX_TITLE );
+				}
+				if ( self::has_link( $title ) ) {
+					return self::no_links_message();
 				}
 				return Pipeline::check_address( 'placeholder', $title )['title'] ?? '';
 			case 'slug':
 				return Pipeline::check_address( $value, 'placeholder' )['slug'] ?? '';
 		}
 		return __( 'Unknown question.', 'mody_cloud' );
+	}
+
+	/**
+	 * Whether a text holds a link, an email address, markup or a character
+	 * that reorders text: what a stranger could use to put an address in front
+	 * of the person who gets the welcome email.
+	 *
+	 * @param string $text A name or a project name.
+	 */
+	public static function has_link( string $text ): bool {
+		return (bool) preg_match( '#[<>@\\\\/]|://|\bwww\.|[a-z0-9][a-z0-9-]*\.[a-z]{2,}\b|[\x{202A}-\x{202E}\x{2066}-\x{2069}]#iu', $text );
+	}
+
+	/**
+	 * What to say when has_link() refuses an answer.
+	 */
+	private static function no_links_message(): string {
+		return __( 'Please leave web addresses, email addresses and special characters out of this answer.', 'mody_cloud' );
+	}
+
+	/**
+	 * An email as one mailbox, for counting: lowercase, without a `+tag`, and
+	 * without dots in Gmail's addresses, where they do not matter.
+	 *
+	 * @param string $email A valid email.
+	 */
+	public static function normalize_email( string $email ): string {
+		$email = strtolower( trim( $email ) );
+		$at    = strrpos( $email, '@' );
+		if ( false === $at ) {
+			return $email;
+		}
+		$local  = (string) strtok( substr( $email, 0, $at ), '+' );
+		$domain = substr( $email, $at + 1 );
+		if ( in_array( $domain, array( 'gmail.com', 'googlemail.com' ), true ) ) {
+			$local  = str_replace( '.', '', $local );
+			$domain = 'gmail.com';
+		}
+		return $local . '@' . $domain;
 	}
 
 	/**
@@ -277,11 +357,21 @@ final class Registration {
 	 * @param string $email Email, unsanitized.
 	 * @param string $title The project's or website's name, unsanitized.
 	 * @param string $slug  The site's address, as typed (normalized here).
+	 * @param bool   $defer True in a web request: the work that differs between a new email and
+	 *                      one that has an account is done after the response (see the class
+	 *                      comment), and the answer is the same shape for both (`user_id` 0,
+	 *                      no `url`, no `site_id`). False (WP-CLI, tests, the default): it is done
+	 *                      here, and a new account's real `user_id`, `url` and `site_id` come back.
+	 *                      The `mody_registration_defer` filter overrides what "a web request"
+	 *                      means (tests).
 	 * @return array{user_id: int, email: string, address: string, url: string, site_id: int}|WP_Error
-	 *         The account, or `mody_invalid_input` with `fields` (field => message), or
-	 *         `mody_registration_failed`.
+	 *         The account (for an email that already has one, or when deferred, the same answer with `user_id`
+	 *         0: nothing is created here, and that member gets a note), or `mody_invalid_input`
+	 *         with `fields` (field => message), or `mody_rate_limited`, or
+	 *         `mody_registration_failed`. A failure of deferred work cannot be shown: it is
+	 *         logged (code and message only), and the visitor can sign up again.
 	 */
-	public static function register( string $name, string $email, string $title, string $slug ): array|WP_Error {
+	public static function register( string $name, string $email, string $title, string $slug, bool $defer = false ): array|WP_Error {
 		$slug   = self::normalize_slug( $slug );
 		$values = compact( 'name', 'email', 'title', 'slug' );
 		$fields = array();
@@ -295,18 +385,117 @@ final class Registration {
 			return new WP_Error( 'mody_invalid_input', reset( $fields ), array( 'fields' => $fields ) );
 		}
 
-		$name    = sanitize_text_field( $name );
-		$email   = sanitize_email( $email );
-		$title   = sanitize_text_field( $title );
+		$name  = sanitize_text_field( $name );
+		$email = sanitize_email( $email );
+		$title = sanitize_text_field( $title );
+
+		// Per address and per mailbox, for every valid attempt: one that finds an account counts too, so it is no oracle.
+		$wait = max( RateLimit::hit_address( 'signup_address' ), RateLimit::hit( 'signup_email', self::normalize_email( $email ) ) );
+		if ( $wait ) {
+			return RateLimit::error( $wait, __( 'A few accounts have already been started from here. Please try again in %s.', 'mody_cloud' ) );
+		}
+		// Everyone together: when the hour's accounts are made, every attempt stops, an existing email's too
+		// (else the answer would tell whether an email has an account). Only accounts really made are counted below.
+		$wait = RateLimit::wait( 'signup_network' );
+		if ( $wait ) {
+			return RateLimit::error( $wait, __( 'Many people are signing up right now. Please try again in %s.', 'mody_cloud' ) );
+		}
+
+		$existing = get_user_by( 'email', $email );
+		$answer   = array(
+			'user_id' => 0,
+			'email'   => $email,
+			'address' => Pipeline::domain( $slug ),
+			'url'     => '',
+			'site_id' => 0,
+		);
+		if ( $existing ) {
+			$work = static fn() => self::send_existing_note( $existing );
+		} else {
+			// Counted here, before the response, so a burst of parallel requests cannot all pass the check above.
+			$wait = RateLimit::hit( 'signup_network' );
+			if ( $wait ) {
+				return RateLimit::error( $wait, __( 'Many people are signing up right now. Please try again in %s.', 'mody_cloud' ) );
+			}
+			$work = static fn() => self::create_account( $name, $email, $title, $slug );
+		}
+
+		if ( $defer && (bool) apply_filters( 'mody_registration_defer', function_exists( 'fastcgi_finish_request' ) ) ) {
+			self::later( $work );
+			return $answer;
+		}
+		$result = $work();
+		return $existing ? $answer : $result;
+	}
+
+	/**
+	 * Queues work for after the response has been sent: run by run_later()
+	 * on `shutdown`.
+	 *
+	 * @param callable $work Returns a WP_Error when it failed (logged), anything else when it did not.
+	 */
+	private static function later( callable $work ): void {
+		if ( ! self::$later ) {
+			add_action( 'shutdown', array( self::class, 'run_later' ), 0 ); // Before core flushes its buffers at 1.
+		}
+		self::$later[] = $work;
+	}
+
+	/**
+	 * `shutdown`, first: sends the response (`fastcgi_finish_request()`, so
+	 * the visitor stops waiting), then does the queued work. Without PHP-FPM
+	 * there is nothing to finish and the work just runs. Tests call it too.
+	 */
+	public static function run_later(): void {
+		$queue       = self::$later;
+		self::$later = array();
+		if ( ! $queue ) {
+			return;
+		}
+		if ( function_exists( 'fastcgi_finish_request' ) ) {
+			while ( ob_get_level() > 0 ) {
+				ob_end_flush();
+			}
+			ignore_user_abort( true );
+			if ( function_exists( 'set_time_limit' ) ) {
+				set_time_limit( 0 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- A site takes seconds, but nobody waits for it.
+			}
+			fastcgi_finish_request();
+		}
+		foreach ( $queue as $work ) {
+			try {
+				$result = $work();
+				if ( $result instanceof WP_Error ) {
+					error_log( 'Mody signup (after the response) failed: ' . $result->get_error_code() . ' ' . $result->get_error_message() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Nobody is waiting for an answer.
+				}
+			} catch ( \Throwable $error ) {
+				error_log( 'Mody signup (after the response) failed: ' . get_class( $error ) . ' ' . $error->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- As above.
+			}
+		}
+	}
+
+	/**
+	 * Makes the account: the WordPress user, the trial, the first site and
+	 * the welcome email. Rolled back when a step fails.
+	 *
+	 * @param string $name  Full name, sanitized.
+	 * @param string $email Email, sanitized and valid.
+	 * @param string $title The project's name, sanitized.
+	 * @param string $slug  The site's address, normalized.
+	 * @return array{user_id: int, email: string, address: string, url: string, site_id: int}|WP_Error
+	 */
+	private static function create_account( string $name, string $email, string $title, string $slug ): array|WP_Error {
 		$failed  = new WP_Error( 'mody_registration_failed', __( 'Your account could not be created. Please try again.', 'mody_cloud' ) );
+		$names   = self::new_names( $name );
 		$user_id = wp_insert_user(
 			array(
-				'user_login'   => self::unique_login( $email ),
-				'user_email'   => $email,
-				'user_pass'    => wp_generate_password( 32, true, true ), // Replaced when they choose theirs.
-				'display_name' => $name,
-				'nickname'     => $name,
-				'role'         => '', // No role on the main site: the row is the membership.
+				'user_login'    => $names['login'],
+				'user_nicename' => $names['nicename'],
+				'user_email'    => $email,
+				'user_pass'     => wp_generate_password( 32, true, true ), // Replaced when they choose theirs.
+				'display_name'  => $name,
+				'nickname'      => $name,
+				'role'          => '', // No role on the main site: the row is the membership.
 			)
 		);
 		if ( is_wp_error( $user_id ) ) {
@@ -370,12 +559,13 @@ final class Registration {
 		if ( is_wp_error( $key ) ) {
 			return false;
 		}
-		$link = network_site_url( 'wp-login.php?action=rp&key=' . $key . '&login=' . rawurlencode( $user->user_login ), 'login' );
-		$ends = Members::trial_ends( $user->ID );
-		$body = sprintf(
+		$title = mb_substr( $title, 0, self::MAX_TITLE );
+		$link  = network_site_url( 'wp-login.php?action=rp&key=' . $key . '&login=' . rawurlencode( $user->user_login ), 'login' );
+		$ends  = Members::trial_ends( $user->ID );
+		$body  = sprintf(
 			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page, 6: the trial's last day. */
 			__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour free trial runs until %6\$s. No card is needed.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
-			$user->display_name,
+			mb_substr( $user->display_name, 0, self::MAX_NAME ),
 			$title,
 			$url,
 			$link,
@@ -383,6 +573,27 @@ final class Registration {
 			$ends ? wp_date( (string) get_option( 'date_format' ), $ends ) : ''
 		);
 		return wp_mail( $user->user_email, __( 'Welcome to Mody Cloud: choose your password', 'mody_cloud' ), $body );
+	}
+
+	/**
+	 * The note for a member whose email someone typed in the signup: they
+	 * already have an account, nothing was created, and here is how to log in.
+	 * Fixed text, nothing the visitor typed. One per member every six hours
+	 * (RateLimit, `signup_note`), so the form cannot be used to flood them.
+	 *
+	 * @param WP_User $user The member.
+	 */
+	private static function send_existing_note( WP_User $user ): bool {
+		if ( RateLimit::hit( 'signup_note', strtolower( $user->user_email ) ) ) {
+			return false;
+		}
+		$body = sprintf(
+			/* translators: 1: the login page, 2: the lost-password page. */
+			__( "Hello,\n\nSomeone, maybe you, asked to start a free trial on Mody Cloud with this email address. You already have an account, so nothing new was created.\n\nLog in:\n%1\$s\n\nIf you forgot your password, choose a new one:\n%2\$s\n\nIf it was not you, you can ignore this email: nobody gets into your account with it.\n\nMody Cloud", 'mody_cloud' ),
+			wp_login_url(),
+			wp_lostpassword_url()
+		);
+		return wp_mail( $user->user_email, __( 'Mody Cloud: you already have an account', 'mody_cloud' ), $body );
 	}
 
 	/**
@@ -456,10 +667,15 @@ final class Registration {
 	 * POST `register/check`: one answer.
 	 *
 	 * @param WP_REST_Request $request `field` and `value`.
-	 * @return WP_REST_Response `ok`, `value` (cleaned), and `message` when not ok. For
-	 *                          the title, `suggestion`: a free address for it, or ''.
+	 * @return WP_REST_Response|WP_Error `ok`, `value` (cleaned), and `message` when not ok. For
+	 *                          the title, `suggestion`: a free address for it, or ''. 429 when
+	 *                          the address asks too often (RateLimit, `signup_check`).
 	 */
-	public static function rest_check( WP_REST_Request $request ): WP_REST_Response {
+	public static function rest_check( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$wait = RateLimit::hit_address( 'signup_check' );
+		if ( $wait ) {
+			return RateLimit::error( $wait );
+		}
 		$field = (string) $request['field'];
 		$value = 'slug' === $field ? self::normalize_slug( (string) $request['value'] ) : (string) $request['value'];
 		$error = self::check( $field, $value );
@@ -469,9 +685,6 @@ final class Registration {
 		);
 		if ( '' !== $error ) {
 			$data['message'] = $error;
-		}
-		if ( 'email' === $field && '' !== $error && email_exists( $data['value'] ) ) {
-			$data['exists'] = true; // The chat offers Log in.
 		}
 		if ( 'slug' === $field ) {
 			$data['address'] = '' !== $value ? Pipeline::domain( $value ) : '';
@@ -492,9 +705,10 @@ final class Registration {
 		if ( ! Altcha::verify( $request['altcha'] ) ) {
 			return new WP_Error( 'mody_altcha_failed', Altcha::failed_message(), array( 'status' => 403 ) );
 		}
-		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'] );
+		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'], true );
 		if ( is_wp_error( $account ) ) {
-			$account->add_data( array_merge( (array) $account->get_error_data(), array( 'status' => 'mody_invalid_input' === $account->get_error_code() ? 400 : 500 ) ) );
+			$status = (int) ( ( (array) $account->get_error_data() )['status'] ?? 0 );
+			$account->add_data( array_merge( (array) $account->get_error_data(), array( 'status' => $status ? $status : ( 'mody_invalid_input' === $account->get_error_code() ? 400 : 500 ) ) ) );
 			return $account;
 		}
 		return new WP_REST_Response(
@@ -538,7 +752,7 @@ final class Registration {
 			return;
 		}
 
-		$account = self::register( $field( 'mody_name' ), $field( 'mody_email' ), $field( 'mody_title' ), $field( 'mody_slug' ) );
+		$account = self::register( $field( 'mody_name' ), $field( 'mody_email' ), $field( 'mody_title' ), $field( 'mody_slug' ), true );
 		if ( is_wp_error( $account ) ) {
 			self::$errors = (array) ( $account->get_error_data()['fields'] ?? array( 'form' => $account->get_error_message() ) );
 			return;
@@ -572,8 +786,8 @@ final class Registration {
 	 * @param string $address The site's address.
 	 */
 	public static function done_message( string $email, string $address ): string {
-		/* translators: 1: the site's address, 2: the member's email. */
-		return sprintf( __( 'Done! Your site %1$s is ready. I sent an email to %2$s: open the link in it to choose your password, and I will show you around your editor.', 'mody_cloud' ), $address, $email );
+		/* translators: 1: the site's address (not shown: the answer is the same when the email already had an account), 2: the member's email. */
+		return sprintf( __( 'Done! I sent an email to %2$s. Open the link in it to continue, and I will show you around your editor. If you already had an account with this address, the email tells you how to log in.', 'mody_cloud' ), $address, $email );
 	}
 
 	/**
@@ -640,7 +854,7 @@ final class Registration {
 				</p>
 				<p class="mody-register__field">
 					<label for="mody-register-title"><?php esc_html_e( 'Name of your project or website', 'mody_cloud' ); ?></label>
-					<input id="mody-register-title" name="mody_title" type="text" autocomplete="organization" required maxlength="<?php echo (int) Pipeline::MAX_NAME_LENGTH; ?>" value="<?php echo esc_attr( $value( 'title' ) ); ?>"<?php echo $aria( 'title' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $aria. ?>>
+					<input id="mody-register-title" name="mody_title" type="text" autocomplete="organization" required maxlength="<?php echo (int) self::MAX_TITLE; ?>" value="<?php echo esc_attr( $value( 'title' ) ); ?>"<?php echo $aria( 'title' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $aria. ?>>
 					<?php echo $error( 'title' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $error. ?>
 				</p>
 				<p class="mody-register__field">
@@ -782,7 +996,7 @@ final class Registration {
 			'suffix'   => self::address_suffix(),
 			'login'    => wp_login_url(),
 			'maxName'  => self::MAX_NAME,
-			'maxTitle' => Pipeline::MAX_NAME_LENGTH,
+			'maxTitle' => self::MAX_TITLE,
 			'strings'  => array(
 				'intro'      => self::intro(),
 				'mody'       => __( 'Mody', 'mody_cloud' ),
@@ -827,22 +1041,28 @@ final class Registration {
 	}
 
 	/**
-	 * A free login name from the email's local part: lowercase letters and
-	 * digits, at least four characters, not one of the network's illegal
-	 * names, with a number added when taken.
+	 * The new account's login and its public name in author addresses, both
+	 * without personal data beyond the name that is already public: the
+	 * name's letters (at most twelve) and a random suffix, a different one
+	 * for each. Members log in with their email, so the login is rarely
+	 * typed; it is never the email's local part, which used to be public in
+	 * the author address and in the REST users list.
 	 *
-	 * @param string $email A valid email.
+	 * @param string $name The member's full name.
+	 * @return array{login: string, nicename: string}
 	 */
-	private static function unique_login( string $email ): string {
-		$base = substr( (string) preg_replace( '/[^a-z0-9]/', '', strtolower( (string) strstr( $email, '@', true ) ) ), 0, 50 );
-		if ( strlen( $base ) < 4 ) {
-			$base .= 'member';
+	private static function new_names( string $name ): array {
+		$base = substr( (string) preg_replace( '/[^a-z0-9]/', '', strtolower( remove_accents( $name ) ) ), 0, 12 );
+		if ( strlen( $base ) < 3 ) {
+			$base = 'member';
 		}
-		$illegal   = (array) get_site_option( 'illegal_names', array() );
-		$candidate = $base;
-		for ( $n = 2; username_exists( $candidate ) || in_array( $candidate, $illegal, true ); $n++ ) {
-			$candidate = $base . $n;
-		}
-		return $candidate;
+		$illegal = (array) get_site_option( 'illegal_names', array() );
+		do {
+			$login = $base . bin2hex( random_bytes( 3 ) );
+		} while ( username_exists( $login ) || in_array( $login, $illegal, true ) );
+		return array(
+			'login'    => $login,
+			'nicename' => $base . '-' . bin2hex( random_bytes( 3 ) ),
+		);
 	}
 }

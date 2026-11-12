@@ -53,8 +53,19 @@ services:
       ofelia.job-exec.tamarind_newsletters_due.command: "wp tamarind newsletters run-due --network"
       ofelia.job-exec.tamarind_newsletters_due.user: "www-data"
       ofelia.job-exec.tamarind_newsletters_due.no-overlap: "true"
+    # Xdebug connects out to the IDE (host.docker.internal:9003), so nothing
+    # needs this port; it is published on the loopback address only, never on
+    # the LAN. Production resets it (compose.prod.yml.sample).
     ports:
-        - "9003:9003"
+      - "127.0.0.1:9003:9003"
+    # No core dumps. A crashed process in this container (a PHP-FPM worker, or a
+    # mysql or wp run through docker exec) would write a file called "core" into
+    # its working directory, /var/www/html, which is the web root, and it holds
+    # the whole environment: the database passwords and the Brevo and Infomaniak
+    # keys. Nginx refuses such files too (config/nginx/app.conf.template), but
+    # the best core file is the one never written.
+    ulimits:
+      core: 0
     build:
       context: ./config
       dockerfile: Dockerfile
@@ -68,6 +79,7 @@ services:
       - ./config/php/sendmail.ini:/usr/local/etc/php/conf.d/sendmail.ini
       - ./config/php/zzz-mail.ini:/usr/local/etc/php/conf.d/zzz-mail.ini:ro
       - ./config/php/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini:ro
+      - ./config/php/security.ini:/usr/local/etc/php/conf.d/security.ini:ro
     env_file:
       - .env
     environment:
@@ -119,8 +131,15 @@ services:
     container_name: ${CONTAINER_PREFIX:-wp_}db
     image: mariadb:11.4.7
     restart: unless-stopped
+    # Published on the loopback address only: the development database holds
+    # imported data and uses the sample passwords, so it must not be reachable
+    # from the LAN. Production resets it (compose.prod.yml.sample).
     ports:
-      - "${DB_HOST_PORT:-3306}:3306"
+      - "127.0.0.1:${DB_HOST_PORT:-3306}:3306"
+    # No core dumps (see the wordpress service): a dump of the database server
+    # holds its data and credentials.
+    ulimits:
+      core: 0
     volumes:
       - wp_data:/var/lib/mysql
       - ./config/my.cnf:/etc/mysql/conf.d/custom.cnf

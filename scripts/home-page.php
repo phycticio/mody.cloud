@@ -503,7 +503,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, and the number of sites in your plan.</p>
+<p>Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, a daily allowance of work for each site's Mody, and the number of sites in your plan.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->

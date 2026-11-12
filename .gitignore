@@ -1,6 +1,15 @@
 .DS_Store
 .idea
 .env
+.env.*
+
+# Core dumps: a crashed process in the app container writes "core" (or
+# "core.<pid>") into its working directory, the web root, and the file holds
+# the container's whole environment (database passwords, API keys). Ignored here
+# so a careless "git add -A" cannot commit one; bin/deploy never ships them
+# either, and Nginx never serves them.
+app/core
+app/core.*
 
 **/*/old-theme
 acf-json-old/

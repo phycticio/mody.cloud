@@ -22,6 +22,11 @@ defined( 'ABSPATH' ) || exit;
  *   theme switch, through any screen or REST route, because the
  *   capabilities themselves are refused. Content, media, users, settings,
  *   Spectra and Global Styles stay.
+ * - **Deleting the site:** `delete_site` is refused too (security pass,
+ *   2026-11-12). Core's Tools -> Delete Site only marks the site deleted: the
+ *   tables and the 3 GB of files stay, and the plan's slot is free again.
+ *   Deleting a site, with the download offered first, is a dashboard feature
+ *   still to build (tickets/mody-dashboard.md).
  * - **Plugins on core's Plugins screen** (M4-02, decided 2026-11-08):
  *   members activate and deactivate, for their own site, every installed
  *   plugin that is not hidden (MemberPlugins). Core's network switch for
@@ -47,6 +52,8 @@ final class MemberSite {
 		'delete_themes',
 		'edit_themes',
 		'resume_theme',
+		// Tools -> Delete Site only soft-deletes: the site and its files stay on disk and the plan's slot is freed. Until deletion is built properly, nobody but a super admin deletes a site (Isolation::refuse_delete_site() says so kindly).
+		'delete_site',
 	);
 
 	/**
