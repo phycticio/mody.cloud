@@ -19,9 +19,9 @@
  *
  * - The site's other languages: Spanish, German and Italian are added (the
  *   ones already there are kept).
- * - Each translation: the English page with every text replaced, its title
- *   and excerpt; published; the front page's translation, so it lives at
- *   /es/, /de/ and /it/.
+ * - Each translation: the English page with every text replaced, its title,
+ *   excerpt (the meta description) and SEO title (Site\Seo); published; the
+ *   front page's translation, so it lives at /es/, /de/ and /it/.
  * - The header's menu per language: a navigation post with the translated
  *   labels and links to the language's home page sections, used by a header
  *   copy for that language (header-es, header-de, header-it). The menus are
@@ -137,6 +137,7 @@ foreach ( $data as $locale => $language ) {
 				'post_title'   => $language['title'],
 				'post_excerpt' => $language['excerpt'],
 				'post_content' => $markup,
+				'meta_input'   => array( 'mody_seo_title' => (string) ( $language['seo_title'] ?? '' ) ),
 			)
 		),
 		true

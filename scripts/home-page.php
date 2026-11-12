@@ -15,6 +15,8 @@
  *
  * - The page: "Home", template "page-blank" (header and footer, no title),
  *   published, the site's front page.
+ * - Search engines: the SEO title (post meta mody_seo_title) and the meta
+ *   description (the excerpt), printed by Site\Seo.
  * - The header's menu (the main site's wp_navigation): the page's sections
  *   and Log in, instead of the list of every page.
  * - Layout: Spectra containers (sections, grid rows, columns), palette slugs
@@ -632,7 +634,9 @@ $page     = array(
 	'post_title'   => 'Home',
 	'post_name'    => 'home',
 	'post_content' => $markup,
-	'post_excerpt' => 'Mody Cloud: WordPress sites written in your brand by an AI agent that runs in Switzerland. From 9.99 € a month, everything included; 30 days free, no card.',
+	// The meta description (Site\Seo).
+	'post_excerpt' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. 30 days free, no card; then from 9.99 € a month.',
+	'meta_input'   => array( 'mody_seo_title' => 'AI WordPress Website Builder, Hosted in Europe | Mody Cloud' ),
 );
 if ( $existing ) {
 	$page['ID'] = $existing->ID;
