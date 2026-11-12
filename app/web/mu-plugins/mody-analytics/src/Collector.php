@@ -14,23 +14,37 @@ use WP_REST_Server;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * POST `mody-analytics/v1/view` on each site, open to visitors. It always
- * answers 204 with nothing, whether the view counted or not.
+ * POST `mody-analytics/v1/view` on each site, open to everyone who reads
+ * it. It always answers 204 with nothing, whether the view counted or not.
  *
- * What it counts, in the site's day (Store):
- * - the view, on the total and on the page's path (no query string);
- * - for a visitor's first view of the day: a visitor on the total, a visit
- *   on its source (the referring host, '' when there is none or it is the
- *   site itself) and on its device (from the screen's width).
+ * Every counted view is one row of Store::views(): the site, the visit,
+ * its place in the visit, the site's day and hour, the path (no query
+ * string), the source (the referring host) and the device (from the
+ * screen's width).
  *
- * The visitor's hash is md5 of the day's salt, the site, the day, the
- * address and the browser's user agent. Salts live two days in a network
- * option and are then dropped with the hashes, so nobody, the platform
- * included, can link two days or recover an address.
+ * **The visit, never the person.** The visitor's hash is md5 of the day's
+ * salt, the site, the day, the address and the browser's user agent. It is
+ * only a key in today's map (Store::see()), which points it at a random
+ * visit ID; a new ID after VISIT_GAP without a view. Rows keep the random
+ * ID, never the hash. Salts live two days in a network option and are then
+ * dropped with the map, so nobody, the platform included, can link a visit
+ * to an address or two visits to each other. What is left is a pattern:
+ * a visit that came from a source, saw these pages in this order.
+ *
+ * Visits are per site: the hash includes the site, so the same person on
+ * two sites is two unrelated visits (the maintainer's choice, 2026-11-12).
  *
  * Not counted: user agents that say they are bots, posts from another
- * site's pages (their Origin), bodies that are not the beacon's, and a
- * visitor's views past MAX_VIEWS a day.
+ * site's pages (their Origin), bodies that are not the beacon's, a
+ * visitor's views past MAX_VIEWS a day, and whatever the filter
+ * `mody_analytics_accept_view` refuses (the platform plugs a rate limit per
+ * address into it, so this plugin works alone too).
+ *
+ * **Bounded, whoever sends:** each site counts at most MAX_DISTINCT
+ * different pages and MAX_DISTINCT different sources a day (Store::admit());
+ * the rest are counted as OTHER. Anyone can post to the beacon with any
+ * path and any referrer, so without the cap a script could grow the tables
+ * and the dashboard's lists without end.
  */
 final class Collector {
 
@@ -42,6 +56,15 @@ final class Collector {
 
 	/** A visitor's views counted per day; more are a script, not a person. */
 	public const MAX_VIEWS = 300;
+
+	/** Seconds without a view that end a visit (the maintainer's choice, 2026-11-12). */
+	public const VISIT_GAP = 30 * MINUTE_IN_SECONDS;
+
+	/** Different pages, and different sources, one site counts in a day; the rest go under OTHER. */
+	public const MAX_DISTINCT = 1000;
+
+	/** What the pages and the sources past the cap are counted as. */
+	public const OTHER = 'other';
 
 	/** The network option with the salts: day => salt. */
 	private const SALT_OPTION = 'mody_analytics_salts';
@@ -78,7 +101,13 @@ final class Collector {
 	 */
 	public static function rest_view( WP_REST_Request $request ): WP_REST_Response {
 		$data = json_decode( (string) $request->get_body(), true );
-		if ( is_array( $data ) && self::from_this_site( (string) $request->get_header( 'origin' ) ) ) {
+		/**
+		 * Filters whether a view from this request is counted: a rate limit, for example.
+		 * It runs for every beacon that is otherwise valid.
+		 *
+		 * @param bool $accept Whether it is counted.
+		 */
+		if ( is_array( $data ) && self::from_this_site( (string) $request->get_header( 'origin' ) ) && apply_filters( 'mody_analytics_accept_view', true ) ) {
 			self::count(
 				(string) ( $data['p'] ?? '' ),
 				(string) ( $data['r'] ?? '' ),
@@ -95,32 +124,46 @@ final class Collector {
 	/**
 	 * Counts one view on the current site.
 	 *
-	 * @param string $path     The page's path.
-	 * @param string $referrer The referring address, or ''.
-	 * @param int    $width    The screen's width in CSS pixels, or 0.
-	 * @param string $address  The visitor's IP address.
-	 * @param string $agent    The browser's user agent.
+	 * @param string   $path     The page's path.
+	 * @param string   $referrer The referring address, or ''.
+	 * @param int      $width    The screen's width in CSS pixels, or 0.
+	 * @param string   $address  The visitor's IP address.
+	 * @param string   $agent    The browser's user agent.
+	 * @param int|null $now      Unix time of the view; now by default.
 	 * @return bool Whether it counted.
 	 */
-	public static function count( string $path, string $referrer, int $width, string $address, string $agent ): bool {
+	public static function count( string $path, string $referrer, int $width, string $address, string $agent, ?int $now = null ): bool {
 		$path = self::path( $path );
 		if ( '' === $path || '' === $agent || preg_match( self::BOTS, $agent ) ) {
 			return false;
 		}
+		$now   = $now ?? time();
 		$site  = get_current_blog_id();
-		$day   = wp_date( 'Y-m-d' );
+		$day   = wp_date( 'Y-m-d', $now );
 		$hash  = md5( self::salt( $day ) . '|' . $site . '|' . $day . '|' . $address . '|' . $agent );
-		$views = Store::see( $site, $day, $hash );
-		if ( $views > self::MAX_VIEWS ) {
+		$visit = Store::see( $site, $day, $hash, $now, self::VISIT_GAP );
+		if ( $visit['views'] > self::MAX_VIEWS ) {
 			return false;
 		}
-		$first = 1 === $views ? 1 : 0;
-		Store::add( $site, $day, 'total', '', 1, $first );
-		Store::add( $site, $day, 'page', $path, 1, $first );
-		if ( $first ) {
-			Store::add( $site, $day, 'source', self::source( $referrer ), 1, 1 );
-			Store::add( $site, $day, 'device', self::device( $width ), 1, 1 );
-		}
+		$source = self::source( $referrer );
+		/**
+		 * Filters how many different pages and sources a site counts in a day.
+		 *
+		 * @param int $max The cap: MAX_DISTINCT.
+		 */
+		$max = max( 1, (int) apply_filters( 'mody_analytics_max_distinct', self::MAX_DISTINCT ) );
+		Store::add_view(
+			array(
+				'site_id'  => $site,
+				'visit_id' => $visit['visit_id'],
+				'seq'      => $visit['seq'],
+				'day'      => $day,
+				'hour'     => (int) wp_date( 'G', $now ),
+				'path'     => Store::admit( $site, $day, 'p', $path, $max ) ? $path : self::OTHER,
+				'source'   => ( '' === $source || Store::admit( $site, $day, 's', $source, $max ) ) ? $source : self::OTHER,
+				'device'   => self::device( $width ),
+			)
+		);
 		return true;
 	}
 
@@ -186,21 +229,34 @@ final class Collector {
 	/**
 	 * The visitor's address. Behind our proxies (Cloudflare, then Nginx
 	 * Proxy Manager, then nginx) PHP sees a private address; only then are
-	 * the proxies' headers believed: Cloudflare's CF-Connecting-IP, else the
-	 * first public address in X-Forwarded-For.
+	 * the proxies' headers believed, and only the two a visitor cannot
+	 * choose: Cloudflare's CF-Connecting-IP (it overwrites any value the
+	 * visitor sent), else the rightmost public address in X-Forwarded-For,
+	 * the one our own proxy appended. Never the leftmost, which is whatever
+	 * the visitor wrote. A connection from a public address is direct and
+	 * no header is believed.
+	 *
+	 * On the platform this is Mody\Platform\Security\ClientAddress::get(),
+	 * which also checks that CF-Connecting-IP came from Cloudflare's own
+	 * addresses (the rate limits use it too, so both agree). The rule below
+	 * is the fallback when this plugin runs alone.
 	 */
 	public static function address(): string {
+		if ( class_exists( '\\Mody\\Platform\\Security\\ClientAddress' ) ) {
+			return \Mody\Platform\Security\ClientAddress::get();
+		}
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput -- Validated as IP addresses below.
 		$remote = (string) ( $_SERVER['REMOTE_ADDR'] ?? '' );
-		if ( ! self::is_public( $remote ) ) {
-			$candidates = array_merge(
-				array( (string) ( $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '' ) ),
-				array_map( 'trim', explode( ',', (string) ( $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '' ) ) )
-			);
-			foreach ( $candidates as $candidate ) {
-				if ( self::is_public( $candidate ) ) {
-					return $candidate;
-				}
+		if ( self::is_public( $remote ) ) {
+			return $remote;
+		}
+		$cloudflare = trim( (string) ( $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '' ) );
+		if ( self::is_public( $cloudflare ) ) {
+			return $cloudflare;
+		}
+		foreach ( array_reverse( explode( ',', (string) ( $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '' ) ) ) as $candidate ) {
+			if ( self::is_public( trim( $candidate ) ) ) {
+				return trim( $candidate );
 			}
 		}
 		// phpcs:enable
@@ -218,8 +274,10 @@ final class Collector {
 
 	/**
 	 * The salt of a day, made the first time it is asked for. Salts and
-	 * hashes of days before yesterday (UTC) are dropped then: every site's
-	 * own day is within a day of UTC's.
+	 * the map's rows of days before yesterday (UTC) are dropped then: every
+	 * site's own day is within a day of UTC's. The same pass archives page
+	 * views older than Store::RETENTION (no cron: WP-Cron does not run on
+	 * subsites, architecture.md).
 	 *
 	 * @param string $day Y-m-d, the site's day.
 	 */
@@ -234,6 +292,7 @@ final class Collector {
 		$salts[ $day ] = bin2hex( random_bytes( 16 ) );
 		update_site_option( self::SALT_OPTION, $salts );
 		Store::forget_before( $oldest );
+		Store::archive_before( Store::retention_start() );
 		return $salts[ $day ];
 	}
 }

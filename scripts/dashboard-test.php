@@ -12,8 +12,9 @@
  * 1. Storage: the network's quota, a new site's 3 GB, no limit on the main
  *    site, an upload over the quota refused.
  * 2. Mody Analytics: paths, sources, devices, the address behind the
- *    proxies, bots, a visitor counted once a day, the cap, the summary, a
- *    deleted site's rows.
+ *    proxies, bots, visits (a new one after 30 minutes), journeys, entry
+ *    and exit pages, only random visit IDs stored, the cap, several sites
+ *    side by side, the archive after 13 months.
  * 3. Mody's work: the groups, and a site's summary from turn rows.
  * 4. The plans: the old plans' migration, choose_plan() and its refusals.
  * 5. The page: the sections each user sees, and every section rendered.
@@ -121,15 +122,17 @@ $check( 'posts from another site\'s pages are not counted', Collector::from_this
 $server = $_SERVER;
 $_SERVER['REMOTE_ADDR']           = '172.18.0.5';
 $_SERVER['HTTP_CF_CONNECTING_IP'] = '203.0.113.7';
-$_SERVER['HTTP_X_FORWARDED_FOR']  = '198.51.100.1, 172.18.0.1';
+$_SERVER['HTTP_X_FORWARDED_FOR']  = '104.16.0.5, 172.18.0.1'; // The peer is Cloudflare: its header is believed.
 $behind                           = Collector::address();
+$_SERVER['HTTP_X_FORWARDED_FOR']  = '198.51.100.1, 172.18.0.1'; // The peer is not Cloudflare: its header is forged (security pass, 2026-11-12).
+$forged                           = Collector::address();
 unset( $_SERVER['HTTP_CF_CONNECTING_IP'] );
 $forwarded                        = Collector::address();
 $_SERVER['REMOTE_ADDR']           = '192.0.2.44';
 $_SERVER['HTTP_CF_CONNECTING_IP'] = '203.0.113.7';
 $direct                           = Collector::address();
 $_SERVER                          = $server;
-$check( 'the address behind the proxies, never a forged header', '203.0.113.7' === $behind && '198.51.100.1' === $forwarded && '192.0.2.44' === $direct, "$behind $forwarded $direct" );
+$check( 'the address behind the proxies, never a forged header', '203.0.113.7' === $behind && '198.51.100.1' === $forged && '198.51.100.1' === $forwarded && '192.0.2.44' === $direct, "$behind $forged $forwarded $direct" );
 
 $ua  = 'Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/131.0';
 $ua2 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1';
@@ -142,15 +145,65 @@ $counted = array(
 );
 $check( 'people count; bots and non-paths do not', array( true, true, true, false, false ) === $counted, wp_json_encode( $counted ) );
 $stats = Stats::summary( $site, 7 );
-$check( 'the summary: 3 views, 2 visitors today', 3 === $stats['views'] && 2 === $stats['visitors'] && 7 === count( $stats['days'] ), $stats['views'] . ' / ' . $stats['visitors'] );
-$check( '... pages, sources (first view only) and devices', array( '/' => 2, '/about/' => 1 ) === array_column( $stats['pages'], 'views', 'value' ) && array( '' => 1, 'example.org' => 1 ) === array_column( $stats['sources'], 'views', 'value' ) + array() && 2 === count( $stats['devices'] ), wp_json_encode( array( $stats['sources'], $stats['devices'] ) ) );
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Test.
-$stored = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GROUP_CONCAT(hash) FROM ' . Store::seen() . ' WHERE site_id = %d', $site ) );
-$check( 'only hashes are kept, no address or user agent', 2 === count( explode( ',', $stored ) ) && ! str_contains( $stored, '203.0.113' ) && preg_match( '/^[0-9a-f,]+$/', $stored ) );
+$check( 'the summary: 3 views, 2 visits today', 3 === $stats['views'] && 2 === $stats['visits'] && 7 === count( $stats['days'] ), $stats['views'] . ' / ' . $stats['visits'] );
+$check( '... pages, sources (where visits came in) and devices', array( '/' => 2, '/about/' => 1 ) === array_column( $stats['pages'], 'count', 'value' ) && array( '' => 1, 'example.org' => 1 ) === array_column( $stats['sources'], 'count', 'value' ) && 2 === count( $stats['devices'] ), wp_json_encode( array( $stats['sources'], $stats['devices'] ) ) );
+$check( '... entry and exit pages, single-page visits', array( '/' => 2 ) === array_column( $stats['entries'], 'count', 'value' ) && array( '/' => 1, '/about/' => 1 ) === array_column( $stats['exits'], 'count', 'value' ) && 1 === $stats['single'], wp_json_encode( array( $stats['entries'], $stats['exits'], $stats['single'] ) ) );
+$check( '... the journey: / then /about/', 1 === count( $stats['journeys'] ) && array( '/', '/about/' ) === $stats['journeys'][0]['steps'] && ! $stats['journeys'][0]['more'], wp_json_encode( $stats['journeys'] ) );
+
+// A visit ends after 30 minutes without a page; all three views are today, whatever the time now.
+$start = ( new DateTimeImmutable( 'today', wp_timezone() ) )->getTimestamp() + 60;
+Collector::count( '/a/', '', 1440, '203.0.113.30', $ua, $start );
+Collector::count( '/b/', '', 1440, '203.0.113.30', $ua, $start + Collector::VISIT_GAP + 60 );
+Collector::count( '/c/', '', 1440, '203.0.113.30', $ua, $start + Collector::VISIT_GAP + 120 );
+$stats = Stats::summary( $site, 1 );
+$check( 'a new visit after 30 minutes without a page', 6 === $stats['views'] && 4 === $stats['visits'] && in_array( array( '/b/', '/c/' ), array_column( $stats['journeys'], 'steps' ), true ), $stats['views'] . ' / ' . $stats['visits'] );
+for ( $i = 0; $i < 7; $i++ ) {
+	Collector::count( '/p' . $i . '/', '', 1440, '203.0.113.31', $ua );
+}
+$long = array_values( array_filter( Stats::summary( $site, 1 )['journeys'], static fn( array $j ): bool => '/p0/' === $j['steps'][0] ) );
+$check( '... a long journey shows its first pages and "more"', 1 === count( $long ) && Stats::JOURNEY_STEPS === count( $long[0]['steps'] ) && $long[0]['more'] );
+
+// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Test.
+$hashes = (array) $wpdb->get_col( $wpdb->prepare( 'SELECT hash FROM ' . Store::seen() . ' WHERE site_id = %d', $site ) );
+$rows   = (string) $wpdb->get_var( $wpdb->prepare( "SELECT GROUP_CONCAT(CONCAT_WS('|', visit_id, seq, day, hour, path, source, device) SEPARATOR ';') FROM " . Store::views() . ' WHERE site_id = %d', $site ) );
+$ids    = (array) $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT visit_id FROM ' . Store::views() . ' WHERE site_id = %d', $site ) );
+// phpcs:enable
+$check( 'the map keeps hashes only, no address or user agent', 4 === count( $hashes ) && ! array_filter( $hashes, static fn( string $h ): bool => ! preg_match( '/^[0-9a-f]{32}$/', $h ) ) );
+$check( 'views keep random visits, never the hash, an address or a browser', ! array_intersect( $ids, $hashes ) && ! array_intersect( $ids, array_map( static fn( string $h ): string => substr( $h, 0, 16 ), $hashes ) ) && ! str_contains( $rows, '203.0.113' ) && ! str_contains( $rows, 'Mozilla' ) && ! str_contains( $rows, 'Firefox' ) );
+$views = Stats::summary( $site, 1 )['views'];
 for ( $i = 0; $i < Collector::MAX_VIEWS; $i++ ) {
 	Collector::count( '/', '', 1440, '203.0.113.20', $ua );
 }
-$check( 'a visitor past the day\'s cap is not counted', ! Collector::count( '/', '', 1440, '203.0.113.20', $ua ) && Collector::MAX_VIEWS + 3 === Stats::summary( $site, 1 )['views'] );
+$check( 'a visitor past the day\'s cap is not counted', ! Collector::count( '/', '', 1440, '203.0.113.20', $ua ) && $views + Collector::MAX_VIEWS === Stats::summary( $site, 1 )['views'] );
+
+// Your sites: several sites side by side, all of them together.
+$both = Stats::sites( array( $site, get_main_site_id() ), 7 );
+$mine = Stats::summary( $site, 7 );
+$check( 'several sites: each one\'s numbers and top page, and the sum', $mine['visits'] === $both['sites'][ $site ]['visits'] && '/' === $both['sites'][ $site ]['top'] && $both['visits'] === $mine['visits'] + $both['sites'][ get_main_site_id() ]['visits'] && 7 === count( $both['days'] ) );
+
+// Views older than the retention become daily totals, and go.
+$old = gmdate( 'Y-m-d', (int) strtotime( '-14 months' ) );
+foreach ( array( '/', '/old/' ) as $n => $old_path ) {
+	Store::add_view(
+		array(
+			'site_id'  => $site,
+			'visit_id' => 'oldvisit00000000',
+			'seq'      => $n + 1,
+			'day'      => $old,
+			'hour'     => 10,
+			'path'     => $old_path,
+			'source'   => 'example.net',
+			'device'   => 'desktop',
+		)
+	);
+}
+Store::archive_before( Store::retention_start() );
+// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Test.
+$left    = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Store::views() . ' WHERE site_id = %d AND day = %s', $site, $old ) );
+$totals  = $wpdb->get_results( $wpdb->prepare( 'SELECT kind, value, views, visitors FROM ' . Store::daily() . ' WHERE site_id = %d AND day = %s ORDER BY kind, value', $site, $old ), ARRAY_A );
+// phpcs:enable
+$archive = array_map( static fn( array $r ): string => implode( ':', $r ), (array) $totals );
+$check( 'after 13 months: daily totals kept, the views gone', 0 === $left && array( 'device:desktop:1:1', 'page:/:1:1', 'page:/old/:1:1', 'source:example.net:1:1', 'total::2:1' ) === $archive, implode( ', ', $archive ) );
 restore_current_blog();
 $salts = get_site_option( 'mody_analytics_salts' );
 $check( 'salts: at most two days kept', is_array( $salts ) && count( $salts ) <= 2 && count( $salts ) >= 1, implode( ', ', array_keys( (array) $salts ) ) );
@@ -261,10 +314,12 @@ $html = $render( $member, 'overview' );
 $check( 'Overview: storage of 3 GB, pages, the brand', str_contains( $html, 'of 3 GB used' ) && str_contains( $html, 'Your brand' ) && str_contains( $html, 'Dashboard test' ) );
 $html = $render( $member, 'visitors' );
 $check( 'Visitors: the tiles, the chart, the lists', str_contains( $html, 'Page views' ) && str_contains( $html, 'mody-dashboard__bar' ) && str_contains( $html, 'example.org' ) && str_contains( $html, 'Show as a table' ) );
+$check( '... the journeys, entry and exit pages', str_contains( $html, 'Journeys' ) && str_contains( $html, 'mody-dashboard__step-arrow' ) && str_contains( $html, 'Entry pages' ) && str_contains( $html, 'Exit pages' ) && str_contains( $html, 'Single-page visits' ) );
 $html = $render( $member, 'mody' );
 $check( 'Mody\'s work: design and configuration tokens, the page', str_contains( $html, 'Tokens on design' ) && str_contains( $html, '40,000' ) && str_contains( $html, 'Pricing' ) );
 $html = $render( $member, 'sites' );
 $check( 'Your sites: both sites, 2 of 3 used, New site', str_contains( $html, 'Dashboard test' ) && str_contains( $html, 'Second' ) && str_contains( $html, '2 of 3 sites used' ) && str_contains( $html, 'mody-new-site' ) );
+$check( '... visitors across them: the sum, the chart, the sites compared', str_contains( $html, 'Visitors across your sites' ) && str_contains( $html, 'Visits per day, all your sites' ) && str_contains( $html, 'mody-dashboard__compare' ) && str_contains( $html, 'section=visitors' ) && preg_match( '/\d+ visits · \d+ page views in 30 days/', $html ) );
 $html = $render( $member, 'plan' );
 $check( 'Plan & billing: the trial, the choice, no card yet', str_contains( $html, 'days left' ) && str_contains( $html, 'Your choice' ) && str_contains( $html, 'None yet.' ) && str_contains( $html, '249.99 EUR' ) );
 $check( '... the 1-site plan is disabled with 2 sites', str_contains( $html, 'You have 2 sites: delete some first' ) );
@@ -329,7 +384,7 @@ $check( '... with the Dashboard item, its icon, and no core dashboard link', 200
 $out = $get( $home );
 $check( 'the front end carries the beacon for visitors', 200 === $out['code'] && str_contains( $out['body'], 'id="mody-analytics"' ) );
 $out = $get( $home, $cookie( $member ) );
-$check( '... not for logged-in users', 200 === $out['code'] && ! str_contains( $out['body'], 'id="mody-analytics"' ) );
+$check( '... and for logged-in users, counted anonymously like anyone', 200 === $out['code'] && str_contains( $out['body'], 'id="mody-analytics"' ) );
 $out = $get( $route, array(), 'POST', (string) wp_json_encode( array( 'p' => '/http/', 'r' => '', 'w' => 1440 ) ) );
 $check( 'the route answers 204 and counts', 204 === $out['code'] && in_array( '/http/', array_column( Stats::summary( $site, 1 )['pages'], 'value' ), true ), (string) $out['code'] );
 

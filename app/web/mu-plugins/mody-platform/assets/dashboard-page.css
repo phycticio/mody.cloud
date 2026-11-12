@@ -215,7 +215,58 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* Journeys: a visit's pages in order, one row per pattern ------------------------- */
+
+.mody-dashboard__journeys {
+	margin: 0 0 20px;
+}
+
+.mody-dashboard__steps {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 2px 6px;
+}
+
+.mody-dashboard__step {
+	overflow-wrap: anywhere;
+}
+
+.mody-dashboard__step.is-more {
+	color: #646970;
+	font-style: italic;
+}
+
+.mody-dashboard__step-arrow {
+	color: #646970;
+}
+
 /* Your sites ---------------------------------------------------------------------- */
+
+.mody-dashboard__across {
+	margin: 0 0 24px;
+	padding: 0 0 8px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.mody-dashboard__across h3 {
+	margin: 16px 0 0;
+	font-size: 14px;
+}
+
+.mody-dashboard__compare th[scope="row"] a {
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.mody-dashboard__compare th[scope="row"] .mody-dashboard__note {
+	display: block;
+	font-weight: 400;
+}
+
+.mody-dashboard__path {
+	overflow-wrap: anywhere;
+}
 
 .mody-dashboard__sites-head {
 	display: flex;
@@ -433,6 +484,15 @@
 
 	.mody-dashboard__usage th[scope="row"] {
 		width: 55%;
+	}
+
+	.mody-dashboard__compare th[scope="row"] {
+		width: auto;
+	}
+
+	.mody-dashboard__compare th:last-child,
+	.mody-dashboard__compare td:last-child {
+		display: none;
 	}
 
 	.mody-dashboard__usage .mody-brand__bar {
