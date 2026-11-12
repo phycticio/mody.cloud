@@ -244,6 +244,7 @@ $check( 'records the plan and period for after the trial', true === $chosen && '
 
 echo "\nThe page\n";
 switch_to_blog( $site );
+add_filter( 'mody_export_spawn', '__return_true' ); // The export section asks the watchdog on every visit: no real builder from a test.
 $render = static function ( int $user_id, string $section ): string {
 	wp_set_current_user( $user_id );
 	$_GET['section'] = $section;
@@ -253,7 +254,7 @@ $render = static function ( int $user_id, string $section ): string {
 	return (string) ob_get_clean();
 };
 wp_set_current_user( $member );
-$check( 'the member: Overview, Visitors, Mody\'s work, Your sites, Plan & billing', array( 'overview', 'visitors', 'mody', 'sites', 'plan' ) === array_keys( DashboardPage::sections() ) );
+$check( 'the member: Overview, Visitors, Mody\'s work, Download your site, Your sites, Plan & billing', array( 'overview', 'visitors', 'mody', 'export', 'sites', 'plan' ) === array_keys( DashboardPage::sections() ) );
 wp_set_current_user( $editor );
 $check( 'an editor: Overview only', array( 'overview' ) === array_keys( DashboardPage::sections() ) );
 $html = $render( $member, 'overview' );
@@ -267,10 +268,13 @@ $check( 'Your sites: both sites, 2 of 3 used, New site', str_contains( $html, 'D
 $html = $render( $member, 'plan' );
 $check( 'Plan & billing: the trial, the choice, no card yet', str_contains( $html, 'days left' ) && str_contains( $html, 'Your choice' ) && str_contains( $html, 'None yet.' ) && str_contains( $html, '249.99 EUR' ) );
 $check( '... the 1-site plan is disabled with 2 sites', str_contains( $html, 'You have 2 sites: delete some first' ) );
+$html = $render( $member, 'export' );
+$check( 'Download your site: the button, what comes along, what stays (tests in export-panel-test.php)', str_contains( $html, 'Prepare my download' ) && str_contains( $html, 'What stays with Mody Cloud' ) );
 $marked = array_map( static fn( string $section ): bool => str_contains( $render( $member, $section ), 'mody-dashboard__wip' ), array_keys( DashboardPage::sections() ) );
-$check( '"Work in progress" over Visitors and Mody\'s work only', array( false, true, true, false, false ) === $marked, wp_json_encode( $marked ) );
+$check( '"Work in progress" over Visitors and Mody\'s work only', array( false, true, true, false, false, false ) === $marked, wp_json_encode( $marked ) );
 $html = $render( $editor, 'plan' );
 $check( 'an editor asking for Plan & billing gets the Overview', ! str_contains( $html, 'Choose your plan' ) && str_contains( $html, 'Storage' ) );
+remove_filter( 'mody_export_spawn', '__return_true' );
 restore_current_blog();
 wpmu_delete_blog( $second, true );
 

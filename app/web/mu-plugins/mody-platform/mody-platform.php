@@ -50,6 +50,7 @@ Spectra\SpectraLoader::boot();
  */
 Design\Patterns::serve_placeholder();
 Users\Avatars::serve_initials(); // Initials in place of Gravatar (tickets/network-profile-local-avatars.md).
+Export\Downloads::serve(); // A site's download files, through signed links (tickets/take-your-site-with-you.md).
 add_filter( 'should_load_remote_block_patterns', '__return_false' );
 add_action( 'after_setup_theme', array( Design\Patterns::class, 'remove_core_patterns' ), 20 );
 add_action( 'rest_api_init', array( Design\Patterns::class, 'register' ), 5 );
@@ -104,6 +105,15 @@ add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::cla
 Dashboard\DashboardPage::register();
 Site\Storage::register();
 Site\Seo::register(); // A page's SEO title (post meta) and description (its excerpt), 2026-11-12.
+
+/*
+ * Take your site with you (2026-11-12, tickets/take-your-site-with-you.md):
+ * the dashboard's Download your site section (Dashboard\ExportPanel, wired by
+ * DashboardPage) builds three files in a detached `wp mody-export run`
+ * process: the database, the media and the code with the Mody Import plugin.
+ */
+add_action( 'init', array( Export\Jobs::class, 'install' ), 1 );
+Export\Command::register();
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 add_filter( 'http_response', array( Agent\TurnMetrics::class, 'observe' ), 10, 3 ); // Each agent turn's tokens and cache (2026-11-11).
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );

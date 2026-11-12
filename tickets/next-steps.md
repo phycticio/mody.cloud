@@ -2,9 +2,10 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-11, after the Mody dashboard.
+**Last updated:** 2026-11-12, Take your site with you planned.
 
 ## Waiting on the maintainer
+- **Take your site with you** ([take-your-site-with-you.md](take-your-site-with-you.md), planned 2026-11-12, every recommendation accepted): a Download your site section on each member site's dashboard, three files (code with the Mody Import plugin, media, database), everything but Mody. Phases 1 (Mody Site, the portable code, tested on a plain WordPress) and 2 (the exporter, the dashboard section, signed downloads through Nginx) built and tested locally, not deployed. Next: phase 3, the one-click Mody Import. Phase 0, the production spike (a 3 GB zip on the external disk, a 3 GB download with a resume through Cloudflare), needs the maintainer.
 - **The Mody dashboard** ([mody-dashboard.md](mody-dashboard.md), built 2026-11-11, not deployed): every site's Dashboard with Overview and storage, Visitors (our own cookieless `mody-analytics`), Mody's work (tokens on design and configuration), Your sites and Plan & billing; the new plans in code; 3 GB per site enforced. Waiting on a look, then the deploy. The Mollie keys come next (M1-01 part 3).
 - **The agent sees the whole open page and changes long pages section by section** ([agent-whole-page-sections.md](agent-whole-page-sections.md)), and **is faster and measured** ([agent-performance.md](agent-performance.md)): built, reviewed and deployed on 2026-11-11. The evaluation set passes 31 of 31. Waiting on a look in the editor, and on the two open questions in agent-performance.md.
 - **Your brand: a Brand settings page that Mody reads with every request** ([your-brand-page.md](your-brand-page.md), planned 2026-11-11). A **Your brand** button on the Identity screen opens Settings → Brand: sections for voice, audience, offer, story and values, and facts, in one site setting that every prompt reads. Built the same day (all six parts, tested offline, with real requests and in a browser) and deployed with it.

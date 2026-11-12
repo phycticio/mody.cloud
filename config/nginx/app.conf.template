@@ -51,6 +51,24 @@ server {
         deny all;
     }
 
+    # The files of "Take your site with you" (tickets/take-your-site-with-you.md).
+    # Only PHP reaches this, with X-Accel-Redirect, after it has checked a
+    # signed, expiring link (Export\Downloads); a client asking for it gets a
+    # 404. ^~ keeps the regex rules above from being tried for it, and the URI
+    # never starts with /dumps/, which they deny. Nginx streams the file itself,
+    # with Range (a dropped download resumes) and no PHP worker held. PHP's
+    # Content-Type, Content-Disposition and Cache-Control carry over; these two
+    # do not, so they are set here. The PHP location below tells PHP this
+    # location exists (MODY_EXPORT_ACCEL): the official image renders this
+    # template only when the container starts, so after a deploy PHP may be
+    # newer than the running Nginx, and then it streams the file itself.
+    location ^~ /_mody_exports/ {
+        internal;
+        alias /var/www/html/dumps/exports/;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Robots-Tag noindex always;
+    }
+
     location / {
         try_files $uri $uri/ /index.php?$args;
     }
@@ -61,6 +79,7 @@ server {
         fastcgi_index index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param MODY_EXPORT_ACCEL 1;
 
         fastcgi_buffer_size 32k;
         fastcgi_buffers 16 16k;

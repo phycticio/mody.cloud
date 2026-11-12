@@ -8,8 +8,6 @@
 
 namespace Mody\Platform\Login;
 
-use Mody\Platform\SiteEditor;
-
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -204,8 +202,8 @@ final class SettingsPage {
 				</ul>
 				<?php if ( $can_edit ) : ?>
 					<p class="mody-login-site__links">
-						<a href="<?php echo esc_url( SiteEditor::url( '/identity' ) ); ?>"><?php esc_html_e( 'Change the logo', 'mody_cloud' ); ?></a>
-						<a href="<?php echo esc_url( SiteEditor::url( '/styles' ) ); ?>"><?php esc_html_e( 'Change the colors and fonts', 'mody_cloud' ); ?></a>
+						<a href="<?php echo esc_url( add_query_arg( 'p', rawurlencode( '/identity' ), admin_url( 'site-editor.php' ) ) ); ?>"><?php esc_html_e( 'Change the logo', 'mody_cloud' ); ?></a>
+						<a href="<?php echo esc_url( add_query_arg( 'p', rawurlencode( '/styles' ), admin_url( 'site-editor.php' ) ) ); ?>"><?php esc_html_e( 'Change the colors and fonts', 'mody_cloud' ); ?></a>
 					</p>
 				<?php endif; ?>
 			</div>

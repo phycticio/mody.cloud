@@ -8,8 +8,6 @@
 
 namespace Mody\Platform\Login;
 
-use Mody\Platform\Design\SiteDesign;
-
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -46,11 +44,14 @@ final class Schemes {
 	 * @return array<string, string>
 	 */
 	public static function palette(): array {
+		// Read here, not through Design\SiteDesign: the login page also runs in
+		// Mody Site, the portable plugin a downloaded site takes with it.
 		$palette = array();
-		foreach ( SiteDesign::palette() as $slug => $color ) {
-			$hex = Color::hex( $color );
-			if ( null !== $hex && preg_match( self::SLUG_PATTERN, (string) $slug ) ) {
-				$palette[ (string) $slug ] = $hex;
+		foreach ( (array) wp_get_global_settings( array( 'color', 'palette', 'theme' ) ) as $entry ) {
+			$slug = is_array( $entry ) ? (string) ( $entry['slug'] ?? '' ) : '';
+			$hex  = Color::hex( is_array( $entry ) ? (string) ( $entry['color'] ?? '' ) : '' );
+			if ( null !== $hex && preg_match( self::SLUG_PATTERN, $slug ) ) {
+				$palette[ $slug ] = $hex;
 			}
 		}
 		return $palette;
