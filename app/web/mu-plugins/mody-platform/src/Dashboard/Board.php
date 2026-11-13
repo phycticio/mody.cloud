@@ -22,7 +22,14 @@ defined( 'ABSPATH' ) || exit;
  * option `mody_analytics_board`, shared by its administrators. While the
  * option is empty the board is the default one (DEFAULTS: what the Visitors
  * section showed before). The board before the last change is kept in
- * `mody_analytics_board_undo`, so one Undo goes back.
+ * `mody_analytics_board_undo`, so one Undo goes back. One Undo is one
+ * change of the owner's, or one whole reply of the analyst's (batch()).
+ * Every change of the cards raises `mody_analytics_board_version`, so the
+ * bubble can tell that its Undo no longer matches the board.
+ *
+ * A stored card that no longer passes validation (after a change to the
+ * chart format) is not drawn, but it is kept in the option: a later save
+ * never deletes it, only Reset does.
  *
  * Every change goes through apply(): the card buttons' route here, and the
  * analyst (phase 2) through the same method. Numbers are counted when a
@@ -31,7 +38,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * REST, `manage_options` on the site (cookie and nonce):
  * - GET  mody-platform/v1/analytics/board?days=30: the cards with their numbers;
- * - POST mody-platform/v1/analytics/board: {action: move|remove|reset|undo, id, to};
+ * - POST mody-platform/v1/analytics/board: {action: move|remove|reset|undo, id, to, version};
  * - POST mody-platform/v1/analytics/board/chart: {spec, days}: one chart's numbers.
  */
 final class Board {
@@ -41,6 +48,12 @@ final class Board {
 
 	/** The site option with the board before the last change. */
 	public const UNDO_OPTION = 'mody_analytics_board_undo';
+
+	/** The site option counting changes to the cards. */
+	public const VERSION_OPTION = 'mody_analytics_board_version';
+
+	/** The action fired after the owner changes the board with its buttons: the change in words (English, and the owner's language). */
+	public const OWNER_CHANGED = 'mody_analytics_board_owner_changed';
 
 	/** The site option with the notes on dates: [{date, label}] (phase 3c). */
 	public const NOTES_OPTION = 'mody_analytics_notes';
@@ -66,6 +79,12 @@ final class Board {
 	/** The period before, and "Other": a gray that still clears 3:1 on white. */
 	public const MUTED = '#8c8f94';
 
+	/** Whether changes are grouped into one Undo (batch()). */
+	private static bool $batching = false;
+
+	/** Whether the board before the batch is kept already. */
+	private static bool $remembered = false;
+
 	/**
 	 * Hooks.
 	 */
@@ -88,7 +107,7 @@ final class Board {
 				'dimension' => $dimension,
 				'limit'     => 10,
 			),
-			'size'  => 'third',
+			'size'  => 'half',
 		);
 		$tile = static fn( string $id, string $title, string $metric ): array => array(
 			'id'    => $id,
@@ -99,7 +118,7 @@ final class Board {
 				'dimension' => 'none',
 				'compare'   => in_array( $metric, Query::COUNTS, true ),
 			),
-			'size'  => 'small',
+			'size'  => 'half',
 		);
 		return array(
 			$tile( 'visits', __( 'Visits', 'mody_cloud' ), 'visits' ),
@@ -145,16 +164,55 @@ final class Board {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function cards(): array {
+		return self::split()[0];
+	}
+
+	/**
+	 * The stored cards: the valid ones, validated, and the ones that no
+	 * longer pass, as stored (kept, never drawn).
+	 *
+	 * @return array{0: array<int, array<string, mixed>>, 1: array<int, mixed>}
+	 */
+	private static function split(): array {
 		$stored = get_option( self::OPTION );
 		$cards  = is_array( $stored ) && $stored ? $stored : self::defaults();
-		$out    = array();
+		$valid  = array();
+		$kept   = array();
 		foreach ( $cards as $card ) {
 			$spec = ChartSpec::validate( $card );
-			if ( ! is_wp_error( $spec ) ) {
-				$out[] = $spec;
+			if ( is_wp_error( $spec ) ) {
+				$kept[] = $card;
+			} else {
+				$valid[] = $spec;
 			}
 		}
-		return $out;
+		return array( $valid, $kept );
+	}
+
+	/**
+	 * The board's version: it goes up with every change to the cards.
+	 */
+	public static function version(): int {
+		return (int) get_option( self::VERSION_OPTION, 0 );
+	}
+
+	/**
+	 * Runs changes as one: Undo then goes back to the board before them
+	 * all. The analyst's reply is one batch.
+	 *
+	 * @template T
+	 * @param callable(): T $changes The changes.
+	 * @return T What they return.
+	 */
+	public static function batch( callable $changes ) {
+		self::$batching   = true;
+		self::$remembered = false;
+		try {
+			return $changes();
+		} finally {
+			self::$batching   = false;
+			self::$remembered = false;
+		}
 	}
 
 	/**
@@ -183,8 +241,8 @@ final class Board {
 		if ( 'note' === $action || 'unnote' === $action ) {
 			return self::note( $action, $args );
 		}
-		$cards = self::cards();
-		$ids   = array_column( $cards, 'id' );
+		list( $cards, $kept ) = self::split();
+		$ids                  = array_column( $cards, 'id' );
 		$id    = sanitize_key( (string) ( $args['id'] ?? '' ) );
 		$index = '' !== $id ? array_search( $id, $ids, true ) : false;
 		$needs = array( 'change', 'remove', 'move' );
@@ -201,9 +259,11 @@ final class Board {
 				if ( is_wp_error( $spec ) ) {
 					return $spec;
 				}
-				$spec['id'] = self::unique_id( $spec['id'], $ids );
+				$spec['id'] = self::unique_id( $spec['id'], array_merge( $ids, array_filter( array_map( static fn( $card ): string => is_array( $card ) ? (string) ( $card['id'] ?? '' ) : '', $kept ) ) ) );
 				$after      = array_key_exists( 'after', $args ) ? sanitize_key( (string) $args['after'] ) : null;
-				$at         = null === $after ? count( $cards ) : ( '' === $after ? 0 : (int) array_search( $after, $ids, true ) + 1 );
+				$found      = null !== $after && '' !== $after ? array_search( $after, $ids, true ) : false;
+				// The end by default, and after an id that is not on the board; the top for ''.
+				$at = '' === $after ? 0 : ( false === $found ? count( $cards ) : (int) $found + 1 );
 				array_splice( $cards, max( 0, min( count( $cards ), $at ) ), 0, array( $spec ) );
 				$changed[] = $spec['id'];
 				break;
@@ -259,6 +319,7 @@ final class Board {
 			case 'reset':
 				self::remember();
 				delete_option( self::OPTION );
+				self::bump();
 				return array(
 					'cards'   => self::defaults_validated(),
 					'changed' => array(),
@@ -274,6 +335,8 @@ final class Board {
 				} else {
 					delete_option( self::OPTION );
 				}
+				self::$remembered = false; // A change after it, in the same batch, is undone on its own.
+				self::bump();
 				return array(
 					'cards'   => self::cards(),
 					'changed' => array(),
@@ -282,7 +345,8 @@ final class Board {
 				return new WP_Error( 'mody_board_action', 'Unknown action. Actions: add, change, remove, move, reset, undo, note, unnote.' );
 		}
 		self::remember();
-		update_option( self::OPTION, array_values( $cards ), false );
+		update_option( self::OPTION, array_merge( array_values( $cards ), $kept ), false );
+		self::bump();
 		return array(
 			'cards'   => array_values( $cards ),
 			'changed' => $changed,
@@ -352,8 +416,19 @@ final class Board {
 	 * list for the default board.
 	 */
 	private static function remember(): void {
+		if ( self::$batching && self::$remembered ) {
+			return; // The board before the batch is the one to go back to.
+		}
 		$stored = get_option( self::OPTION );
 		update_option( self::UNDO_OPTION, is_array( $stored ) ? $stored : array(), false );
+		self::$remembered = self::$batching;
+	}
+
+	/**
+	 * Raises the board's version.
+	 */
+	private static function bump(): void {
+		update_option( self::VERSION_OPTION, self::version() + 1, false );
 	}
 
 	/**
@@ -438,6 +513,7 @@ final class Board {
 			'cards'     => array_map( static fn( array $spec ): array => self::with_data( $spec, $days ), self::cards() ),
 			'days'      => $days,
 			'isDefault' => self::is_default(),
+			'version'   => self::version(),
 			'canUndo'   => self::can_undo(),
 			'notes'     => self::notes(),
 			'palette'   => Schemes::palette(),
@@ -474,9 +550,10 @@ final class Board {
 							'enum'     => array( 'move', 'remove', 'reset', 'undo' ),
 							'required' => true,
 						),
-						'id'     => array( 'type' => 'string' ),
-						'to'     => array( 'type' => array( 'string', 'integer' ) ),
-						'days'   => $days,
+						'id'      => array( 'type' => 'string' ),
+						'to'      => array( 'type' => array( 'string', 'integer' ) ),
+						'version' => array( 'type' => 'integer' ),
+						'days'    => $days,
 					),
 				),
 			)
@@ -507,15 +584,25 @@ final class Board {
 	}
 
 	/**
-	 * POST `analytics/board`: the card buttons (move, remove), reset and undo.
-	 * Adding and changing charts is the analyst's (phase 2), through apply().
+	 * POST `analytics/board`: the card buttons (move, remove), dragging (move
+	 * to a position), reset and undo. Adding and changing charts is the
+	 * analyst's (phase 2), through apply(). With `version`, an undo is
+	 * refused when the board changed since (the bubble's Undo of one reply).
+	 * The change, in words, goes to OWNER_CHANGED (the analyst's
+	 * conversation: in English for the model, in the owner's language for
+	 * the bubble) and back as `event`.
 	 *
 	 * @param WP_REST_Request $request The request.
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public static function rest_change( WP_REST_Request $request ) {
+		$action = (string) $request['action'];
+		if ( 'undo' === $action && null !== $request['version'] && (int) $request['version'] !== self::version() ) {
+			return new WP_Error( 'mody_board_changed', __( 'The board changed after this reply, so this Undo would undo something else. Use “Undo the last change” on the board.', 'mody_cloud' ), array( 'status' => 409 ) );
+		}
+		$before = self::cards();
 		$result = self::apply(
-			(string) $request['action'],
+			$action,
 			array(
 				'id' => (string) $request['id'],
 				'to' => $request['to'] ?? 'down',
@@ -525,7 +612,50 @@ final class Board {
 			$result->add_data( array( 'status' => 400 ) );
 			return $result;
 		}
-		return new WP_REST_Response( self::payload( (int) $request['days'] ) + array( 'changed' => $result['changed'] ) );
+		$event = self::describe( $action, (string) $request['id'], $before, $result['cards'] );
+		$shown = self::describe( $action, (string) $request['id'], $before, $result['cards'], true );
+		if ( '' !== $event ) {
+			do_action( self::OWNER_CHANGED, $event, $shown );
+		}
+		return new WP_REST_Response(
+			self::payload( (int) $request['days'] ) + array(
+				'changed' => $result['changed'],
+				'event'   => $shown,
+			)
+		);
+	}
+
+	/**
+	 * A change made with the buttons, in words: in English for the analyst
+	 * (like its prompt), or in the owner's language for the bubble.
+	 *
+	 * @param string                           $action     The action.
+	 * @param string                           $id         The chart's id.
+	 * @param array<int, array<string, mixed>> $before     The cards before.
+	 * @param array<int, array<string, mixed>> $after      The cards after.
+	 * @param bool                             $translated The owner's language.
+	 */
+	public static function describe( string $action, string $id, array $before, array $after, bool $translated = false ): string {
+		$id    = sanitize_key( $id );
+		$card  = current( array_filter( $before, static fn( array $spec ): bool => $spec['id'] === $id ) );
+		$title = $card ? (string) $card['title'] : $id;
+		switch ( $action ) {
+			case 'remove':
+				/* translators: %s: a chart's title. */
+				return $translated ? sprintf( __( 'You removed “%s”.', 'mody_cloud' ), $title ) : sprintf( 'The owner removed the chart “%s” (%s).', $title, $id );
+			case 'move':
+				$at = array_search( $id, array_column( $after, 'id' ), true );
+				if ( false === $at ) {
+					return '';
+				}
+				/* translators: 1: a chart's title, 2: its position, 3: the number of charts. */
+				return $translated ? sprintf( __( 'You moved “%1$s” to position %2$d of %3$d.', 'mody_cloud' ), $title, $at + 1, count( $after ) ) : sprintf( 'The owner moved the chart “%s” (%s) to position %d of %d.', $title, $id, $at + 1, count( $after ) );
+			case 'reset':
+				return $translated ? __( 'You went back to the default board.', 'mody_cloud' ) : 'The owner went back to the default board.';
+			case 'undo':
+				return $translated ? __( 'You undid the last change to the board.', 'mody_cloud' ) : 'The owner undid the last change to the board.';
+		}
+		return '';
 	}
 
 	/**

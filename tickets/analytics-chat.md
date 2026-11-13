@@ -14,7 +14,7 @@ By the maintainer on 2026-11-12:
 4. **Charts and answers** (option "charts and answers"): the analyst draws and changes charts, and also answers questions in words. Every figure it quotes must come from its query tool.
 5. **Editors get no board** (the maintainer accepted the recommendations, 2026-11-12): analytics stays with administrators, as the Visitors section does.
 6. **The analyst knows the site's name and mission**, not the rest of the brand: enough to explain numbers in context, and it writes no site content.
-7. **Undo is one step**: the board before the last change.
+7. **Undo is one step**: the board before the last change. Since 2026-11-13 one step is one change made with the buttons, or one whole reply of Mody's, however many changes it made.
 
 ## The design
 
@@ -46,7 +46,7 @@ The model never writes SQL, JavaScript, HTML or numbers into a chart. It writes 
   - six-digit hex values.
 
   A color with too little contrast against the card's background (below 3:1) is refused with that reason. Charts live in wp-admin, not in site content, so the "palette only" rule for generated content does not apply. Palette names come first anyway, so charts match the brand.
-- **Sizes:** `small` (a quarter of the row), `half`, `wide`, `full`.
+- **Sizes:** `half` (half the row) and `full` (the whole row), nothing else (the maintainer, 2026-11-13; there were also `small`, `third` and `wide`, which saved boards still name and are drawn as `half`, `half` and `full`).
 
 ### 2. The query layer (`Mody\Analytics\Query`, in `mody-analytics`)
 - It turns a validated spec into one prepared query on `mody_analytics_views`, built only from the allowlists above. Before the archive's start date it reads `mody_analytics_daily`, for days and totals only.
@@ -196,6 +196,26 @@ Asked for: "The analyst should also be able to filter, reduce the graphic, ask f
 - **Seen and fixed:** long paths are cut from the left on horizontal bars; area legends use the line's color; tile buttons float so titles do not wrap; focus goes to Undo after remove and reset.
 - **Before deploying:** `pnpm build` (the deploy runs it) builds `app/dist/analytics-board.js`. Without it the Visitors section stays as before.
 - **Next:** phase 2, the analyst and its bubble.
+
+## Drag and drop, and what Mody knows (2026-11-13)
+The maintainer asked to remove the watermark, make the cards draggable, check that adding a chart never removes others, and check that Mody sees the changes made with the card buttons.
+
+- **Adding never removed a chart.** Mody's log of the maintainer's session showed the board going from 13 to 14 to 15 cards with its two adds. The 9 charts that went missing were nine Remove requests from the browser in 15 seconds (Nginx's log). After a removal the grid moves up and the next card's × lands under the pointer, and nothing visible said what had happened.
+- **Fixed:**
+  - adding "after" a chart that is not on the board put the new chart second; it now goes at the end;
+  - a saved chart that no longer passes validation was dropped at the next save; it is now kept (not drawn), and only Reset removes it;
+  - the card buttons' errors reached only screen readers; a notice at the bottom of the window now shows every change and error, and a removal or reset comes with Undo there, which gets the focus without scrolling the page.
+- **Dragging** (`src/analytics-drag.js`): pointer events, so mouse, touch and pen. A mouse drags a card by its header; a finger or pen by the grip, so the rest of the card still scrolls. A placeholder shows where it lands, the page scrolls near the edges, and Escape cancels. A drop is one `move` to a position. The up and down buttons stay as the keyboard way (WCAG 2.5.7).
+- **What Mody knows:**
+  - the prompt's board was already read fresh for every message, but earlier tool results in the conversation carried the board as it was then. They now keep only what changed, and the prompt says its board is the only current one;
+  - the changes made with the buttons go into the conversation (`Board::OWNER_CHANGED`): Mody reads them in front of the owner's next message ("[On the board, since your last reply: The owner removed the chart “Pages” (pages).]"), and the bubble shows them as gray lines in the owner's language;
+  - one Undo takes back a whole reply (`Board::batch()`); before, a reply of two changes was only half undone;
+  - the board has a version (`mody_analytics_board_version`). A reply's Undo goes off when the board changed since that reply, and the server refuses it (409), since it would undo the owner's own change;
+  - while Mody is answering, the card buttons and dragging wait.
+- **Watermark:** off Visitors; Mody's work keeps it.
+- **Two widths** (asked the same day: "charts in this screen should only have two widths: 50% and 100%"): `ChartSpec::SIZES` is `half` and `full`. Tiles, lists and donuts take half the row, everything else the whole row, and the analyst's prompt names only these two. Old widths in saved boards or from the model become the nearest of the two (`ChartSpec::OLD_SIZES`). Below 960 px every chart takes the whole row, and the board drawn before the script loads uses the same two widths. Checked in headless Chromium at 1440, 1024, 900 and 390 px on the sample site and the main site's saved board: every card was 50% or 100% wide, with no sideways scroll.
+- **Tests:** `scripts/analytics-board-test.php` 116 checks (the two widths; adding at the end, top, after a chart and after a missing one keeps every chart; kept cards; the version; one Undo per batch; the button changes in words; a drop; the stale Undo refused); `scripts/analytics-analyst-test.php` 37 checks (the owner's changes in the conversation and the bubble, no old board lists, the prompt after a button change); `scripts/dashboard-test.php` 54. All pass. `scripts/analytics-eval.php` (the prompt changed): 27 of 27.
+- **In headless Chromium** (the sample bakery site): a mouse drag to the top, a touch drag by the grip, Escape, the up button, auto-scroll in a 900 px window, a removal with Undo in the notice, the gray lines in the bubble, and a real Mody reply: the buttons refused while it worked, its Undo on after, and off after a button move. No script errors.
 
 ## Results: phases 3b and 3c (2026-11-13)
 - **Goals:** `reached` (visits that saw the `goal` page or prefix) and `conversion_rate` (their share of the visits counted from the views table), over time and by any visit dimension.

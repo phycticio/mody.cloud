@@ -5,6 +5,12 @@
  * lists, tables, journeys and the heatmap are plain HTML. Every chart has a
  * table view. Text goes in with textContent only.
  *
+ * Cards move by dragging (src/analytics-drag.js) or with their up and down
+ * buttons; a removal or reset shows a notice with Undo. While Mody is
+ * answering, the card buttons and dragging wait (its reply may change the
+ * board). Every change made here is told to the bubble, which shows it and
+ * keeps it for Mody's next turn.
+ *
  * Built into app/dist/analytics-board.js; the platform enqueues it on the
  * Visitors section with the board in window.modyAnalyticsBoard.
  */
@@ -28,6 +34,7 @@ import apiFetch from '@wordpress/api-fetch';
 import { __, sprintf } from '@wordpress/i18n';
 
 import { startChat } from './analytics-chat';
+import { enableDrag } from './analytics-drag';
 
 Chart.register(
 	ArcElement,
@@ -67,6 +74,80 @@ let withAnalyst = false;
 let siteNotes = [];
 /* The CSV links' object URLs, released at each redraw. */
 const csvUrls = [];
+/* The notice at the bottom of the window, and its timer. */
+let toastNode = null;
+let toastTimer = 0;
+
+/**
+ * Hides the notice. Focus inside it goes back to the board's state line.
+ */
+function hideToast() {
+	if (!toastNode || toastNode.hidden) {
+		return;
+	}
+	const hadFocus = toastNode.contains(toastNode.ownerDocument.activeElement);
+	toastNode.hidden = true;
+	toastNode.replaceChildren();
+	if (hadFocus) {
+		const state = document.querySelector('.mody-board__state');
+		if (state) {
+			state.setAttribute('tabindex', '-1');
+			state.focus({ preventScroll: true });
+		}
+	}
+}
+
+/**
+ * Shows a notice at the bottom of the window: what changed, with Undo when
+ * there is one, or an error (which stays until it is closed). It is the
+ * board's live region, so screen readers hear it too.
+ *
+ * @param {string}        text           The notice.
+ * @param {Object}        options        Options.
+ * @param {boolean}       options.error  Whether it is an error.
+ * @param {Function|null} options.onUndo Undo's action, or null for no Undo.
+ * @return {HTMLElement} The notice.
+ */
+function toast(text, { error = false, onUndo = null } = {}) {
+	if (!toastNode) {
+		toastNode = el('div', 'mody-board__toast');
+		toastNode.setAttribute('role', 'status');
+		toastNode.setAttribute('aria-live', 'polite');
+		document.body.append(toastNode);
+	}
+	window.clearTimeout(toastTimer);
+	const parts = [el('span', 'mody-board__toast-text', text)];
+	if (onUndo) {
+		const undo = el(
+			'button',
+			'button-link mody-board__toast-undo',
+			__('Undo', 'mody_cloud')
+		);
+		undo.type = 'button';
+		undo.addEventListener('click', onUndo);
+		parts.push(undo);
+	}
+	const close = el('button', 'mody-board__toast-close', '×');
+	close.type = 'button';
+	close.setAttribute('aria-label', __('Dismiss', 'mody_cloud'));
+	close.addEventListener('click', hideToast);
+	parts.push(close);
+	toastNode.replaceChildren(...parts);
+	toastNode.classList.toggle('is-error', error);
+	toastNode.hidden = false;
+	if (!error) {
+		const later = () => {
+			// Never while someone is on its buttons.
+			if (toastNode.contains(toastNode.ownerDocument.activeElement)) {
+				toastTimer = window.setTimeout(later, 2000);
+			} else {
+				hideToast();
+			}
+		};
+		toastTimer = window.setTimeout(later, onUndo ? 10000 : 5000);
+	}
+	return toastNode;
+}
 
 /**
  * Creates an element with a class and text.
@@ -966,7 +1047,11 @@ function cardElement(card, index, total) {
 	node.dataset.id = spec.id;
 	const head = el('header', 'mody-board__card-head');
 	const title = el('h3', 'mody-board__card-title', spec.title);
-	head.append(title);
+	// The grip: drag the header with a mouse, the grip with a finger (src/analytics-drag.js).
+	const grip = el('span', 'mody-board__grip dashicons dashicons-move');
+	grip.setAttribute('aria-hidden', 'true');
+	grip.title = __('Drag to move', 'mody_cloud');
+	head.append(grip, title);
 	if (card.period) {
 		head.append(el('span', 'mody-board__card-period', card.period));
 	}
@@ -1075,9 +1160,6 @@ function render(root, board, focus = '') {
 		actions.append(reset);
 	}
 	bar.append(actions);
-	const live = el('p', 'screen-reader-text');
-	live.setAttribute('aria-live', 'polite');
-	live.className = 'screen-reader-text mody-board__live';
 	const grid = el('div', 'mody-board__grid');
 	board.cards.forEach((card, i) =>
 		grid.append(cardElement(card, i, board.cards.length))
@@ -1094,7 +1176,7 @@ function render(root, board, focus = '') {
 			)
 		);
 	}
-	root.replaceChildren(bar, live, grid);
+	root.replaceChildren(bar, grid);
 	root.classList.add('is-ready');
 	if (focus === 'undo' || focus === 'state') {
 		// After remove and reset, Undo; after undo, the board's state line.
@@ -1133,17 +1215,119 @@ function start() {
 	Chart.defaults.color = INK;
 	let board = config.board;
 	let busy = false;
+	/* While Mody is answering: its reply may change the board. */
+	let locked = false;
+	let chat = null;
 	withAnalyst = !!config.analyst;
-	render(root, board);
+
+	/* The card buttons that change the board, marked unavailable while Mody works. */
+	const markLocked = () => {
+		root.classList.toggle('is-locked', locked);
+		root.querySelectorAll(
+			'.mody-board__tool:not([data-action="ask"])'
+		).forEach((b) => {
+			if (locked) {
+				b.setAttribute('aria-disabled', 'true');
+			} else {
+				b.removeAttribute('aria-disabled');
+			}
+		});
+	};
+
+	let drag = null;
+	const draw = (focus = '') => {
+		if (drag) {
+			drag.cancel();
+		}
+		render(root, board, focus);
+		markLocked();
+		if (chat) {
+			chat.boardVersion(board.version);
+		}
+	};
+
+	/**
+	 * Changes the board: a card's buttons, a drop, reset and undo.
+	 *
+	 * @param {string}        action move, remove, reset or undo.
+	 * @param {string}        id     The chart's id.
+	 * @param {string|number} to     For move: up, down, or a position (a drop).
+	 */
+	const changeBoard = (action, id = '', to = '') => {
+		if (busy) {
+			return;
+		}
+		if (locked) {
+			toast(
+				__(
+					'Mody is changing the board. Wait for the reply.',
+					'mody_cloud'
+				),
+				{ error: true }
+			);
+			return;
+		}
+		busy = true;
+		root.setAttribute('aria-busy', 'true');
+		const dropped = typeof to === 'number';
+		apiFetch({
+			path: ROUTE,
+			method: 'POST',
+			data: { action, id, to, days: board.days },
+		})
+			.then((next) => {
+				board = next;
+				let focus = '';
+				if (action === 'move' && !dropped) {
+					focus = `${id}|move|${to}`;
+				} else if (action === 'undo') {
+					focus = 'state';
+				}
+				draw(focus);
+				const text = next.event || '';
+				if (action === 'remove' || action === 'reset') {
+					// Undo right where the hand is: the notice, which never scrolls the page.
+					const notice = toast(text, {
+						onUndo: () => changeBoard('undo'),
+					});
+					notice.querySelector('.mody-board__toast-undo').focus();
+				} else if (text) {
+					toast(text);
+				}
+				if (text && chat) {
+					chat.event(text);
+				}
+			})
+			.catch((error) => {
+				if (dropped) {
+					draw(); // The card goes back where the server has it.
+				}
+				toast(
+					error?.message ||
+						__('That did not work. Try again.', 'mody_cloud'),
+					{ error: true }
+				);
+			})
+			.finally(() => {
+				busy = false;
+				root.removeAttribute('aria-busy');
+			});
+	};
 
 	// The analyst's bubble: a new board from it redraws here, its charts briefly marked.
-	let chat = null;
 	if (withAnalyst) {
 		chat = startChat({
 			days: () => board.days,
+			onWorking: (working) => {
+				locked = working;
+				if (working && drag) {
+					drag.cancel();
+				}
+				markLocked();
+			},
 			onBoard: (next, changed) => {
 				board = next;
-				render(root, board);
+				draw();
 				changed.forEach((id) => {
 					const card = root.querySelector(
 						`.mody-board__card[data-id="${CSS.escape(id)}"]`
@@ -1159,10 +1343,16 @@ function start() {
 			},
 		});
 	}
+	draw();
+
+	drag = enableDrag(root, {
+		canDrag: () => !busy && !locked,
+		onDrop: (id, to) => changeBoard('move', id, to),
+	});
 
 	root.addEventListener('click', (event) => {
 		const target = event.target.closest('button[data-action]');
-		if (!target || busy) {
+		if (!target) {
 			return;
 		}
 		const { action, id = '', to = '' } = target.dataset;
@@ -1177,47 +1367,7 @@ function start() {
 			);
 			return;
 		}
-		busy = true;
-		root.setAttribute('aria-busy', 'true');
-		apiFetch({
-			path: ROUTE,
-			method: 'POST',
-			data: { action, id, to, days: board.days },
-		})
-			.then((next) => {
-				board = next;
-				render(
-					root,
-					board,
-					{
-						move: `${id}|move|${to}`,
-						remove: 'undo',
-						reset: 'undo',
-						undo: 'state',
-					}[action]
-				);
-				const live = root.querySelector('.mody-board__live');
-				if (live) {
-					live.textContent = {
-						move: __('Chart moved.', 'mody_cloud'),
-						remove: __('Chart removed.', 'mody_cloud'),
-						reset: __('The default board is back.', 'mody_cloud'),
-						undo: __('The last change was undone.', 'mody_cloud'),
-					}[action];
-				}
-			})
-			.catch((error) => {
-				const live = root.querySelector('.mody-board__live');
-				if (live) {
-					live.textContent =
-						error?.message ||
-						__('That did not work. Try again.', 'mody_cloud');
-				}
-			})
-			.finally(() => {
-				busy = false;
-				root.removeAttribute('aria-busy');
-			});
+		changeBoard(action, id, to);
 	});
 }
 
