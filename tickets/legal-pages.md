@@ -1,6 +1,6 @@
 # The legal pages: legal notice, terms of service, privacy policy
 
-**Status:** built 2026-11-13 on `feature/legal-pages`; drafts until the seller's tax ID and contact email are set. **Asked by** the maintainer on 2026-11-13 ("tell me what's next and let's go to it"), after card payments: real money needs these pages first.
+**Status:** built and deployed 2026-11-13 (`1039407`); **published on production the same day** (pages 274, 275 and 276), with the home page's links in all four languages. All four seller options are set on production and locally. **Asked by** the maintainer on 2026-11-13 ("tell me what's next and let's go to it"), after card payments: real money needs these pages first.
 
 ## What
 - `scripts/legal-pages.php` (run on the main site, like `scripts/home-page.php`; it replaces the pages, so edit the script) makes three pages:
@@ -13,6 +13,6 @@
 
 ## Open
 - **A lawyer or gestor reads the texts** before real money (they are a first draft).
-- **The tax ID and the contact email** (`wp site option update mody_seller_tax_id …`, `… mody_seller_email …`), then run the script on production, then `scripts/home-page.php` and the translations again for the links.
+- **Cloudflare hides the email address** in the pages' HTML (its email obfuscation): visitors with JavaScript see it, a page read without JavaScript shows "[email protected]". Turn it off in Cloudflare (Scrape Shield) if the address must be readable everywhere.
 - **The pages in Spanish, German and Italian:** English only for now; the translated home pages link to them.
 - **To check:** whether Cloudflare and Wordfence (Defiant) are certified under the EU–US Data Privacy Framework (the privacy policy says "where the provider is certified, or standard contractual clauses").

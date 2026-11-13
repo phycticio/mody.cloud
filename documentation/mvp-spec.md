@@ -415,7 +415,7 @@ Ordered; M1 and M2 can partially overlap after M0. Estimates are rough (rule 5: 
 
 ## 14. Next iteration (out of MVP, decided direction)
 
-- **Custom domains per site + Caddy sidecar** (ACME; DNS-instruction flow: member requests → platform replies with exact records → cron verifies → cert → activate). No domain resale yet. Needed by the launch since 2026-11-10: every plan includes it.
+- **Custom domains per site** (DNS-instruction flow: member requests → platform replies with the exact record → cron verifies → cert → activate). No domain resale yet. Needed by the launch since 2026-11-10: every plan includes it. **Built 2026-11-13** with Nginx Proxy Manager's API instead of a Caddy sidecar (the maintainer's choice), a CNAME to `sites.mody.cloud`, and the admin kept on `*.mody.cloud` ([tickets/custom-domains.md](../tickets/custom-domains.md)).
 - **Newsletter** (Infomaniak; per-plan sending caps, undecided) per [newsletter.md](newsletter.md).
 - **Dedicated VPS** tier (not in the plans since 2026-11-10); AI volume limits.
 - A font choice in the wizard, more presets. (Fonts in the Site Editor and the presets as style variations are built: M2-06, M2-07.)

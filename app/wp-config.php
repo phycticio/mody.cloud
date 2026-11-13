@@ -196,6 +196,8 @@ if ( MULTISITE ) {
 	define( 'ADMIN_COOKIE_PATH', '/' );
 	define( 'COOKIEPATH', '/' );
 	define( 'SITECOOKIEPATH', '/' );
+	// Members' custom domains (app/web/sunrise.php, tickets/custom-domains.md).
+	define( 'SUNRISE', true );
 }
 
 

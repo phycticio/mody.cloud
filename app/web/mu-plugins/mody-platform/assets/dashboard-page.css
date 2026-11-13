@@ -1303,3 +1303,16 @@ body.mody-board-dragging * {
 	color: #b32d2e;
 	font-weight: 600;
 }
+
+/* Your domain (2026-11-13). */
+.mody-domain__record {
+	max-width: 640px;
+	margin: 8px 0 12px;
+}
+
+.mody-domain__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 16px;
+}
