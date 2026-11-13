@@ -1296,3 +1296,10 @@ body.mody-board-dragging * {
 	align-items: flex-start;
 	gap: 8px;
 }
+
+/* A card that expires before the next payment (2026-11-13). */
+.mody-dashboard__card-expiry {
+	margin: 4px 0 8px;
+	color: #b32d2e;
+	font-weight: 600;
+}

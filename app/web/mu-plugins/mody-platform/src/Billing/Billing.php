@@ -50,6 +50,10 @@ defined( 'ABSPATH' ) || exit;
  *   charge from that day.
  * - **Reminders:** a free account without a card gets an email a month and a
  *   week before its free months end.
+ * - **A card that expires before the next charge** (2026-11-13): Plan &
+ *   billing says so next to the card, and the daily run sends one email, in
+ *   the 30 days before that charge, asking for another card (the charge on
+ *   an expired card would fail).
  * - **The daily run** (run(), `wp mody-billing run`): reminders, charges,
  *   retries, and payments still waiting. Idempotent, under a lock. What
  *   starts it is the open WP-Cron decision (architecture.md).
@@ -78,6 +82,12 @@ final class Billing {
 
 	/** User meta: the reminders already sent (`month`, `week` => time). */
 	public const REMINDERS_META = 'mody_billing_reminders';
+
+	/** User meta: the mandate whose expiry was already emailed about. */
+	public const EXPIRY_META = 'mody_card_expiry_warned';
+
+	/** Days before a charge when an expiring card is emailed about. */
+	public const EXPIRY_NOTICE_DAYS = 30;
 
 	/**
 	 * Hooks.
@@ -564,6 +574,23 @@ final class Billing {
 	}
 
 	/**
+	 * When the card on file stops working, if that is before the next
+	 * charge: the card's last valid day, or 0 when it is fine (or unknown).
+	 *
+	 * @param int $user_id The member.
+	 */
+	public static function card_expires_first( int $user_id ): int {
+		$member = Members::get( $user_id );
+		$card   = (array) get_user_meta( $user_id, self::CARD_META, true );
+		if ( ! $member || empty( $member['mollie_payment_method_id'] ) || empty( $member['billing_due_at'] ) || ! empty( $member['cancel_at'] ) || empty( $card['expiry'] ) ) {
+			return 0;
+		}
+		$expires = (int) strtotime( $card['expiry'] . ' 23:59:59 UTC' );
+		$due     = (int) strtotime( $member['billing_due_at'] . ' UTC' );
+		return $expires && $expires < $due ? $expires : 0;
+	}
+
+	/**
 	 * Whether an account can cancel now: active, with a card, a date to end
 	 * on, and not cancelling already. (Without a card, the free months simply
 	 * end.)
@@ -682,7 +709,7 @@ final class Billing {
 	 */
 	public static function run(): array {
 		global $wpdb;
-		$done = array_fill_keys( array( 'reminders', 'charged', 'no_card', 'retried', 'checked', 'ended', 'warned', 'deleted' ), 0 );
+		$done = array_fill_keys( array( 'reminders', 'expiring', 'charged', 'no_card', 'retried', 'checked', 'ended', 'warned', 'deleted' ), 0 );
 		if ( ! (bool) $wpdb->get_var( "SELECT GET_LOCK('mody_billing_run', 1)" ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock.
 			return $done;
 		}
@@ -712,6 +739,19 @@ final class Billing {
 					}
 					update_user_meta( $user, self::REMINDERS_META, $sent );
 					++$done['reminders'];
+				}
+			}
+
+			// Cards that expire before a charge in the next 30 days: one email per card.
+			$soon_due = $wpdb->get_col( $wpdb->prepare( "SELECT user_id FROM {$table} WHERE status = 'active' AND cancel_at IS NULL AND mollie_payment_method_id IS NOT NULL AND billing_due_at > %s AND billing_due_at <= %s", $now, gmdate( 'Y-m-d H:i:s', time() + self::EXPIRY_NOTICE_DAYS * DAY_IN_SECONDS ) ) );
+			foreach ( (array) $soon_due as $user ) {
+				$user    = (int) $user;
+				$expires = self::card_expires_first( $user );
+				$mandate = (string) Members::get( $user )['mollie_payment_method_id'];
+				if ( $expires && get_user_meta( $user, self::EXPIRY_META, true ) !== $mandate ) {
+					self::mail_card_expires( $user, $expires );
+					update_user_meta( $user, self::EXPIRY_META, $mandate );
+					++$done['expiring'];
 				}
 			}
 
@@ -881,6 +921,25 @@ final class Billing {
 			self::plan_url( $user_id )
 		);
 		self::mail( $user_id, __( 'Mody Cloud: your free months end soon', 'mody_cloud' ), $body );
+	}
+
+	/**
+	 * The card expires before the next charge.
+	 *
+	 * @param int $user_id The member.
+	 * @param int $expires The card's last valid day.
+	 */
+	private static function mail_card_expires( int $user_id, int $expires ): void {
+		$member = Members::get( $user_id );
+		$body   = sprintf(
+			/* translators: 1: a date, 2: a date, 3: Plan & billing's address. */
+			__( "The card on your account expires on %1\$s, before your next payment on %2\$s. Please add another card, so the payment goes through and your site stays as it is:
+%3\$s", 'mody_cloud' ),
+			wp_date( (string) get_option( 'date_format' ), $expires ),
+			wp_date( (string) get_option( 'date_format' ), (int) strtotime( $member['billing_due_at'] . ' UTC' ) ),
+			self::plan_url( $user_id )
+		);
+		self::mail( $user_id, __( 'Mody Cloud: your card expires before your next payment', 'mody_cloud' ), $body );
 	}
 
 	/**
