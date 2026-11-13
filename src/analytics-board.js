@@ -149,22 +149,26 @@ function format(value, metric) {
 }
 
 /**
- * The change on the period before, or ''.
+ * The change on the period compared with, or ''.
  *
- * @param {number} now    This period.
- * @param {number} before The period before.
+ * @param {number} now     This period.
+ * @param {number} before  The period compared with.
+ * @param {string} against Its name when it is not simply the period before ("March 2026"), else ''.
  * @return {string} "+12% on the period before", or ''.
  */
-function change(now, before) {
+function change(now, before, against = '') {
 	if (!before) {
 		return '';
 	}
-	const pct = Math.round((100 * (now - before)) / before);
-	return sprintf(
-		/* translators: %s: a signed percentage, such as +12. */
-		__('%s%% on the period before', 'mody_cloud'),
-		(pct > 0 ? '+' : '') + pct.toLocaleString()
-	);
+	const pct =
+		(Math.round((100 * (now - before)) / before) > 0 ? '+' : '') +
+		Math.round((100 * (now - before)) / before).toLocaleString();
+	if (against) {
+		/* translators: 1: a signed percentage, such as +12, 2: the period compared with, such as March 2026. */
+		return sprintf(__('%1$s%% on %2$s', 'mody_cloud'), pct, against);
+	}
+	/* translators: %s: a signed percentage, such as +12. */
+	return sprintf(__('%s%% on the period before', 'mody_cloud'), pct);
 }
 
 /**
@@ -184,7 +188,12 @@ function tile(card) {
 		)
 	);
 	if (series.previous) {
-		const text = change(series.data[0], series.previous[0]);
+		const custom = typeof card.spec.query.compare === 'object';
+		const text = change(
+			series.data[0],
+			series.previous[0],
+			custom ? card.data.previous_label : ''
+		);
 		if (text) {
 			box.append(el('span', 'mody-dashboard__tile-detail', text));
 		}
@@ -452,16 +461,19 @@ function drawn(card) {
 	let labels = data.labels;
 	if (type === 'donut') {
 		let values = data.series[0].data.slice();
+		let keys = data.keys.slice();
 		if (labels.length > 8) {
 			const rest = values.slice(7).reduce((a, b) => a + b, 0);
 			labels = [...labels.slice(0, 7), __('Other', 'mody_cloud')];
 			values = [...values.slice(0, 7), rest];
+			keys = [...keys.slice(0, 7), '__other'];
 		}
 		datasets = [
 			{
 				data: values,
-				backgroundColor: labels.map((label, i) =>
-					label === __('Other', 'mody_cloud') && i === 7
+				// "Other" (the query's, or the rest past 8 slices) is gray: it is not one thing.
+				backgroundColor: keys.map((key, i) =>
+					key === '__other'
 						? colors.muted
 						: palette[i % palette.length]
 				),
@@ -492,9 +504,10 @@ function drawn(card) {
 					makeDataset(
 						type,
 						sprintf(
-							/* translators: %s: what is counted, such as Visits. */
-							__('%s, the period before', 'mody_cloud'),
-							series.label
+							/* translators: 1: what is counted, such as Visits, 2: the period compared with. */
+							__('%1$s, %2$s', 'mody_cloud'),
+							series.label,
+							data.previous_label
 						),
 						series.previous,
 						colors.muted,
@@ -670,7 +683,7 @@ function table(card, open) {
 	series.forEach((s) => {
 		head.append(el('th', '', s.label));
 		if (s.previous) {
-			head.append(el('th', '', __('The period before', 'mody_cloud')));
+			head.append(el('th', '', card.data.previous_label));
 		}
 	});
 	head.querySelectorAll('th').forEach((th) =>
@@ -723,10 +736,9 @@ function table(card, open) {
  * @param {Object} card  The card.
  * @param {number} index Its place.
  * @param {number} total How many cards there are.
- * @param {Object} board The board.
  * @return {HTMLElement} The card.
  */
-function cardElement(card, index, total, board) {
+function cardElement(card, index, total) {
 	const { spec } = card;
 	const node = el(
 		'section',
@@ -736,18 +748,8 @@ function cardElement(card, index, total, board) {
 	const head = el('header', 'mody-board__card-head');
 	const title = el('h3', 'mody-board__card-title', spec.title);
 	head.append(title);
-	if (card.days !== board.days) {
-		head.append(
-			el(
-				'span',
-				'mody-board__card-period',
-				sprintf(
-					/* translators: %d: a number of days. */
-					__('Last %d days', 'mody_cloud'),
-					card.days
-				)
-			)
-		);
+	if (card.period) {
+		head.append(el('span', 'mody-board__card-period', card.period));
 	}
 	const tools = el('div', 'mody-board__tools');
 	const button = (label, icon, action, extra, disabled) => {
@@ -854,7 +856,7 @@ function render(root, board, focus = '') {
 	live.className = 'screen-reader-text mody-board__live';
 	const grid = el('div', 'mody-board__grid');
 	board.cards.forEach((card, i) =>
-		grid.append(cardElement(card, i, board.cards.length, board))
+		grid.append(cardElement(card, i, board.cards.length))
 	);
 	if (!board.cards.length) {
 		grid.append(
