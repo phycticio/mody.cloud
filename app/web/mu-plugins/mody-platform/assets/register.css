@@ -245,3 +245,16 @@
 		max-width: 95%;
 	}
 }
+
+/* The pay page of a paid sign-up: the terms to accept (2026-11-13). */
+.mody-register .mody-register__accept {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5em;
+	font-weight: inherit;
+}
+
+.mody-register .mody-register__accept input {
+	margin-top: 0.3em;
+	flex: none;
+}

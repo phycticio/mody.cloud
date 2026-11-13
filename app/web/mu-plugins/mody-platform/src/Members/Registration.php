@@ -10,6 +10,8 @@
 namespace Mody\Platform\Members;
 
 use Mody\Platform\Agent\ChatController;
+use Mody\Platform\Billing\Billing;
+use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
@@ -86,10 +88,20 @@ defined( 'ABSPATH' ) || exit;
  * opens soon, and both REST routes refuse. Open it with
  * `wp site option update mody_registration_open 1`.
  *
- * **Only the launch offer for now** (decided 2026-11-13): signing up gives
- * one of its 50 places. Once they are taken, or its three months have
- * passed, the block says so and that paid sign-ups open soon, and both
- * routes refuse (takes_accounts()): paying needs Mollie (M1-01 part 3).
+ * **The launch offer, then paying** (decided 2026-11-13): signing up gives
+ * one of the offer's 50 places. Once they are taken, or its three months
+ * have passed, signing up means paying (M1-01 part 3b, built 2026-11-13),
+ * when Mollie is set up (`MOLLIE_API_KEY`); without it the block says paid
+ * sign-ups open soon, and both routes refuse (takes_accounts()).
+ *
+ * **A paid sign-up:** the same chat and the same answer for every email
+ * (so it tells nothing about who has an account). For a new email the user
+ * and a `pending_payment` row are made, no site yet, and an email holds a
+ * link to pay (PAY_META, valid PAY_HOURS). The link opens this page with the
+ * site, the price and the terms to accept (EU rules: before paying), then
+ * Mollie's checkout takes the first month and keeps the card. Paid
+ * (Billing): the site is made and the welcome email goes, as for the offer.
+ * Not paid within PAY_HOURS: the daily run removes the account.
  */
 final class Registration {
 
@@ -113,6 +125,15 @@ final class Registration {
 
 	/** The longest project name accepted at signup (it is printed in the welcome email). */
 	public const MAX_TITLE = 60;
+
+	/** User meta of a paid sign-up waiting for its payment: title, slug, the link's hash, its end. */
+	public const PAY_META = 'mody_signup';
+
+	/** How long the link to pay works. */
+	public const PAY_HOURS = 24;
+
+	/** The pay page's form action. */
+	public const PAY_ACTION = 'mody_signup_pay';
 
 	/** The questions, in the order the chat asks them. */
 	public const FIELDS = array( 'name', 'email', 'title', 'slug' );
@@ -158,7 +179,14 @@ final class Registration {
 	 * offer has a place left.
 	 */
 	public static function takes_accounts(): bool {
-		return self::is_open() && Members::promo_open();
+		return self::is_open() && ( Members::promo_open() || Mollie::configured() );
+	}
+
+	/**
+	 * Whether signing up now means paying: the offer has ended and Mollie is set up.
+	 */
+	public static function paying(): bool {
+		return ! Members::promo_open() && Mollie::configured();
 	}
 
 	/**
@@ -215,8 +243,18 @@ final class Registration {
 		if ( ! is_main_site() || ! self::is_open() || wp_installing() ) {
 			return;
 		}
-		$id = (int) get_option( self::PAGE_OPTION );
-		if ( $id && get_post( $id ) ) {
+		$id   = (int) get_option( self::PAGE_OPTION );
+		$page = $id ? get_post( $id ) : null;
+		if ( $page ) {
+			// The title from before 2026-11-13, when signing up was a trial; a title changed by hand stays.
+			if ( 'Start your free trial' === $page->post_title ) {
+				wp_update_post(
+					array(
+						'ID'         => $id,
+						'post_title' => __( 'Create your site', 'mody_cloud' ),
+					)
+				);
+			}
 			return;
 		}
 		$existing = get_page_by_path( self::PAGE_SLUG );
@@ -523,6 +561,21 @@ final class Registration {
 		};
 
 		$free = Members::start_free( $user_id );
+		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && Mollie::configured() ) {
+			// The offer is over: a paid sign-up, no site until the first payment.
+			$pending = self::start_paid( $user_id, $title, $slug );
+			if ( is_wp_error( $pending ) ) {
+				$undo();
+				return $failed;
+			}
+			return array(
+				'user_id' => $user_id,
+				'email'   => $email,
+				'address' => Pipeline::domain( $slug ),
+				'url'     => '',
+				'site_id' => 0,
+			);
+		}
 		if ( is_wp_error( $free ) ) {
 			$undo();
 			return 'mody_promo_closed' === $free->get_error_code() ? $free : $failed;
@@ -578,6 +631,20 @@ final class Registration {
 		$title = mb_substr( $title, 0, self::MAX_TITLE );
 		$link  = network_site_url( 'wp-login.php?action=rp&key=' . $key . '&login=' . rawurlencode( $user->user_login ), 'login' );
 		$ends  = Members::free_until( $user->ID );
+		$row   = (array) Members::get( $user->ID );
+		if ( ! $ends && ! empty( $row['billing_due_at'] ) ) {
+			$body = sprintf(
+				/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page, 6: the next payment's date. */
+				__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your payment went through, and your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour next payment is on %6\$s. Your plan and payments are on your site's Dashboard, under Plan & billing.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
+				mb_substr( $user->display_name, 0, self::MAX_NAME ),
+				$title,
+				$url,
+				$link,
+				wp_login_url(),
+				wp_date( (string) get_option( 'date_format' ), (int) strtotime( $row['billing_due_at'] . ' UTC' ) )
+			);
+			return wp_mail( $user->user_email, __( 'Welcome to Mody Cloud: choose your password', 'mody_cloud' ), $body );
+		}
 		$body  = sprintf(
 			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page, 6: the last free day, 7: a site's monthly price. */
 			__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour site is free until %6\$s, and no card is needed until then. After that, it costs %7\$s a month, VAT included.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
@@ -593,6 +660,250 @@ final class Registration {
 	}
 
 	/**
+	 * A paid sign-up waits for its payment: the `pending_payment` row, what
+	 * the site will be, and the email with the link to pay.
+	 *
+	 * @param int    $user_id The new user.
+	 * @param string $title   The site's name.
+	 * @param string $slug    The site's address.
+	 * @return true|WP_Error
+	 */
+	private static function start_paid( int $user_id, string $title, string $slug ): bool|WP_Error {
+		$made = Members::create( $user_id, 'paid', 'pending_payment' );
+		if ( is_wp_error( $made ) ) {
+			return $made;
+		}
+		self::send_pay_link( $user_id, $title, $slug );
+		return true;
+	}
+
+	/**
+	 * Emails the link to pay, with a new token (the old link stops working).
+	 *
+	 * @param int    $user_id The user.
+	 * @param string $title   The site's name.
+	 * @param string $slug    The site's address.
+	 */
+	private static function send_pay_link( int $user_id, string $title, string $slug ): void {
+		$token = wp_generate_password( 32, false );
+		update_user_meta(
+			$user_id,
+			self::PAY_META,
+			array(
+				'title'   => $title,
+				'slug'    => $slug,
+				'hash'    => hash_hmac( 'sha256', $token, wp_salt( 'auth' ) ),
+				'expires' => time() + self::PAY_HOURS * HOUR_IN_SECONDS,
+			)
+		);
+		$user = get_userdata( $user_id );
+		$body = sprintf(
+			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the site's monthly price, 5: the link, 6: hours. */
+			__( "Hello %1\$s,\n\nYou asked to create %2\$s at %3\$s on Mody Cloud. To finish, pay the first month by card: %4\$s a month, VAT included. Your site is created right after.\n\nPay and create your site (the link works for %6\$d hours):\n%5\$s\n\nIf it was not you, ignore this email: nothing is charged, and the account is removed after a day.\n\nMody Cloud", 'mody_cloud' ),
+			mb_substr( $user->display_name, 0, self::MAX_NAME ),
+			mb_substr( $title, 0, self::MAX_TITLE ),
+			Pipeline::domain( $slug ),
+			Members::price( Members::PRICE['monthly'] ),
+			self::pay_url( $user_id, $token ),
+			self::PAY_HOURS
+		);
+		wp_mail( $user->user_email, __( 'Mody Cloud: pay and create your site', 'mody_cloud' ), $body );
+	}
+
+	/**
+	 * The link to pay: the registration page with the user and the token.
+	 *
+	 * @param int    $user_id The user.
+	 * @param string $token   The token (only its hash is kept).
+	 * @param array  $extra   More query arguments.
+	 */
+	public static function pay_url( int $user_id, string $token, array $extra = array() ): string {
+		$page = (int) get_option( self::PAGE_OPTION );
+		$base = $page ? (string) get_permalink( $page ) : home_url( '/' . self::PAGE_SLUG . '/' );
+		return add_query_arg(
+			array_merge(
+				array(
+					'mody_pay' => $token,
+					'u'        => $user_id,
+				),
+				$extra
+			),
+			$base
+		);
+	}
+
+	/**
+	 * The paid sign-up a link names, while it can still be paid.
+	 *
+	 * @param int    $user_id The user, from the link.
+	 * @param string $token   The token, from the link.
+	 * @return array<string, mixed>|null The sign-up (PAY_META), or null.
+	 */
+	public static function pending( int $user_id, string $token ): ?array {
+		$signup = get_user_meta( $user_id, self::PAY_META, true );
+		$row    = Members::get( $user_id );
+		if ( ! is_array( $signup ) || ! $row || '' === $token || ! hash_equals( (string) ( $signup['hash'] ?? '' ), hash_hmac( 'sha256', $token, wp_salt( 'auth' ) ) ) ) {
+			return null;
+		}
+		return $signup + array( 'paid' => 'pending_payment' !== $row['status'], 'expired' => (int) $signup['expires'] < time() );
+	}
+
+	/**
+	 * The first payment went through: make the site and send the welcome
+	 * email (Billing calls this). A taken address gets a few digits more.
+	 *
+	 * @param int $user_id The member.
+	 * @return int The site's ID, or 0.
+	 */
+	public static function finish_paid( int $user_id ): int {
+		$signup = get_user_meta( $user_id, self::PAY_META, true );
+		if ( ! is_array( $signup ) || ! empty( $signup['site_id'] ) ) {
+			return is_array( $signup ) ? (int) ( $signup['site_id'] ?? 0 ) : 0;
+		}
+		$slug   = (string) $signup['slug'];
+		$job_id = Pipeline::start(
+			$user_id,
+			array(
+				'slug'    => $slug,
+				'title'   => (string) $signup['title'],
+				'starter' => true,
+			)
+		);
+		if ( is_wp_error( $job_id ) ) {
+			$slug   = substr( $slug, 0, 56 ) . wp_rand( 100, 999 );
+			$job_id = Pipeline::start(
+				$user_id,
+				array(
+					'slug'    => $slug,
+					'title'   => (string) $signup['title'],
+					'starter' => true,
+				)
+			);
+		}
+		if ( is_wp_error( $job_id ) ) {
+			return 0;
+		}
+		update_user_meta( $user_id, Onboarding::META, Onboarding::STAGE_PASSWORD );
+		$job     = Pipeline::run( $job_id );
+		$site_id = is_array( $job ) ? (int) $job['site_id'] : 0;
+		$url     = $site_id ? get_home_url( $site_id, '/' ) : 'https://' . Pipeline::domain( $slug ) . '/';
+		update_user_meta( $user_id, self::PAY_META, array_merge( $signup, array( 'site_id' => $site_id, 'url' => $url ) ) );
+		self::send_welcome( get_userdata( $user_id ), (string) $signup['title'], $url );
+		return $site_id;
+	}
+
+	/**
+	 * `template_redirect`: the pay page's form (terms accepted) goes to
+	 * Mollie's checkout.
+	 */
+	public static function handle_pay(): void {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- The token in the form is the proof; checked below.
+		if ( ! is_main_site() || ! isset( $_POST['mody_action'] ) || self::PAY_ACTION !== $_POST['mody_action'] ) {
+			return;
+		}
+		$user  = absint( $_POST['u'] ?? 0 );
+		$token = (string) preg_replace( '/[^A-Za-z0-9]/', '', (string) wp_unslash( $_POST['mody_pay'] ?? '' ) );
+		$signup = self::pending( $user, $token );
+		if ( ! $signup || $signup['paid'] || $signup['expired'] ) {
+			wp_safe_redirect( self::pay_url( $user, $token ) );
+			exit;
+		}
+		if ( empty( $_POST['accept'] ) ) {
+			wp_safe_redirect( self::pay_url( $user, $token, array( 'accept' => 0 ) ) );
+			exit;
+		}
+		// phpcs:enable
+		$checkout = Billing::start_signup( $user, self::pay_url( $user, $token ) );
+		$host     = is_string( $checkout ) ? (string) wp_parse_url( $checkout, PHP_URL_HOST ) : '';
+		if ( ! preg_match( '/(^|\.)mollie\.com$/', $host ) ) {
+			wp_safe_redirect( self::pay_url( $user, $token, array( 'failed' => 1 ) ) );
+			exit;
+		}
+		wp_redirect( $checkout ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- Mollie's checkout, host checked above.
+		exit;
+	}
+
+	/**
+	 * The pay page: what is being bought, the terms, Pay with card; after
+	 * the checkout, how it went.
+	 *
+	 * @param string $wrapper The block's wrapper attributes.
+	 * @return string|null The page, or null when there is no pay link in the address.
+	 */
+	private static function render_pay( string $wrapper ): ?string {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only; the token is the proof.
+		if ( empty( $_GET['mody_pay'] ) ) {
+			return null;
+		}
+		$user    = absint( $_GET['u'] ?? 0 );
+		$token   = (string) preg_replace( '/[^A-Za-z0-9]/', '', (string) wp_unslash( $_GET['mody_pay'] ) );
+		$payment = absint( $_GET['payment'] ?? 0 );
+		$failed  = ! empty( $_GET['failed'] );
+		$refused = isset( $_GET['accept'] );
+		// phpcs:enable
+		$signup = self::pending( $user, $token );
+		$box    = static fn( string $html ): string => '<div ' . $wrapper . '>' . $html . '</div>';
+		if ( ! $signup ) {
+			return $box( '<p role="status">' . esc_html__( 'This link does not work. Sign up again, or look for a newer email from us.', 'mody_cloud' ) . '</p>' );
+		}
+		if ( $payment && ! $signup['paid'] ) {
+			$state = Billing::returned( $user, $payment );
+			Members::forget();
+			$signup = self::pending( $user, $token ) ?? $signup;
+			if ( 'card-waiting' === $state ) {
+				return $box( '<p role="status">' . esc_html__( 'Your payment is being processed. We email you as soon as your site is ready; you can close this page.', 'mody_cloud' ) . '</p>' );
+			}
+			$failed = $failed || ! $signup['paid'];
+		}
+		if ( $signup['paid'] ) {
+			$signup = get_user_meta( $user, self::PAY_META, true );
+			return $box(
+				'<p role="status">' . esc_html(
+					sprintf(
+						/* translators: %s: the site's address. */
+						__( 'Paid, thank you! Your site is ready at %s. We emailed you the link to choose your password.', 'mody_cloud' ),
+						(string) ( $signup['url'] ?? Pipeline::domain( (string) $signup['slug'] ) )
+					)
+				) . '</p>'
+			);
+		}
+		if ( $signup['expired'] ) {
+			return $box( '<p role="status">' . esc_html__( 'This link has expired. Sign up again to get a new one.', 'mody_cloud' ) . '</p>' );
+		}
+		$notice = $failed
+			? '<p class="mody-register__error" role="alert">' . esc_html__( 'The payment did not go through. Try again, or use another card.', 'mody_cloud' ) . '</p>'
+			: ( $refused ? '<p class="mody-register__error" role="alert">' . esc_html__( 'Tick the box to accept the terms.', 'mody_cloud' ) . '</p>' : '' );
+		ob_start();
+		?>
+		<form method="post" action="<?php echo esc_url( (string) get_permalink() ); ?>">
+			<p>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: the site's name, 2: its address, 3: a site's monthly price. */
+						__( 'Your site %1$s at %2$s: %3$s a month, VAT included. Your site is created as soon as the payment goes through.', 'mody_cloud' ),
+						(string) $signup['title'],
+						Pipeline::domain( (string) $signup['slug'] ),
+						Members::price( Members::PRICE['monthly'] )
+					)
+				);
+				?>
+			</p>
+			<?php echo $notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
+			<p><label class="mody-register__accept"><input type="checkbox" name="accept" value="1" required /> <?php echo esc_html( Billing::signup_terms() ); ?></label></p>
+			<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::PAY_ACTION ); ?>">
+			<input type="hidden" name="mody_pay" value="<?php echo esc_attr( $token ); ?>">
+			<input type="hidden" name="u" value="<?php echo esc_attr( (string) $user ); ?>">
+			<p><button type="submit" class="wp-element-button"><?php esc_html_e( 'Pay with card', 'mody_cloud' ); ?></button>
+			<?php if ( Mollie::test_mode() ) : ?>
+				<span class="mody-register__note"><?php esc_html_e( 'Test mode: no real money moves.', 'mody_cloud' ); ?></span>
+			<?php endif; ?></p>
+		</form>
+		<?php
+		return $box( (string) ob_get_clean() );
+	}
+
+	/**
 	 * The note for a member whose email someone typed in the signup: they
 	 * already have an account, nothing was created, and here is how to log in.
 	 * Fixed text, nothing the visitor typed. One per member every six hours
@@ -603,6 +914,13 @@ final class Registration {
 	private static function send_existing_note( WP_User $user ): bool {
 		if ( RateLimit::hit( 'signup_note', strtolower( $user->user_email ) ) ) {
 			return false;
+		}
+		// A paid sign-up not paid yet: a new link to pay, for the site it asked for.
+		$row    = Members::get( $user->ID );
+		$signup = get_user_meta( $user->ID, self::PAY_META, true );
+		if ( $row && 'pending_payment' === $row['status'] && is_array( $signup ) ) {
+			self::send_pay_link( $user->ID, (string) $signup['title'], (string) $signup['slug'] );
+			return true;
 		}
 		$body = sprintf(
 			/* translators: 1: the login page, 2: the lost-password page. */
@@ -674,7 +992,7 @@ final class Registration {
 		if ( ! self::is_open() || ! is_main_site() ) {
 			return new WP_Error( 'mody_registration_closed', __( 'Registration is not open yet.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
-		if ( ! Members::promo_open() ) {
+		if ( ! Members::promo_open() && ! Mollie::configured() ) {
 			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message(), array( 'status' => 403 ) );
 		}
 		if ( ! wp_verify_nonce( (string) $request['nonce'], self::ACTION ) ) {
@@ -767,7 +1085,7 @@ final class Registration {
 			self::$errors = array( 'form' => __( 'Registration is not open yet.', 'mody_cloud' ) );
 			return;
 		}
-		if ( ! Members::promo_open() ) {
+		if ( ! Members::promo_open() && ! Mollie::configured() ) {
 			self::$errors = array( 'form' => Members::promo_closed_message() );
 			return;
 		}
@@ -839,6 +1157,10 @@ final class Registration {
 		}
 		wp_enqueue_style( self::STYLE ); // WordPress does it for a block; render() is also called directly.
 		$wrapper = self::wrapper_attributes( $attributes );
+		$pay     = self::render_pay( $wrapper );
+		if ( null !== $pay ) {
+			return $pay;
+		}
 
 		if ( self::$created ) {
 			return sprintf(
@@ -907,7 +1229,7 @@ final class Registration {
 				<noscript><p class="mody-register__error"><?php esc_html_e( 'Signing up needs JavaScript: your browser solves a small puzzle that shows you are not a robot. Please turn JavaScript on and reload this page.', 'mody_cloud' ); ?></p></noscript>
 				<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::ACTION ); ?>">
 				<input type="hidden" name="_mody_nonce" value="<?php echo esc_attr( wp_create_nonce( self::ACTION ) ); ?>">
-				<p><button type="submit" class="wp-element-button"><?php esc_html_e( 'Create my free site', 'mody_cloud' ); ?></button></p>
+				<p><button type="submit" class="wp-element-button"><?php echo esc_html( self::paying() ? __( 'Continue', 'mody_cloud' ) : __( 'Create my free site', 'mody_cloud' ) ); ?></button></p>
 			</form>
 		</div>
 		<?php
@@ -1017,6 +1339,10 @@ final class Registration {
 	 * The first thing the page says, in the chat and above the form.
 	 */
 	private static function intro(): string {
+		if ( self::paying() ) {
+			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
+			return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions, then pay the first month by card: %s a month per site, VAT included. Your site is ready right after.', 'mody_cloud' ), Members::price( Members::PRICE['monthly'] ) );
+		}
 		/* translators: 1: free months, 2: a site's monthly price, such as 7.99 EUR. */
 		return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions and your website is ready. It is free for %1$d months, no card needed; after that, %2$s a month, VAT included.', 'mody_cloud' ), Members::FREE_MONTHS, Members::price( Members::PRICE['monthly'] ) );
 	}

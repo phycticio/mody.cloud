@@ -34,6 +34,11 @@
  *     banner; Mody refuses; lifted when paid.
  * 12. Day 53: one last warning; day 60: the sites in the network's trash,
  *     the account expired.
+ * 14. Paid sign-ups after the launch offer: the account waits, no site; the
+ *     link to pay by email; the pay page with the terms; the first month on
+ *     a new card; paid: active, the site made, the welcome email, the 14
+ *     days; a second try resends the link; unpaid after a day: removed;
+ *     without a key: closed.
  * 13. A card that expires before the next charge: said on Plan & billing;
  *     one email in the 30 days before that charge, again for a new card
  *     only; nothing for a card that lasts, or a plan that is cancelled.
@@ -48,6 +53,7 @@ use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Billing\Payments;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Members\Members;
+use Mody\Platform\Members\Registration;
 use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Security\RateLimit;
 
@@ -470,6 +476,84 @@ Billing::run();
 $check( 'a charge more than 30 days away: shown on the page, no email yet', Billing::card_expires_first( $far ) > 0 && ! $mails_to( 'billmo' . $suffix . '@mody.local' ) );
 Members::update( $far, array( 'cancel_at' => Members::get( $far )['billing_due_at'] ) );
 $check( 'a cancelled plan: nothing to warn about', 0 === Billing::card_expires_first( $far ) );
+
+// 14. Paid sign-ups ----------------------------------------------------------------------------------------
+
+echo "\nPaid sign-ups\n";
+$promo = array(
+	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
+	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
+);
+register_shutdown_function(
+	static function () use ( $promo ): void {
+		foreach ( $promo as $option => $value ) {
+			null === $value ? delete_site_option( $option ) : update_site_option( $option, $value );
+		}
+	}
+);
+update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES ); // The 50 places are taken.
+RateLimit::clear();
+wp_set_current_user( 0 );
+$email   = 'billpay' . $suffix . '@mody.local';
+$slug    = 'billpay' . $suffix;
+$account = Registration::register( 'Pia Payer', $email, 'Pia Paid Bakery', $slug );
+$pia     = is_array( $account ) ? (int) $account['user_id'] : 0;
+$users[] = $pia;
+Members::forget();
+$check( 'paying now: the chat says so', Registration::paying() && Registration::takes_accounts() );
+$check( 'the account waits for its payment: paid plan, pending, no site', $pia && 'pending_payment' === Members::get( $pia )['status'] && 'paid' === Members::get( $pia )['plan'] && ! Lifecycle::owned_sites( $pia ) && 0 === $account['site_id'], is_wp_error( $account ) ? $account->get_error_message() : '' );
+$link = (string) ( end( $mails )['message'] ?? '' );
+preg_match( '#mody_pay=([A-Za-z0-9]+)&u=(\d+)#', html_entity_decode( $link ), $m );
+$token = $m[1] ?? '';
+$check( '... an email with the link to pay, the price with VAT, 24 hours', str_contains( (string) end( $mails )['subject'], 'pay and create your site' ) && str_contains( $link, '7.99 EUR a month, VAT included' ) && '' !== $token && (int) ( $m[2] ?? 0 ) === $pia );
+$check( '... only its hash is kept', ! str_contains( (string) wp_json_encode( get_user_meta( $pia, Registration::PAY_META, true ) ), $token ) && null !== Registration::pending( $pia, $token ) && null === Registration::pending( $pia, 'wrong' . $token ) );
+$page = static function ( array $get ): string {
+	$_GET = $get;
+	$html = Registration::render();
+	$_GET = array();
+	return $html;
+};
+$html = $page( array( 'mody_pay' => $token, 'u' => $pia ) );
+$check( 'the pay page: the site, the price, the terms to tick, Pay with card', str_contains( $html, 'Pia Paid Bakery' ) && str_contains( $html, '7.99 EUR a month' ) && str_contains( $html, 'name="accept"' ) && str_contains( $html, 'withdraw within 14 days' ) && str_contains( $html, 'Pay with card' ) );
+$check( '... a wrong link does not open it', str_contains( $page( array( 'mody_pay' => 'nope', 'u' => $pia ) ), 'This link does not work' ) );
+$checkout = Billing::start_signup( $pia, Registration::pay_url( $pia, $token ) );
+$first    = $requests( 'POST', '/payments' );
+$first    = end( $first );
+$row      = Payments::of( $pia )[0];
+$check( 'the first month: 7.99 EUR on a new card (sequence "first"), back to the pay page', is_string( $checkout ) && '7.99' === $first['body']['amount']['value'] && 'first' === $first['body']['sequenceType'] && 'creditcard' === $first['body']['method'] && str_contains( (string) $first['body']['redirectUrl'], 'mody_pay=' ) && 'signup' === $row['kind'] );
+$html = $page( array( 'mody_pay' => $token, 'u' => $pia, 'payment' => $row['id'] ) );
+$check( 'back before paying: still the pay page', str_contains( $html, 'Pay with card' ) || str_contains( $html, 'being processed' ) );
+$fake['payments'][ $row['mollie_id'] ]['status']    = 'paid';
+$fake['payments'][ $row['mollie_id'] ]['mandateId'] = 'mdt_pia';
+$hook( $row['mollie_id'] );
+Members::forget();
+$owned   = Lifecycle::owned_sites( $pia );
+$sites   = array_merge( $sites, $owned );
+$welcome = array_values( array_filter( $mails_to( $email ), static fn( array $mail ): bool => str_contains( $mail['subject'], 'choose your password' ) ) );
+$check( 'paid (webhook): active, paid, the card kept, next charge a month on', 'active' === Members::get( $pia )['status'] && 'paid' === Members::get( $pia )['plan'] && 'mdt_pia' === Members::get( $pia )['mollie_payment_method_id'] && abs( strtotime( Members::get( $pia )['billing_due_at'] . ' UTC' ) - strtotime( '+1 month' ) ) < 300 );
+$check( '... the site made at its address', 1 === count( $owned ) && str_starts_with( get_site( $owned[0] )->domain, $slug . '.' ) );
+$check( '... the welcome email with the password link and the next payment', 1 === count( $welcome ) && str_contains( $welcome[0]['message'], 'Your payment went through' ) && str_contains( $welcome[0]['message'], 'action=rp' ) );
+$check( '... the terms by email; the 14-day withdrawal applies', (bool) array_filter( $mails_to( $email ), static fn( array $mail ): bool => str_contains( $mail['subject'], 'card is added' ) ) && null !== Billing::withdrawal( $pia ) );
+$check( '... the pay page now says it is done', str_contains( $page( array( 'mody_pay' => $token, 'u' => $pia ) ), 'Paid, thank you!' ) );
+Billing::process( $row['mollie_id'] );
+$check( '... a replay makes no second site', 1 === count( Lifecycle::owned_sites( $pia ) ) );
+
+$email2 = 'billpay2' . $suffix . '@mody.local';
+$second = Registration::register( 'Quin Payer', $email2, 'Quin Shop', 'billpayq' . $suffix );
+$quin   = is_array( $second ) ? (int) $second['user_id'] : 0;
+$users[] = $quin;
+preg_match( '#mody_pay=([A-Za-z0-9]+)#', (string) end( $mails )['message'], $m1 );
+RateLimit::clear();
+Registration::register( 'Quin Payer', $email2, 'Quin Shop', 'billpayq' . $suffix );
+preg_match( '#mody_pay=([A-Za-z0-9]+)#', (string) end( $mails )['message'], $m2 );
+$check( 'the same email again before paying: a new link, the old one off', isset( $m1[1], $m2[1] ) && $m1[1] !== $m2[1] && null === Registration::pending( $quin, $m1[1] ) && null !== Registration::pending( $quin, $m2[1] ) );
+$wpdb->update( Members::table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - 25 * HOUR_IN_SECONDS ) ), array( 'user_id' => $quin ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+$run = Billing::run();
+$check( 'not paid within a day: the account removed', 1 === $run['unpaid'] && false === get_userdata( $quin ) && null === Members::get( $quin ) );
+putenv( 'MOLLIE_API_KEY' );
+$closed = Registration::register( 'Ray Late', 'billpay3' . $suffix . '@mody.local', 'Ray', 'billpayr' . $suffix );
+$check( 'without a key after the offer: closed', is_wp_error( $closed ) && ! Registration::takes_accounts() && ! get_user_by( 'email', 'billpay3' . $suffix . '@mody.local' ) );
+putenv( 'MOLLIE_API_KEY=test_' . str_repeat( 'a1B2', 8 ) );
 
 putenv( 'MOLLIE_API_KEY' );
 $html = $render( $di );

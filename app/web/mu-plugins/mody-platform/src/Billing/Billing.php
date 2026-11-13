@@ -9,6 +9,7 @@ namespace Mody\Platform\Billing;
 
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Members\Members;
+use Mody\Platform\Members\Registration;
 use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Security\RateLimit;
 use WP_Error;
@@ -57,6 +58,12 @@ defined( 'ABSPATH' ) || exit;
  * - **The daily run** (run(), `wp mody-billing run`): reminders, charges,
  *   retries, and payments still waiting. Idempotent, under a lock. What
  *   starts it is the open WP-Cron decision (architecture.md).
+ * - **A paid sign-up** (after the launch offer, Members\Registration): the
+ *   first month is a `first` payment of one site's price (`signup`), which
+ *   makes the mandate too; paid, the account is `paid` and `active`, its next
+ *   charge a month on, and Registration::finish_paid() makes the site. It is
+ *   the first charge for the 14-day withdrawal. Not paid within a day, the
+ *   daily run removes the account (it has no site and paid nothing).
  * - **Invoices:** from Mollie at first, then our own plugin (decided
  *   2026-11-13); not part of this code.
  */
@@ -292,6 +299,93 @@ final class Billing {
 	}
 
 	/**
+	 * What someone signing up agrees to before paying.
+	 */
+	public static function signup_terms(): string {
+		return sprintf(
+			/* translators: 1: a site's price, 2: days. */
+			__( 'My site costs %1$s a month, VAT included, charged to this card now and every month until I cancel. I can cancel at the end of any month, and withdraw within %2$d days of this payment to get it back in full.', 'mody_cloud' ),
+			Members::price( Members::PRICE['monthly'] ),
+			self::WITHDRAWAL_DAYS
+		);
+	}
+
+	/**
+	 * Starts a paid sign-up's first payment: one site's month, on a new
+	 * card.
+	 *
+	 * @param int    $user_id A `pending_payment` member.
+	 * @param string $back    The pay page to come back to (gets `payment`).
+	 * @return string|WP_Error Mollie's checkout address.
+	 */
+	public static function start_signup( int $user_id, string $back ): string|WP_Error {
+		$row  = Members::get( $user_id );
+		$user = get_userdata( $user_id );
+		if ( ! $row || ! $user || 'pending_payment' !== $row['status'] ) {
+			return new WP_Error( 'mody_signup_none', 'Nothing to pay.' );
+		}
+		if ( RateLimit::hit( 'card_check', (string) $user_id ) ) {
+			return new WP_Error( 'mody_rate_limited', __( 'Too many tries. Please wait an hour and try again.', 'mody_cloud' ) );
+		}
+		$customer = (string) ( $row['mollie_customer_id'] ?? '' );
+		if ( '' === $customer ) {
+			$made = Mollie::create_customer( $user->display_name, $user->user_email );
+			if ( is_wp_error( $made ) ) {
+				return $made;
+			}
+			$customer = (string) ( $made['id'] ?? '' );
+			Members::update( $user_id, array( 'mollie_customer_id' => $customer ) );
+		}
+		$amount = Members::PRICE['monthly'];
+		$id     = Payments::add(
+			array(
+				'user_id'     => $user_id,
+				'mollie_id'   => 'new_' . wp_generate_password( 20, false ),
+				'kind'        => 'signup',
+				'amount'      => $amount,
+				'sites'       => 1,
+				'period'      => 'monthly',
+				'covers_from' => gmdate( 'Y-m-d H:i:s' ),
+				'covers_to'   => gmdate( 'Y-m-d H:i:s', (int) strtotime( '+1 month' ) ),
+			)
+		);
+		if ( ! $id ) {
+			return new WP_Error( 'mody_billing_db', __( 'That did not work. Please try again.', 'mody_cloud' ) );
+		}
+		$payment = array(
+			'amount'       => Mollie::amount( $amount ),
+			'description'  => __( 'Mody Cloud: 1 site, first month', 'mody_cloud' ),
+			'redirectUrl'  => add_query_arg( 'payment', $id, $back ),
+			'customerId'   => $customer,
+			'sequenceType' => 'first',
+			'method'       => 'creditcard',
+			'metadata'     => array(
+				'user' => $user_id,
+				'kind' => 'signup',
+			),
+		);
+		$webhook = self::webhook_url();
+		if ( '' !== $webhook ) {
+			$payment['webhookUrl'] = $webhook;
+		}
+		$made     = Mollie::create_payment( $payment, 'signup-' . $id );
+		$checkout = is_array( $made ) ? (string) ( $made['_links']['checkout']['href'] ?? '' ) : '';
+		if ( is_wp_error( $made ) || '' === $checkout || empty( $made['id'] ) ) {
+			global $wpdb;
+			$wpdb->delete( Payments::table(), array( 'id' => $id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
+			return is_wp_error( $made ) ? $made : new WP_Error( 'mody_mollie', __( 'The payment provider did not answer. Please try again in a moment.', 'mody_cloud' ) );
+		}
+		Payments::update(
+			$id,
+			array(
+				'mollie_id' => (string) $made['id'],
+				'status'    => (string) ( $made['status'] ?? 'open' ),
+			)
+		);
+		return $checkout;
+	}
+
+	/**
 	 * The member came back from Mollie's checkout: ask Mollie about that
 	 * payment now (no webhook reaches a local stack).
 	 *
@@ -306,7 +400,7 @@ final class Billing {
 		}
 		$row = self::process( (string) $row['mollie_id'] ) ?? $row;
 		if ( 'paid' === $row['status'] ) {
-			return 'card' === $row['kind'] ? 'card-added' : '';
+			return in_array( $row['kind'], array( 'card', 'signup' ), true ) ? 'card-added' : '';
 		}
 		return in_array( $row['status'], Payments::FINAL, true ) ? 'card-failed' : 'card-waiting';
 	}
@@ -366,6 +460,27 @@ final class Billing {
 		if ( ! $member ) {
 			return;
 		}
+		if ( 'signup' === $row['kind'] ) {
+			if ( 'paid' !== $status || 'pending_payment' !== $member['status'] ) {
+				return;
+			}
+			$to = gmdate( 'Y-m-d H:i:s', (int) strtotime( '+1 month' ) );
+			Payments::update( (int) $row['id'], array( 'covers_from' => gmdate( 'Y-m-d H:i:s' ), 'covers_to' => $to ) );
+			Members::update(
+				$user_id,
+				array(
+					'plan'                     => 'paid',
+					'status'                   => 'active',
+					'billing_due_at'           => $to,
+					'mollie_customer_id'       => (string) ( $payment['customerId'] ?? $member['mollie_customer_id'] ),
+					'mollie_payment_method_id' => ! empty( $payment['mandateId'] ) ? (string) $payment['mandateId'] : null,
+				)
+			);
+			self::remember_card( $user_id, (string) ( $payment['customerId'] ?? $member['mollie_customer_id'] ), (string) ( $payment['mandateId'] ?? '' ) );
+			Registration::finish_paid( $user_id );
+			self::mail_card_added( $user_id );
+			return;
+		}
 		if ( 'card' === $row['kind'] ) {
 			if ( 'paid' !== $status || empty( $payment['mandateId'] ) ) {
 				return;
@@ -378,17 +493,7 @@ final class Billing {
 					'mollie_payment_method_id' => (string) $payment['mandateId'],
 				)
 			);
-			$mandate = Mollie::get_mandate( $customer, (string) $payment['mandateId'] );
-			$details = is_array( $mandate ) ? (array) ( $mandate['details'] ?? array() ) : array();
-			update_user_meta(
-				$user_id,
-				self::CARD_META,
-				array(
-					'label'  => sanitize_text_field( (string) ( $details['cardLabel'] ?? '' ) ),
-					'number' => preg_replace( '/\D/', '', (string) ( $details['cardNumber'] ?? '' ) ),
-					'expiry' => sanitize_text_field( (string) ( $details['cardExpiryDate'] ?? '' ) ),
-				)
-			);
+			self::remember_card( $user_id, $customer, (string) $payment['mandateId'] );
 			self::mail_card_added( $user_id );
 			// Already due (no card when the free months ended, or a failed charge), or coming back after the plan ended: charge now.
 			Members::forget();
@@ -426,6 +531,30 @@ final class Billing {
 			Lifecycle::forget();
 		}
 		self::mail_failed( $user_id, $row );
+	}
+
+	/**
+	 * Keeps the card's brand, last digits and expiry, from its mandate.
+	 *
+	 * @param int    $user_id  The member.
+	 * @param string $customer `cst_…`.
+	 * @param string $mandate  `mdt_…`.
+	 */
+	private static function remember_card( int $user_id, string $customer, string $mandate ): void {
+		if ( '' === $mandate ) {
+			return;
+		}
+		$found   = Mollie::get_mandate( $customer, $mandate );
+		$details = is_array( $found ) ? (array) ( $found['details'] ?? array() ) : array();
+		update_user_meta(
+			$user_id,
+			self::CARD_META,
+			array(
+				'label'  => sanitize_text_field( (string) ( $details['cardLabel'] ?? '' ) ),
+				'number' => preg_replace( '/\D/', '', (string) ( $details['cardNumber'] ?? '' ) ),
+				'expiry' => sanitize_text_field( (string) ( $details['cardExpiryDate'] ?? '' ) ),
+			)
+		);
 	}
 
 	/**
@@ -514,7 +643,7 @@ final class Billing {
 		if ( ! $member || 'canceled' === $member['status'] ) {
 			return null;
 		}
-		$paid = array_values( array_filter( Payments::of( $user_id, 'charge', 50 ), static fn( array $r ): bool => 'paid' === $r['status'] ) );
+		$paid = array_values( array_filter( Payments::of( $user_id, '', 50 ), static fn( array $r ): bool => 'paid' === $r['status'] && in_array( $r['kind'], array( 'charge', 'signup' ), true ) ) );
 		if ( 1 !== count( $paid ) || ! empty( $paid[0]['refunded_at'] ) ) {
 			return null; // Only the account's first charge.
 		}
@@ -709,7 +838,7 @@ final class Billing {
 	 */
 	public static function run(): array {
 		global $wpdb;
-		$done = array_fill_keys( array( 'reminders', 'expiring', 'charged', 'no_card', 'retried', 'checked', 'ended', 'warned', 'deleted' ), 0 );
+		$done = array_fill_keys( array( 'reminders', 'expiring', 'charged', 'no_card', 'retried', 'checked', 'ended', 'unpaid', 'warned', 'deleted' ), 0 );
 		if ( ! (bool) $wpdb->get_var( "SELECT GET_LOCK('mody_billing_run', 1)" ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock.
 			return $done;
 		}
@@ -796,6 +925,19 @@ final class Billing {
 				}
 			}
 			// phpcs:enable
+
+			// Paid sign-ups not paid within a day: no site, nothing paid, so the account goes.
+			$stale = $wpdb->get_col( $wpdb->prepare( "SELECT user_id FROM {$table} WHERE status = 'pending_payment' AND created_at < %s", gmdate( 'Y-m-d H:i:s', time() - Registration::PAY_HOURS * HOUR_IN_SECONDS ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Own table.
+			foreach ( (array) $stale as $user ) {
+				$user = (int) $user;
+				if ( Lifecycle::owned_sites( $user ) || array_filter( Payments::of( $user ), static fn( array $r ): bool => 'paid' === $r['status'] ) ) {
+					continue; // Never remove an account with a site or a payment.
+				}
+				require_once ABSPATH . 'wp-admin/includes/ms.php';
+				Members::delete( $user );
+				wpmu_delete_user( $user );
+				++$done['unpaid'];
+			}
 
 			// Locked accounts: the last warning on day 53, the sites deleted on day 60.
 			$done = array_merge( $done, Lifecycle::sweep() );
