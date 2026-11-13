@@ -39,6 +39,13 @@
  *     a new card; paid: active, the site made, the welcome email, the 14
  *     days; a second try resends the link; unpaid after a day: removed;
  *     without a key: closed.
+ * 15. Refunds and chargebacks made in Mollie's dashboard: a refund recorded,
+ *     shown and emailed once, the account unchanged; the withdrawal's own
+ *     refund not emailed twice; a chargeback: past due, the card dropped,
+ *     the period unpaid again, charged again with a new card; a card check
+ *     taken back changes nothing.
+ * 16. A test key on production: members are not offered card payments; the
+ *     command line still starts a card check.
  * 13. A card that expires before the next charge: said on Plan & billing;
  *     one email in the 30 days before that charge, again for a new card
  *     only; nothing for a card that lasts, or a plan that is cancelled.
@@ -257,7 +264,8 @@ $hook = static function ( string $id ): int {
 };
 $before = count( $fake['requests'] );
 $check( 'an ID that is not ours: 200, Mollie not asked, nothing changed', 200 === $hook( 'tr_forged123' ) && count( $fake['requests'] ) === $before );
-$check( 'a replay of an applied payment: 200, nothing asked', 200 === $hook( 'tr_fake1' ) && count( $fake['requests'] ) === $before );
+$mails_before = count( $mails );
+$check( 'a replay of an applied payment: 200, Mollie asked again (for refunds), nothing changed', 200 === $hook( 'tr_fake1' ) && count( $fake['requests'] ) === $before + 1 && count( $mails ) === $mails_before && 'mdt_fake1' === Members::get( $ada )['mollie_payment_method_id'] );
 
 // 4. Charges -----------------------------------------------------------------------------------
 
@@ -554,6 +562,65 @@ putenv( 'MOLLIE_API_KEY' );
 $closed = Registration::register( 'Ray Late', 'billpay3' . $suffix . '@mody.local', 'Ray', 'billpayr' . $suffix );
 $check( 'without a key after the offer: closed', is_wp_error( $closed ) && ! Registration::takes_accounts() && ! get_user_by( 'email', 'billpay3' . $suffix . '@mody.local' ) );
 putenv( 'MOLLIE_API_KEY=test_' . str_repeat( 'a1B2', 8 ) );
+
+// 15. Refunds and chargebacks made in Mollie's dashboard -------------------------------------------------
+
+echo "\nRefunds and chargebacks\n";
+$ned = $member( 'ned', array( 'plan' => 'paid', 'mollie_customer_id' => 'cst_ned', 'mollie_payment_method_id' => 'mdt_ned', 'billing_due_at' => $due ) );
+update_user_meta( $ned, Billing::CARD_META, array( 'label' => 'Visa', 'number' => '4242', 'expiry' => '2030-12-31' ) );
+$fake['recurring'] = 'paid';
+Billing::run();
+Members::forget();
+$nrow  = Payments::of( $ned, 'charge' )[0];
+$nmail = static fn( string $subject ): int => count( array_filter( $mails_to( 'billned' . $suffix . '@mody.local' ), static fn( array $m ): bool => str_contains( $m['subject'], $subject ) ) );
+$check( 'a paid charge to reverse', 'paid' === $nrow['status'] && 'active' === Members::get( $ned )['status'] );
+$fake['payments'][ $nrow['mollie_id'] ]['amountRefunded'] = array( 'currency' => 'EUR', 'value' => '3.00' );
+$hook( $nrow['mollie_id'] );
+$hook( $nrow['mollie_id'] );
+Members::forget();
+$nrow = Payments::get( (int) $nrow['id'] );
+$check( 'a refund made in Mollie: recorded once, one email, the account unchanged', 3.0 === (float) $nrow['refunded'] && null !== $nrow['refunded_at'] && 1 === $nmail( 'refund is on its way' ) && 'active' === Members::get( $ned )['status'] && 'mdt_ned' === Members::get( $ned )['mollie_payment_method_id'] );
+$check( '... Plan & billing: "Refunded 3.00 EUR"', str_contains( $render( $ned ), 'Refunded 3.00 EUR' ) );
+$fake['payments'][ $nrow['mollie_id'] ]['amountRefunded'] = array( 'currency' => 'EUR', 'value' => '7.99' );
+$hook( $nrow['mollie_id'] );
+$check( '... refunded in full later: the amount updated, no second email', 7.99 === (float) Payments::get( (int) $nrow['id'] )['refunded'] && 1 === $nmail( 'refund is on its way' ) );
+$wd = $rows[0]; // Ada's withdrawn charge (section 5): the platform refunded it itself.
+$fake['payments'][ $wd['mollie_id'] ]['amountRefunded'] = array( 'currency' => 'EUR', 'value' => '7.99' );
+$before_ada = count( $mails_to( 'billada' . $suffix . '@mody.local' ) );
+$hook( $wd['mollie_id'] );
+$check( 'the withdrawal\'s own refund: no "refund" email on top', count( $mails_to( 'billada' . $suffix . '@mody.local' ) ) === $before_ada );
+
+$fake['payments'][ $nrow['mollie_id'] ]['amountChargedBack'] = array( 'currency' => 'EUR', 'value' => '7.99' );
+$hook( $nrow['mollie_id'] );
+$hook( $nrow['mollie_id'] );
+Members::forget();
+Lifecycle::forget();
+$nm = Members::get( $ned );
+$check( 'a chargeback: past due, the card dropped, the period unpaid again, one email', 'past_due' === $nm['status'] && null === $nm['mollie_payment_method_id'] && $nrow['covers_from'] === $nm['billing_due_at'] && ! get_user_meta( $ned, Billing::CARD_META, true ) && 1 === $nmail( 'took a payment back' ) );
+$check( '... Plan & billing: "Taken back by the bank", Add your card', str_contains( $render( $ned ), 'Taken back by the bank' ) && str_contains( $render( $ned ), 'Add your card' ) );
+$check( '... no automatic retry on the disputed card', 0 === Billing::run()['retried'] );
+Billing::add_card( $ned );
+$ncard = Payments::of( $ned, 'card' )[0];
+$fake['payments'][ $ncard['mollie_id'] ]['status']    = 'paid';
+$fake['payments'][ $ncard['mollie_id'] ]['mandateId'] = 'mdt_ned2';
+$hook( $ncard['mollie_id'] );
+Members::forget();
+$again = Payments::of( $ned, 'charge' )[0];
+$check( 'a new card: that period charged again, active', $again['id'] !== $nrow['id'] && $nrow['covers_from'] === $again['covers_from'] && 'paid' === $again['status'] && 'active' === Members::get( $ned )['status'] );
+$fake['payments'][ $ncard['mollie_id'] ]['amountChargedBack'] = array( 'currency' => 'EUR', 'value' => '0.01' );
+$hook( $ncard['mollie_id'] );
+Members::forget();
+$check( 'the card check taken back: recorded, nothing else changes', 0.01 === (float) Payments::get( (int) $ncard['id'] )['charged_back'] && 'active' === Members::get( $ned )['status'] && 'mdt_ned2' === Members::get( $ned )['mollie_payment_method_id'] );
+
+// 16. A test key on production ------------------------------------------------------------------------------
+
+echo "\nA test key on production\n";
+$env = static fn(): string => 'production';
+add_filter( 'mody_billing_environment', $env );
+$check( 'members are not offered card payments', ! Mollie::offered() && ! str_contains( $render( $di ), 'name="accept"' ) && ! Registration::paying() );
+$check( '... the command line still starts a card check', is_string( Billing::add_card( $di ) ) );
+remove_filter( 'mody_billing_environment', $env );
+$check( 'a test key elsewhere (local) is offered', Mollie::offered() );
 
 putenv( 'MOLLIE_API_KEY' );
 $html = $render( $di );

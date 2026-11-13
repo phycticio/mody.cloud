@@ -20,12 +20,14 @@ defined( 'ABSPATH' ) || exit;
  * - `status`: Mollie's (`open`, `pending`, `authorized`, `paid`, `failed`,
  *   `canceled`, `expired`); `applied` says whether the platform acted on it.
  * - `covers_from` and `covers_to`: the period a charge pays for.
- * - `refunded_at`: when the platform refunded it (the 14-day withdrawal).
+ * - `refunded_at` and `refunded`: when and how much was refunded (the 14-day
+ *   withdrawal, or a refund made in Mollie's dashboard); `charged_back`: what
+ *   the card's bank took back (a chargeback).
  */
 final class Payments {
 
 	/** Bump when the table definition changes. */
-	private const DB_VERSION = '2'; // 2: `signup`, a paid sign-up's first payment (2026-11-13).
+	private const DB_VERSION = '3'; // 2: `signup`, a paid sign-up's first payment. 3: refunded, charged_back (2026-11-13).
 
 	/** Network option with the installed version. */
 	private const DB_VERSION_OPTION = 'mody_payments_db_version';
@@ -65,6 +67,8 @@ final class Payments {
   status varchar(20) NOT NULL DEFAULT 'open',
   applied tinyint(1) NOT NULL DEFAULT 0,
   refunded_at datetime DEFAULT NULL,
+  refunded decimal(10,2) NOT NULL DEFAULT 0,
+  charged_back decimal(10,2) NOT NULL DEFAULT 0,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY  (id),

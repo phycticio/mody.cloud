@@ -1085,7 +1085,7 @@ final class DashboardPage {
 		if ( 'expired' === (string) ( $row['status'] ?? '' ) ) {
 			return;
 		}
-		if ( ! Mollie::configured() ) {
+		if ( ! Mollie::offered() ) {
 			if ( ! $has ) {
 				echo '<span class="mody-brand__empty">' . esc_html__( 'None yet.', 'mody_cloud' ) . '</span> ';
 				esc_html_e( 'Card payments open soon. You add your card here before your free months end, and nothing is charged before then. Without a card by then, your site becomes read-only for 60 days and is then deleted; you can download it at any time.', 'mody_cloud' );
@@ -1247,7 +1247,20 @@ final class DashboardPage {
 							?>
 						</td>
 						<td><?php echo esc_html( self::price( (float) $payment['amount'] ) ); ?></td>
-						<td><?php echo esc_html( ! empty( $payment['refunded_at'] ) ? __( 'Refunded', 'mody_cloud' ) : ( $labels[ $payment['status'] ] ?? __( 'Processing', 'mody_cloud' ) ) ); ?></td>
+						<td>
+							<?php
+							$label = $labels[ $payment['status'] ] ?? __( 'Processing', 'mody_cloud' );
+							if ( (float) ( $payment['charged_back'] ?? 0 ) > 0 ) {
+								$label = __( 'Taken back by the bank', 'mody_cloud' );
+							} elseif ( ! empty( $payment['refunded_at'] ) ) {
+								$label = (float) ( $payment['refunded'] ?? 0 ) > 0 && (float) $payment['refunded'] < (float) $payment['amount']
+									/* translators: %s: an amount. */
+									? sprintf( __( 'Refunded %s', 'mody_cloud' ), self::price( (float) $payment['refunded'] ) )
+									: __( 'Refunded', 'mody_cloud' );
+							}
+							echo esc_html( $label );
+							?>
+						</td>
 					</tr>
 				<?php endforeach; ?>
 			</tbody>
