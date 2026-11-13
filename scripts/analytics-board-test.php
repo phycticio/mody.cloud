@@ -111,13 +111,13 @@ $check( 'an unknown metric is refused, with the list', str_contains( $refused( a
 $check( 'an unknown dimension is refused', str_contains( $refused( array( 'dimension' => 'region' ) ), 'Unknown dimension' ) );
 $check( 'a site in the query is refused: sites come from the caller', str_contains( $refused( array( 'site_id' => $other ) ), 'Unknown query field' ) );
 $check( 'an unknown filter is refused', str_contains( $refused( array( 'filters' => array( 'visit_id' => 'x' ) ) ), 'Unknown filter' ) );
-$check( 'SQL in a source filter is refused', str_contains( $refused( array( 'filters' => array( 'source' => "x' OR 1=1 --" ) ) ), 'must be a host' ) );
+$check( 'SQL in a source filter is refused', str_contains( $refused( array( 'filters' => array( 'source' => "x' OR 1=1 --" ) ) ), 'takes hosts' ) );
 $check( 'more than 13 months is refused', str_contains( $refused( array( 'days' => 400 ) ), 'days must be' ) );
 $check( 'a metric the dimension cannot count is refused', str_contains( $refused( array( 'metrics' => array( 'single_page_rate' ), 'dimension' => 'path' ) ), 'does not work with' ) );
-$check( '"next" needs a page to start from', str_contains( $refused( array( 'dimension' => 'next' ) ), 'needs "from"' ) );
+$check( '"next" needs a page to start from', str_contains( $refused( array( 'dimension' => 'next' ) ), 'needs "page"' ) );
 $check( 'a breakdown needs time and one count', '' !== $refused( array( 'dimension' => 'path', 'breakdown' => 'device' ) ) && '' !== $refused( array( 'metrics' => array( 'pages_per_visit' ), 'dimension' => 'day', 'breakdown' => 'device' ) ) );
 $q = Query::normalize( array( 'metrics' => 'visits', 'dimension' => 'path', 'limit' => 500, 'filters' => array( 'path' => '/blog/*', 'source' => 'WWW.Example.org' ) ) );
-$check( 'defaults and cleaning: one metric, the limit capped, prefixes, hosts', ! is_wp_error( $q ) && array( 'visits' ) === $q['metrics'] && Query::MAX_LIMIT === $q['limit'] && '/blog/*' === $q['filters']['path'] && 'example.org' === $q['filters']['source'] );
+$check( 'defaults and cleaning: one metric, the limit capped, prefixes, hosts', ! is_wp_error( $q ) && array( 'visits' ) === $q['metrics'] && Query::MAX_LIMIT === $q['limit'] && array( 'in' => array( '/blog/*' ) ) === $q['filters']['path'] && array( 'in' => array( 'example.org' ) ) === $q['filters']['source'] );
 
 // 2. Numbers ---------------------------------------------------------------------------
 
@@ -142,7 +142,7 @@ $exits = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'exit' ) );
 $check( 'by exit page: /menu/ 2', 2 === $exits['series'][0]['data'][ array_search( '/menu/', $exits['keys'], true ) ] );
 $journeys = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'journey' ) );
 $check( 'journeys: visits of two pages or more, as Stats finds them', 3 === count( $journeys['keys'] ) && in_array( "/\n/menu/\n/order/", $journeys['keys'], true ) && count( $stats['journeys'] ) === count( $journeys['keys'] ) );
-$next = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'next', 'from' => '/' ) );
+$next = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'next', 'page' => '/' ) );
 $check( 'next pages after /: /menu/ 2', array( '/menu/' ) === $next['keys'] && array( 2 ) === $next['series'][0]['data'] );
 $sources = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'source' ) );
 $check( 'sources: direct 2, three hosts 1 each, labelled', 2 === $sources['series'][0]['data'][ array_search( '', $sources['keys'], true ) ] && in_array( 'Direct, or no source given', $sources['labels'], true ) && 4 === count( $sources['keys'] ) );
@@ -161,6 +161,48 @@ for ( $i = 0; $i < 7; $i++ ) {
 }
 $split = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'day', 'breakdown' => 'source' ) );
 $check( '... the top 5 and "Other", still adding up', 6 === count( $split['series'] ) && '__other' === end( $split['series'] )['key'] && 12 === array_sum( array_map( 'array_sum', array_column( $split['series'], 'data' ) ) ) );
+// Phase 3a (2026-11-13): dates, any two periods, lists and "not", weekday and hour, channels, sorting, "Other".
+echo "\nDates, filters, channels, sorting\n";
+$total  = static fn( $r ): int => is_wp_error( $r ) ? -1 : (int) array_sum( $r['series'][0]['data'] );
+$recent = gmdate( 'Y-m-d', (int) strtotime( $today . ' 00:00:00 UTC' ) - 2 * DAY_IN_SECONDS );
+$check( 'dates: one day two days ago (2 visits); the last three days (12)', 2 === $total( $run( array( 'dimension' => 'none', 'from' => $ago, 'to' => $ago ) ) ) && 12 === $total( $run( array( 'dimension' => 'none', 'from' => $recent, 'to' => $today ) ) ) );
+$future = $run( array( 'dimension' => 'none', 'from' => $today, 'to' => gmdate( 'Y-m-d', (int) strtotime( $today . ' 00:00:00 UTC' ) + 30 * DAY_IN_SECONDS ) ) );
+$check( '... a period that runs past today stops today', ! is_wp_error( $future ) && $today === $future['last'] );
+$check( '... bad or too old dates are refused', '' !== $refused( array( 'from' => '2026-02-30', 'to' => '2026-03-01' ) ) && str_contains( $refused( array( 'from' => '2020-01-01', 'to' => '2020-02-01' ) ), '13 months' ) && '' !== $refused( array( 'from' => $today, 'to' => $ago ) ) );
+$pair = $run( array( 'dimension' => 'none', 'from' => $today, 'to' => $today, 'compare' => array( 'from' => $ago, 'to' => $ago ) ) );
+$check( 'any two periods: today (10) against two days ago (2), named by its date', ! is_wp_error( $pair ) && 10 === $pair['series'][0]['data'][0] && 2 === $pair['series'][0]['previous'][0] && Query::range_label( $ago, $ago ) === $pair['previous_label'] );
+$check( 'a list: phones and tablets (3)', 3 === $total( $run( array( 'dimension' => 'none', 'filters' => array( 'device' => array( 'mobile', 'tablet' ) ) ) ) ) );
+$check( '"not": everything except direct (10 of 12)', 10 === $total( $run( array( 'dimension' => 'none', 'filters' => array( 'source' => array( 'not' => 'direct' ) ) ) ) ) );
+$channels = $run( array( 'dimension' => 'channel' ) );
+$check( 'channels: direct 2, search 2, social 1, other sites 7', array( 'direct' => 2, 'search' => 2, 'social' => 1, 'other' => 7 ) == array_combine( $channels['keys'], $channels['series'][0]['data'] ) && in_array( 'Search engines', $channels['labels'], true ), wp_json_encode( array_combine( $channels['keys'], $channels['series'][0]['data'] ) ) ); // phpcs:ignore Universal.Operators.StrictComparisons -- Order of equal counts may differ.
+$check( '... a channel filter: search (2); a channel breakdown', 2 === $total( $run( array( 'dimension' => 'none', 'filters' => array( 'channel' => 'search' ) ) ) ) && 4 === count( $run( array( 'dimension' => 'day', 'breakdown' => 'channel' ) )['series'] ) );
+$check( '... the hosts: google.es, l.facebook.com, a Mastodon instance', 'search' === \Mody\Analytics\Channels::of( 'google.es' ) && 'social' === \Mody\Analytics\Channels::of( 'l.facebook.com' ) && 'social' === \Mody\Analytics\Channels::of( 'mastodon.example.org' ) && 'other' === \Mody\Analytics\Channels::of( 'example.com' ) && 'direct' === \Mody\Analytics\Channels::of( '' ) );
+$weekday = strtolower( gmdate( 'l', (int) strtotime( $today . ' 12:00:00 UTC' ) ) );
+$check( 'weekday: today\'s weekday only (10)', 10 === $total( $run( array( 'dimension' => 'none', 'from' => $recent, 'to' => $today, 'filters' => array( 'weekday' => $weekday ) ) ) ) );
+$check( 'hour: 9:00 only (2); 20:00 to 9:00 across midnight (4)', 2 === $total( $run( array( 'dimension' => 'none', 'filters' => array( 'hour' => array( 'from' => 9, 'to' => 9 ) ) ) ) ) && 4 === $total( $run( array( 'dimension' => 'none', 'filters' => array( 'hour' => array( 'from' => 20, 'to' => 9 ) ) ) ) ) );
+$quiet = (int) wp_insert_post(
+	array(
+		'post_type'   => 'page',
+		'post_status' => 'publish',
+		'post_title'  => 'Quiet page',
+		'post_name'   => 'quiet-page',
+	)
+);
+$least = $run( array( 'metrics' => array( 'views' ), 'dimension' => 'path', 'sort' => 'asc' ) );
+$check( 'least visited first: a published page nobody visited is listed at 0', $quiet > 0 && '/quiet-page/' === ( $least['keys'][0] ?? '' ) && 0 === $least['series'][0]['data'][0], wp_json_encode( array_slice( $least['keys'], 0, 3 ) ) );
+$sorted = $run( array( 'dimension' => 'source', 'sort' => 'label', 'limit' => 50 ) );
+$sorted_keys = $sorted['keys'];
+sort( $sorted_keys );
+$check( 'sorted by label', $sorted_keys === $sorted['keys'] );
+$top = $run( array( 'dimension' => 'source', 'limit' => 2, 'other' => true ) );
+$check( '"Other": the top 2 and the rest added up, still 12', 3 === count( $top['keys'] ) && Query::OTHER === end( $top['keys'] ) && 12 === array_sum( $top['series'][0]['data'] ) && 'Other' === end( $top['labels'] ) );
+$check( '... only where the parts make a whole', '' !== $refused( array( 'dimension' => 'journey', 'other' => true ) ) && '' !== $refused( array( 'metrics' => array( 'visits' ), 'dimension' => 'path', 'other' => true ) ) && '' === $refused( array( 'metrics' => array( 'views' ), 'dimension' => 'path', 'other' => true ) ) );
+$wednesday = gmdate( 'Y-m-d', (int) strtotime( 'last wednesday', (int) strtotime( $today . ' 12:00:00 UTC' ) ) );
+$weeks     = $run( array( 'dimension' => 'week', 'from' => gmdate( 'Y-m-d', (int) strtotime( $wednesday . ' 12:00:00 UTC' ) - 14 * DAY_IN_SECONDS ), 'to' => $wednesday ) );
+$check( 'a period starting mid-week names its first week by its first day', ! is_wp_error( $weeks ) && $weeks['first'] === $weeks['keys'][0] );
+$check( 'a filter value in the normalized form is read back', ! is_wp_error( Query::normalize( Query::normalize( array( 'filters' => array( 'device' => array( 'not' => 'mobile' ), 'hour' => array( 'from' => 1, 'to' => 2 ) ) ) ) ) ) );
+wp_delete_post( $quiet, true );
+
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Test: an archived day, as the retention leaves it.
 $wpdb->insert( Store::daily(), array( 'site_id' => $site, 'day' => gmdate( 'Y-m-d', (int) strtotime( $today . ' 00:00:00 UTC' ) - 5 * DAY_IN_SECONDS ), 'kind' => 'total', 'value' => '', 'views' => 40, 'visitors' => 10 ) );
 $archived = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'day' ) );
@@ -236,6 +278,13 @@ $check( '... a donut gets the series colors, not one', Board::SERIES_COLORS === 
 $changed = Board::apply( 'change', array( 'id' => 'visits-per-day', 'spec' => array( 'type' => 'line', 'style' => array( 'colors' => array( '#6250d6' ) ), 'query' => array( 'days' => 14 ) ) ) );
 $card    = array_column( is_wp_error( $changed ) ? array() : $changed['cards'], null, 'id' )['visits-per-day'] ?? array();
 $check( 'change: type, color and period, the rest kept', 'line' === ( $card['type'] ?? '' ) && array( '#6250d6' ) === $card['style']['colors'] && 14 === $card['query']['days'] && array( 'visits' ) === $card['query']['metrics'] && 'day' === $card['query']['dimension'] );
+$dated = Board::apply( 'change', array( 'id' => 'visits-per-day', 'spec' => array( 'query' => array( 'from' => $ago, 'to' => $today ) ) ) );
+$card  = array_column( is_wp_error( $dated ) ? array() : $dated['cards'], null, 'id' )['visits-per-day'] ?? array();
+$check( '... dates replace the days', $ago === ( $card['query']['from'] ?? '' ) && null === $card['query']['days'] );
+$daily = Board::apply( 'change', array( 'id' => 'visits-per-day', 'spec' => array( 'query' => array( 'days' => 14 ) ) ) );
+$card  = array_column( is_wp_error( $daily ) ? array() : $daily['cards'], null, 'id' )['visits-per-day'] ?? array();
+$check( '... and days replace the dates', 14 === ( $card['query']['days'] ?? 0 ) && null === $card['query']['from'] );
+$check( '... a card with its own period says so', 'Last 14 days' === Board::with_data( $card, 7 )['period'] && '' === Board::with_data( $card, 14 )['period'] );
 $bad = Board::apply( 'change', array( 'id' => 'visits-per-day', 'spec' => array( 'type' => 'donut' ) ) );
 $check( '... a change that does not fit is refused, and nothing changes', is_wp_error( $bad ) && 'line' === array_column( Board::cards(), null, 'id' )['visits-per-day']['type'] );
 $moved = Board::apply( 'move', array( 'id' => 'devices', 'to' => 0 ) );

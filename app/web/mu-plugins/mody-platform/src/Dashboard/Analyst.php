@@ -239,7 +239,7 @@ final class Analyst {
 			foreach ( $data['series'] as $series ) {
 				$row[ $series['label'] ] = $series['data'][ $i ];
 				if ( null !== $series['previous'] ) {
-					$row[ $series['label'] . ' (period before)' ] = $series['previous'][ $i ];
+					$row[ $series['label'] . ' (' . $data['previous_label'] . ')' ] = $series['previous'][ $i ];
 				}
 			}
 			if ( ! empty( $data['more'][ $i ] ) ) {
@@ -248,9 +248,10 @@ final class Analyst {
 			$rows[] = $row;
 		}
 		return array(
-			'from' => $data['first'],
-			'to'   => $data['last'],
-			'rows' => $rows,
+			'from'          => $data['first'],
+			'to'            => $data['last'],
+			'compared_with' => $data['previous_label'],
+			'rows'          => $rows,
 		);
 	}
 
@@ -518,13 +519,14 @@ final class Analyst {
 				implode( ', ', $query['metrics'] ),
 				$query['dimension'],
 				'' !== $query['breakdown'] ? ', broken down by ' . $query['breakdown'] : '',
-				null !== $query['days'] ? ', ' . $query['days'] . ' days' : '',
+				! empty( $query['from'] ) ? ', ' . $query['from'] . ' to ' . $query['to'] : ( null !== $query['days'] ? ', ' . $query['days'] . ' days' : '' ),
 				$query['filters'] ? ', filters ' . wp_json_encode( $query['filters'] ) : '',
 				$card['style']['colors'] ? ', colors ' . implode( ' ', $card['style']['colors'] ) : ''
 			);
 		}
 
 		$mission_text = '' !== $mission ? ' (its mission: "' . $mission . '")' : '';
+		$today        = wp_date( 'l j F Y' ) . ' (' . wp_date( 'Y-m-d' ) . ')';
 		$palette_text = $palette ? implode( ', ', $palette ) : 'none';
 		$board_text   = $board ? implode( "\n", $board ) : '(no charts)';
 
@@ -537,10 +539,15 @@ You are Mody, the analyst of the website "{$name}"{$mission_text}. You work on t
 - Dimensions: none (one number), day, week, month, weekday, hour, hour_weekday (the heatmap only), path (pages), entry (the page a visit came in on), exit (the page it left from), source (the site that linked to it; "" means direct), device (mobile, tablet, desktop, unknown), country, city, journey (a visit's pages in order), next (the pages visits opened after the page in "from").
 - Places: country and city are worked out on this server from the visitor's address, which is never kept. A city with fewer than 5 visits in the period is counted as "Other places in <country>", and a city filter on such a town is refused: say so when asked about a small place. Visits counted before 13 November 2026 have no place ("Unknown").
 - path allows views, visits, entries, exits. journey and next allow visits. The others allow visits, views, pages_per_visit, single_page_rate.
-- breakdown: device, source, entry, country or site. One series per value, over day, week, month, weekday or hour, with exactly one metric: visits or views.
-- filters: path (a page, or "/blog/*" for every page that starts so: visits that saw it), entry, source (a host such as "instagram.com", or "direct"), device, country (a two-letter code such as "ES"), city (its English name, such as "Barcelona").
-- days: 1 to 395. Without days, a chart follows the board's period tabs (7, 30 or 90 days; now {$days}). compare: true adds the period before.
-- A query: {"metrics": ["visits"], "dimension": "day", "days": 30, "compare": true, "filters": {"device": "mobile"}, "limit": 10}
+- channel groups sources: direct, search (search engines), social (social media), other (other sites).
+- breakdown: device, source, channel, entry, country or site. One series per value, over day, week, month, weekday or hour, with exactly one metric: visits or views.
+- filters: path (a page, or "/blog/*" for every page that starts so: visits that saw it), entry, source (a host such as "instagram.com", or "direct"), channel, device, country (a two-letter code such as "ES"), city (its English name, such as "Barcelona"). Each takes one value, a list (["mobile", "tablet"]) or {"not": …} ({"not": "direct"}: everything except direct). A city can be chosen, never left out.
+- weekday filter: "monday" to "sunday", "weekend", "weekdays", or a list. hour filter: {"from": 9, "to": 17} (both included, the site's hours; {"from": 22, "to": 6} wraps past midnight).
+- Today is {$today}. The period is days (1 to 395: "the last 7 days"), or dates: "from" and "to" as YYYY-MM-DD ("March" is {"from": "2026-03-01", "to": "2026-03-31"}; "Q2", "since January", "1 June to 15 August" alike), within the last 13 months. Without either, a chart follows the board's period tabs (7, 30 or 90 days; now {$days}).
+- compare: true adds the period just before; {"from": …, "to": …} compares with any period ("June against March").
+- sort: "desc" (biggest first, the default), "asc" (smallest first: with path, pages nobody visited are listed too) or "label" (A to Z). limit: rows kept (1 to 50). other: true adds up the rest as one "Other" row (for parts of a whole: entry, exit, source, channel, device, country, city, weekday, hour; or path with views).
+- next takes "page": the page visits went on from.
+- A query: {"metrics": ["visits"], "dimension": "day", "from": "2026-03-01", "to": "2026-03-31", "compare": true, "filters": {"device": ["mobile", "tablet"], "source": {"not": "direct"}}, "limit": 10}
 
 # A chart
 {"id": "a-short-slug", "title": "Visits per day", "type": "bar", "query": {...}, "style": {"colors": ["primary"], "legend": true, "values": false}, "size": "full"}
@@ -549,6 +556,7 @@ You are Mody, the analyst of the website "{$name}"{$mission_text}. You work on t
 - Sizes: small (a quarter of the row), third, half, wide (two thirds), full.
 - Colors: the site's palette colors that charts can use ({$palette_text}), "admin" (the dashboard's own color), or a six-digit hex. Light colors are refused because they cannot be seen on the white card. Leave colors out for the defaults, which are readable and colorblind-safe.
 - values: true prints each bar's number on it.
+- To simplify or reduce a chart, change it: fewer rows ({"query": {"limit": 5, "other": true}}), no comparison ({"query": {"compare": false}}), one metric, no breakdown ({"query": {"breakdown": ""}}), no legend, or a smaller size.
 
 # The board now
 <board>

@@ -1,6 +1,6 @@
 # Analytics chat: a board of charts and a Mody that reads only the numbers
 
-**Builds on:** [analytics-journeys.md](analytics-journeys.md) (the views table, `Stats`), [mody-dashboard.md](mody-dashboard.md) (the Visitors section), the agent's job machinery ([ai-engine.md](../documentation/ai-engine.md#background-jobs): background jobs, `Agent\Slots`, `Agent\Budget`, `Agent\TurnMetrics`) · **Status:** planned 2026-11-12; phase 1 (the board) built and pushed the same day; phase 2 (the analyst) built 2026-11-13; not deployed.
+**Builds on:** [analytics-journeys.md](analytics-journeys.md) (the views table, `Stats`), [mody-dashboard.md](mody-dashboard.md) (the Visitors section), the agent's job machinery ([ai-engine.md](../documentation/ai-engine.md#background-jobs): background jobs, `Agent\Slots`, `Agent\Budget`, `Agent\TurnMetrics`) · **Status:** planned 2026-11-12; phase 1 (the board) built and pushed the same day; phase 2 (the analyst) and phase 3a (dates, filters, channels) built 2026-11-13; not deployed.
 
 ## Asked for
 By the maintainer on 2026-11-12:
@@ -196,6 +196,24 @@ Asked for: "The analyst should also be able to filter, reduce the graphic, ask f
 - **Seen and fixed:** long paths are cut from the left on horizontal bars; area legends use the line's color; tile buttons float so titles do not wrap; focus goes to Undo after remove and reset.
 - **Before deploying:** `pnpm build` (the deploy runs it) builds `app/dist/analytics-board.js`. Without it the Visitors section stays as before.
 - **Next:** phase 2, the analyst and its bubble.
+
+## Results: phase 3a (2026-11-13)
+- **Built:**
+  - **In `Query`:**
+    - dates (`from` and `to`; an end past today stops today; within the 13 months);
+    - `compare` true or with its own dates, the compared period named by its dates (`previous_label`);
+    - every filter as one value, a list or `{"not": …}`, plus `weekday` (names, "weekend", "weekdays", 1–7) and `hour` (`{from, to}`, wrapping past midnight);
+    - `sort` (`desc`, `asc`, `label`; with `asc` on pages, published pages nobody visited are listed at 0);
+    - `other`, and a week named by the period's first day when the period starts mid-week.
+  - **`Channels`:** Direct, Search engines, Social media, Other sites, as a dimension, a filter and a breakdown.
+  - **The board:** each card shows its own period ("June 2026", "Last 14 days"); a compared series is named by its dates ("Visits, March 2026"); tiles say what they are compared with; "Other" is gray. A change of period replaces the old one (days drop dates, dates drop days).
+  - **The analyst's prompt:** today's date, all of the above, and how to simplify or reduce a chart.
+- **Changed:** the `next` dimension's start page is `page` (it was `from`, now the date). Nothing deployed used it.
+- **Privacy:** a city can be chosen, never left out ("everything but Perros-Guirec" would give its number by subtraction). Each city in a list must have 5 visits or more.
+- **Tests:**
+  - `scripts/analytics-board-test.php` now has 88 checks (20 new for phase 3a), all pass.
+  - `scripts/analytics-eval.php` has 23 cases (5 new: search engines, not direct, phones or tablets, March by week, the top 2 sources with Other). All new cases pass. The run's one failure was a model error on its first message, not an answer.
+- **In headless Chromium:** a June-against-March line, a Q2 tile against Q1, and a donut with Other render with their labels, with no script errors.
 
 ## Results: phase 2 (2026-11-13)
 - **Built:**

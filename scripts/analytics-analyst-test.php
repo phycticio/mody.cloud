@@ -92,7 +92,7 @@ $check( 'the owner counts: 2 visits, 3 views, as rows', ! is_wp_error( $counted 
 $pages = $query->execute( array( 'query' => array( 'metrics' => array( 'views' ), 'dimension' => 'path', 'compare' => true ) ) );
 $json  = (string) wp_json_encode( $pages, JSON_UNESCAPED_SLASHES );
 $check( '... this site only, never a visit ID', ! str_contains( $json, 'hidden' ) && ! str_contains( $json, 'aaaaaaaa' ) && str_contains( $json, '/menu/' ) );
-$check( '... the period before as its own column', str_contains( $json, 'Page views (period before)' ) );
+$check( '... the compared period as its own column, named by its dates', (bool) preg_match( '/"Page views \\([^)]+\\)"/', $json ) && '' !== $pages['compared_with'] );
 $journey = $query->execute( array( 'query' => array( 'metrics' => array( 'visits' ), 'dimension' => 'journey' ) ) );
 $check( '... journeys readable: "/ → /menu/"', ! is_wp_error( $journey ) && '/ → /menu/' === $journey['rows'][0]['label'] );
 $bad = $query->execute( array( 'query' => array( 'metrics' => array( 'revenue' ) ) ) );

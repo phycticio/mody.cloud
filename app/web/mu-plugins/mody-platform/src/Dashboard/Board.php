@@ -214,6 +214,14 @@ final class Board {
 						$merged[ $field ] = array_merge( (array) $merged[ $field ], $fields[ $field ] );
 					}
 				}
+				// A new period replaces the old one: days drop the dates, dates drop the days.
+				if ( isset( $fields['query'] ) && is_array( $fields['query'] ) ) {
+					if ( array_key_exists( 'days', $fields['query'] ) && ! array_key_exists( 'from', $fields['query'] ) ) {
+						unset( $merged['query']['from'], $merged['query']['to'] );
+					} elseif ( array_key_exists( 'from', $fields['query'] ) ) {
+						unset( $merged['query']['days'] );
+					}
+				}
 				if ( isset( $fields['type'] ) && ! array_key_exists( 'size', $fields ) ) { // A new type takes its own width unless one is given.
 					$merged['size'] = ChartSpec::default_size( (string) $merged['type'] );
 				}
@@ -310,11 +318,21 @@ final class Board {
 	 * @return array<string, mixed>
 	 */
 	public static function with_data( array $spec, int $days ): array {
-		$data = Query::run( $spec['query'], array( get_current_blog_id() ), $days );
+		$data  = Query::run( $spec['query'], array( get_current_blog_id() ), $days );
+		$query = $spec['query'];
+		// A card with its own period says so: its dates ("March 2026"), or its days when they differ from the board's.
+		$period = '';
+		if ( ! empty( $query['from'] ) ) {
+			$period = Query::range_label( (string) $query['from'], (string) $query['to'] );
+		} elseif ( null !== $query['days'] && (int) $query['days'] !== $days ) {
+			/* translators: %d: a number of days. */
+			$period = sprintf( __( 'Last %d days', 'mody_cloud' ), (int) $query['days'] );
+		}
 		return array(
 			'spec'   => $spec,
 			'colors' => self::colors( $spec ),
-			'days'   => $spec['query']['days'] ?? $days,
+			'days'   => $query['days'] ?? $days,
+			'period' => $period,
 			'data'   => is_wp_error( $data ) ? null : $data,
 			'error'  => is_wp_error( $data ) ? $data->get_error_message() : '',
 		);
