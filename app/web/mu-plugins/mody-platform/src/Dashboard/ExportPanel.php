@@ -43,7 +43,7 @@ final class ExportPanel {
 
 	/**
 	 * A site may ask for a new copy this many seconds after its last finished
-	 * copy was asked for (security pass, 2026-11-12). A copy zips the whole 3 GB
+	 * copy was asked for (security pass, 2026-11-12). A copy zips the whole 1 GB
 	 * and stays for three days outside the site's space, and the network builds
 	 * only Jobs::MAX_RUNNING at a time: without a pause, a few sites asking in
 	 * a loop would keep every builder busy and fill the disk. Only a copy that

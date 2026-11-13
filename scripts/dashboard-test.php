@@ -1,22 +1,25 @@
 <?php
 /**
  * Tests the Mody dashboard (tickets/mody-dashboard.md, 2026-11-11): every
- * site's Dashboard, the 3 GB per site, Mody Analytics, Mody's work, the new
- * plans and Plan & billing.
+ * site's Dashboard, the space per site (1 GB since 2026-11-13), Mody
+ * Analytics, Mody's work, the plans (per site since 2026-11-13) and Plan &
+ * billing.
  *
  * Run from the repository root:
  *
  *   docker exec -i -u www-data mody_cloud_app \
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/dashboard-test.php
  *
- * 1. Storage: the network's quota, a new site's 3 GB, no limit on the main
- *    site, an upload over the quota refused.
+ * 1. Storage: the network's quota, a new site's 1 GB, older sites moved from
+ *    3 GB to 1 GB (a size set by hand stays), no limit on the main site, an
+ *    upload over the quota refused.
  * 2. Mody Analytics: paths, sources, devices, the address behind the
  *    proxies, bots, visits (a new one after 30 minutes), journeys, entry
  *    and exit pages, only random visit IDs stored, the cap, several sites
  *    side by side, the archive after 13 months.
  * 3. Mody's work: the groups, and a site's summary from turn rows.
- * 4. The plans: the old plans' migration, choose_plan() and its refusals.
+ * 4. The plans: the old plans' migration (to free and paid, free_until, no
+ *    next_plan), choose_period() and its refusals.
  * 5. The page: the sections each user sees, and every section rendered.
  * 6. Over HTTP: wp-admin/ opens the dashboard, its menu item, the beacon
  *    on the front end and its route.
@@ -79,12 +82,21 @@ $check( 'a throwaway site and users', $site > 0 && $member && $editor && $other,
 // 1. Storage --------------------------------------------------------------------------
 
 echo "\nStorage\n";
-$check( 'the network: 3 GB, the check on, 1 GB files', 3072 === (int) get_site_option( 'blog_upload_space' ) && 0 === (int) get_site_option( 'upload_space_check_disabled' ) && 1048576 === (int) get_site_option( 'fileupload_maxk' ) );
-$check( 'a new site gets its own 3072 MB', '3072' === (string) get_blog_option( $site, 'blog_upload_space' ) );
+$check( 'the network: 1 GB, the check on, 1 GB files', 1024 === (int) get_site_option( 'blog_upload_space' ) && 0 === (int) get_site_option( 'upload_space_check_disabled' ) && 1048576 === (int) get_site_option( 'fileupload_maxk' ) );
+$check( 'a new site gets its own 1024 MB', '1024' === (string) get_blog_option( $site, 'blog_upload_space' ) );
+// Version 2 of the settings: a site still on the old 3 GB gets 1 GB; a size set by hand stays.
+$hand = (int) get_blog_option( get_main_site_id(), 'blog_upload_space' );
+update_blog_option( $site, 'blog_upload_space', 3072 );
+update_blog_option( get_main_site_id(), 'blog_upload_space', 500 );
+update_site_option( 'mody_storage_version', '1' );
+update_site_option( 'blog_upload_space', 3072 );
+Storage::install();
+$check( 'older sites: 3 GB becomes 1 GB, a size set by hand stays', '1024' === (string) get_blog_option( $site, 'blog_upload_space' ) && 500 === (int) get_blog_option( get_main_site_id(), 'blog_upload_space' ) && 1024 === (int) get_site_option( 'blog_upload_space' ) && '2' === get_site_option( 'mody_storage_version' ) );
+$hand ? update_blog_option( get_main_site_id(), 'blog_upload_space', $hand ) : delete_blog_option( get_main_site_id(), 'blog_upload_space' );
 $check( 'the main site has no limit', Storage::usage()['limited'] === false && get_space_allowed() > 1000000 );
 switch_to_blog( $site );
 $usage = Storage::usage();
-$check( 'a member site has 3 GB, limited', $usage['limited'] && 3 * GB_IN_BYTES === $usage['allowed'], size_format( $usage['allowed'] ) );
+$check( 'a member site has 1 GB, limited', $usage['limited'] && GB_IN_BYTES === $usage['allowed'], size_format( $usage['allowed'] ) );
 $upload = static function ( int $bytes ): array {
 	$tmp = (string) wp_tempnam( 'mody-quota' );
 	file_put_contents( $tmp, str_repeat( 'x', $bytes ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions -- Test file.
@@ -250,48 +262,51 @@ restore_current_blog();
 // 4. The plans ------------------------------------------------------------------------
 
 echo "\nThe plans\n";
-$check( 'the 2026-11-10 plans: 1, 3 and 10 sites, monthly and yearly', array( 1, 3, 10 ) === array_map( static fn( string $p ): int => Members::PLANS[ $p ]['sites'], Members::PAID_PLANS ) && 89.99 === Members::PLANS['sites_1']['yearly'] && 29.89 === Members::yearly_saving( 'sites_1' ) );
-$check( 'labels: Trial, 1 site, 10 sites', 'Trial' === Members::plan_label( 'trial' ) && '1 site' === Members::plan_label( 'sites_1' ) && '10 sites' === Members::plan_label( 'sites_10' ) );
+$check( 'the 2026-11-13 plans: free (one site) and paid (7.99 or 79.99 per site)', array( 'free', 'paid' ) === Members::PLANS && 1 === Members::SITE_LIMITS['free'] && 7.99 === Members::PRICE['monthly'] && 79.99 === Members::PRICE['yearly'] );
+$check( 'labels: Launch offer, Per site', 'Launch offer' === Members::plan_label( 'free' ) && 'Per site' === Members::plan_label( 'paid' ) );
 
-// The migration from the old plans, on the real table: the old plans allowed again, three rows, then install() at version 2.
+// The migration from the 2026-11-10 plans, on the real table: version 3's shape again, four rows, then install().
 $table = Members::table();
-$both  = "'trial','collaborator','member','patron','sites_1','sites_3','sites_10'";
+$old   = "'trial','collaborator','member','patron','sites_1','sites_3','sites_10','free','paid'";
 $ids   = array( $member, $editor, $other );
 // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Test.
-$wpdb->query( "ALTER TABLE {$table} MODIFY plan enum({$both}) NOT NULL DEFAULT 'trial', MODIFY next_plan enum({$both}) DEFAULT NULL" );
-$wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (user_id, plan, next_plan, status) VALUES (%d, 'collaborator', NULL, 'active'), (%d, 'member', 'patron', 'active'), (%d, 'trial', 'collaborator', 'active')", ...$ids ) );
-update_site_option( 'mody_members_db_version', '2' );
+$wpdb->query( "ALTER TABLE {$table} MODIFY plan enum({$old}) NOT NULL DEFAULT 'trial', CHANGE free_until trial_ends_at datetime DEFAULT NULL, ADD next_plan enum('sites_1','sites_3','sites_10') DEFAULT NULL" );
+$wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (user_id, plan, next_plan, status, trial_ends_at, created_at) VALUES (%d, 'trial', 'sites_3', 'active', '2026-12-01 10:00:00', '2026-11-01 10:00:00'), (%d, 'sites_10', NULL, 'active', NULL, '2026-11-01 10:00:00'), (%d, 'sites_1', NULL, 'active', NULL, '2026-11-01 10:00:00')", ...$ids ) );
+update_site_option( 'mody_members_db_version', '3' );
 Members::install();
-$migrated = $wpdb->get_results( $wpdb->prepare( "SELECT plan, next_plan, billing_period FROM {$table} WHERE user_id IN (%d, %d, %d) ORDER BY FIELD(user_id, %d, %d, %d)", ...$ids, ...$ids ), ARRAY_A );
+$migrated = $wpdb->get_results( $wpdb->prepare( "SELECT plan, free_until, billing_due_at FROM {$table} WHERE user_id IN (%d, %d, %d) ORDER BY FIELD(user_id, %d, %d, %d)", ...$ids, ...$ids ), ARRAY_A );
 $type     = (string) $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'plan'", 1 );
+$columns  = (array) $wpdb->get_col( "SHOW COLUMNS FROM {$table}" );
 // phpcs:enable
 foreach ( $ids as $user_id ) {
 	Members::delete( $user_id );
 }
 $check(
-	'old plans become new: collaborator 3, member and patron 10',
+	'old plans become new: the trial free for six months from signup, the paid plans paid',
 	array(
-		array( 'sites_3', null, 'monthly' ),
-		array( 'sites_10', 'sites_10', 'monthly' ),
-		array( 'trial', 'sites_3', 'monthly' ),
-	) === array_map( 'array_values', (array) $migrated ) && "enum('trial','sites_1','sites_3','sites_10')" === $type && '3' === get_site_option( 'mody_members_db_version' ),
+		array( 'free', '2027-05-01 10:00:00', '2027-05-01 10:00:00' ),
+		array( 'paid', null, null ),
+		array( 'paid', null, null ),
+	) === array_map( 'array_values', (array) $migrated ) && "enum('free','paid')" === $type && ! in_array( 'next_plan', $columns, true ) && ! in_array( 'trial_ends_at', $columns, true ) && '5' === get_site_option( 'mody_members_db_version' ),
 	wp_json_encode( $migrated )
 );
 
-Members::start_trial( $member );
+Members::create( $member, 'paid', 'active' );
 $results = array(
-	Members::choose_plan( $other, 'sites_3', 'monthly' ),
-	Members::choose_plan( $member, 'trial', 'monthly' ),
-	Members::choose_plan( $member, 'sites_3', 'weekly' ),
+	Members::choose_period( $other, 'monthly' ),
+	Members::choose_period( $member, 'weekly' ),
 );
 $codes = array_map( static fn( $r ): string => is_wp_error( $r ) ? $r->get_error_code() : 'chosen', $results );
-$check( 'choose_plan() refuses a non-member, the trial, an unknown period', array( 'mody_member_none', 'mody_member_plan', 'mody_member_plan' ) === $codes, implode( ', ', $codes ) );
+$check( 'choose_period() refuses a non-member and an unknown period', array( 'mody_member_none', 'mody_member_period' ) === $codes, implode( ', ', $codes ) );
 $second = (int) wpmu_create_blog( 'dash2' . $suffix . '.' . preg_replace( '/^www\./', '', get_network()->domain ), '/', 'Second', $member );
-$small  = Members::choose_plan( $member, 'sites_1', 'monthly' );
-$check( '... a plan smaller than the sites in use', is_wp_error( $small ) && 'mody_plan_too_small' === $small->get_error_code() );
-$chosen = Members::choose_plan( $member, 'sites_3', 'yearly' );
+$chosen = Members::choose_period( $member, 'yearly' );
 $row    = Members::get( $member );
-$check( 'records the plan and period for after the trial', true === $chosen && 'sites_3' === $row['next_plan'] && 'yearly' === $row['billing_period'] && 'trial' === $row['plan'] );
+$check( 'records the period', true === $chosen && 'yearly' === $row['billing_period'] && 'paid' === $row['plan'] );
+// The other user: a launch offer account, its free months set by hand (start_free() counts a place).
+Members::create( $other, 'free', 'active' );
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Test.
+$wpdb->update( $table, array( 'free_until' => gmdate( 'Y-m-d H:i:s', (int) strtotime( '+6 months' ) ), 'billing_due_at' => gmdate( 'Y-m-d H:i:s', (int) strtotime( '+6 months' ) ) ), array( 'user_id' => $other ) );
+Members::get( $other );
 
 // 5. The page -------------------------------------------------------------------------
 
@@ -311,24 +326,29 @@ $check( 'the member: Overview, Visitors, Mody\'s work, Download your site, Your 
 wp_set_current_user( $editor );
 $check( 'an editor: Overview only', array( 'overview' ) === array_keys( DashboardPage::sections() ) );
 $html = $render( $member, 'overview' );
-$check( 'Overview: storage of 3 GB, pages, the brand', str_contains( $html, 'of 3 GB used' ) && str_contains( $html, 'Your brand' ) && str_contains( $html, 'Dashboard test' ) );
+$check( 'Overview: storage of 1 GB, pages, the brand', str_contains( $html, 'of 1 GB used' ) && str_contains( $html, 'Your brand' ) && str_contains( $html, 'Dashboard test' ) );
 $html = $render( $member, 'visitors' );
 $check( 'Visitors: the tiles, the chart, the lists', str_contains( $html, 'Page views' ) && str_contains( $html, 'mody-dashboard__bar' ) && str_contains( $html, 'example.org' ) && str_contains( $html, 'Show as a table' ) );
 $check( '... the journeys, entry and exit pages', str_contains( $html, 'Journeys' ) && str_contains( $html, 'mody-dashboard__step-arrow' ) && str_contains( $html, 'Entry pages' ) && str_contains( $html, 'Exit pages' ) && str_contains( $html, 'Single-page visits' ) );
 $html = $render( $member, 'mody' );
 $check( 'Mody\'s work: design and configuration tokens, the page', str_contains( $html, 'Tokens on design' ) && str_contains( $html, '40,000' ) && str_contains( $html, 'Pricing' ) );
+$check( '... the month against the site\'s allowance', str_contains( $html, 'This month:' ) && str_contains( $html, 'of the site&#039;s 5.0 M tokens' ), (string) ( preg_match( '/This month:[^<]*/', $html, $m ) ? $m[0] : '' ) );
 $html = $render( $member, 'sites' );
-$check( 'Your sites: both sites, 2 of 3 used, New site', str_contains( $html, 'Dashboard test' ) && str_contains( $html, 'Second' ) && str_contains( $html, '2 of 3 sites used' ) && str_contains( $html, 'mody-new-site' ) );
+$check( 'Your sites: both sites, 2 of 10 used, New site', str_contains( $html, 'Dashboard test' ) && str_contains( $html, 'Second' ) && str_contains( $html, '2 of 10 sites used' ) && str_contains( $html, 'mody-new-site' ) );
 $check( '... visitors across them: the sum, the chart, the sites compared', str_contains( $html, 'Visitors across your sites' ) && str_contains( $html, 'Visits per day, all your sites' ) && str_contains( $html, 'mody-dashboard__compare' ) && str_contains( $html, 'section=visitors' ) && preg_match( '/\d+ visits · \d+ page views in 30 days/', $html ) );
 $html = $render( $member, 'plan' );
-$check( 'Plan & billing: the trial, the choice, no card yet', str_contains( $html, 'days left' ) && str_contains( $html, 'Your choice' ) && str_contains( $html, 'None yet.' ) && str_contains( $html, '249.99 EUR' ) );
-$check( '... the 1-site plan is disabled with 2 sites', str_contains( $html, 'You have 2 sites: delete some first' ) );
+$check( 'Plan & billing, paying: sites times the price, the choice, no card yet', str_contains( $html, '2 sites × 79.99 EUR a year: 159.98 EUR, VAT included' ) && str_contains( $html, 'Your choice' ) && str_contains( $html, 'None yet.' ) && str_contains( $html, 'you save 15.89 EUR per site' ) && str_contains( $html, '7.99 EUR' ) );
+$check( '... every site the same: 1 GB and 5,000,000 tokens a month', str_contains( $html, '1 GB of space' ) && str_contains( $html, '5,000,000 tokens a month' ) );
+add_user_to_blog( $site, $other, 'administrator' );
+$html = $render( $other, 'plan' );
+$check( 'Plan & billing, launch offer: free until, then the price, read-only without a card', str_contains( $html, 'Launch offer: one site, free until' ) && str_contains( $html, 'days left' ) && str_contains( $html, 'After the free months' ) && str_contains( $html, '1 site × 7.99 EUR a month: 7.99 EUR, VAT included' ) && str_contains( $html, 'once you add a card' ) && str_contains( $html, 'read-only for 60 days' ) );
+remove_user_from_blog( $other, $site );
 $html = $render( $member, 'export' );
 $check( 'Download your site: the button, what comes along, what stays (tests in export-panel-test.php)', str_contains( $html, 'Prepare my download' ) && str_contains( $html, 'What stays with Mody Cloud' ) );
 $marked = array_map( static fn( string $section ): bool => str_contains( $render( $member, $section ), 'mody-dashboard__wip' ), array_keys( DashboardPage::sections() ) );
 $check( '"Work in progress" over Mody\'s work only (off Visitors since 2026-11-13)', array( false, false, true, false, false, false ) === $marked, wp_json_encode( $marked ) );
 $html = $render( $editor, 'plan' );
-$check( 'an editor asking for Plan & billing gets the Overview', ! str_contains( $html, 'Choose your plan' ) && str_contains( $html, 'Storage' ) );
+$check( 'an editor asking for Plan & billing gets the Overview', ! str_contains( $html, 'How you pay' ) && str_contains( $html, 'Storage' ) );
 remove_filter( 'mody_export_spawn', '__return_true' );
 restore_current_blog();
 wpmu_delete_blog( $second, true );

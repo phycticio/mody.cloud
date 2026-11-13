@@ -65,6 +65,20 @@ $created  = array(); // Users to delete.
 $post_id  = 0;
 $views_id = (int) $wpdb->get_var( 'SELECT COALESCE(MAX(id), 0) FROM ' . Store::views() ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 update_site_option( Registration::OPEN_OPTION, 1 );
+// Accounts made here take places of the launch offer: start it fresh, and put it back after.
+$was_promo = array(
+	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
+	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
+);
+delete_site_option( Members::PROMO_START_OPTION );
+delete_site_option( Members::PROMO_GIVEN_OPTION );
+register_shutdown_function(
+	static function () use ( $was_promo ): void {
+		foreach ( $was_promo as $option => $value ) {
+			null === $value ? delete_site_option( $option ) : update_site_option( $option, $value );
+		}
+	}
+);
 register_shutdown_function(
 	static function () use ( &$created, &$post_id, $alpha, $was_open, $views_id, $wpdb ): void {
 		require_once ABSPATH . 'wp-admin/includes/ms.php';
@@ -505,7 +519,7 @@ $user3     = get_user_by( 'email', $email3 );
 $created[] = $user3 ? $user3->ID : 0;
 $welcome3  = array_values( array_filter( $mails, static fn( array $m ): bool => $email3 === $m['to'] ) );
 $note3     = array_values( array_filter( $mails, static fn( array $m ): bool => $email_e === $m['to'] ) );
-$check( '... after it: the account, its trial and its site, and the welcome email', $user3 && Members::get( $user3->ID ) && get_blog_id_from_url( Pipeline::domain( $slug3 ) ) && 1 === count( $welcome3 ) );
+$check( '... after it: the account, its free months and its site, and the welcome email', $user3 && Members::get( $user3->ID ) && get_blog_id_from_url( Pipeline::domain( $slug3 ) ) && 1 === count( $welcome3 ) );
 $check( '... and the existing member got the note, and nothing was created for them', 1 === count( $note3 ) && str_contains( (string) $note3[0]['subject'], 'already have an account' ) && ! get_blog_id_from_url( Pipeline::domain( 'secdeferb' . $suffix ) ) );
 $count_before = count( $mails );
 Registration::run_later();

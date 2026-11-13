@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
  * - **media.zip:** the site's uploads folder at the zip root, so it unzips
  *   straight into `wp-content/uploads`, plus `mody-export.json` (the
  *   manifest). Stored, not deflated, except a short list of text types:
- *   media is already compressed, and deflating 3 GB costs minutes of CPU
+ *   media is already compressed, and deflating 1 GB costs minutes of CPU
  *   for nothing. Never shipped from uploads: symlinks, hidden files
  *   (`.htaccess`, `.user.ini`), PHP and other executable code, `.part`
  *   files, and core's personal-data exports. Every such entry is counted

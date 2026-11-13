@@ -100,7 +100,7 @@ add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::cla
 /*
  * The Mody dashboard (2026-11-11, tickets/mody-dashboard.md): every site's
  * Dashboard menu item opens it, and core's dashboard redirects there. Each
- * site has 3 GB, with WordPress's own upload quota (Site\Storage).
+ * site has 1 GB, with WordPress's own upload quota (Site\Storage).
  */
 Dashboard\DashboardPage::register();
 if ( class_exists( \Mody\Analytics\Query::class ) ) {
@@ -126,6 +126,13 @@ add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 add_action( 'init', array( Members\Members::class, 'install' ), 1 );
 
 /*
+ * Paying with a card through Mollie (M1-01 part 3, 2026-11-13): adding a
+ * card, the charges, the webhook, the 14-day withdrawal, the reminders and
+ * the daily run (`wp mody-billing run`). Off without MOLLIE_API_KEY.
+ */
+Billing\Billing::register();
+
+/*
  * Member accounts (M1-01, part 1): a `mody_members` row gives the dashboard
  * capability (mvp-spec section 3) and the plan's site limit (section 4).
  */
@@ -135,8 +142,9 @@ add_filter( 'mody_can_create_site', array( Members\Members::class, 'can_create_s
 
 /*
  * Registration (M1-01 part 2, M1-03): the `mody/register` block on the main
- * site's /register/ page, a chat that creates the account, a 30-day trial
- * without a card and the first site, then emails the set-password link.
+ * site's /register/ page, a chat that creates the account, a place of the
+ * launch offer (six months free, no card) and the first site, then emails
+ * the set-password link.
  * Closed until the network option `mody_registration_open` is set. Members
  * log in to the Mody dashboard.
  */

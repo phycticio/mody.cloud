@@ -13,7 +13,7 @@ The full rules are in [constraints.md](constraints.md).
 - **Absolute sovereignty.** Traffic and data stay in Europe or Switzerland. A solution that depends on a US service is invalid.
 - **Zero lock-in.** Full Site Editing theme, Gutenberg and Spectra blocks. No Elementor or other builders. Templates are portable blocks, not proprietary configuration. See [theme-development.md](theme-development.md).
 - **Coherence.** The site's brand (its WordPress settings) is injected into every generation. Nothing is generated without brand context. See [brand-profile.md](brand-profile.md).
-- **Honest plans.** Public prices, the same for everyone; every limit is real (3 GB per site, the plan's sites), never "unlimited". See [membership-tiers.md](membership-tiers.md).
+- **Honest plans.** Public prices, the same for everyone; every limit is real (1 GB per site, Mody's tokens a month, the account's sites), never "unlimited". See [membership-tiers.md](membership-tiers.md).
 - **Simplicity.** Finishing beats perfecting.
 
 ## Visual identity
@@ -42,8 +42,8 @@ These colors are the named palette in the theme's `theme.json`. See [theme-devel
 ## Economics
 
 - AI cost per generated site is about 0.002 EUR. With 1M free credits that is thousands of sites at no cost. See [ai-engine.md](ai-engine.md).
-- **Plans** (decided by the maintainer on 2026-11-10): 1 site 9.99 EUR a month or 89.99 EUR a year, 3 sites 25.99 or 249.99, 10 sites 49.99 or 499.99, after a free 30-day trial. Every site gets the same: 3 GB, every plugin in the market, its own Mody, a custom domain and a way out. These are prices, not costs passed through: the briefing's "fees equal real cost" belonged to the non-profit association it described. See [membership-tiers.md](membership-tiers.md).
-- The bottleneck is **server capacity**. The limits (sites per plan, 3 GB per site) are capacity control.
+- **The price** (decided by the maintainer on 2026-11-13, replacing the plans of 2026-11-10): every site costs 7.99 EUR a month or 79.99 EUR a year, VAT included, with no discount for more sites. The first 50 accounts, in the first three months, get one site free for six months, no card. Every site gets the same: 1 GB, every plugin in the market, its own Mody, a custom domain and a way out. These are prices, not costs passed through: the briefing's "fees equal real cost" belonged to the non-profit association it described. See [membership-tiers.md](membership-tiers.md).
+- The bottleneck is **server capacity**. The limits (sites per account, 1 GB per site, Mody's tokens a month) are capacity and cost control: 5 million tokens cost at most about 3.25 EUR, against 6.60 EUR a monthly site leaves after VAT (membership-tiers.md).
 - The briefing's dedicated VPS tier is not part of the plans (membership-tiers.md, Open questions).
 
 ## Glossary

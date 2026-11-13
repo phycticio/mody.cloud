@@ -73,7 +73,7 @@ final class EditorTour {
 		$user  = get_userdata( $user_id );
 		$name  = $user ? $user->display_name : '';
 		$site  = get_bloginfo( 'name' );
-		$ends  = Members::trial_ends( $user_id );
+		$ends  = Members::free_until( $user_id );
 		$steps = self::steps( $site, $agent );
 
 		return array(
@@ -101,8 +101,8 @@ final class EditorTour {
 				/* translators: 1: the member's name, 2: the site's name. */
 				'welcome'  => '' !== $name ? __( 'Welcome, %1$s!', 'mody_cloud' ) : __( 'Welcome to %2$s!', 'mody_cloud' ),
 				'trialEnd' => $ends
-					/* translators: %s: the trial's last day. */
-					? sprintf( __( 'Your free trial runs until %s.', 'mody_cloud' ), wp_date( (string) get_option( 'date_format' ), $ends ) )
+					/* translators: %s: the last free day. */
+					? sprintf( __( 'Your site is free until %s.', 'mody_cloud' ), wp_date( (string) get_option( 'date_format' ), $ends ) )
 					: '',
 			),
 		);

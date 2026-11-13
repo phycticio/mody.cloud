@@ -784,6 +784,15 @@ body.mody-board-dragging * {
 	font-weight: 600;
 }
 
+/* Mody's work: the site's tokens this month against its allowance (2026-11-13). */
+.mody-dashboard__allowance {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	margin: 16px 0;
+}
+
 .mody-dashboard__sites {
 	margin: 0;
 	padding: 0;
@@ -1233,4 +1242,38 @@ body.mody-board-dragging * {
 		animation: none;
 		width: 100% !important;
 	}
+}
+
+/* Plan & billing: the card, the 14-day withdrawal and the payments (M1-01 part 3, 2026-11-13). */
+.mody-dashboard__card-form p {
+	margin: 0 0 8px;
+}
+
+.mody-dashboard__card-form label,
+.mody-dashboard__withdraw label {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	max-width: 60em;
+}
+
+.mody-dashboard__card-form input[type="checkbox"],
+.mody-dashboard__withdraw input[type="checkbox"] {
+	margin-top: 3px;
+	flex: none;
+}
+
+.mody-dashboard__withdraw {
+	margin: 16px 0;
+	padding: 12px 16px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.mody-dashboard__withdraw h3 {
+	margin-top: 0;
+}
+
+.mody-dashboard__payments {
+	margin-bottom: 16px;
 }

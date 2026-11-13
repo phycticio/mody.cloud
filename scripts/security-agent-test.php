@@ -17,7 +17,8 @@
  *
  * 1. Slots: the per-user lock, the network's three slots, release, nesting, the deadline,
  *    the editor features' own allowance (1 of the 3), and the short wait for a slot.
- * 2. Budget: the daily allowance, super admins exempt, trial and paid, `usage` rows.
+ * 2. Budget: each site's allowance, a day's and a month's (2026-11-13), super
+ *    admins exempt, `usage` rows.
  * 3. The chat endpoint: refused over budget, busy, busy network; locks released after.
  * 4. The ability `mody/generate-page` over REST, and the `ai` plugin's abilities.
  * 5. A stale job: no tool runs after it, and its result does not come back as done.
@@ -203,7 +204,7 @@ $add_row = static function ( int $row_site, int $user, string $tool, int $prompt
 };
 $limit   = null; // array: the allowance for the test.
 add_filter(
-	'mody_agent_daily_token_budget',
+	'mody_agent_token_budget',
 	static function ( $limits ) use ( &$limit ) {
 		return $limit ?? $limits;
 	}
@@ -390,63 +391,61 @@ $check( 'deadline: a model request is refused after it', Slots::expired() && is_
 Slots::restore_deadline( null );
 $check( '...and not once the job is over', ! Slots::expired() );
 
-// 2. The daily allowance -------------------------------------------------------------
+// 2. The allowance ------------------------------------------------------------------
 
 echo "\nBudget\n";
-$check( 'trial allowances are smaller than paid ones', Budget::LIMITS['trial']['site'] < Budget::LIMITS['paid']['site'] && Budget::LIMITS['trial']['user'] < Budget::LIMITS['paid']['user'], wp_json_encode( Budget::LIMITS ) );
-$check( 'a message costs a few thousand tokens: a working day fits (trial site, 55 average messages)', Budget::LIMITS['trial']['site'] >= 55 * 14000 );
+$check( 'a site: 5,000,000 tokens a month, at most 1,000,000 a day', 5000000 === Budget::MONTH && 1000000 === Budget::DAY && array( 'day' => 1000000, 'month' => 5000000 ) === Budget::limits( $site_id ) );
+$check( 'a first day of building fits (8 pages and 40 messages, about 700,000), and a month is about 430 messages', Budget::DAY >= 700000 && Budget::MONTH >= 430 * 11500 );
 wp_set_current_user( $editor );
 Budget::reset_cache();
 $check( 'under the allowance: nothing refused', null === Budget::check() );
 
-// What the site and this account have used today already (earlier work, real or from other tests) is the baseline.
-$base      = Budget::used( $site_id, $editor );
-$base_site = $base['site'];
-$base_user = $base['user'];
-$limit     = array(
-	'site' => $base_site + 1000,
-	'user' => $base_user + 5000,
+// What the site has used today and this month already (earlier work, real or from other tests) is the baseline.
+$base       = Budget::used( $site_id );
+$base_day   = $base['day'];
+$base_month = $base['month'];
+$limit      = array(
+	'day'   => $base_day + 1000,
+	'month' => $base_month + 5000,
 );
 $add_row( $site_id, $editor, TurnMetrics::TOOL, 600, 300 );
-$check( '900 of 1000 tokens used: still allowed', null === Budget::check() );
+$check( '900 of 1000 tokens used today: still allowed', null === Budget::check() );
 $add_row( $site_id, $editor, Budget::USAGE_TOOL, 80, 40 );
 $over = Budget::check();
-$check( 'over the site\'s allowance: 429 and a kind message with when it resets', $over && 'mody_budget_exceeded' === $over->get_error_code() && 429 === $status( $over ) && str_contains( $over->get_error_message(), 'Mody is back on' ) && 'site' === $over->get_error_data()['limit'], $over ? $over->get_error_message() : '' );
+$check( 'over the day\'s allowance: 429 and a kind message with when it resets', $over && 'mody_budget_exceeded' === $over->get_error_code() && 429 === $status( $over ) && str_contains( $over->get_error_message(), 'Mody is back on' ) && 'day' === $over->get_error_data()['limit'], $over ? $over->get_error_message() : '' );
 $check( '...the reset is the next UTC midnight', $over && (int) $over->get_error_data()['resets'] === (int) strtotime( 'tomorrow 00:00:00 UTC' ) );
 wp_set_current_user( $super );
 $check( 'a super admin is exempt', null === Budget::check() );
 wp_set_current_user( $editor );
 
 $limit = array(
-	'site' => $base_site + 1000000,
-	'user' => $base_user + 1000,
+	'day'   => $base_day + 1000000,
+	'month' => $base_month + 1000,
 );
 Budget::reset_cache();
 $over = Budget::check();
-$check( 'the account\'s allowance counts too', $over && 'user' === $over->get_error_data()['limit'], $over ? $over->get_error_code() : 'no' );
-$limit = array(
-	'site' => $base_site + 1000000,
-	'user' => $base_user + 1100,
-);
-$add_row( $site_id + 100000, $editor, TurnMetrics::TOOL, 200, 100 ); // Another site of the same account.
-$check( 'the account\'s count adds up its sites', null !== Budget::check(), '1020 + 300 tokens over 1100' );
+$check( 'over the month\'s allowance: back on the first day of next month', $over && 'month' === $over->get_error_data()['limit'] && (int) $over->get_error_data()['resets'] === (int) strtotime( 'first day of next month 00:00:00 UTC' ) && str_contains( $over->get_error_message(), 'this month' ), $over ? $over->get_error_message() : 'no' );
+$add_row( $site_id + 100000, $editor, TurnMetrics::TOOL, 200, 100 ); // The same person on another site.
+Budget::reset_cache();
+$check( 'each site counts its own tokens', $base_day + 1020 === Budget::used( $site_id )['day'] && 300 <= Budget::used( $site_id + 100000 )['day'] );
 
 $limit = array(
-	'site' => $base_site + 1000,
-	'user' => $base_user + 5000000,
+	'day'   => $base_day + 1000,
+	'month' => $base_month + 5000000,
 );
 $add_row( $site_id, $editor, TurnMetrics::TOOL, 5, 5, 2 * DAY_IN_SECONDS );
 Budget::reset_cache();
-$used = Budget::used( $site_id, $editor );
-$check( 'yesterday\'s rows are not counted', $base_site + 1020 === $used['site'], (string) ( $used['site'] - $base_site ) );
+$used    = Budget::used( $site_id );
+$earlier = (int) gmdate( 'j' ) > 2; // Two days ago is this month only from the 3rd.
+$check( 'yesterday\'s rows are not counted for the day, and for the month only within it', $base_day + 1020 === $used['day'] && $base_month + 1020 + ( $earlier ? 10 : 0 ) === $used['month'], ( $used['day'] - $base_day ) . ' / ' . ( $used['month'] - $base_month ) );
 $add_row( $site_id, $super, TurnMetrics::TOOL, 900000, 900000 );
-$used = Budget::used( $site_id, $editor );
-$check( 'what a super admin spent on the site is not the site\'s', $base_site + 1020 === $used['site'], (string) ( $used['site'] - $base_site ) );
+$used = Budget::used( $site_id );
+$check( 'what a super admin spent on the site is not the site\'s', $base_day + 1020 === $used['day'], (string) ( $used['day'] - $base_day ) );
 
 Budget::reset_cache();
 $limit = array(
-	'site' => 1000000,
-	'user' => 5000000,
+	'day'   => $base_day + 1000000,
+	'month' => $base_month + 5000000,
 );
 Budget::spend( 2000000 );
 $check( 'tokens of the message running now count at once', null !== Budget::check() );
@@ -470,21 +469,14 @@ $check( 'a model answer outside a chat message is written as a usage row', $afte
 TurnMetrics::observe( $resp, array(), 'https://example.com/other' );
 $check( '...and only a chat completion', (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$events} WHERE tool = %s AND user_id = %d", Budget::USAGE_TOOL, $editor ) ) === $after ); // phpcs:ignore WordPress.DB
 
-$trial_user = $mk_user( 'author' );
-Members::create( $trial_user, 'trial', 'active' );
-$members[]  = $trial_user;
-$limit      = null;
-$trial      = Budget::limits( $site_id, $trial_user );
-$normal     = Budget::limits( $site_id, $editor );
-$check( 'an account on the trial gets the trial\'s account allowance', Budget::LIMITS['trial']['user'] === $trial['user'] && Budget::LIMITS['paid']['user'] === $normal['user'], $trial['user'] . ' / ' . $normal['user'] );
+$limit         = null;
 $mody_filtered = static fn( $limits ) => array(
-	'site' => 7,
-	'user' => 9,
+	'day'   => 7,
+	'month' => 9,
 );
-add_filter( 'mody_agent_daily_token_budget', $mody_filtered, 20 );
-$check( 'the allowance is a filter', array( 'site' => 7, 'user' => 9 ) === Budget::limits( $site_id, $editor ) );
-remove_filter( 'mody_agent_daily_token_budget', $mody_filtered, 20 );
-wpmu_delete_user( $trial_user );
+add_filter( 'mody_agent_token_budget', $mody_filtered, 20 );
+$check( 'the allowance is a filter', array( 'day' => 7, 'month' => 9 ) === Budget::limits( $site_id ) );
+remove_filter( 'mody_agent_token_budget', $mody_filtered, 20 );
 
 // 3. The chat endpoint ---------------------------------------------------------------
 
@@ -496,8 +488,8 @@ $post_chat = static function ( string $message ) {
 };
 wp_set_current_user( $editor );
 $limit    = array(
-	'site' => 1,
-	'user' => 1,
+	'day'   => 1,
+	'month' => 1,
 );
 Budget::reset_cache();
 $requests = array();
@@ -552,8 +544,8 @@ $check( 'the example page passes the validator', true === BlockValidator::valida
 wp_set_current_user( $editor );
 
 $limit = array(
-	'site' => 1,
-	'user' => 1,
+	'day'   => 1,
+	'month' => 1,
 );
 Budget::reset_cache();
 $requests = array();
@@ -588,8 +580,8 @@ $free_all( array( $job_lock( $editor ), $slot_lock( 1 ) ) );
 $ai_ability = wp_get_ability( 'ai/title-generation' );
 if ( $ai_ability ) {
 	$limit = array(
-		'site' => 1,
-		'user' => 1,
+		'day'   => 1,
+		'month' => 1,
 	);
 	Budget::reset_cache();
 	$requests = array();
@@ -625,8 +617,8 @@ if ( $ai_ability ) {
 // The request guard on its own.
 $url = 'https://api.infomaniak.com/2/ai/1/openai/v1/chat/completions';
 $limit = array(
-	'site' => 1,
-	'user' => 1,
+	'day'   => 1,
+	'month' => 1,
 );
 Budget::reset_cache();
 $check( 'the request guard refuses a chat completion over budget', is_wp_error( Hardening::guard_request( false, array(), $url ) ) );

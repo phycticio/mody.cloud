@@ -49,11 +49,11 @@ $markup = <<<'HTML'
 
 <!-- wp:list {"style":{"spacing":{"padding":{"left":"var:preset|spacing|40"}}}} -->
 <ul style="padding-left:var(--wp--preset--spacing--40)" class="wp-block-list"><!-- wp:list-item -->
-<li><strong>30 days free</strong>, no card needed</li>
+<li><strong>6 months free</strong> for the first 50 sign-ups, no card needed</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
-<li>Then from <strong>9.99 € a month</strong>, everything included</li>
+<li>Then <strong>7.99 € a month</strong> per site, VAT included, everything included</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
@@ -70,7 +70,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|30"}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"stretch","verticalAlignment":"center"}} -->
 <!-- wp:heading {"level":2,"textColor":"base","fontSize":"x-large"} -->
-<h2 class="wp-block-heading has-base-color has-text-color has-x-large-font-size">Start your free trial</h2>
+<h2 class="wp-block-heading has-base-color has-text-color has-x-large-font-size">Create your free site</h2>
 <!-- /wp:heading -->
 
 <!-- wp:mody/register {"anchor":"join","backgroundColor":"base","textColor":"contrast","fontSize":"medium","style":{"border":{"radius":"20px"},"spacing":{"padding":{"top":"var:preset|spacing|40","right":"var:preset|spacing|40","bottom":"var:preset|spacing|40","left":"var:preset|spacing|40"}},"shadow":"var:preset|shadow|deep"}} /-->
@@ -92,17 +92,17 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|20"}}} -->
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">30 days</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">6 months</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Free, with up to three sites. No card to start.</p>
+<p>Free for the first 50 sign-ups, with one site. No card to start.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|20"}}} -->
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">3 GB</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">1 GB</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -292,11 +292,11 @@ $markup = <<<'HTML'
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|40"},"@tablet":{"layout":{"columnCount":2}},"@mobile":{"layout":{"columnCount":1}}},"layout":{"type":"grid","columnCount":3,"minimumColumnWidth":null}} -->
 <!-- wp:spectra/container {"variationSelected":true,"backgroundColor":"base","style":{"border":{"radius":"16px"},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|40","right":"var:preset|spacing|40","bottom":"var:preset|spacing|40","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"textColor":"primary","fontSize":"large"} -->
-<h3 class="wp-block-heading has-primary-color has-text-color has-large-font-size">3 GB for every site</h3>
+<h3 class="wp-block-heading has-primary-color has-text-color has-large-font-size">1 GB for every site</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>Room for your images, documents and pages on each site, whatever your plan.</p>
+<p>Room for your images, documents and pages on each site.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
@@ -388,17 +388,17 @@ $markup = <<<'HTML'
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"style":{"typography":{"textAlign":"center"}}} -->
-<h2 class="wp-block-heading has-text-align-center">Three plans, the same features</h2>
+<h2 class="wp-block-heading has-text-align-center">One price per site, the same features</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center">Every site gets the same: 3 GB of space, every plugin in our market, its own Mody and the full Site Editor. Your plan only sets how many sites you have. Pay monthly, or yearly for less.</p>
+<p class="has-text-align-center">Every site gets the same: 1 GB of space, every plugin in our market, its own Mody and the full Site Editor. Every site costs the same, however many you have. Pay monthly, or yearly and get two months free.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|40"},"@tablet":{"layout":{"columnCount":2}},"@mobile":{"layout":{"columnCount":1}}},"layout":{"type":"grid","columnCount":4,"minimumColumnWidth":null}} -->
+<!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|40"},"@tablet":{"layout":{"columnCount":1}},"@mobile":{"layout":{"columnCount":1}}},"layout":{"type":"grid","columnCount":3,"minimumColumnWidth":null}} -->
 <!-- wp:spectra/container {"variationSelected":true,"backgroundColor":"accent","textColor":"base","style":{"border":{"radius":"16px"},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"textColor":"base","fontSize":"large"} -->
-<h3 class="wp-block-heading has-base-color has-text-color has-large-font-size">Free trial</h3>
+<h3 class="wp-block-heading has-base-color has-text-color has-large-font-size">Launch offer</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
@@ -406,67 +406,49 @@ $markup = <<<'HTML'
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p><strong>30 days, up to 3 sites.</strong> No card needed to start.</p>
+<p><strong>6 months free, one site.</strong> For the first 50 people who sign up in our first three months. No card needed.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"border":{"radius":"16px","top":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"right":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"bottom":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"left":{"color":"var:preset|color|primary","width":"1px","style":"solid"}},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"fontSize":"large"} -->
-<h3 class="wp-block-heading has-large-font-size">1 site</h3>
+<h3 class="wp-block-heading has-large-font-size">Monthly</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">9.99 €</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">7.99 €</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph {"fontSize":"small"} -->
-<p class="has-small-font-size">a month, or <strong>89.99 € a year</strong>, saving 29.89 €</p>
+<p class="has-small-font-size">per site a month, VAT included</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>For a person, a project or a small business.</p>
+<p>Cancel at the end of any month.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"border":{"radius":"16px","top":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"right":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"bottom":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"left":{"color":"var:preset|color|primary","width":"1px","style":"solid"}},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"fontSize":"large"} -->
-<h3 class="wp-block-heading has-large-font-size">3 sites</h3>
+<h3 class="wp-block-heading has-large-font-size">Yearly</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">25.99 €</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">79.99 €</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph {"fontSize":"small"} -->
-<p class="has-small-font-size">a month, or <strong>249.99 € a year</strong>, saving 61.89 €</p>
+<p class="has-small-font-size">per site a year, VAT included: twelve months for the price of ten</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>For freelancers and anyone with several projects.</p>
-<!-- /wp:paragraph -->
-<!-- /wp:spectra/container -->
-
-<!-- wp:spectra/container {"variationSelected":true,"style":{"border":{"radius":"16px","top":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"right":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"bottom":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"left":{"color":"var:preset|color|primary","width":"1px","style":"solid"}},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
-<!-- wp:heading {"level":3,"fontSize":"large"} -->
-<h3 class="wp-block-heading has-large-font-size">10 sites</h3>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">49.99 €</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph {"fontSize":"small"} -->
-<p class="has-small-font-size">a month, or <strong>499.99 € a year</strong>, saving 99.89 €</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>For agencies and studios that build sites for clients.</p>
+<p>You save 15.89 € on twelve monthly payments.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:paragraph {"textColor":"secondary","fontSize":"small","style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size">Billing is not open yet. Before your trial ends, we will ask you to choose a plan, monthly or yearly, and pay through Mollie, a European payment provider. A plan change applies from your next billing date.</p>
+<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size">Billing is not open yet. Before your free months end, we will ask you to add a card and choose monthly or yearly, paid through Mollie, a European payment provider. Without a card by then, your site becomes read-only for 60 days and is then deleted; you can download it at any time.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
@@ -489,7 +471,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>No. Your trial lasts 30 days and lets you create up to three sites, with no card. Before it ends, we will ask you to choose a plan, and tell you clearly what happens to your sites if you don't.</p>
+<p>No. The first 50 people who sign up get their site free for six months, with no card. Before the free months end, we ask you to add a card: 7.99 € a month per site, VAT included. We remind you a month and a week before, and tell you clearly what happens to your site if you don't.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -503,7 +485,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 3 GB per site, a daily allowance of work for each site's Mody, and the number of sites in your plan.</p>
+<p>Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 1 GB per site, a monthly allowance of work for each site's Mody, and up to ten sites per account.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -545,7 +527,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Yes: every plugin in our market is available on every site and every plan, and you switch each one on for the site that needs it. You can't upload your own: we check each plugin against our European rules first, and we keep them all up to date.</p>
+<p>Yes: every plugin in our market is available on every site, and you switch each one on for the site that needs it. You can't upload your own: we check each plugin against our European rules first, and we keep them all up to date.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -614,12 +596,12 @@ $markup = <<<'HTML'
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"fontSize":"large","style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center has-large-font-size">Free for 30 days. No card. Sovereign from the first page.</p>
+<p class="has-text-align-center has-large-font-size">Free for 6 months for the first 50. No card. Sovereign from the first page.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->
 <div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"base","textColor":"contrast"} -->
-<div class="wp-block-button"><a class="wp-block-button__link has-contrast-color has-base-background-color has-text-color has-background wp-element-button" href="#join">Start your free trial</a></div>
+<div class="wp-block-button"><a class="wp-block-button__link has-contrast-color has-base-background-color has-text-color has-background wp-element-button" href="#join">Create your free site</a></div>
 <!-- /wp:button --></div>
 <!-- /wp:buttons -->
 <!-- /wp:spectra/container -->
@@ -635,7 +617,7 @@ $page     = array(
 	'post_name'    => 'home',
 	'post_content' => $markup,
 	// The meta description (Site\Seo).
-	'post_excerpt' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. 30 days free, no card; then from 9.99 € a month.',
+	'post_excerpt' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. 6 months free for the first 50, no card; then 7.99 € a month per site, VAT included.',
 	'meta_input'   => array( 'mody_seo_title' => 'AI WordPress Website Builder, Hosted in Europe | Mody Cloud' ),
 );
 if ( $existing ) {

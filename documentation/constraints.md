@@ -8,7 +8,7 @@ These eight rules come from the briefing (§11) and apply to every change, human
 4. **Brand coherence.** Every generation MUST inject the site's brand into the system prompt: its WordPress settings (title, tagline, mission, tone), read when the prompt is built (M2-08). Never generate without brand context.
 5. **Simplicity.** If a solution takes more than 2 hours, propose a simpler alternative. Finishing beats perfecting.
 6. **Security.** Do not expose credentials or WordPress Application Passwords. Only the web tier is public, and any proxy admin panel is IP-restricted. Containers sit on an internal network. Sanitize wizard inputs.
-7. **Honest plans.** Prices are the published plans, the same for everyone, and every site gets the same features. Never use "unlimited": every limit is a real one (3 GB per site, the plan's number of sites), set by what the servers can carry.
+7. **Honest plans.** Prices are the published plans, the same for everyone, and every site gets the same features. Never use "unlimited": every limit is a real one (1 GB per site, Mody's tokens a month, the sites an account may have), set by what the servers can carry.
 8. **Language (override).** Everything is written in English: code, code comments, documentation, commit messages, prompts to the model and agent replies. The briefing's Spanish convention no longer applies.
 
 ## How the rules show up in the repository
