@@ -186,6 +186,41 @@ final class Billing {
 	}
 
 	/**
+	 * A legal page of the main site (scripts/legal-pages.php), once published.
+	 *
+	 * @param string $slug `terms`, `privacy` or `legal-notice`.
+	 * @return string Its address, or '' while it is not published.
+	 */
+	public static function legal_url( string $slug ): string {
+		static $found = array();
+		if ( ! array_key_exists( $slug, $found ) ) {
+			switch_to_blog( get_main_site_id() );
+			$page           = get_page_by_path( $slug, OBJECT, 'page' );
+			$found[ $slug ] = $page && 'publish' === $page->post_status ? (string) get_permalink( $page ) : '';
+			restore_current_blog();
+		}
+		return $found[ $slug ];
+	}
+
+	/**
+	 * The links to the terms and the privacy policy, for next to the box
+	 * people tick, or '' while the pages are not published.
+	 */
+	public static function legal_links(): string {
+		$terms   = self::legal_url( 'terms' );
+		$privacy = self::legal_url( 'privacy' );
+		if ( '' === $terms ) {
+			return '';
+		}
+		return sprintf(
+			'<a href="%1$s" target="_blank" rel="noopener">%2$s</a>%3$s',
+			esc_url( $terms ),
+			esc_html__( 'Terms of service', 'mody_cloud' ),
+			'' !== $privacy ? ' · <a href="' . esc_url( $privacy ) . '" target="_blank" rel="noopener">' . esc_html__( 'Privacy policy', 'mody_cloud' ) . '</a>' : ''
+		);
+	}
+
+	/**
 	 * What the member agrees to when adding a card: the price, when it is
 	 * charged, the card check, cancelling and the 14-day withdrawal.
 	 *
@@ -1056,6 +1091,7 @@ final class Billing {
 	 */
 	private static function mail_card_added( int $user_id ): void {
 		$url  = self::plan_url( $user_id );
+		$full = self::legal_url( 'terms' );
 		$body = sprintf(
 			/* translators: 1: the terms, 2: Plan & billing's address, 3: days, 4: who sells. */
 			__( "Your card is added. What you agreed to:\n\n%1\$s\n\nYour plan and payments: %2\$s\n\nYour right to withdraw: within %3\$d days of your first payment you can withdraw from the contract, without giving a reason, and get that payment back in full. Use the Withdraw button on your Plan & billing page, or reply to this email. If you prefer, you can use this form:\n\nTo %4\$s: I hereby give notice that I withdraw from my contract for the Mody Cloud service. Ordered on: [date]. Name: [your name]. Email of the account: [email]. Date: [date].", 'mody_cloud' ),
@@ -1064,6 +1100,10 @@ final class Billing {
 			self::WITHDRAWAL_DAYS,
 			self::seller()
 		);
+		if ( '' !== $full ) {
+			/* translators: %s: the terms of service's address. */
+			$body .= "\n\n" . sprintf( __( 'The full terms of service: %s', 'mody_cloud' ), $full );
+		}
 		self::mail( $user_id, __( 'Mody Cloud: your card is added', 'mody_cloud' ), $body );
 	}
 
