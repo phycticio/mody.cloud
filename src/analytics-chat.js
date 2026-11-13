@@ -3,7 +3,10 @@
  * phase 2). It looks like the editors' bubble (agent-chat.css and
  * agent-bubble.css, enqueued with it) and talks to
  * mody-platform/v1/analytics/analyst, which answers when the turn ends.
- * When Mody changed the board, the board redraws and the reply offers Undo.
+ * When Mody changed the board, the board redraws and the reply offers Undo:
+ * one Undo for the whole reply, and only while the board is still as that
+ * reply left it (its version; the server checks it too). The owner's own
+ * changes with the card buttons show as gray lines, as Mody reads them.
  * Text goes in with textContent only.
  */
 import apiFetch from '@wordpress/api-fetch';
@@ -56,12 +59,13 @@ function icon() {
 /**
  * Starts the bubble.
  *
- * @param {Object}   options         The board's hooks.
- * @param {Function} options.days    Returns the board's period.
- * @param {Function} options.onBoard Called with a new board and the ids that changed.
- * @return {{ask: Function}} ask(text): opens the bubble with text to finish.
+ * @param {Object}   options           The board's hooks.
+ * @param {Function} options.days      Returns the board's period.
+ * @param {Function} options.onBoard   Called with a new board and the ids that changed.
+ * @param {Function} options.onWorking Called with true while Mody answers, then false.
+ * @return {{ask: Function, event: Function, boardVersion: Function}} ask(text): opens the bubble with text to finish; event(text): a change the owner made; boardVersion(n): the board's version now.
  */
-export function startChat({ days, onBoard }) {
+export function startChat({ days, onBoard, onWorking = () => {} }) {
 	const root = el('div', 'mody-bubble mody-analyst');
 	root.id = 'mody-analyst-bubble';
 	const panel = el('section', 'mody-bubble__panel mody-agent');
@@ -149,8 +153,16 @@ export function startChat({ days, onBoard }) {
 	/* The earlier conversation, loaded once: a message waits for it, so it never lands above it. */
 	let loading = null;
 	let busy = false;
+	/* The board's version as last drawn: a reply's Undo works only while it matches. */
+	let version = null;
 
 	const message = (role, text, extra = {}) => {
+		if (role === 'event') {
+			const line = el('p', 'mody-agent__event', text);
+			log.append(line);
+			log.scrollTop = log.scrollHeight;
+			return line;
+		}
 		const node = el(
 			'div',
 			'mody-agent__message' +
@@ -188,19 +200,26 @@ export function startChat({ days, onBoard }) {
 				__('Undo', 'mody_cloud')
 			);
 			undo.type = 'button';
+			undo.dataset.version = String(extra.version);
 			undo.addEventListener('click', () => {
 				undo.disabled = true;
+				undo.dataset.done = '1';
 				apiFetch({
 					path: BOARD,
 					method: 'POST',
-					data: { action: 'undo', days: days() },
+					data: {
+						action: 'undo',
+						days: days(),
+						version: extra.version,
+					},
 				})
 					.then((board) => {
-						onBoard(board, []);
 						undo.textContent = __('Undone', 'mody_cloud');
+						onBoard(board, []);
 					})
 					.catch((error) => {
-						undo.disabled = false;
+						delete undo.dataset.done;
+						undo.disabled = error?.code === 'mody_board_changed';
 						message(
 							'assistant',
 							error?.message ||
@@ -225,15 +244,13 @@ export function startChat({ days, onBoard }) {
 			loading = apiFetch({ path: ROUTE })
 				.then((data) => {
 					const earlier = data.messages || [];
-					earlier.forEach((m) =>
-						message(
-							m.role === 'user' ? 'user' : 'assistant',
-							m.text,
-							{
-								refused: m.refused,
-							}
-						)
-					);
+					earlier.forEach((m) => {
+						let role = 'assistant';
+						if (m.role === 'user' || m.role === 'event') {
+							role = m.role;
+						}
+						message(role, m.text, { refused: m.refused });
+					});
 					chips.hidden = chips.hidden || earlier.length > 0;
 				})
 				.catch(() => {});
@@ -250,6 +267,7 @@ export function startChat({ days, onBoard }) {
 		submit.disabled = true;
 		chips.hidden = true;
 		input.value = '';
+		onWorking(true);
 		load().then(() => post(value));
 	}
 
@@ -278,8 +296,10 @@ export function startChat({ days, onBoard }) {
 					refused: turn.refused,
 					choices: turn.choices,
 					undo: !!data.board && !!turn.undo,
+					version: data.board ? data.board.version : null,
 				});
 				if (data.board) {
+					onWorking(false); // Before the redraw, so the cards come back unlocked.
 					onBoard(data.board, turn.changed || []);
 				}
 			})
@@ -298,6 +318,7 @@ export function startChat({ days, onBoard }) {
 			.finally(() => {
 				busy = false;
 				submit.disabled = false;
+				onWorking(false);
 				input.focus();
 			});
 	}
@@ -346,6 +367,40 @@ export function startChat({ days, onBoard }) {
 			open();
 			input.value = text;
 			input.setSelectionRange(text.length, text.length);
+		},
+		/**
+		 * A change the owner made with the card buttons. The server keeps it
+		 * in the conversation; before the conversation is loaded, loading
+		 * brings it.
+		 *
+		 * @param {string} text The change, in words.
+		 */
+		event(text) {
+			if (loading && text) {
+				loading.then(() => message('event', text));
+			}
+		},
+		/**
+		 * The board's version now: a reply's Undo whose version differs
+		 * would undo something else, so it goes off.
+		 *
+		 * @param {number} now The version.
+		 */
+		boardVersion(now) {
+			version = now;
+			log.querySelectorAll('.mody-bubble__undo').forEach((undo) => {
+				if (
+					undo.dataset.done ||
+					undo.dataset.version === String(version)
+				) {
+					return;
+				}
+				undo.disabled = true;
+				undo.textContent = __(
+					'Undo is off: the board changed since',
+					'mody_cloud'
+				);
+			});
 		},
 	};
 }

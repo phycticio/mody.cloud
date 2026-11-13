@@ -283,10 +283,8 @@
 	background: #fff;
 }
 
-.mody-board__card.is-small { grid-column: span 3; }
-.mody-board__card.is-third { grid-column: span 4; }
+/* Two widths only (2026-11-13): half the row, or all of it. */
 .mody-board__card.is-half { grid-column: span 6; }
-.mody-board__card.is-wide { grid-column: span 8; }
 
 .mody-board__card.is-type-tile {
 	background: #fcfcfc;
@@ -365,6 +363,131 @@
 	width: 16px;
 	height: 16px;
 	font-size: 16px;
+}
+
+/* Dragging (src/analytics-drag.js): the header with a mouse, the grip with a finger. */
+.mody-board__grip {
+	flex: 0 0 auto;
+	width: 16px;
+	height: 16px;
+	margin-left: -4px;
+	color: #a7aaad;
+	font-size: 16px;
+	cursor: grab;
+	touch-action: none; /* A finger on the grip drags; elsewhere it scrolls. */
+}
+
+.mody-board__card:hover .mody-board__grip {
+	color: #50575e;
+}
+
+@media (hover: hover) {
+	.mody-board__card-head {
+		cursor: grab;
+	}
+
+	.mody-board__card-head .mody-board__tool {
+		cursor: pointer;
+	}
+}
+
+.mody-board__card.is-dragging {
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+	opacity: 0.95;
+	cursor: grabbing;
+}
+
+.mody-board__placeholder {
+	border: 2px dashed var(--wp-admin-theme-color, #2271b1);
+	border-radius: 4px;
+	background: #f6f7f7;
+}
+
+body.mody-board-dragging,
+body.mody-board-dragging * {
+	cursor: grabbing !important;
+	user-select: none;
+}
+
+/* While Mody is answering, the buttons that change the board wait. */
+.mody-board.is-locked .mody-board__tool[aria-disabled="true"],
+.mody-board.is-locked .mody-board__grip,
+.mody-board.is-locked .mody-board__card-head {
+	cursor: not-allowed;
+}
+
+.mody-board.is-locked .mody-board__tool[aria-disabled="true"] {
+	opacity: 0.4;
+}
+
+/* The notice: what changed, with Undo; errors stay until closed. */
+.mody-board__toast {
+	position: fixed;
+	bottom: 24px;
+	left: 50%;
+	z-index: 100001;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	max-width: min(560px, calc(100vw - 32px));
+	padding: 10px 8px 10px 16px;
+	border-radius: 4px;
+	background: #1d2327;
+	color: #fff;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+	transform: translateX(-50%);
+}
+
+.mody-board__toast[hidden] {
+	display: none;
+}
+
+.mody-board__toast.is-error {
+	background: #8a2424;
+}
+
+.mody-board__toast-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.mody-board__toast .mody-board__toast-undo {
+	flex: 0 0 auto;
+	color: #72aee6;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.mody-board__toast .mody-board__toast-undo:hover,
+.mody-board__toast .mody-board__toast-undo:focus {
+	color: #fff;
+	text-decoration: underline;
+}
+
+.mody-board__toast-close {
+	flex: 0 0 auto;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 3px;
+	background: transparent;
+	color: #fff;
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.mody-board__toast button:focus-visible {
+	outline: 2px solid #fff;
+	outline-offset: 1px;
+}
+
+@media (max-width: 600px) {
+	.mody-board__toast {
+		bottom: 88px; /* Above the bubble's button. */
+	}
 }
 
 /* On a pointer screen, tile buttons float over the corner so titles do not wrap; on touch screens and phones they stay in the title row. */
@@ -498,6 +621,16 @@
 	display: none;
 }
 
+/* The owner's own changes with the card buttons, as Mody reads them. */
+.mody-analyst .mody-agent__event {
+	margin: 4px 0;
+	color: #646970;
+	font-size: 12px;
+	font-style: italic;
+	text-align: center;
+	white-space: pre-line;
+}
+
 .mody-board__card.is-changed {
 	border-color: var(--wp-admin-theme-color, #2271b1);
 	box-shadow: 0 0 0 1px var(--wp-admin-theme-color, #2271b1);
@@ -587,16 +720,24 @@
 	opacity: 0.6;
 }
 
-@media (max-width: 1100px) {
-	.mody-board__card.is-small { grid-column: span 6; }
-	.mody-board__card.is-third,
-	.mody-board__card.is-half,
-	.mody-board__card.is-wide { grid-column: span 12; }
+/* The server-drawn board before the script runs: the same two widths. */
+.mody-board .mody-dashboard__tiles,
+.mody-board .mody-dashboard__lists {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Where half a row is too narrow for a chart, every chart takes the whole row. */
+@media (max-width: 960px) {
+	.mody-board__card.is-half { grid-column: span 12; }
+
+	.mody-board .mody-dashboard__tiles,
+	.mody-board .mody-dashboard__lists {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }
 
 @media (max-width: 600px) {
 	.mody-board__tools { opacity: 1; }
-	.mody-board__card.is-small { grid-column: span 12; }
 }
 
 /* Your sites ---------------------------------------------------------------------- */

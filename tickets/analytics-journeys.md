@@ -26,7 +26,7 @@ By the maintainer on 2026-11-12:
 - **In headless Chromium** (a member with two sites and 30 days of sample journeys): Visitors and Your sites at 1440 and 390 px, with no horizontal scroll and no script errors.
 
 ## Open
-- **Work in progress watermark:** Visitors still carries it (`DashboardPage::WORK_IN_PROGRESS`). Removing it is the maintainer's call.
+- **Work in progress watermark:** removed from Visitors on 2026-11-13, at the maintainer's request.
 - **The legal pages** should describe this: anonymous visits and their pages, kept 13 months, no cookies.
 - **Inference:** Nginx's access logs hold addresses, times and paths. Rows are anonymous only as long as those logs are not kept or not joined with them. Logging retention belongs to M5-01.
 - **A network-wide view for super admins** is cheap now (the same table, no filter), but nobody has asked for it.

@@ -40,8 +40,8 @@ final class DashboardPage {
 	/** Who sees the site's numbers: its administrators. */
 	public const SITE_CAPABILITY = 'manage_options';
 
-	/** Sections still being built: a "Work in progress" watermark over them (the maintainer, 2026-11-11). */
-	public const WORK_IN_PROGRESS = array( 'visitors', 'mody' );
+	/** Sections still being built: a "Work in progress" watermark over them (the maintainer, 2026-11-11; off Visitors since 2026-11-13). */
+	public const WORK_IN_PROGRESS = array( 'mody' );
 
 	/** The admin-post action that records the chosen plan. */
 	public const PLAN_ACTION = 'mody_dashboard_plan';

@@ -40,13 +40,17 @@ final class ChartSpec {
 	/** Types drawn with axes: one scale only. */
 	public const AXES = array( 'line', 'area', 'bar', 'hbar', 'stacked' );
 
-	/** Widths, as columns of 12. */
+	/** Widths, as columns of 12: half the row or all of it, nothing else (the maintainer, 2026-11-13). */
 	public const SIZES = array(
-		'small' => 3,
-		'third' => 4,
-		'half'  => 6,
-		'wide'  => 8,
-		'full'  => 12,
+		'half' => 6,
+		'full' => 12,
+	);
+
+	/** The widths there were before, as they are drawn now: saved boards and old habits keep working. */
+	public const OLD_SIZES = array(
+		'small' => 'half',
+		'third' => 'half',
+		'wide'  => 'full',
 	);
 
 	/** The card's background: marks are checked against it. */
@@ -93,6 +97,7 @@ final class ChartSpec {
 			return $style;
 		}
 		$size = (string) ( $spec['size'] ?? self::default_size( $type ) );
+		$size = self::OLD_SIZES[ $size ] ?? $size;
 		if ( ! isset( self::SIZES[ $size ] ) ) {
 			return self::error( sprintf( 'Unknown size "%s". Sizes: %s.', $size, implode( ', ', array_keys( self::SIZES ) ) ) );
 		}
@@ -214,11 +219,9 @@ final class ChartSpec {
 	 */
 	public static function default_size( string $type ): string {
 		return array(
-			'tile'     => 'small',
-			'donut'    => 'third',
-			'list'     => 'third',
-			'journeys' => 'full',
-			'heatmap'  => 'full',
+			'tile'  => 'half',
+			'donut' => 'half',
+			'list'  => 'half',
 		)[ $type ] ?? 'full';
 	}
 

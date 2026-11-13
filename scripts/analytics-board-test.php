@@ -264,6 +264,9 @@ $base = array(
 	),
 );
 $check( 'a good spec passes, with defaults', '' === $why( $base ) && 'full' === ChartSpec::validate( $base )['size'] && str_starts_with( ChartSpec::validate( $base )['id'], 'chart-' ) );
+$check( 'two widths only: half and full (2026-11-13)', array( 'half', 'full' ) === array_keys( ChartSpec::SIZES ) && str_contains( $why( array( 'size' => 'huge' ) + $base ), 'Sizes: half, full' ) );
+$check( '... the old widths are drawn as the nearest of the two', 'half' === ChartSpec::validate( array( 'size' => 'small' ) + $base )['size'] && 'half' === ChartSpec::validate( array( 'size' => 'third' ) + $base )['size'] && 'full' === ChartSpec::validate( array( 'size' => 'wide' ) + $base )['size'] );
+$check( '... every type\'s own width and every default chart is one of the two', ! array_diff( array_map( array( ChartSpec::class, 'default_size' ), ChartSpec::TYPES ), array( 'half', 'full' ) ) && ! array_diff( array_column( array_map( array( ChartSpec::class, 'validate' ), Board::defaults() ), 'size' ), array( 'half', 'full' ) ) );
 $check( 'an unknown type is refused, with the list', str_contains( $why( array( 'type' => 'radar' ) + $base ), 'Types: tile' ) );
 $check( 'a chart needs a title', str_contains( $why( array( 'title' => '  ' ) + $base ), 'needs a title' ) );
 $check( 'an unknown field is refused (no code, no data in a spec)', str_contains( $why( $base + array( 'data' => array( 1, 2 ) ) ), 'Unknown chart field' ) );
@@ -324,11 +327,50 @@ $check( '... bad dates and empty labels are refused', is_wp_error( Board::apply(
 $check( '... removed by date; a missing one says so', ! is_wp_error( Board::apply( 'unnote', array( 'date' => $ago ) ) ) && array() === Board::notes() && is_wp_error( Board::apply( 'unnote', array( 'date' => $ago ) ) ) );
 update_option( Board::OPTION, array_merge( Board::cards(), array( array( 'id' => 'broken', 'type' => 'radar' ) ) ), false );
 $check( 'a stored card that no longer passes is left out', ! in_array( 'broken', array_column( Board::cards(), 'id' ), true ) );
+Board::apply( 'move', array( 'id' => 'devices', 'to' => 'up' ) );
+$check( '... but kept when the board is saved: a later fix brings it back', in_array( 'broken', array_column( get_option( Board::OPTION ), 'id' ), true ) );
+$check( '... and its id is not given to a new chart', 'broken-2' === Board::apply( 'add', array( 'spec' => array( 'id' => 'broken' ) + $base ) )['changed'][0] );
 for ( $i = count( Board::cards() ); $i < Board::MAX_CARDS; $i++ ) {
 	Board::apply( 'add', array( 'spec' => $base ) );
 }
 $full = Board::apply( 'add', array( 'spec' => $base ) );
 $check( 'at most 24 charts', is_wp_error( $full ) && Board::MAX_CARDS === count( Board::cards() ) );
+Board::apply( 'reset' );
+
+// Adding never removes a chart; one Undo per batch; the version (2026-11-13).
+$ids  = array_column( Board::cards(), 'id' );
+$kept = static fn( array $before ): bool => array() === array_diff( $before, array_column( Board::cards(), 'id' ) );
+$a    = Board::apply( 'add', array( 'spec' => $base ) );
+$check( 'add on the default board: every default chart stays, the new one at the end', $kept( $ids ) && count( $ids ) + 1 === count( Board::cards() ) && end( $a['cards'] )['id'] === $a['changed'][0] );
+$ids = array_column( Board::cards(), 'id' );
+$a   = Board::apply( 'add', array( 'spec' => $base, 'after' => '' ) );
+$check( '... at the top: every chart stays', $kept( $ids ) && $a['changed'][0] === Board::cards()[0]['id'] && count( $ids ) + 1 === count( Board::cards() ) );
+$ids = array_column( Board::cards(), 'id' );
+$a   = Board::apply( 'add', array( 'spec' => $base, 'after' => 'journeys' ) );
+$at  = array_search( 'journeys', array_column( Board::cards(), 'id' ), true );
+$check( '... after a chart: right after it, every chart stays', $kept( $ids ) && $a['changed'][0] === Board::cards()[ $at + 1 ]['id'] );
+$ids = array_column( Board::cards(), 'id' );
+$a   = Board::apply( 'add', array( 'spec' => $base, 'after' => 'no-such-chart' ) );
+$check( '... after a chart that is not there: at the end (it was second)', $kept( $ids ) && end( $a['cards'] )['id'] === $a['changed'][0] );
+$version = Board::version();
+Board::apply( 'move', array( 'id' => 'devices', 'to' => 0 ) );
+Board::apply( 'note', array( 'date' => $ago, 'label' => 'x' ) );
+$check( 'every change to the cards raises the version; notes do not', $version + 1 === Board::version() && $version + 1 === Board::payload( 7 )['version'] );
+Board::apply( 'unnote', array( 'date' => $ago ) );
+$ids = array_column( Board::cards(), 'id' );
+Board::batch(
+	static function () use ( $base ): void {
+		Board::apply( 'add', array( 'spec' => $base ) );
+		Board::apply( 'change', array( 'id' => 'visits', 'spec' => array( 'title' => 'Renamed' ) ) );
+		Board::apply( 'remove', array( 'id' => 'pages' ) );
+	}
+);
+Board::apply( 'undo' );
+$check( 'one Undo takes back a whole batch (an analyst reply of three changes)', $ids === array_column( Board::cards(), 'id' ) && 'Visits' === Board::cards()[ array_search( 'visits', $ids, true ) ]['title'] );
+Board::apply( 'add', array( 'spec' => $base ) );
+Board::apply( 'remove', array( 'id' => 'pages' ) );
+Board::apply( 'undo' );
+$check( '... outside a batch, one change at a time', count( $ids ) + 1 === count( Board::cards() ) && in_array( 'pages', array_column( Board::cards(), 'id' ), true ) );
 Board::apply( 'reset' );
 
 // 6. REST ------------------------------------------------------------------------------
@@ -350,6 +392,21 @@ $out = $rest( 'POST', '/analytics/board', array( 'action' => 'remove', 'id' => '
 $check( 'a card button: remove, and the new board comes back', 200 === $out->get_status() && ! in_array( 'devices', array_column( array_column( $out->get_data()['cards'], 'spec' ), 'id' ), true ) && $out->get_data()['canUndo'] );
 $out = $rest( 'POST', '/analytics/board', array( 'action' => 'add', 'days' => 7 ) );
 $check( 'adding is not a card button (the analyst\'s, phase 2)', 400 === $out->get_status() );
+$heard = array();
+$hear  = static function ( string $event, string $shown ) use ( &$heard ): void {
+	$heard[] = array( $event, $shown );
+};
+add_action( Board::OWNER_CHANGED, $hear, 10, 2 );
+$out = $rest( 'POST', '/analytics/board', array( 'action' => 'remove', 'id' => 'pages', 'days' => 7 ) );
+$check( 'a button change comes back in words, and goes to the conversation', 'You removed “Pages”.' === $out->get_data()['event'] && array( 'The owner removed the chart “Pages” (pages).', 'You removed “Pages”.' ) === ( $heard[0] ?? null ), wp_json_encode( $heard ) );
+$out = $rest( 'POST', '/analytics/board', array( 'action' => 'move', 'id' => 'sources', 'to' => 1, 'days' => 7 ) );
+$check( '... a drop: move to a position', 200 === $out->get_status() && 'sources' === $out->get_data()['cards'][1]['spec']['id'] && str_contains( $out->get_data()['event'], 'position 2 of' ) );
+remove_action( Board::OWNER_CHANGED, $hear, 10 );
+$version = $out->get_data()['version'];
+$out     = $rest( 'POST', '/analytics/board', array( 'action' => 'undo', 'version' => $version - 1, 'days' => 7 ) );
+$check( 'the bubble\'s Undo is refused once the board changed since its reply', 409 === $out->get_status() && 'sources' === Board::cards()[1]['id'] );
+$out = $rest( 'POST', '/analytics/board', array( 'action' => 'undo', 'version' => $version, 'days' => 7 ) );
+$check( '... and works while the board is as the reply left it', 200 === $out->get_status() && 'sources' !== Board::cards()[1]['id'] );
 $out = $rest( 'POST', '/analytics/board/chart', array( 'spec' => array( 'title' => 'x', 'type' => 'line', 'query' => array( 'dimension' => 'path' ) ) ) );
 $check( 'a bad spec is a 400 with its reason', 400 === $out->get_status() && str_contains( (string) $out->as_error()->get_error_message(), 'time dimension' ) );
 $out = $rest( 'POST', '/analytics/board/chart', array( 'spec' => $base, 'days' => 7 ) );

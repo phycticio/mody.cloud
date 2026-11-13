@@ -186,6 +186,50 @@ set_transient(
 $history = $rest( 'GET' )->get_data()['messages'];
 $check( 'the conversation for the bubble, without the tool calls', 2 === count( $history ) && 'Added a donut.' === $history[1]['text'] && ! str_contains( wp_json_encode( $history ), 'wpab__' ) );
 $check( 'New conversation empties it', array() === $rest( 'DELETE' )->get_data()['messages'] && array() === Analyst::history() );
+
+// What Mody knows after the owner changes the board with the buttons (2026-11-13).
+set_transient(
+	'mody_analyst_chat_' . $owner,
+	array(
+		array(
+			'role' => 'user',
+			'text' => 'Add a chart of devices',
+		),
+		array(
+			'role'  => 'assistant',
+			'text'  => 'Added.',
+			'calls' => array(
+				array(
+					'id'     => 'c1',
+					'name'   => 'wpab__mody__update-analytics-board',
+					'args'   => array( 'action' => 'add' ),
+					'result' => array(
+						'changed' => array( 'devices-2' ),
+						'board'   => array( array( 'id' => 'stale-chart', 'title' => 'Old', 'type' => 'list' ) ),
+					),
+				),
+			),
+		),
+	),
+	HOUR_IN_SECONDS
+);
+Analyst::remember_owner_change( 'The owner removed the chart “Pages” (pages).', 'You removed “Pages”.' );
+Analyst::remember_owner_change( 'The owner moved the chart “Sources” (sources) to position 1 of 12.', 'You moved “Sources” to position 1 of 12.' );
+$history = Analyst::history();
+$check( 'the owner\'s changes in a row share one entry in the conversation', 3 === count( $history ) && 'event' === $history[2]['role'] && 2 === substr_count( $history[2]['text'], 'The owner' ) );
+$shown = $rest( 'GET' )->get_data()['messages'];
+$check( '... the bubble shows them in the owner\'s words', 'event' === $shown[2]['role'] && str_starts_with( $shown[2]['text'], 'You removed “Pages”.' ) );
+$replay   = new ReflectionMethod( Analyst::class, 'history_messages' );
+$messages = $replay->invoke( null, $history, 'Bring back the chart I removed' );
+$last     = end( $messages );
+$json     = (string) wp_json_encode( array_map( static fn( $message ): array => $message->toArray(), $messages ), JSON_UNESCAPED_UNICODE );
+$check( '... and Mody reads them with the owner\'s next message', str_contains( $json, '[On the board, since your last reply: The owner removed the chart “Pages” (pages). The owner moved' ) && str_contains( (string) wp_json_encode( $last->toArray() ), 'Bring back the chart I removed' ) );
+$check( 'earlier tool results no longer carry an old board list', ! str_contains( $json, 'stale-chart' ) && str_contains( $json, 'devices-2' ) );
+$check( 'the prompt says its board is the only current one', str_contains( Analyst::system_prompt( 30 ), 'Trust only this list' ) );
+Board::apply( 'remove', array( 'id' => 'cities' ) );
+$check( '... and lists the board as it is after a button change', ! str_contains( Analyst::system_prompt( 30 ), '- cities:' ) );
+Board::apply( 'reset' );
+$rest( 'DELETE' );
 switch_to_blog( $other );
 $check( 'conversations are per site', array() === Analyst::history() );
 restore_current_blog();

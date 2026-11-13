@@ -72,4 +72,4 @@ The maintainer asked for "a watermark to visitors and Mody's work that says Work
 - it does not block the numbers: tooltips, the table and the links still work through it;
 - screen readers read it once, as a note.
 
-Remove a section from the list when it is finished. Checked in `scripts/dashboard-test.php` and in headless Chromium at 1440 and 390 px. The same pass fixed Mody's work's table on phones, which stacked its cells and was wider than the screen.
+Remove a section from the list when it is finished. Visitors left the list on 2026-11-13 (the maintainer's request); Mody's work keeps it. Checked in `scripts/dashboard-test.php` and in headless Chromium at 1440 and 390 px. The same pass fixed Mody's work's table on phones, which stacked its cells and was wider than the screen.

@@ -52,7 +52,13 @@ defined( 'ABSPATH' ) || exit;
  * Every turn writes a `turn` row (Agent\TurnMetrics) with `kind` =
  * `analytics`: Mody's work counts it in its own group. The conversation is a
  * transient per user and site, the last KEPT_MESSAGES messages, with the
- * tool calls the model made so later turns know what it did.
+ * tool calls the model made so later turns know what it did (without the
+ * board lists their results had: the prompt's board is the only current
+ * one). What the owner does with the card buttons is kept there too, as
+ * `event` entries ("The owner removed the chart …"), which the model reads
+ * with the owner's next message and the bubble shows as gray lines.
+ *
+ * A reply is one Undo (Board::batch()), however many changes it made.
  */
 final class Analyst {
 
@@ -92,6 +98,9 @@ final class Analyst {
 	/** The longest reply. */
 	private const MAX_REPLY_LENGTH = 1500;
 
+	/** The owner's changes kept in one event entry: the latest ones. */
+	private const MAX_EVENT_LINES = 12;
+
 	/** The turn being built. @var array<string, mixed> */
 	private array $turn = array(
 		'reply'   => '',
@@ -128,6 +137,40 @@ final class Analyst {
 	public static function register(): void {
 		add_action( 'wp_abilities_api_init', array( self::class, 'register_abilities' ) );
 		add_action( 'rest_api_init', array( self::class, 'register_routes' ) );
+		add_action( Board::OWNER_CHANGED, array( self::class, 'remember_owner_change' ), 10, 2 );
+	}
+
+	/**
+	 * Board::OWNER_CHANGED: a change made with the card buttons goes into the
+	 * conversation, so the next message's turn knows it: `text` for the
+	 * model, `shown` for the bubble. Changes in a row share one entry, the
+	 * latest MAX_EVENT_LINES of them.
+	 *
+	 * @param string $event The change, in English.
+	 * @param string $shown The change, in the owner's language.
+	 */
+	public static function remember_owner_change( string $event, string $shown = '' ): void {
+		$event = trim( $event );
+		if ( '' === $event || ! is_user_logged_in() ) {
+			return;
+		}
+		$shown   = '' !== trim( $shown ) ? trim( $shown ) : $event;
+		$history = self::history();
+		$last    = end( $history );
+		if ( is_array( $last ) && 'event' === ( $last['role'] ?? '' ) ) {
+			$key = array_key_last( $history );
+			foreach ( array( 'text' => $event, 'shown' => $shown ) as $field => $line ) {
+				$lines                    = array_merge( explode( "\n", (string) ( $last[ $field ] ?? '' ) ), array( $line ) );
+				$history[ $key ][ $field ] = implode( "\n", array_slice( array_filter( $lines, 'strlen' ), -self::MAX_EVENT_LINES ) );
+			}
+		} else {
+			$history[] = array(
+				'role'  => 'event',
+				'text'  => $event,
+				'shown' => $shown,
+			);
+		}
+		set_transient( self::history_key(), array_slice( $history, -self::KEPT_MESSAGES ), self::TTL );
 	}
 
 	/**
@@ -328,9 +371,33 @@ final class Analyst {
 		$system       = self::system_prompt( $this->days );
 		$declarations = self::declarations();
 		$resolver     = new Resolver( self::QUERY_ABILITY, self::BOARD_ABILITY );
-		$messages     = self::history_messages( $history );
-		$messages[]   = new UserMessage( array( new MessagePart( $this->input ) ) );
+		$messages     = self::history_messages( $history, $this->input );
+		// One Undo goes back to the board before the whole reply.
+		$ended = Board::batch( fn() => $this->steps( $system, $declarations, $resolver, $messages ) );
+		if ( null !== $ended ) {
+			return $ended;
+		}
+		if ( '' === $this->turn['reply'] ) {
+			$this->turn['reply'] = $this->turn['board']
+				? __( 'I changed the board.', 'mody_cloud' )
+				: __( 'I could not finish this. Please try again, or say it differently.', 'mody_cloud' );
+		}
+		$this->turn['reply']   = mb_substr( $this->turn['reply'], 0, self::MAX_REPLY_LENGTH );
+		$this->turn['changed'] = array_values( array_unique( $this->turn['changed'] ) );
+		AgentEvents::log( $this->input, null, null, $this->turn['reply'], $this->started );
+		return $this->turn;
+	}
 
+	/**
+	 * The model's steps.
+	 *
+	 * @param string                      $system       The system prompt.
+	 * @param list<FunctionDeclaration>   $declarations The tools.
+	 * @param Resolver                    $resolver     Core's resolver.
+	 * @param list<Message>               $messages     The conversation, with the owner's message.
+	 * @return array<string, mixed>|null The turn when it failed, else null.
+	 */
+	private function steps( string $system, array $declarations, Resolver $resolver, array $messages ): ?array {
 		for ( $step = 1; $step <= self::MAX_STEPS; $step++ ) {
 			if ( Slots::expired() ) {
 				return $this->fail( 'mody_job_stopped', __( 'This took too long and was stopped. Please try again.', 'mody_cloud' ) );
@@ -362,15 +429,7 @@ final class Analyst {
 				break; // ask_user or refuse_request ended the turn.
 			}
 		}
-		if ( '' === $this->turn['reply'] ) {
-			$this->turn['reply'] = $this->turn['board']
-				? __( 'I changed the board.', 'mody_cloud' )
-				: __( 'I could not finish this. Please try again, or say it differently.', 'mody_cloud' );
-		}
-		$this->turn['reply']   = mb_substr( $this->turn['reply'], 0, self::MAX_REPLY_LENGTH );
-		$this->turn['changed'] = array_values( array_unique( $this->turn['changed'] ) );
-		AgentEvents::log( $this->input, null, null, $this->turn['reply'], $this->started );
-		return $this->turn;
+		return null;
 	}
 
 	/**
@@ -419,14 +478,30 @@ final class Analyst {
 			$this->turn['undo']    = $this->turn['undo'] || ! isset( $response['notes'] ); // Notes are not part of Undo.
 			$this->turn['changed'] = array_merge( $this->turn['changed'], (array) ( $response['changed'] ?? array() ) );
 		}
-		$json          = wp_json_encode( $response );
+		$kept          = self::without_board( $response );
+		$json          = wp_json_encode( $kept );
 		$this->calls[] = array(
 			'id'     => (string) $call->getId(),
 			'name'   => $name,
 			'args'   => $args,
-			'result' => is_string( $json ) && strlen( $json ) <= self::MAX_KEPT_RESULT ? $response : array( 'kept' => 'The result was long and is not kept: count again if you need its numbers.' ),
+			'result' => is_string( $json ) && strlen( $json ) <= self::MAX_KEPT_RESULT ? $kept : array( 'kept' => 'The result was long and is not kept: count again if you need its numbers.' ),
 		);
 		return $response;
+	}
+
+	/**
+	 * A tool result as later turns get it: a board change keeps what it
+	 * changed, not the board after it (which the owner may have changed
+	 * since; the prompt has the board as it is).
+	 *
+	 * @param mixed $result The result.
+	 * @return mixed
+	 */
+	private static function without_board( $result ) {
+		if ( is_array( $result ) && array_key_exists( 'board', $result ) && array_key_exists( 'changed', $result ) ) {
+			unset( $result['board'] );
+		}
+		return $result;
 	}
 
 	/**
@@ -570,15 +645,16 @@ You are Mody, the analyst of the website "{$name}"{$mission_text}. You work on t
 {"id": "a-short-slug", "title": "Visits per day", "type": "bar", "query": {...}, "style": {"colors": ["primary"], "legend": true, "values": false}, "size": "full"}
 - Types: funnel (dimension funnel); tile (dimension none, one metric); line and area (time dimensions); bar and hbar (any dimension but none, hour_weekday and journey); stacked (needs a breakdown); donut (one count over weekday, hour, entry, exit, source, device, country or city, or path with views); list (a ranked list of one metric); table (any metrics, any dimension); journeys (dimension journey); heatmap (dimension hour_weekday, one metric).
 - A chart with axes never mixes counts (visits, views, entries, exits) with ratios (pages_per_visit, single_page_rate). Make two charts, or a table.
-- Sizes: small (a quarter of the row), third, half, wide (two thirds), full.
+- Sizes: half (half the row) or full (the whole row). There are no other widths.
 - Colors: the site's palette colors that charts can use ({$palette_text}), "admin" (the dashboard's own color), or a six-digit hex. Light colors are refused because they cannot be seen on the white card. Leave colors out for the defaults, which are readable and colorblind-safe.
 - values: true prints each bar's number on it.
-- To simplify or reduce a chart, change it: fewer rows ({"query": {"limit": 5, "other": true}}), no comparison ({"query": {"compare": false}}), one metric, no breakdown ({"query": {"breakdown": ""}}), no legend, or a smaller size.
+- To simplify or reduce a chart, change it: fewer rows ({"query": {"limit": 5, "other": true}}), no comparison ({"query": {"compare": false}}), one metric, no breakdown ({"query": {"breakdown": ""}}), no legend, or half the row.
 
 # The board now
 <board>
 {$board_text}
 </board>
+This is the board as it is now. The owner also moves and removes charts with the buttons on the cards: earlier messages may show an older board, and lines starting "[On the board, since your last reply:" say what the owner changed. Trust only this list for what is on the board.
 
 # Tools
 - {$tools['query']}: counts any query for this site. Use it to answer questions. It changes nothing.
@@ -598,20 +674,36 @@ PROMPT;
 	}
 
 	/**
-	 * Earlier messages as AI Client messages, with the tool calls each reply made.
+	 * Earlier messages as AI Client messages, with the tool calls each reply
+	 * made, then the owner's new message. The owner's changes with the
+	 * buttons go in front of the owner's next message.
 	 *
 	 * @param list<array<string, mixed>> $history The conversation.
+	 * @param string                     $input   The owner's new message.
 	 * @return list<Message>
 	 */
-	private static function history_messages( array $history ): array {
+	private static function history_messages( array $history, string $input ): array {
 		$messages = array();
+		$events   = array();
+		$with     = static function ( string $text ) use ( &$events ): string {
+			if ( ! $events ) {
+				return $text;
+			}
+			$text   = '[On the board, since your last reply: ' . implode( ' ', $events ) . "]\n\n" . $text;
+			$events = array();
+			return $text;
+		};
 		foreach ( array_slice( $history, -self::KEPT_MESSAGES ) as $entry ) {
 			$text = trim( (string) ( $entry['text'] ?? '' ) );
 			if ( '' === $text ) {
 				continue;
 			}
+			if ( 'event' === ( $entry['role'] ?? '' ) ) {
+				$events = array_merge( $events, explode( "\n", $text ) );
+				continue;
+			}
 			if ( 'user' === ( $entry['role'] ?? '' ) ) {
-				$messages[] = new UserMessage( array( new MessagePart( $text ) ) );
+				$messages[] = new UserMessage( array( new MessagePart( $with( $text ) ) ) );
 				continue;
 			}
 			if ( ! $messages ) {
@@ -625,10 +717,11 @@ PROMPT;
 				$id         = '' !== (string) ( $call['id'] ?? '' ) ? (string) $call['id'] : 'call_' . count( $messages ) . '_' . $i;
 				$args       = is_array( $call['args'] ?? null ) && $call['args'] ? $call['args'] : new \stdClass();
 				$messages[] = new ModelMessage( array( new MessagePart( new FunctionCall( $id, $name, $args ) ) ) );
-				$messages[] = new UserMessage( array( new MessagePart( new FunctionResponse( $id, $name, $call['result'] ?? null ) ) ) );
+				$messages[] = new UserMessage( array( new MessagePart( new FunctionResponse( $id, $name, self::without_board( $call['result'] ?? null ) ) ) ) );
 			}
 			$messages[] = new ModelMessage( array( new MessagePart( $text ) ) );
 		}
+		$messages[] = new UserMessage( array( new MessagePart( $with( $input ) ) ) );
 		return $messages;
 	}
 
@@ -765,7 +858,8 @@ PROMPT;
 	}
 
 	/**
-	 * The conversation as the bubble shows it: no tool calls.
+	 * The conversation as the bubble shows it: no tool calls; the owner's
+	 * changes (role `event`) in the owner's language.
 	 *
 	 * @return list<array{role: string, text: string, choices: list<string>, refused: bool}>
 	 */
@@ -773,7 +867,7 @@ PROMPT;
 		return array_map(
 			static fn( array $entry ): array => array(
 				'role'    => (string) ( $entry['role'] ?? '' ),
-				'text'    => (string) ( $entry['text'] ?? '' ),
+				'text'    => (string) ( 'event' === ( $entry['role'] ?? '' ) ? ( $entry['shown'] ?? $entry['text'] ?? '' ) : ( $entry['text'] ?? '' ) ),
 				'choices' => array_values( (array) ( $entry['choices'] ?? array() ) ),
 				'refused' => ! empty( $entry['refused'] ),
 			),
