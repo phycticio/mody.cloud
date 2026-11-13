@@ -179,14 +179,14 @@ final class Registration {
 	 * offer has a place left.
 	 */
 	public static function takes_accounts(): bool {
-		return self::is_open() && ( Members::promo_open() || Mollie::configured() );
+		return self::is_open() && ( Members::promo_open() || Mollie::offered() );
 	}
 
 	/**
 	 * Whether signing up now means paying: the offer has ended and Mollie is set up.
 	 */
 	public static function paying(): bool {
-		return ! Members::promo_open() && Mollie::configured();
+		return ! Members::promo_open() && Mollie::offered();
 	}
 
 	/**
@@ -561,7 +561,7 @@ final class Registration {
 		};
 
 		$free = Members::start_free( $user_id );
-		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && Mollie::configured() ) {
+		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && Mollie::offered() ) {
 			// The offer is over: a paid sign-up, no site until the first payment.
 			$pending = self::start_paid( $user_id, $title, $slug );
 			if ( is_wp_error( $pending ) ) {
@@ -992,7 +992,7 @@ final class Registration {
 		if ( ! self::is_open() || ! is_main_site() ) {
 			return new WP_Error( 'mody_registration_closed', __( 'Registration is not open yet.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
-		if ( ! Members::promo_open() && ! Mollie::configured() ) {
+		if ( ! Members::promo_open() && ! Mollie::offered() ) {
 			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message(), array( 'status' => 403 ) );
 		}
 		if ( ! wp_verify_nonce( (string) $request['nonce'], self::ACTION ) ) {
@@ -1085,7 +1085,7 @@ final class Registration {
 			self::$errors = array( 'form' => __( 'Registration is not open yet.', 'mody_cloud' ) );
 			return;
 		}
-		if ( ! Members::promo_open() && ! Mollie::configured() ) {
+		if ( ! Members::promo_open() && ! Mollie::offered() ) {
 			self::$errors = array( 'form' => Members::promo_closed_message() );
 			return;
 		}

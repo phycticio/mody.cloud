@@ -31,7 +31,13 @@ On Plan & billing, **Withdraw from the contract** (tick, then the button): the c
 
 ## On production, once before launch
 
-The same steps with the test key in production's `.env`, to see Mollie's real webhook call `https://mody.cloud/wp-json/mody-platform/v1/mollie/webhook` (the page updates without the member coming back). Then put the live key in its place.
+With the test key as `MOLLIE_API_KEY` in production's `.env`, members are offered nothing (a sandbox key on production is for this check only). To see Mollie's real webhook:
+
+1. On the server, make a throwaway member (a user with a `mody_members` row), then `wp mody-billing card-check <their email>`: it prints Mollie's test checkout link and says Mollie will call `https://mody.cloud/wp-json/mody-platform/v1/mollie/webhook`.
+2. Pay at the link with a test card, outcome **Paid**. Do not come back to the site from the checkout.
+3. `wp mody-billing status <their email>`: the card check is `paid, applied`, applied by the webhook alone. Nginx's log shows Mollie's `POST /wp-json/mody-platform/v1/mollie/webhook`.
+4. In Mollie's dashboard, refund the 0.01 EUR: the webhook comes again, and `status` shows it refunded.
+5. Remove the throwaway member, then put the live key in `.env` (`docker compose up -d wordpress`, then `docker compose restart nginx`).
 
 ## A paid sign-up (after the launch offer)
 

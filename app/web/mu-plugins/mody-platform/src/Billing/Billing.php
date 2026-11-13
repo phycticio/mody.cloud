@@ -64,6 +64,15 @@ defined( 'ABSPATH' ) || exit;
  *   charge a month on, and Registration::finish_paid() makes the site. It is
  *   the first charge for the 14-day withdrawal. Not paid within a day, the
  *   daily run removes the account (it has no site and paid nothing).
+ * - **Refunds and chargebacks made outside the platform** (2026-11-13): Mollie
+ *   calls the webhook for them too, so the webhook always asks Mollie again,
+ *   even about a payment already applied (reversals()). A refund made in
+ *   Mollie's dashboard is the maintainer's choice: it is recorded and shown
+ *   ("Refunded") and the member gets an email; the account stays as it is.
+ *   A chargeback (the card's bank took a charge back) leaves that period
+ *   unpaid: the account is `past_due` (read-only), the card is dropped (no
+ *   automatic retries on a card that was disputed), and the next charge is
+ *   that period again, made when the member adds a card.
  * - **Invoices:** from Mollie at first, then our own plugin (decided
  *   2026-11-13); not part of this code.
  */
@@ -142,7 +151,7 @@ final class Billing {
 	 */
 	public static function rest_webhook( WP_REST_Request $request ): WP_REST_Response {
 		if ( ! RateLimit::hit_address( 'mollie_webhook' ) ) {
-			self::process( (string) $request['id'] );
+			self::process( (string) $request['id'], true ); // Fresh: a refund or a chargeback calls it for a payment already applied.
 		}
 		return new WP_REST_Response( null, 200 );
 	}
@@ -280,6 +289,10 @@ final class Billing {
 	public static function start_card(): void {
 		check_admin_referer( self::CARD_ACTION );
 		$user = get_current_user_id();
+		if ( ! Mollie::offered() ) {
+			wp_safe_redirect( self::plan_url( $user, array( 'billing' => 'card-error' ) ) );
+			exit;
+		}
 		if ( empty( $_POST['accept'] ) ) {
 			wp_safe_redirect( self::plan_url( $user, array( 'billing' => 'accept' ) ) );
 			exit;
@@ -321,7 +334,7 @@ final class Billing {
 	public static function start_signup( int $user_id, string $back ): string|WP_Error {
 		$row  = Members::get( $user_id );
 		$user = get_userdata( $user_id );
-		if ( ! $row || ! $user || 'pending_payment' !== $row['status'] ) {
+		if ( ! Mollie::offered() || ! $row || ! $user || 'pending_payment' !== $row['status'] ) {
 			return new WP_Error( 'mody_signup_none', 'Nothing to pay.' );
 		}
 		if ( RateLimit::hit( 'card_check', (string) $user_id ) ) {
@@ -406,17 +419,20 @@ final class Billing {
 	}
 
 	/**
-	 * Asks Mollie about a payment the platform started and applies it, once.
+	 * Asks Mollie about a payment the platform started and applies it, once;
+	 * fresh (the webhook), it also asks about a payment already applied, for
+	 * refunds and chargebacks made since.
 	 *
 	 * @param string $mollie_id `tr_…`.
+	 * @param bool   $fresh     Ask Mollie even when the payment was applied.
 	 * @return array<string, mixed>|null The row after, or null for a payment that is not ours.
 	 */
-	public static function process( string $mollie_id ): ?array {
+	public static function process( string $mollie_id, bool $fresh = false ): ?array {
 		$row = Payments::by_mollie( $mollie_id );
 		if ( ! $row ) {
 			return null;
 		}
-		if ( (int) $row['applied'] ) {
+		if ( (int) $row['applied'] && ! $fresh ) {
 			return $row;
 		}
 		$payment = Mollie::get_payment( $mollie_id );
@@ -429,21 +445,71 @@ final class Billing {
 		$locked = (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 10)', $lock ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock.
 		try {
 			$row = Payments::get( (int) $row['id'] ) ?? $row; // Another request may have applied it meanwhile.
-			if ( ! $locked || (int) $row['applied'] ) {
+			if ( ! $locked ) {
 				return $row;
 			}
-			$fields = array( 'status' => $status );
-			if ( in_array( $status, Payments::FINAL, true ) ) {
-				self::apply( $row, $status, $payment );
-				$fields['applied'] = 1;
+			if ( ! (int) $row['applied'] ) {
+				$fields = array( 'status' => $status );
+				if ( in_array( $status, Payments::FINAL, true ) ) {
+					self::apply( $row, $status, $payment );
+					$fields['applied'] = 1;
+				}
+				Payments::update( (int) $row['id'], $fields );
+				$row = array_merge( $row, $fields );
 			}
-			Payments::update( (int) $row['id'], $fields );
-			return array_merge( $row, $fields );
+			if ( (int) $row['applied'] && 'paid' === $row['status'] ) {
+				$row = self::reversals( $row, $payment );
+			}
+			return $row;
 		} finally {
 			if ( $locked ) {
 				$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock.
 			}
 		}
+	}
+
+	/**
+	 * Refunds and chargebacks Mollie reports on a paid payment, each acted on once.
+	 *
+	 * @param array<string, mixed> $row     Our row (applied, paid).
+	 * @param array<string, mixed> $payment Mollie's payment.
+	 * @return array<string, mixed> The row after.
+	 */
+	private static function reversals( array $row, array $payment ): array {
+		$refunded = round( (float) ( $payment['amountRefunded']['value'] ?? 0 ), 2 );
+		$back     = round( (float) ( $payment['amountChargedBack']['value'] ?? 0 ), 2 );
+		$user_id  = (int) $row['user_id'];
+		$fields   = array();
+		if ( $refunded > (float) $row['refunded'] ) {
+			$fields['refunded'] = $refunded;
+			if ( empty( $row['refunded_at'] ) ) { // Not the platform's own refund (the withdrawal sets it first).
+				$fields['refunded_at'] = gmdate( 'Y-m-d H:i:s' );
+				self::mail_refunded( $user_id, $refunded - (float) $row['refunded'] );
+			}
+		}
+		if ( $back > (float) $row['charged_back'] ) {
+			$fields['charged_back'] = $back;
+			if ( in_array( $row['kind'], array( 'charge', 'signup' ), true ) ) {
+				Members::update(
+					$user_id,
+					array(
+						'status'                   => 'past_due',
+						'past_due_since'           => gmdate( 'Y-m-d H:i:s' ),
+						'billing_due_at'           => $row['covers_from'], // That period is unpaid again.
+						'mollie_payment_method_id' => null, // No automatic retries on a disputed card.
+						'cancel_at'                => null,
+					)
+				);
+				delete_user_meta( $user_id, self::CARD_META );
+				Lifecycle::forget();
+				self::mail_charged_back( $user_id, $back );
+			}
+		}
+		if ( $fields ) {
+			Payments::update( (int) $row['id'], $fields );
+			$row = array_merge( $row, $fields );
+		}
+		return $row;
 	}
 
 	/**
@@ -580,7 +646,7 @@ final class Billing {
 			if ( $earlier['covers_from'] !== $start ) {
 				continue;
 			}
-			if ( ! in_array( $earlier['status'], array( 'failed', 'canceled', 'expired' ), true ) ) {
+			if ( ! in_array( $earlier['status'], array( 'failed', 'canceled', 'expired' ), true ) && (float) ( $earlier['charged_back'] ?? 0 ) <= 0 ) {
 				return null; // Paid already, or on its way.
 			}
 			++$tries;
@@ -672,7 +738,13 @@ final class Billing {
 		if ( is_wp_error( $refund ) ) {
 			return $refund;
 		}
-		Payments::update( (int) $row['id'], array( 'refunded_at' => gmdate( 'Y-m-d H:i:s' ) ) );
+		Payments::update(
+			(int) $row['id'],
+			array(
+				'refunded_at' => gmdate( 'Y-m-d H:i:s' ),
+				'refunded'    => (float) $row['amount'],
+			)
+		);
 		Members::update(
 			$user_id,
 			array(
@@ -1082,6 +1154,39 @@ final class Billing {
 			self::plan_url( $user_id )
 		);
 		self::mail( $user_id, __( 'Mody Cloud: your card expires before your next payment', 'mody_cloud' ), $body );
+	}
+
+	/**
+	 * A refund made in Mollie's dashboard.
+	 *
+	 * @param int   $user_id The member.
+	 * @param float $amount  How much.
+	 */
+	private static function mail_refunded( int $user_id, float $amount ): void {
+		$body = sprintf(
+			/* translators: 1: an amount, 2: Plan & billing's address. */
+			__( "We have refunded %1\$s to your card; banks take a few days to show it. Your plan is unchanged.\n\nYour plan and payments: %2\$s", 'mody_cloud' ),
+			Members::price( $amount ),
+			self::plan_url( $user_id )
+		);
+		self::mail( $user_id, __( 'Mody Cloud: a refund is on its way', 'mody_cloud' ), $body );
+	}
+
+	/**
+	 * A chargeback: the card's bank took a payment back.
+	 *
+	 * @param int   $user_id The member.
+	 * @param float $amount  How much.
+	 */
+	private static function mail_charged_back( int $user_id, float $amount ): void {
+		$body = sprintf(
+			/* translators: 1: an amount, 2: days, 3: Plan & billing's address. */
+			__( "Your card's bank took back a payment of %1\$s, so that period is unpaid again, and we removed the card from your account. Your site stays online, but you cannot change it until you pay with a card; after %2\$d days without a payment it is deleted. If this was a mistake, add a card here and the period is charged again:\n%3\$s", 'mody_cloud' ),
+			Members::price( $amount ),
+			Lifecycle::DELETE_DAY,
+			self::plan_url( $user_id )
+		);
+		self::mail( $user_id, __( 'Mody Cloud: your bank took a payment back', 'mody_cloud' ), $body );
 	}
 
 	/**

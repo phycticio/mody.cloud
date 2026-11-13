@@ -35,6 +35,32 @@ final class Command {
 	}
 
 	/**
+	 * Starts a card check for a member and prints Mollie's checkout link,
+	 * whatever the key: the way to check Mollie's webhook on production with a
+	 * `test_` key, where members are not offered test mode. Pay at the link
+	 * with a test card; the webhook should then apply it (see `status`).
+	 *
+	 * ## OPTIONS
+	 *
+	 * <user>
+	 * : The member's user ID or email.
+	 *
+	 * @param string[] $args Positional arguments.
+	 */
+	public function card_check( array $args ): void {
+		$user = is_numeric( $args[0] ?? '' ) ? get_userdata( (int) $args[0] ) : get_user_by( 'email', (string) ( $args[0] ?? '' ) );
+		if ( ! $user || ! Members::get( (int) $user->ID ) ) {
+			WP_CLI::error( 'Not a member.' );
+		}
+		$checkout = Billing::add_card( (int) $user->ID );
+		if ( is_wp_error( $checkout ) ) {
+			WP_CLI::error( $checkout->get_error_message() );
+		}
+		WP_CLI::line( $checkout );
+		WP_CLI::success( ( Mollie::test_mode() ? 'Test mode. ' : 'LIVE: real money. ' ) . ( '' !== Billing::webhook_url() ? 'Mollie will call ' . Billing::webhook_url() : 'No webhook here (a local stack).' ) );
+	}
+
+	/**
 	 * Asks Mollie about one payment and applies it.
 	 *
 	 * ## OPTIONS
