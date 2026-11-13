@@ -195,6 +195,9 @@ final class DashboardPage {
 		if ( ExportPanel::available() ) {
 			$sections[ ExportPanel::SECTION ] = __( 'Download your site', 'mody_cloud' );
 		}
+		if ( \Mody\Platform\Domains\Panel::available() ) {
+			$sections[ \Mody\Platform\Domains\Panel::SECTION ] = __( 'Your domain', 'mody_cloud' );
+		}
 		if ( Members::get( get_current_user_id() ) ) {
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
 			$sections['plan']  = __( 'Plan & billing', 'mody_cloud' );
@@ -305,6 +308,9 @@ final class DashboardPage {
 				break;
 			case 'plan':
 				self::render_plan();
+				break;
+			case \Mody\Platform\Domains\Panel::SECTION:
+				\Mody\Platform\Domains\Panel::render();
 				break;
 			default:
 				self::render_overview();

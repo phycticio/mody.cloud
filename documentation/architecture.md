@@ -147,6 +147,8 @@ Visitor
                                                              └─▶ mody_cloud_redis
 ```
 
+**Members' custom domains** (2026-11-13, [tickets/custom-domains.md](../tickets/custom-domains.md)) take another path: the member's CNAME points at `sites.mody.cloud`, a DNS-only record (not proxied by Cloudflare) on the home's address, so the request goes straight to the router, then to a proxy host that the platform creates in Nginx Proxy Manager through its API (with its own Let's Encrypt certificate), then to the stack like `mody.cloud`'s. WordPress maps the host to the site in `app/web/sunrise.php`. The app container reaches NPM's API at `NPM_API_URL`.
+
 ### Host
 
 | Item | Value |

@@ -133,6 +133,13 @@ add_action( 'init', array( Members\Members::class, 'install' ), 1 );
 Billing\Billing::register();
 
 /*
+ * Custom domains (2026-11-13, tickets/custom-domains.md): Your domain on a
+ * site's Dashboard; DNS checks; certificates through Nginx Proxy Manager;
+ * the mapping itself runs earlier, in app/web/sunrise.php.
+ */
+Domains\Domains::register();
+
+/*
  * Member accounts (M1-01, part 1): a `mody_members` row gives the dashboard
  * capability (mvp-spec section 3) and the plan's site limit (section 4).
  */
