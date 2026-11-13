@@ -42,6 +42,12 @@ defined( 'ABSPATH' ) || exit;
  *   account is then `canceled`. That is at least what EU law asks (14 days
  *   from the contract, which is made when the card is added, before the
  *   first charge), with no share kept for the days used.
+ * - **Cancel** (built 2026-11-13): the plan ends at the end of the period
+ *   already paid (or of the free months): `cancel_at`; until then Keep my
+ *   plan undoes it. On that date the account is `canceled`, nothing is
+ *   charged, and the sites are read-only, then deleted after 60 days
+ *   (Lifecycle). Adding a card while canceled brings the account back with a
+ *   charge from that day.
  * - **Reminders:** a free account without a card gets an email a month and a
  *   week before its free months end.
  * - **The daily run** (run(), `wp mody-billing run`): reminders, charges,
@@ -64,6 +70,8 @@ final class Billing {
 	/** admin-post actions. */
 	public const CARD_ACTION     = 'mody_billing_card';
 	public const WITHDRAW_ACTION = 'mody_billing_withdraw';
+	public const CANCEL_ACTION   = 'mody_billing_cancel';
+	public const RESUME_ACTION   = 'mody_billing_resume';
 
 	/** User meta: the card's label, last digits and expiry, for Plan & billing. */
 	public const CARD_META = 'mody_card';
@@ -79,6 +87,9 @@ final class Billing {
 		add_action( 'rest_api_init', array( self::class, 'register_routes' ) );
 		add_action( 'admin_post_' . self::CARD_ACTION, array( self::class, 'start_card' ) );
 		add_action( 'admin_post_' . self::WITHDRAW_ACTION, array( self::class, 'start_withdrawal' ) );
+		add_action( 'admin_post_' . self::CANCEL_ACTION, array( self::class, 'start_cancel' ) );
+		add_action( 'admin_post_' . self::RESUME_ACTION, array( self::class, 'start_resume' ) );
+		Lifecycle::register();
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			\WP_CLI::add_command( 'mody-billing', Command::class );
 		}
@@ -184,7 +195,7 @@ final class Billing {
 		if ( ! Mollie::configured() ) {
 			return new WP_Error( 'mody_mollie_off', __( 'Card payments are not available yet.', 'mody_cloud' ) );
 		}
-		if ( in_array( $row['status'], array( 'canceled', 'expired' ), true ) ) {
+		if ( 'expired' === $row['status'] ) {
 			return new WP_Error( 'mody_billing_closed', __( 'This account is closed.', 'mody_cloud' ) );
 		}
 		if ( RateLimit::hit( 'card_check', (string) $user_id ) ) {
@@ -369,11 +380,11 @@ final class Billing {
 				)
 			);
 			self::mail_card_added( $user_id );
-			// Already due (no card when the free months ended, or a failed charge): charge now.
+			// Already due (no card when the free months ended, or a failed charge), or coming back after the plan ended: charge now.
 			Members::forget();
 			$member = Members::get( $user_id );
 			$due    = ! empty( $member['billing_due_at'] ) ? (int) strtotime( $member['billing_due_at'] . ' UTC' ) : 0;
-			if ( $due && $due <= time() && in_array( $member['status'], array( 'active', 'past_due' ), true ) ) {
+			if ( 'canceled' === $member['status'] || ( $due && $due <= time() && in_array( $member['status'], array( 'active', 'past_due' ), true ) ) ) {
 				self::charge( $user_id );
 			}
 			return;
@@ -386,9 +397,11 @@ final class Billing {
 					'plan'           => 'paid',
 					'status'         => 'active',
 					'past_due_since' => null,
+					'cancel_at'      => null,
 					'billing_due_at' => $row['covers_to'],
 				)
 			);
+			Lifecycle::forget();
 			self::mail_paid( $user_id, $row );
 			return;
 		}
@@ -400,6 +413,7 @@ final class Billing {
 					'past_due_since' => gmdate( 'Y-m-d H:i:s' ),
 				)
 			);
+			Lifecycle::forget();
 		}
 		self::mail_failed( $user_id, $row );
 	}
@@ -525,9 +539,11 @@ final class Billing {
 			array(
 				'status'         => 'canceled',
 				'billing_due_at' => null,
-				'past_due_since' => gmdate( 'Y-m-d H:i:s' ), // M1-02 counts the 60 days from here.
+				'cancel_at'      => null,
+				'past_due_since' => gmdate( 'Y-m-d H:i:s' ), // Lifecycle counts the 60 days from here.
 			)
 		);
+		Lifecycle::forget();
 		self::mail_withdrawn( $user_id, (float) $row['amount'] );
 		return true;
 	}
@@ -548,13 +564,125 @@ final class Billing {
 	}
 
 	/**
+	 * Whether an account can cancel now: active, with a card, a date to end
+	 * on, and not cancelling already. (Without a card, the free months simply
+	 * end.)
+	 *
+	 * @param int $user_id The member.
+	 */
+	public static function can_cancel( int $user_id ): bool {
+		$member = Members::get( $user_id );
+		return $member && 'active' === $member['status'] && ! empty( $member['mollie_payment_method_id'] ) && ! empty( $member['billing_due_at'] ) && empty( $member['cancel_at'] );
+	}
+
+	/**
+	 * Cancels at the end of the period: nothing more is charged, and the
+	 * plan ends on `billing_due_at`.
+	 *
+	 * @param int $user_id The member.
+	 * @return true|WP_Error
+	 */
+	public static function cancel( int $user_id ): bool|WP_Error {
+		if ( ! self::can_cancel( $user_id ) ) {
+			return new WP_Error( 'mody_cancel', __( 'There is nothing to cancel.', 'mody_cloud' ) );
+		}
+		$member = Members::get( $user_id );
+		Members::update( $user_id, array( 'cancel_at' => $member['billing_due_at'] ) );
+		$ends = (int) strtotime( $member['billing_due_at'] . ' UTC' );
+		self::mail(
+			$user_id,
+			__( 'Mody Cloud: your plan ends soon', 'mody_cloud' ),
+			sprintf(
+				/* translators: 1: a date, 2: days, 3: Plan & billing's address. */
+				__( "You have cancelled. Nothing more will be charged, and your plan ends on %1\$s. After that your site is read-only for %2\$d days, then deleted: download it before then if you want to keep it. Changed your mind? Use Keep my plan on Plan & billing before that date:
+%3\$s", 'mody_cloud' ),
+				wp_date( (string) get_option( 'date_format' ), $ends ),
+				Lifecycle::DELETE_DAY,
+				self::plan_url( $user_id )
+			)
+		);
+		return true;
+	}
+
+	/**
+	 * Undoes a cancellation before its date.
+	 *
+	 * @param int $user_id The member.
+	 * @return true|WP_Error
+	 */
+	public static function resume( int $user_id ): bool|WP_Error {
+		$member = Members::get( $user_id );
+		if ( ! $member || 'active' !== $member['status'] || empty( $member['cancel_at'] ) ) {
+			return new WP_Error( 'mody_resume', __( 'There is no cancellation to undo.', 'mody_cloud' ) );
+		}
+		Members::update( $user_id, array( 'cancel_at' => null ) );
+		return true;
+	}
+
+	/**
+	 * admin-post: Cancel (confirmed).
+	 */
+	public static function start_cancel(): void {
+		check_admin_referer( self::CANCEL_ACTION );
+		$user = get_current_user_id();
+		if ( empty( $_POST['confirm'] ) ) {
+			wp_safe_redirect( self::plan_url( $user, array( 'billing' => 'confirm-cancel' ) ) );
+			exit;
+		}
+		$done = self::cancel( $user );
+		wp_safe_redirect( self::plan_url( $user, array( 'billing' => true === $done ? 'canceled' : 'cancel-error' ) ) );
+		exit;
+	}
+
+	/**
+	 * admin-post: Keep my plan.
+	 */
+	public static function start_resume(): void {
+		check_admin_referer( self::RESUME_ACTION );
+		$user = get_current_user_id();
+		$done = self::resume( $user );
+		wp_safe_redirect( self::plan_url( $user, array( 'billing' => true === $done ? 'resumed' : 'cancel-error' ) ) );
+		exit;
+	}
+
+	/**
+	 * The plan reached the date it was cancelled for: canceled, nothing
+	 * charged, the 60 days start.
+	 *
+	 * @param int $user_id The member.
+	 */
+	private static function end_plan( int $user_id ): void {
+		Members::update(
+			$user_id,
+			array(
+				'status'         => 'canceled',
+				'cancel_at'      => null,
+				'billing_due_at' => null,
+				'past_due_since' => gmdate( 'Y-m-d H:i:s' ),
+			)
+		);
+		Lifecycle::forget();
+		self::mail(
+			$user_id,
+			__( 'Mody Cloud: your plan has ended', 'mody_cloud' ),
+			sprintf(
+				/* translators: 1: days, 2: Plan & billing's address. */
+				__( "Your plan has ended, as you asked, and nothing more will be charged. Your site stays online, read-only, for %1\$d days, then it is deleted: download it before then if you want to keep it. To keep it online, add a card on Plan & billing:
+%2\$s", 'mody_cloud' ),
+				Lifecycle::DELETE_DAY,
+				self::plan_url( $user_id )
+			)
+		);
+	}
+
+	/**
 	 * The daily run: reminders, charges, retries, payments still waiting.
 	 *
 	 * @return array<string, int> What it did.
 	 */
 	public static function run(): array {
 		global $wpdb;
-		$done = array_fill_keys( array( 'reminders', 'charged', 'no_card', 'retried', 'checked' ), 0 );
+		$done = array_fill_keys( array( 'reminders', 'charged', 'no_card', 'retried', 'checked', 'ended', 'warned', 'deleted' ), 0 );
 		if ( ! (bool) $wpdb->get_var( "SELECT GET_LOCK('mody_billing_run', 1)" ) ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock.
 			return $done;
 		}
@@ -570,7 +698,7 @@ final class Billing {
 			}
 
 			// Free accounts without a card: a month and a week before.
-			$soon = $wpdb->get_results( $wpdb->prepare( "SELECT user_id, free_until FROM {$table} WHERE plan = 'free' AND status = 'active' AND mollie_payment_method_id IS NULL AND free_until > %s AND free_until <= %s", $now, gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS ) ), ARRAY_A );
+			$soon = $wpdb->get_results( $wpdb->prepare( "SELECT user_id, free_until FROM {$table} WHERE plan = 'free' AND status = 'active' AND mollie_payment_method_id IS NULL AND cancel_at IS NULL AND free_until > %s AND free_until <= %s", $now, gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS ) ), ARRAY_A );
 			foreach ( (array) $soon as $member ) {
 				$user = (int) $member['user_id'];
 				$sent = (array) get_user_meta( $user, self::REMINDERS_META, true );
@@ -592,6 +720,11 @@ final class Billing {
 			foreach ( (array) $due as $user ) {
 				$user   = (int) $user;
 				$member = Members::get( $user );
+				if ( ! empty( $member['cancel_at'] ) ) {
+					self::end_plan( $user );
+					++$done['ended'];
+					continue;
+				}
 				if ( empty( $member['mollie_payment_method_id'] ) ) {
 					Members::update(
 						$user,
@@ -600,6 +733,7 @@ final class Billing {
 							'past_due_since' => $now,
 						)
 					);
+					Lifecycle::forget();
 					self::mail_no_card( $user );
 					++$done['no_card'];
 					continue;
@@ -622,6 +756,9 @@ final class Billing {
 				}
 			}
 			// phpcs:enable
+
+			// Locked accounts: the last warning on day 53, the sites deleted on day 60.
+			$done = array_merge( $done, Lifecycle::sweep() );
 		} finally {
 			$wpdb->get_var( "SELECT RELEASE_LOCK('mody_billing_run')" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock.
 		}

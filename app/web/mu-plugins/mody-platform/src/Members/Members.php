@@ -95,7 +95,7 @@ final class Members {
 	public const STATUSES = array( 'pending_payment', 'active', 'past_due', 'canceled', 'expired_signup', 'expired' );
 
 	/** Bump when the table definition in install() changes. */
-	private const DB_VERSION = '5'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`.
+	private const DB_VERSION = '6'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`. 6: cancel_at.
 
 	/** Network option that records the installed table version. */
 	private const DB_VERSION_OPTION = 'mody_members_db_version';
@@ -161,6 +161,7 @@ final class Members {
   free_until datetime DEFAULT NULL,
   billing_due_at datetime DEFAULT NULL,
   past_due_since datetime DEFAULT NULL,
+  cancel_at datetime DEFAULT NULL,
   mollie_customer_id varchar(64) DEFAULT NULL,
   mollie_payment_method_id varchar(64) DEFAULT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -47,6 +47,10 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 };
 
 global $wpdb;
+// Plan & billing without card payments (billing-test.php covers them): the key off for this run, back after.
+$mody_key = getenv( 'MOLLIE_API_KEY' );
+putenv( 'MOLLIE_API_KEY' );
+register_shutdown_function( static fn() => false === $mody_key ? null : putenv( 'MOLLIE_API_KEY=' . $mody_key ) );
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $new    = static function ( string $login ) use ( $suffix ): int {
 	return (int) wp_insert_user(
@@ -287,7 +291,7 @@ $check(
 		array( 'free', '2027-05-01 10:00:00', '2027-05-01 10:00:00' ),
 		array( 'paid', null, null ),
 		array( 'paid', null, null ),
-	) === array_map( 'array_values', (array) $migrated ) && "enum('free','paid')" === $type && ! in_array( 'next_plan', $columns, true ) && ! in_array( 'trial_ends_at', $columns, true ) && '5' === get_site_option( 'mody_members_db_version' ),
+	) === array_map( 'array_values', (array) $migrated ) && "enum('free','paid')" === $type && ! in_array( 'next_plan', $columns, true ) && ! in_array( 'trial_ends_at', $columns, true ) && '6' === get_site_option( 'mody_members_db_version' ),
 	wp_json_encode( $migrated )
 );
 

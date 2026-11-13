@@ -970,6 +970,7 @@ final class DashboardPage {
 		</table>
 
 		<?php self::render_withdrawal( $user ); ?>
+		<?php self::render_cancel( $user, $row ); ?>
 		<?php self::render_payments( $user ); ?>
 
 		<div class="mody-dashboard__plans-head">
@@ -1039,6 +1040,10 @@ final class DashboardPage {
 			'confirm'        => array( 'error', __( 'To withdraw, tick the box to confirm.', 'mody_cloud' ) ),
 			'withdrawn'      => array( 'success', __( 'You have withdrawn. Your payment goes back to your card in full, and nothing more will be charged.', 'mody_cloud' ) ),
 			'withdraw-error' => array( 'error', __( 'The withdrawal did not work. Please try again, or reply to any of our emails.', 'mody_cloud' ) ),
+			'confirm-cancel' => array( 'error', __( 'To cancel, tick the box to confirm.', 'mody_cloud' ) ),
+			'canceled'       => array( 'success', __( 'Cancelled: nothing more will be charged. We sent you the details by email.', 'mody_cloud' ) ),
+			'resumed'        => array( 'success', __( 'Your plan goes on as before.', 'mody_cloud' ) ),
+			'cancel-error'   => array( 'error', __( 'That did not work. Please reload the page and try again.', 'mody_cloud' ) ),
 		);
 		if ( isset( $notes[ $result ] ) ) {
 			printf( '<div class="notice notice-%1$s inline mody-brand__notice"><p>%2$s</p></div>', esc_attr( $notes[ $result ][0] ), esc_html( $notes[ $result ][1] ) );
@@ -1063,7 +1068,7 @@ final class DashboardPage {
 					: __( 'A card is on file.', 'mody_cloud' )
 			);
 		}
-		if ( in_array( (string) ( $row['status'] ?? '' ), array( 'canceled', 'expired' ), true ) ) {
+		if ( 'expired' === (string) ( $row['status'] ?? '' ) ) {
 			return;
 		}
 		if ( ! Mollie::configured() ) {
@@ -1119,6 +1124,65 @@ final class DashboardPage {
 			<p><label><input type="checkbox" name="confirm" value="1" required /> <?php esc_html_e( 'I withdraw from my contract.', 'mody_cloud' ); ?></label></p>
 			<p><button type="submit" class="button"><?php esc_html_e( 'Withdraw from the contract', 'mody_cloud' ); ?></button></p>
 		</form>
+		<?php
+	}
+
+	/**
+	 * Cancel at the end of the period, or, once cancelled, the date it ends
+	 * and Keep my plan.
+	 *
+	 * @param int                  $user The member.
+	 * @param array<string, mixed> $row  Their row.
+	 */
+	private static function render_cancel( int $user, array $row ): void {
+		if ( ! empty( $row['cancel_at'] ) && 'active' === ( $row['status'] ?? '' ) ) {
+			?>
+			<form class="mody-dashboard__withdraw" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<h3><?php esc_html_e( 'Your plan ends soon', 'mody_cloud' ); ?></h3>
+				<p>
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: 1: a date, 2: days. */
+							__( 'You cancelled, so nothing more is charged and your plan ends on %1$s. After that your site is read-only for %2$d days, then deleted.', 'mody_cloud' ),
+							wp_date( (string) get_option( 'date_format' ), (int) strtotime( $row['cancel_at'] . ' UTC' ) ),
+							\Mody\Platform\Billing\Lifecycle::DELETE_DAY
+						)
+					);
+					?>
+				</p>
+				<?php wp_nonce_field( Billing::RESUME_ACTION ); ?>
+				<input type="hidden" name="action" value="<?php echo esc_attr( Billing::RESUME_ACTION ); ?>" />
+				<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Keep my plan', 'mody_cloud' ); ?></button></p>
+			</form>
+			<?php
+			return;
+		}
+		if ( ! Billing::can_cancel( $user ) ) {
+			return;
+		}
+		?>
+		<details class="mody-dashboard__cancel">
+			<summary><?php esc_html_e( 'Cancel your plan', 'mody_cloud' ); ?></summary>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<p>
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: 1: a date, 2: days. */
+							__( 'Nothing more is charged, and your plan ends on %1$s, the end of what is already paid for (or of your free months). After that your site is read-only for %2$d days, then deleted; you can download it at any time.', 'mody_cloud' ),
+							wp_date( (string) get_option( 'date_format' ), (int) strtotime( $row['billing_due_at'] . ' UTC' ) ),
+							\Mody\Platform\Billing\Lifecycle::DELETE_DAY
+						)
+					);
+					?>
+				</p>
+				<?php wp_nonce_field( Billing::CANCEL_ACTION ); ?>
+				<input type="hidden" name="action" value="<?php echo esc_attr( Billing::CANCEL_ACTION ); ?>" />
+				<p><label><input type="checkbox" name="confirm" value="1" required /> <?php esc_html_e( 'I cancel my plan at the end of the period.', 'mody_cloud' ); ?></label></p>
+				<p><button type="submit" class="button"><?php esc_html_e( 'Cancel my plan', 'mody_cloud' ); ?></button></p>
+			</form>
+		</details>
 		<?php
 	}
 

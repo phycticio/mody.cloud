@@ -84,9 +84,9 @@ The statuses `pending_payment` and `expired_signup` stay in the table for the ca
 
 - **Before the free months end** (decided 2026-11-13, built with M1-01 part 3): an email a month before and another a week before; the member chooses monthly or yearly on the dashboard and gives a card (a Mollie checkout). **Without a card at the end:** the account is `past_due`, like a failed charge below (read-only for 60 days, then deleted).
 - **The end of the free months:** charge the price times the account's sites via the stored Mollie payment method. Success → recurring monthly or yearly (`billing_due_at` + 1 month or + 1 year).
-- **A new site on a paying account:** charged from its creation (design with M1-01 part 3). **Monthly or yearly:** chosen in the dashboard; takes effect at the next billing date.
+- **A new site on a paying account:** counted from the next billing date (the charge counts the sites then). **Monthly or yearly:** chosen in the dashboard; takes effect at the next billing date. **Cancel** (built 2026-11-13): the plan ends at the end of the paid period, nothing more is charged, then read-only and deletion as below.
 - **Failed charge:** account `past_due`. All member sites become **read-only** (capability filter denies content/style mutation; front end and reading still work) with a persistent banner in wp-admin and on the dashboard: "Update your payment to keep editing". Daily retry for 60 days.
-- **Day 60 past due:** sites are deleted (trashed network-wide after a final warning email at day 53 offering a full WP export link). The account remains for re-registration with a new card.
+- **Day 60 past due (or canceled):** sites go to the network's trash (WordPress's `deleted` flag, restorable by a super admin) after a final warning email at day 53 with the download link; the account is `expired`. Built 2026-11-13 (`Billing\Lifecycle`, M1-02); the daily run is an Ofelia job on production.
 
 **Acceptance criteria**
 

@@ -1277,3 +1277,22 @@ body.mody-board-dragging * {
 .mody-dashboard__payments {
 	margin-bottom: 16px;
 }
+
+.mody-dashboard__cancel {
+	margin: 16px 0;
+}
+
+.mody-dashboard__cancel summary {
+	cursor: pointer;
+	color: #b32d2e;
+}
+
+.mody-dashboard__cancel form {
+	margin-top: 8px;
+}
+
+.mody-dashboard__cancel label {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}

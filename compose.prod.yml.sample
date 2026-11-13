@@ -54,6 +54,20 @@ services:
   wordpress:
     # Don't publish Xdebug's port to the host in production.
     ports: !reset []
+    # The daily billing run (M1-01 part 3, M1-02): payments still waiting,
+    # reminders, charges and retries, plans that end, the day-53 warning and
+    # the day-60 deletion. Started by the Ofelia scheduler on the host, which
+    # reads these labels (`ofelia daemon --docker`); `job-exec` runs it inside
+    # this container. Safe to run twice (a lock, and no period is charged
+    # twice). `!override` drops the stale labels of compose.yml (the previous
+    # project's newsletter job). The schedule has seconds first: 06:00 every
+    # day, in the container's time zone (UTC).
+    labels: !override
+      ofelia.enabled: "true"
+      ofelia.job-exec.mody-billing.schedule: "${OFELIA_BILLING_SCHEDULE:-0 0 6 * * *}"
+      ofelia.job-exec.mody-billing.command: "wp --path=/var/www/html/wp --url=https://${HOST_NAME:-mody.cloud} mody-billing run"
+      ofelia.job-exec.mody-billing.user: "www-data"
+      ofelia.job-exec.mody-billing.no-overlap: "true"
     # Production mail (Brevo's API) needs nothing here: the mody-mail MU
     # plugin reads BREVO_API_KEY, MAIL_SENDER_EMAIL and MAIL_SENDER_NAME from
     # the server's .env, which compose.yml passes in with env_file.

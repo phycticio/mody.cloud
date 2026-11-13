@@ -27,15 +27,25 @@
  * 8. Reminders: a month before, a week before, each once.
  * 9. Plan & billing: Add your card with the terms; the card, Change card,
  *    the payments, the Withdraw button.
+ * 10. Cancel: at the end of the period; Keep my plan; on the date the plan
+ *     ends without a charge; a card added afterwards brings it back.
+ * 11. Read-only (M1-02): on a locked account's site nobody but a super admin
+ *     may edit, upload or change styles; reading and the download stay; the
+ *     banner; Mody refuses; lifted when paid.
+ * 12. Day 53: one last warning; day 60: the sites in the network's trash,
+ *     the account expired.
  *
  * Users and rows made here are removed. No real payment.
  */
 
+use Mody\Platform\Agent\Budget;
 use Mody\Platform\Billing\Billing;
+use Mody\Platform\Billing\Lifecycle;
 use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Billing\Payments;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Members\Members;
+use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Security\RateLimit;
 
 $failures = 0;
@@ -147,6 +157,7 @@ $mails_to = static function ( string $email ) use ( &$mails ): array {
 
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $users  = array();
+$sites  = array();
 $member = static function ( string $name, array $fields = array() ) use ( $suffix, &$users ): int {
 	$id = (int) wp_insert_user(
 		array(
@@ -172,8 +183,11 @@ $member = static function ( string $name, array $fields = array() ) use ( $suffi
 	return $id;
 };
 register_shutdown_function(
-	static function () use ( &$users, $key_before, $wpdb ): void {
+	static function () use ( &$users, &$sites, $key_before, $wpdb ): void {
 		require_once ABSPATH . 'wp-admin/includes/ms.php';
+		foreach ( $sites as $site ) {
+			wpmu_delete_blog( $site, true );
+		}
 		foreach ( $users as $id ) {
 			$wpdb->delete( Payments::table(), array( 'user_id' => $id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			Members::delete( $id );
@@ -267,7 +281,7 @@ Members::forget();
 $check( 'withdrawn: the first charge refunded in full', true === $done && 1 === count( $refund ) && '7.99' === $refund[0]['body']['amount']['value'] && 'refund-' . $rows[0]['mollie_id'] === $refund[0]['key'] );
 $check( '... the account canceled, nothing more due, an email', 'canceled' === Members::get( $ada )['status'] && null === Members::get( $ada )['billing_due_at'] && str_contains( (string) end( $mails )['subject'], 'withdrawn' ) );
 $check( '... not twice', null === Billing::withdrawal( $ada ) && is_wp_error( Billing::withdraw( $ada ) ) );
-$check( '... a canceled account cannot add a card', is_wp_error( Billing::add_card( $ada ) ) );
+$check( '... a canceled account can add a card to come back (section 10)', is_string( Billing::add_card( $ada ) ) );
 $late = $member( 'late', array( 'plan' => 'paid' ) );
 Payments::add( array( 'user_id' => $late, 'mollie_id' => 'tr_old' . $suffix, 'kind' => 'charge', 'amount' => 7.99, 'sites' => 1, 'period' => 'monthly', 'status' => 'paid', 'applied' => 1, 'created_at' => gmdate( 'Y-m-d H:i:s', time() - 15 * DAY_IN_SECONDS ) ) );
 $check( 'not after 14 days', null === Billing::withdrawal( $late ) );
@@ -335,6 +349,101 @@ Payments::add( array( 'user_id' => $fresh, 'mollie_id' => 'tr_fay' . $suffix, 'k
 $html = $render( $fresh );
 $check( 'a card: its brand and digits, Change card', str_contains( $html, 'Mastercard ending in 5555' ) && str_contains( $html, 'Change card' ) );
 $check( '... the payments, and the Withdraw button while it applies', str_contains( $html, 'mody-dashboard__payments' ) && str_contains( $html, 'Withdraw from the contract' ) && str_contains( $html, 'name="confirm"' ) );
+$check( 'a card and a date: Cancel your plan, to confirm', str_contains( $html, 'Cancel my plan' ) && str_contains( $html, Billing::CANCEL_ACTION ) );
+
+// 10. Cancel ---------------------------------------------------------------------------------------------
+
+echo "\nCancel\n";
+$gil = $member( 'gil', array( 'plan' => 'paid', 'mollie_customer_id' => 'cst_gil', 'mollie_payment_method_id' => 'mdt_gil', 'billing_due_at' => gmdate( 'Y-m-d H:i:s', time() + 10 * DAY_IN_SECONDS ) ) );
+$none = $member( 'hal' ); // Free, no card.
+$check( 'without a card there is nothing to cancel (the free months just end)', ! Billing::can_cancel( $none ) && is_wp_error( Billing::cancel( $none ) ) );
+$done = Billing::cancel( $gil );
+Members::forget();
+$check( 'cancelled: it ends on the paid date, an email, still active', true === $done && Members::get( $gil )['billing_due_at'] === Members::get( $gil )['cancel_at'] && 'active' === Members::get( $gil )['status'] && str_contains( (string) end( $mails )['subject'], 'plan ends soon' ) );
+$html = $render( $gil );
+$check( '... Plan & billing says when, and offers Keep my plan', str_contains( $html, 'Your plan ends soon' ) && str_contains( $html, 'Keep my plan' ) && ! str_contains( $html, 'Cancel my plan' ) );
+$check( 'Keep my plan undoes it', true === Billing::resume( $gil ) && null === Members::get( $gil )['cancel_at'] && Billing::can_cancel( $gil ) );
+Billing::cancel( $gil );
+Members::update( $gil, array( 'billing_due_at' => $due, 'cancel_at' => $due ) );
+$posts = count( $requests( 'POST', '/payments' ) );
+$run   = Billing::run();
+Members::forget();
+$check( 'on the date: ended, canceled, nothing charged, the 60 days start, an email', 1 === $run['ended'] && 'canceled' === Members::get( $gil )['status'] && null === Members::get( $gil )['billing_due_at'] && null !== Members::get( $gil )['past_due_since'] && count( $requests( 'POST', '/payments' ) ) === $posts && str_contains( (string) end( $mails )['subject'], 'plan has ended' ) );
+$checkout = Billing::add_card( $gil );
+$back_id  = (int) Payments::of( $gil, 'card' )[0]['id'];
+$tr       = Payments::of( $gil, 'card' )[0]['mollie_id'];
+$fake['payments'][ $tr ]['status']    = 'paid';
+$fake['payments'][ $tr ]['mandateId'] = 'mdt_gil2';
+Billing::returned( $gil, $back_id );
+Members::forget();
+$check( 'a card added after the end: charged from today, active again', is_string( $checkout ) && 'active' === Members::get( $gil )['status'] && 'paid' === Payments::of( $gil, 'charge' )[0]['status'] && abs( strtotime( Payments::of( $gil, 'charge' )[0]['covers_from'] . ' UTC' ) - time() ) < 120 );
+
+// 11. Read-only ------------------------------------------------------------------------------------------
+
+echo "\nRead-only\n";
+$jo     = $member( 'jo', array( 'plan' => 'paid' ) );
+$editor = $member( 'kit' );
+Members::delete( $editor ); // A plain user, an editor on the member's site.
+$site    = (int) wpmu_create_blog( 'billro' . $suffix . '.' . preg_replace( '/^www\./', '', get_network()->domain ), '/', 'Read-only test', $jo );
+$sites[] = $site;
+update_site_meta( $site, Quota::OWNER_META, $jo );
+add_user_to_blog( $site, $editor, 'editor' );
+$can = static function ( int $user, string $cap ) use ( $site ): bool {
+	Lifecycle::forget();
+	return user_can_for_site( $user, $site, $cap );
+};
+$check( 'active: the owner edits, uploads and changes styles', $can( $jo, 'edit_pages' ) && $can( $jo, 'upload_files' ) && $can( $jo, 'edit_theme_options' ) && null === Lifecycle::site_lock( $site ) );
+Members::update( $jo, array( 'status' => 'past_due', 'past_due_since' => gmdate( 'Y-m-d H:i:s' ) ) );
+$check( 'past due: the owner cannot edit, upload, publish or change styles', ! $can( $jo, 'edit_pages' ) && ! $can( $jo, 'edit_posts' ) && ! $can( $jo, 'upload_files' ) && ! $can( $jo, 'publish_posts' ) && ! $can( $jo, 'edit_theme_options' ) );
+$check( '... nor can the editor they invited', ! $can( $editor, 'edit_posts' ) && ! $can( $editor, 'edit_others_pages' ) );
+$check( '... reading, settings (the download, Plan & billing) stay', $can( $jo, 'read' ) && $can( $jo, 'manage_options' ) );
+$admins = get_super_admins();
+$super  = get_user_by( 'login', $admins[0] );
+$check( '... a super admin is not locked', $can( (int) $super->ID, 'edit_pages' ) );
+$post = (int) wp_insert_post( array( 'post_title' => 'x', 'post_status' => 'publish' ) );
+switch_to_blog( $site );
+wp_set_current_user( $jo );
+Lifecycle::forget();
+$page    = wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Locked', 'post_status' => 'draft' ) );
+$request = new WP_REST_Request( 'POST', '/wp/v2/pages' );
+$request->set_param( 'title', 'Over REST' );
+$rest    = rest_do_request( $request );
+$budget  = Budget::check();
+ob_start();
+Lifecycle::banner();
+$banner = (string) ob_get_clean();
+restore_current_blog();
+wp_delete_post( $post, true );
+$check( '... REST refuses a new page (403)', 403 === $rest->get_status(), (string) $rest->get_status() );
+$check( '... Mody refuses on the site', $budget instanceof WP_Error && 'mody_site_read_only' === $budget->get_error_code() );
+$check( '... the banner: read-only, the deletion date, Plan & billing for the owner', str_contains( $banner, 'read-only until a payment goes through' ) && str_contains( $banner, wp_date( (string) get_option( 'date_format' ), time() + 60 * DAY_IN_SECONDS ) ) && str_contains( $banner, 'Plan &amp; billing' ) );
+Members::update( $jo, array( 'status' => 'active', 'past_due_since' => null ) );
+$check( 'paid again: lifted at once', $can( $jo, 'edit_pages' ) && $can( $editor, 'edit_posts' ) );
+Members::update( $jo, array( 'status' => 'canceled', 'past_due_since' => gmdate( 'Y-m-d H:i:s' ) ) );
+switch_to_blog( $site );
+wp_set_current_user( $jo );
+Lifecycle::forget();
+ob_start();
+Lifecycle::banner();
+$banner = (string) ob_get_clean();
+restore_current_blog();
+$check( 'canceled: locked too, with its own words', ! $can( $jo, 'edit_pages' ) && str_contains( $banner, 'Your plan has ended' ) );
+
+// 12. Day 53 and day 60 ------------------------------------------------------------------------------------
+
+echo "\nDay 53 and day 60\n";
+Members::update( $jo, array( 'past_due_since' => gmdate( 'Y-m-d H:i:s', time() - 54 * DAY_IN_SECONDS ) ) );
+$first  = Billing::run();
+$second = Billing::run();
+$warn   = array_filter( $mails_to( 'billjo' . $suffix . '@mody.local' ), static fn( array $m ): bool => str_contains( $m['subject'], 'deleted in a week' ) );
+$check( 'day 53: one last warning, with the download link', 1 === $first['warned'] && 0 === $second['warned'] && 1 === count( $warn ) && str_contains( (string) reset( $warn )['message'], 'section=export' ) );
+Members::update( $jo, array( 'past_due_since' => gmdate( 'Y-m-d H:i:s', time() - 61 * DAY_IN_SECONDS ) ) );
+$run = Billing::run();
+Members::forget();
+$check( 'day 60: the site in the network\'s trash (restorable), the account expired, an email', 1 === $run['deleted'] && '1' === (string) get_site( $site )->deleted && 'expired' === Members::get( $jo )['status'] && str_contains( (string) end( $mails )['subject'], 'sites are deleted' ) );
+$check( '... and not again', 0 === Billing::run()['deleted'] );
+$check( 'an expired account cannot add a card', is_wp_error( Billing::add_card( $jo ) ) );
+
 putenv( 'MOLLIE_API_KEY' );
 $html = $render( $di );
 $check( 'without a key: "Card payments open soon", no form', str_contains( $html, 'Card payments open soon' ) && ! str_contains( $html, 'name="accept"' ) );
