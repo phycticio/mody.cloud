@@ -21,7 +21,9 @@ defined( 'ABSPATH' ) || exit;
  *   styles (DESIGN_TOOLS), even if it also changed a setting;
  * - **configuration** when it ran any other tool: settings, the menu,
  *   publishing, opening a screen;
- * - **conversation** when it ran none: an answer, a question back, a refusal.
+ * - **conversation** when it ran none: an answer, a question back, a refusal;
+ * - **analytics** for the analyst on the Visitors section (`kind` = `analytics`,
+ *   tickets/analytics-chat.md), whatever it ran.
  *
  * Tokens are what the model read and wrote for the message: its prompt
  * (most of it read again from Infomaniak's cache) and its answers, the page
@@ -30,7 +32,7 @@ defined( 'ABSPATH' ) || exit;
 final class Usage {
 
 	/** The groups, in the order shown. */
-	public const GROUPS = array( 'design', 'configuration', 'conversation' );
+	public const GROUPS = array( 'design', 'configuration', 'conversation', 'analytics' );
 
 	/** Tools that design: pages, templates, parts, the design and the styles. */
 	public const DESIGN_TOOLS = array( 'generate-page', 'edit_content', 'update-design', 'update-styles' );
@@ -42,8 +44,12 @@ final class Usage {
 	 * The group of a message, from the tools it ran.
 	 *
 	 * @param string[] $tools The tools.
+	 * @param string   $kind  The turn's kind: 'analytics' for the analyst, '' for the editor's agent.
 	 */
-	public static function group( array $tools ): string {
+	public static function group( array $tools, string $kind = '' ): string {
+		if ( 'analytics' === $kind ) {
+			return 'analytics';
+		}
 		$tools = array_diff( array_map( 'strval', $tools ), self::TALK_TOOLS );
 		if ( array_intersect( $tools, self::DESIGN_TOOLS ) ) {
 			return 'design';
@@ -87,7 +93,7 @@ final class Usage {
 				continue;
 			}
 			$tokens = (int) ( $data['prompt_tokens'] ?? 0 ) + (int) ( $data['completion_tokens'] ?? 0 );
-			$group  = self::group( (array) ( $data['tools'] ?? array() ) );
+			$group  = self::group( (array) ( $data['tools'] ?? array() ), (string) ( $data['kind'] ?? '' ) );
 			++$groups[ $group ]['messages'];
 			$groups[ $group ]['tokens'] += $tokens;
 			$type = (string) ( $data['open']['type'] ?? '' );

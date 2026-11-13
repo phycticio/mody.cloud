@@ -27,6 +27,8 @@ import {
 import apiFetch from '@wordpress/api-fetch';
 import { __, sprintf } from '@wordpress/i18n';
 
+import { startChat } from './analytics-chat';
+
 Chart.register(
 	ArcElement,
 	BarController,
@@ -59,6 +61,8 @@ const RAMP = [
 ];
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const charts = [];
+/* Whether the analyst's bubble is on the page (phase 2): cards get Ask Mody. */
+let withAnalyst = false;
 
 /**
  * Creates an element with a class and text.
@@ -768,6 +772,11 @@ function cardElement(card, index, total, board) {
 	const later = __('Move “%s” later', 'mody_cloud');
 	/* translators: %s: a chart's title. */
 	const remove = __('Remove “%s”', 'mody_cloud');
+	if (withAnalyst) {
+		/* translators: %s: a chart's title. */
+		const ask = __('Ask Mody about “%s”', 'mody_cloud');
+		tools.append(button(ask, 'format-chat', 'ask', '', false));
+	}
 	tools.append(
 		button(earlier, 'arrow-up-alt2', 'move', 'up', index === 0),
 		button(later, 'arrow-down-alt2', 'move', 'down', index === total - 1),
@@ -898,7 +907,32 @@ function start() {
 	Chart.defaults.color = INK;
 	let board = config.board;
 	let busy = false;
+	withAnalyst = !!config.analyst;
 	render(root, board);
+
+	// The analyst's bubble: a new board from it redraws here, its charts briefly marked.
+	let chat = null;
+	if (withAnalyst) {
+		chat = startChat({
+			days: () => board.days,
+			onBoard: (next, changed) => {
+				board = next;
+				render(root, board);
+				changed.forEach((id) => {
+					const card = root.querySelector(
+						`.mody-board__card[data-id="${CSS.escape(id)}"]`
+					);
+					if (card) {
+						card.classList.add('is-changed');
+						card.scrollIntoView({
+							block: 'nearest',
+							behavior: reduced ? 'auto' : 'smooth',
+						});
+					}
+				});
+			},
+		});
+	}
 
 	root.addEventListener('click', (event) => {
 		const target = event.target.closest('button[data-action]');
@@ -906,6 +940,17 @@ function start() {
 			return;
 		}
 		const { action, id = '', to = '' } = target.dataset;
+		if (action === 'ask') {
+			const card = board.cards.find((c) => c.spec.id === id);
+			chat.ask(
+				sprintf(
+					/* translators: %s: a chart's title. */
+					__('About “%s”:', 'mody_cloud'),
+					card ? card.spec.title : id
+				)
+			);
+			return;
+		}
 		busy = true;
 		root.setAttribute('aria-busy', 'true');
 		apiFetch({
