@@ -277,7 +277,7 @@ export function startChat({ days, onBoard }) {
 					error: turn.error,
 					refused: turn.refused,
 					choices: turn.choices,
-					undo: !!data.board,
+					undo: !!data.board && !!turn.undo,
 				});
 				if (data.board) {
 					onBoard(data.board, turn.changed || []);

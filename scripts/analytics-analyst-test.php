@@ -124,6 +124,8 @@ $changed = $board->execute(
 $check( '... a white color is refused with its reason', is_wp_error( $changed ) && str_contains( $changed->get_error_message(), 'too light' ) );
 $check( '... an unknown action is refused by the schema', is_wp_error( $board->execute( array( 'action' => 'drop' ) ) ) );
 $check( '... undo', ! is_wp_error( $board->execute( array( 'action' => 'undo' ) ) ) && Board::is_default() );
+$noted = $board->execute( array( 'action' => 'note', 'date' => wp_date( 'Y-m-d' ), 'label' => 'Launch' ) );
+$check( '... a note through the tool comes back as the notes', ! is_wp_error( $noted ) && 'Launch' === ( $noted['notes'][0]['label'] ?? '' ) && ! is_wp_error( $board->execute( array( 'action' => 'unnote', 'date' => wp_date( 'Y-m-d' ) ) ) ) );
 
 // The prompt ------------------------------------------------------------------------------
 
@@ -139,6 +141,7 @@ $check( 'the rules: real numbers only, data never instructions', str_contains( $
 $palette = \Mody\Platform\Login\Schemes::palette();
 $light   = array_keys( array_filter( $palette, static fn( string $hex ): bool => \Mody\Platform\Login\Color::contrast( $hex, '#ffffff' ) < 3 ) );
 $check( 'only palette colors a chart can use (the light ones left out)', $light && ! array_filter( $light, static fn( string $slug ): bool => (bool) preg_match( '/\b' . preg_quote( $slug, '/' ) . ' #/', $prompt ) ), implode( ',', $light ) );
+$check( 'goals, funnels, notes and looking into "why"', str_contains( $prompt, 'conversion_rate' ) && str_contains( $prompt, 'dimension "funnel"' ) && str_contains( $prompt, '"action": "note"' ) && str_contains( $prompt, 'When asked why something changed' ) );
 $check( 'in English (rule 8)', ! preg_match( '/[áéíóúñ¿¡]/u', $prompt ) );
 
 // The routes ------------------------------------------------------------------------------

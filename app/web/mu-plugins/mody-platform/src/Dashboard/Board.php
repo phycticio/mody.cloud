@@ -42,6 +42,15 @@ final class Board {
 	/** The site option with the board before the last change. */
 	public const UNDO_OPTION = 'mody_analytics_board_undo';
 
+	/** The site option with the notes on dates: [{date, label}] (phase 3c). */
+	public const NOTES_OPTION = 'mody_analytics_notes';
+
+	/** The most notes. */
+	public const MAX_NOTES = 50;
+
+	/** The longest note. */
+	public const MAX_NOTE = 60;
+
 	/** The most cards on a board. */
 	public const MAX_CARDS = 24;
 
@@ -166,11 +175,14 @@ final class Board {
 	/**
 	 * Changes the board.
 	 *
-	 * @param string               $action add, change, remove, move, reset or undo.
+	 * @param string               $action add, change, remove, move, reset, undo; note (date, label) or unnote (date).
 	 * @param array<string, mixed> $args   id (change, remove, move), spec (add: a whole spec; change: the fields to change), to (move: up, down, or a position from 0), after (add: an id, or '' for the top; the end by default).
 	 * @return array{cards: array<int, array<string, mixed>>, changed: array<int, string>}|WP_Error The new board and the ids it changed, or why not.
 	 */
 	public static function apply( string $action, array $args = array() ) {
+		if ( 'note' === $action || 'unnote' === $action ) {
+			return self::note( $action, $args );
+		}
 		$cards = self::cards();
 		$ids   = array_column( $cards, 'id' );
 		$id    = sanitize_key( (string) ( $args['id'] ?? '' ) );
@@ -267,13 +279,71 @@ final class Board {
 					'changed' => array(),
 				);
 			default:
-				return new WP_Error( 'mody_board_action', 'Unknown action. Actions: add, change, remove, move, reset, undo.' );
+				return new WP_Error( 'mody_board_action', 'Unknown action. Actions: add, change, remove, move, reset, undo, note, unnote.' );
 		}
 		self::remember();
 		update_option( self::OPTION, array_values( $cards ), false );
 		return array(
 			'cards'   => array_values( $cards ),
 			'changed' => $changed,
+		);
+	}
+
+	/**
+	 * The site's notes on dates, oldest first.
+	 *
+	 * @return array<int, array{date: string, label: string}>
+	 */
+	public static function notes(): array {
+		$notes = get_option( self::NOTES_OPTION, array() );
+		$out   = array();
+		foreach ( is_array( $notes ) ? $notes : array() as $note ) {
+			if ( is_array( $note ) && preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) ( $note['date'] ?? '' ) ) && '' !== (string) ( $note['label'] ?? '' ) ) {
+				$out[] = array(
+					'date'  => (string) $note['date'],
+					'label' => (string) $note['label'],
+				);
+			}
+		}
+		usort( $out, static fn( array $a, array $b ): int => strcmp( $a['date'], $b['date'] ) );
+		return $out;
+	}
+
+	/**
+	 * Adds a note on a date (one per date: a new one replaces it), or
+	 * removes the note of a date. Notes are not part of Undo.
+	 *
+	 * @param string               $action note or unnote.
+	 * @param array<string, mixed> $args   date (Y-m-d), and label for note.
+	 * @return array{cards: array<int, array<string, mixed>>, changed: array<int, string>, notes: array<int, array{date: string, label: string}>}|WP_Error
+	 */
+	private static function note( string $action, array $args ) {
+		$date = (string) ( $args['date'] ?? '' );
+		$day  = \DateTimeImmutable::createFromFormat( '!Y-m-d', $date, new \DateTimeZone( 'UTC' ) );
+		if ( ! $day || $day->format( 'Y-m-d' ) !== $date ) {
+			return new WP_Error( 'mody_board_note', 'A note needs "date" as YYYY-MM-DD.' );
+		}
+		$notes = array_values( array_filter( self::notes(), static fn( array $note ): bool => $note['date'] !== $date ) );
+		if ( 'note' === $action ) {
+			$label = trim( sanitize_text_field( (string) ( $args['label'] ?? '' ) ) );
+			if ( '' === $label ) {
+				return new WP_Error( 'mody_board_note', 'A note needs "label": a few words, such as "Registration opened".' );
+			}
+			if ( count( $notes ) >= self::MAX_NOTES ) {
+				return new WP_Error( 'mody_board_note', sprintf( 'A site keeps at most %d notes. Remove one first.', self::MAX_NOTES ) );
+			}
+			$notes[] = array(
+				'date'  => $date,
+				'label' => mb_substr( $label, 0, self::MAX_NOTE ),
+			);
+		} elseif ( count( $notes ) === count( self::notes() ) ) {
+			return new WP_Error( 'mody_board_note', sprintf( 'There is no note on %s.', $date ) );
+		}
+		update_option( self::NOTES_OPTION, $notes, false );
+		return array(
+			'cards'   => self::cards(),
+			'changed' => array(),
+			'notes'   => self::notes(),
 		);
 	}
 
@@ -369,6 +439,7 @@ final class Board {
 			'days'      => $days,
 			'isDefault' => self::is_default(),
 			'canUndo'   => self::can_undo(),
+			'notes'     => self::notes(),
 			'palette'   => Schemes::palette(),
 		);
 	}

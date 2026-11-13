@@ -63,6 +63,10 @@ const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const charts = [];
 /* Whether the analyst's bubble is on the page (phase 2): cards get Ask Mody. */
 let withAnalyst = false;
+/* The site's notes on dates (phase 3c): [{date, label}]. */
+let siteNotes = [];
+/* The CSV links' object URLs, released at each redraw. */
+const csvUrls = [];
 
 /**
  * Creates an element with a class and text.
@@ -139,7 +143,7 @@ function format(value, metric) {
 			maximumFractionDigits: 1,
 		});
 	}
-	if (metric === 'single_page_rate') {
+	if (metric === 'single_page_rate' || metric === 'conversion_rate') {
 		return (
 			Number(value).toLocaleString(lang, { maximumFractionDigits: 0 }) +
 			'%'
@@ -395,6 +399,218 @@ function heatmap(card) {
 }
 
 /**
+ * The site's notes that fall in a time chart's period, with the bar or
+ * point each belongs to: the day, the week that holds it, or its month.
+ *
+ * @param {Object} card The card.
+ * @return {Array<{index: number, date: string, label: string}>} The notes in the chart.
+ */
+function notesIn(card) {
+	const { keys, first, last } = card.data;
+	const dimension = card.spec.query.dimension;
+	if (!['day', 'week', 'month'].includes(dimension)) {
+		return [];
+	}
+	return siteNotes
+		.filter((note) => note.date >= first && note.date <= last)
+		.map((note) => {
+			let index = -1;
+			if (dimension === 'day') {
+				index = keys.indexOf(note.date);
+			} else if (dimension === 'month') {
+				index = keys.indexOf(note.date.slice(0, 7));
+			} else {
+				keys.forEach((key, i) => {
+					if (key <= note.date) {
+						index = i;
+					}
+				});
+			}
+			return { ...note, index };
+		})
+		.filter((note) => note.index >= 0);
+}
+
+/**
+ * A thin line and its label for each note, on time charts.
+ */
+const notesPlugin = {
+	id: 'modyNotes',
+	afterDatasetsDraw(chart, args, options) {
+		const notes = options.notes || [];
+		if (!notes.length || chart.options.indexAxis === 'y') {
+			return;
+		}
+		const { ctx, chartArea, scales } = chart;
+		ctx.save();
+		ctx.font = `11px ${Chart.defaults.font.family}`;
+		ctx.textBaseline = 'top';
+		notes.forEach((note, n) => {
+			const x = Math.round(scales.x.getPixelForValue(note.index)) + 0.5;
+			ctx.strokeStyle = '#787c82';
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(x, chartArea.top);
+			ctx.lineTo(x, chartArea.bottom);
+			ctx.stroke();
+			const width = ctx.measureText(note.label).width + 8;
+			const left = Math.min(
+				Math.max(chartArea.left, x - width / 2),
+				chartArea.right - width
+			);
+			const top = chartArea.top + 2 + (n % 2) * 16; // Two notes close together do not cover each other.
+			ctx.fillStyle = SURFACE;
+			ctx.fillRect(left, top, width, 15);
+			ctx.fillStyle = INK;
+			ctx.fillText(note.label, left + 4, top + 2);
+		});
+		ctx.restore();
+	},
+};
+
+/**
+ * The notes of a time chart as a list under it.
+ *
+ * @param {Object} card The card.
+ * @return {HTMLElement|null} The list, or null without notes.
+ */
+function notesList(card) {
+	const notes = notesIn(card);
+	if (!notes.length) {
+		return null;
+	}
+	const lang = document.documentElement.lang || undefined;
+	const fmt = new Intl.DateTimeFormat(lang, {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric',
+		timeZone: 'UTC',
+	});
+	const ul = el('ul', 'mody-board__notes');
+	notes.forEach((note) => {
+		const li = el('li');
+		li.append(
+			el(
+				'span',
+				'mody-board__note-date',
+				fmt.format(new Date(`${note.date}T12:00:00Z`))
+			),
+			el('span', '', note.label)
+		);
+		ul.append(li);
+	});
+	return ul;
+}
+
+/**
+ * A funnel: each step's visits, its share of the first, and the visits
+ * lost on the way to the next.
+ *
+ * @param {Object} card The card.
+ * @return {HTMLElement} The body.
+ */
+function funnel(card) {
+	const { labels, series } = card.data;
+	const values = series[0].data;
+	const firstStep = Math.max(1, values[0] || 0);
+	const color = css(card.colors.series[0]);
+	const box = el('ol', 'mody-board__funnel');
+	labels.forEach((label, i) => {
+		const li = el('li', 'mody-board__funnel-step');
+		const share = Math.round((1000 * values[i]) / firstStep) / 10;
+		const head = el('div', 'mody-board__funnel-head');
+		head.append(
+			el('span', 'mody-board__funnel-name', label),
+			el(
+				'span',
+				'mody-board__funnel-count',
+				sprintf(
+					/* translators: 1: visits, 2: a percentage of the first step. */
+					__('%1$s visits · %2$s%%', 'mody_cloud'),
+					format(values[i], 'visits'),
+					share.toLocaleString()
+				)
+			)
+		);
+		const bar = el('span', 'mody-board__funnel-bar');
+		const fill = el('span');
+		fill.style.width = `${Math.max(values[i] > 0 ? 1 : 0, share)}%`;
+		fill.style.background = color;
+		bar.append(fill);
+		li.append(head, bar);
+		box.append(li);
+		if (i < labels.length - 1) {
+			const lost = values[i] - values[i + 1];
+			const pct =
+				values[i] > 0 ? Math.round((100 * lost) / values[i]) : 0;
+			box.append(
+				el(
+					'li',
+					'mody-board__funnel-drop',
+					sprintf(
+						/* translators: 1: visits lost between two steps, 2: their percentage. */
+						__('−%1$s left here (%2$s%%)', 'mody_cloud'),
+						format(lost, 'visits'),
+						pct.toLocaleString()
+					)
+				)
+			);
+		}
+	});
+	return box;
+}
+
+/**
+ * A chart's numbers as a CSV file, built in the browser. A cell that
+ * starts like a formula is quoted with an apostrophe: paths and sources
+ * are typed by visitors.
+ *
+ * @param {Object} card The card.
+ * @return {HTMLElement} The link.
+ */
+function csvLink(card) {
+	const { labels, series } = card.data;
+	const cell = (value) => {
+		let text = String(value ?? '');
+		if (/^[=+\-@\t\r]/.test(text)) {
+			text = `'${text}`;
+		}
+		return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+	};
+	const head = [''];
+	series.forEach((s) => {
+		head.push(s.label);
+		if (s.previous) {
+			head.push(`${s.label}, ${card.data.previous_label}`);
+		}
+	});
+	const rows = [head];
+	labels.forEach((label, i) => {
+		const row = [label || card.spec.title];
+		series.forEach((s) => {
+			row.push(s.data[i]);
+			if (s.previous) {
+				row.push(s.previous[i]);
+			}
+		});
+		rows.push(row);
+	});
+	const text = rows.map((row) => row.map(cell).join(',')).join('\r\n');
+	const link = el('a', 'mody-board__csv', __('Download CSV', 'mody_cloud'));
+	link.href = URL.createObjectURL(
+		new Blob(['\ufeff' + text], { type: 'text/csv;charset=utf-8' })
+	);
+	csvUrls.push(link.href);
+	const slug =
+		card.spec.title
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '') || 'chart';
+	link.download = `${slug}-${card.data.first}-${card.data.last}.csv`;
+	return link;
+}
+
+/**
  * Values at the tips of bars, when the card asks for them.
  */
 const valuesPlugin = {
@@ -564,6 +780,7 @@ function drawn(card) {
 				},
 			},
 			modyValues: { show: spec.style.values && type !== 'donut' },
+			modyNotes: { notes: notesIn(card) },
 		},
 	};
 	if (type === 'area' || type === 'line') {
@@ -608,7 +825,7 @@ function drawn(card) {
 				}[type] || type,
 			data: { labels, datasets },
 			options,
-			plugins: [valuesPlugin],
+			plugins: [valuesPlugin, notesPlugin],
 		})
 	);
 	return wrap;
@@ -718,15 +935,17 @@ function table(card, open) {
 	});
 	t.append(thead, tbody);
 	if (open) {
-		const scroll = el('div', 'mody-board__table-wrap');
-		scroll.append(t);
-		return scroll;
+		const wrap = el('div', 'mody-board__table-wrap');
+		wrap.append(t);
+		const box = el('div');
+		box.append(wrap, csvLink(card));
+		return box;
 	}
 	const details = el('details', 'mody-brand__prompt mody-board__details');
 	details.append(el('summary', '', __('Show as a table', 'mody_cloud')));
 	const scroll = el('div', 'mody-board__table-wrap');
 	scroll.append(t);
-	details.append(scroll);
+	details.append(scroll, csvLink(card));
 	return details;
 }
 
@@ -804,9 +1023,12 @@ function cardElement(card, index, total) {
 		journeys: () => [journeys(card)],
 		table: () => [table(card, true)],
 		heatmap: () => [heatmap(card), table(card, false)],
+		funnel: () => [funnel(card), table(card, false)],
 	};
-	const body = bodies[spec.type] || (() => [drawn(card), table(card, false)]);
-	node.append(...body());
+	const body =
+		bodies[spec.type] ||
+		(() => [drawn(card), notesList(card), table(card, false)]);
+	node.append(...body().filter(Boolean));
 	return node;
 }
 
@@ -818,6 +1040,8 @@ function cardElement(card, index, total) {
  * @param {string}      focus The id and action of the button to focus, or ''.
  */
 function render(root, board, focus = '') {
+	siteNotes = board.notes || [];
+	csvUrls.splice(0).forEach((url) => URL.revokeObjectURL(url));
 	charts.splice(0).forEach((chart) => chart.destroy());
 	const bar = el('div', 'mody-board__bar');
 	bar.append(

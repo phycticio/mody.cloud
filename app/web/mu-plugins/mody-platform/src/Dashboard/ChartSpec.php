@@ -23,8 +23,8 @@ defined( 'ABSPATH' ) || exit;
  *
  * - **Types:** Chart.js draws `line`, `area`, `bar`, `hbar`, `stacked` and
  *   `donut`; plain HTML shows `tile` (a number and its change), `list` (a
- *   ranked list with share bars), `table`, `journeys` and `heatmap` (hour by
- *   weekday).
+ *   ranked list with share bars), `table`, `journeys`, `heatmap` (hour by
+ *   weekday) and `funnel` (steps, with the visits lost between them).
  * - **Colors:** names from the site's palette, `admin` (the user's admin
  *   color scheme) or six-digit hex. A color under 3:1 against the card's
  *   white is refused: marks must be visible. With none, the board uses the
@@ -35,7 +35,7 @@ defined( 'ABSPATH' ) || exit;
 final class ChartSpec {
 
 	/** The chart types. */
-	public const TYPES = array( 'tile', 'line', 'area', 'bar', 'hbar', 'stacked', 'donut', 'list', 'table', 'journeys', 'heatmap' );
+	public const TYPES = array( 'tile', 'line', 'area', 'bar', 'hbar', 'stacked', 'donut', 'list', 'table', 'journeys', 'heatmap', 'funnel' );
 
 	/** Types drawn with axes: one scale only. */
 	public const AXES = array( 'line', 'area', 'bar', 'hbar', 'stacked' );
@@ -125,6 +125,8 @@ final class ChartSpec {
 				return 'none' === $dimension && 1 === count( $metrics ) ? '' : 'A tile shows one number: dimension "none" and one metric.';
 			case 'journeys':
 				return 'journey' === $dimension ? '' : 'The journeys type needs the dimension "journey".';
+			case 'funnel':
+				return 'funnel' === $dimension ? '' : 'The funnel type needs the dimension "funnel" and "steps": the pages in order.';
 			case 'heatmap':
 				return 'hour_weekday' === $dimension && 1 === count( $metrics ) ? '' : 'A heatmap needs the dimension "hour_weekday" and one metric.';
 			case 'donut':
@@ -138,7 +140,7 @@ final class ChartSpec {
 			case 'list':
 				return 1 === count( $metrics ) && ! in_array( $dimension, array( 'none', 'hour_weekday', 'journey' ), true ) ? '' : 'A list ranks one metric over a dimension such as path, entry, exit, source or device.';
 			case 'stacked':
-				return '' !== $query['breakdown'] ? '' : 'A stacked chart needs a breakdown (device, source, entry or site) over a time dimension.';
+				return '' !== $query['breakdown'] ? '' : 'A stacked chart needs a breakdown (device, source, channel, entry, country or site) over a time dimension.';
 			case 'line':
 			case 'area':
 				return in_array( $dimension, array( 'day', 'week', 'month', 'weekday', 'hour' ), true ) ? '' : 'Lines and areas need a time dimension: day, week, month, weekday or hour. Use a bar chart for the others.';
