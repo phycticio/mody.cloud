@@ -203,6 +203,21 @@ $check( 'a period starting mid-week names its first week by its first day', ! is
 $check( 'a filter value in the normalized form is read back', ! is_wp_error( Query::normalize( Query::normalize( array( 'filters' => array( 'device' => array( 'not' => 'mobile' ), 'hour' => array( 'from' => 1, 'to' => 2 ) ) ) ) ) ) );
 wp_delete_post( $quiet, true );
 
+// Phase 3b (2026-11-13): goals and funnels.
+echo "\nGoals and funnels\n";
+$goal = $run( array( 'metrics' => array( 'reached', 'conversion_rate' ), 'dimension' => 'none', 'goal' => '/order/' ) );
+$check( 'a goal: 1 of 12 visits reached /order/ (8.3%)', ! is_wp_error( $goal ) && 1 === $goal['series'][0]['data'][0] && 8.3 === (float) $goal['series'][1]['data'][0] );
+$by_entry = $run( array( 'metrics' => array( 'conversion_rate' ), 'dimension' => 'entry', 'goal' => '/menu/' ) );
+$check( '... by entry page: of visits that came in on /, all 2 reached /menu/ (100%)', 100.0 === (float) ( array_combine( $by_entry['keys'], $by_entry['series'][0]['data'] )['/'] ?? 0 ) );
+$check( '... a prefix goal, and none refused', 3 === $total( $run( array( 'metrics' => array( 'reached' ), 'dimension' => 'none', 'goal' => '/men*' ) ) ) && str_contains( $refused( array( 'metrics' => array( 'reached' ) ) ), 'need "goal"' ) );
+$funnel = $run( array( 'dimension' => 'funnel', 'steps' => array( '/', '/menu/', '/order/' ) ) );
+$check( 'a funnel: / 3, then /menu/ 2, then /order/ 1, in step order', ! is_wp_error( $funnel ) && array( 3, 2, 1 ) === $funnel['series'][0]['data'] && '1. /' === $funnel['labels'][0] && '3. /order/' === $funnel['labels'][2] );
+$backwards = $run( array( 'dimension' => 'funnel', 'steps' => array( '/menu/', '/' ) ) );
+$check( '... order matters: /menu/ then / is 3, then 0', array( 3, 0 ) === $backwards['series'][0]['data'] );
+$check( '... with filters (phones: 2, 2, 1)', array( 2, 2, 1 ) === $run( array( 'dimension' => 'funnel', 'steps' => array( '/', '/menu/', '/order/' ), 'filters' => array( 'device' => 'mobile' ) ) )['series'][0]['data'] );
+$check( '... 2 to 5 steps', '' !== $refused( array( 'dimension' => 'funnel', 'steps' => array( '/' ) ) ) && '' !== $refused( array( 'dimension' => 'funnel', 'steps' => array( '/a/', '/b/', '/c/', '/d/', '/e/', '/f/' ) ) ) );
+$check( '... the funnel chart type needs the funnel dimension', ! is_wp_error( ChartSpec::validate( array( 'title' => 'Funnel', 'type' => 'funnel', 'query' => array( 'dimension' => 'funnel', 'steps' => array( '/', '/menu/' ) ) ) ) ) && is_wp_error( ChartSpec::validate( array( 'title' => 'Funnel', 'type' => 'funnel', 'query' => array( 'dimension' => 'day' ) ) ) ) );
+
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Test: an archived day, as the retention leaves it.
 $wpdb->insert( Store::daily(), array( 'site_id' => $site, 'day' => gmdate( 'Y-m-d', (int) strtotime( $today . ' 00:00:00 UTC' ) - 5 * DAY_IN_SECONDS ), 'kind' => 'total', 'value' => '', 'views' => 40, 'visitors' => 10 ) );
 $archived = $run( array( 'metrics' => array( 'visits' ), 'dimension' => 'day' ) );
@@ -300,6 +315,13 @@ $unknown = Board::apply( 'remove', array( 'id' => 'nope' ) );
 $check( 'an unknown chart is refused, with the board\'s ids', is_wp_error( $unknown ) && str_contains( $unknown->get_error_message(), 'visits-per-day' ) );
 $reset = Board::apply( 'reset' );
 $check( 'reset: the default board, and Undo brings ours back', ! is_wp_error( $reset ) && Board::is_default() && Board::can_undo() && ! is_wp_error( Board::apply( 'undo' ) ) && ! Board::is_default() );
+// Notes (phase 3c).
+$noted = Board::apply( 'note', array( 'date' => $ago, 'label' => 'Spring sale <b>started</b>' ) );
+$check( 'a note on a date, plain text', ! is_wp_error( $noted ) && array( array( 'date' => $ago, 'label' => 'Spring sale started' ) ) === Board::notes() && array( array( 'date' => $ago, 'label' => 'Spring sale started' ) ) === Board::payload( 7 )['notes'] );
+Board::apply( 'note', array( 'date' => $ago, 'label' => 'Sale' ) );
+$check( '... one per date: a new one replaces it', 1 === count( Board::notes() ) && 'Sale' === Board::notes()[0]['label'] );
+$check( '... bad dates and empty labels are refused', is_wp_error( Board::apply( 'note', array( 'date' => '2026-02-30', 'label' => 'x' ) ) ) && is_wp_error( Board::apply( 'note', array( 'date' => $ago, 'label' => '  ' ) ) ) );
+$check( '... removed by date; a missing one says so', ! is_wp_error( Board::apply( 'unnote', array( 'date' => $ago ) ) ) && array() === Board::notes() && is_wp_error( Board::apply( 'unnote', array( 'date' => $ago ) ) ) );
 update_option( Board::OPTION, array_merge( Board::cards(), array( array( 'id' => 'broken', 'type' => 'radar' ) ) ), false );
 $check( 'a stored card that no longer passes is left out', ! in_array( 'broken', array_column( Board::cards(), 'id' ), true ) );
 for ( $i = count( Board::cards() ); $i < Board::MAX_CARDS; $i++ ) {

@@ -504,6 +504,85 @@
 	transition: box-shadow 0.6s, border-color 0.6s;
 }
 
+/* Funnels (phase 3b): each step's share of the first, the visits lost between steps. */
+.mody-board__funnel {
+	margin: 4px 0 8px;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-board__funnel-step {
+	margin: 0;
+}
+
+.mody-board__funnel-head {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 4px;
+}
+
+.mody-board__funnel-name {
+	min-width: 0;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.mody-board__funnel-count {
+	flex: 0 0 auto;
+	color: #50575e;
+	font-variant-numeric: tabular-nums;
+}
+
+.mody-board__funnel-bar {
+	display: block;
+	height: 20px;
+	border-radius: 0 4px 4px 0;
+	background: #f0f0f1;
+	overflow: hidden;
+}
+
+.mody-board__funnel-bar > span {
+	display: block;
+	height: 100%;
+	border-radius: 0 4px 4px 0;
+}
+
+.mody-board__funnel-drop {
+	margin: 4px 0 8px 12px;
+	padding-left: 10px;
+	border-left: 2px solid #dcdcde;
+	color: #646970;
+	font-size: 12px;
+}
+
+/* Notes on dates (phase 3c), under time charts. */
+.mody-board__notes {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+	color: #50575e;
+}
+
+.mody-board__notes li {
+	display: flex;
+	gap: 8px;
+	margin: 0 0 2px;
+}
+
+.mody-board__note-date {
+	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	color: #646970;
+}
+
+.mody-board__csv {
+	display: inline-block;
+	margin-top: 8px;
+	font-size: 12px;
+}
+
 .mody-board[aria-busy="true"] .mody-board__grid {
 	opacity: 0.6;
 }

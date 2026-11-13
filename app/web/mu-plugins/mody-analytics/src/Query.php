@@ -48,13 +48,13 @@ defined( 'ABSPATH' ) || exit;
 final class Query {
 
 	/** What can be counted. Counts add up; ratios do not, and never share an axis with counts. */
-	public const METRICS = array( 'visits', 'views', 'pages_per_visit', 'single_page_rate', 'entries', 'exits' );
+	public const METRICS = array( 'visits', 'views', 'pages_per_visit', 'single_page_rate', 'entries', 'exits', 'reached', 'conversion_rate' );
 
 	/** Metrics that are counts. */
-	public const COUNTS = array( 'visits', 'views', 'entries', 'exits' );
+	public const COUNTS = array( 'visits', 'views', 'entries', 'exits', 'reached' );
 
 	/** What a query can be split by. */
-	public const DIMENSIONS = array( 'none', 'day', 'week', 'month', 'weekday', 'hour', 'hour_weekday', 'path', 'entry', 'exit', 'source', 'channel', 'device', 'country', 'city', 'journey', 'next', 'site' );
+	public const DIMENSIONS = array( 'none', 'day', 'week', 'month', 'weekday', 'hour', 'hour_weekday', 'path', 'entry', 'exit', 'source', 'channel', 'device', 'country', 'city', 'journey', 'next', 'funnel', 'site' );
 
 	/** Dimensions in time order, shown whole. */
 	public const TIME = array( 'day', 'week', 'month', 'weekday', 'hour', 'hour_weekday' );
@@ -90,10 +90,14 @@ final class Query {
 		'path'    => array( 'views', 'visits', 'entries', 'exits' ),
 		'next'    => array( 'visits' ),
 		'journey' => array( 'visits' ),
+		'funnel'  => array( 'visits' ),
 	);
 
 	/** The visit metrics: every dimension but path, next and journey. */
-	private const VISIT_METRICS = array( 'visits', 'views', 'pages_per_visit', 'single_page_rate' );
+	private const VISIT_METRICS = array( 'visits', 'views', 'pages_per_visit', 'single_page_rate', 'reached', 'conversion_rate' );
+
+	/** Steps of a funnel. */
+	public const MAX_STEPS = 5;
 
 	/** The longest period: the retention. */
 	public const MAX_DAYS = 395;
@@ -120,7 +124,7 @@ final class Query {
 		if ( ! is_array( $query ) ) {
 			return self::error( 'The query must be an object.' );
 		}
-		$unknown = array_diff( array_keys( $query ), array( 'metrics', 'dimension', 'breakdown', 'days', 'from', 'to', 'compare', 'filters', 'page', 'sort', 'other', 'limit' ) );
+		$unknown = array_diff( array_keys( $query ), array( 'metrics', 'dimension', 'breakdown', 'days', 'from', 'to', 'compare', 'filters', 'page', 'goal', 'steps', 'sort', 'other', 'limit' ) );
 		if ( $unknown ) {
 			return self::error( sprintf( 'Unknown query field: %s.', implode( ', ', $unknown ) ) );
 		}
@@ -210,6 +214,34 @@ final class Query {
 				return self::error( 'The "next" dimension needs "page": the page visits went on from, such as "/".' );
 			}
 		}
+		// Goals (phase 3b): the visits that saw a page.
+		$goal = array();
+		if ( array_intersect( $metrics, array( 'reached', 'conversion_rate' ) ) ) {
+			$goal = self::paths( $query['goal'] ?? '', 'goal' );
+			if ( is_wp_error( $goal ) ) {
+				return $goal;
+			}
+			if ( ! $goal ) {
+				return self::error( 'reached and conversion_rate need "goal": the page a visit must reach, such as "/register/" (or "/blog/*").' );
+			}
+		}
+		$steps = array();
+		if ( 'funnel' === $dimension ) {
+			$raw = $query['steps'] ?? array();
+			if ( ! is_array( $raw ) || count( $raw ) < 2 || count( $raw ) > self::MAX_STEPS ) {
+				return self::error( sprintf( 'A funnel needs "steps": 2 to %d pages in order, such as ["/", "/pricing/", "/register/"].', self::MAX_STEPS ) );
+			}
+			foreach ( $raw as $step ) {
+				$one = self::paths( $step, 'steps' );
+				if ( is_wp_error( $one ) ) {
+					return $one;
+				}
+				if ( 1 !== count( $one ) ) {
+					return self::error( 'Each step of a funnel is one page (or a prefix such as "/blog/*").' );
+				}
+				$steps[] = $one[0];
+			}
+		}
 		$sort = (string) ( $query['sort'] ?? 'desc' );
 		if ( ! in_array( $sort, array( 'desc', 'asc', 'label' ), true ) ) {
 			return self::error( 'sort must be desc (biggest first), asc (smallest first) or label.' );
@@ -232,6 +264,8 @@ final class Query {
 			'compare'   => $compare,
 			'filters'   => $clean,
 			'page'      => $page,
+			'goal'      => $goal,
+			'steps'     => $steps,
 			'sort'      => $sort,
 			'other'     => $other,
 			'limit'     => max( 1, min( self::MAX_LIMIT, $limit ) ),
@@ -270,6 +304,30 @@ final class Query {
 			'from' => gmdate( 'Y-m-d', $a ),
 			'to'   => gmdate( 'Y-m-d', $b ),
 		);
+	}
+
+	/**
+	 * Checks one page or a list of pages (a prefix ends in *).
+	 *
+	 * @param mixed  $value A path or a list.
+	 * @param string $field The field's name, for the reason.
+	 * @return array<int, string>|WP_Error
+	 */
+	private static function paths( $value, string $field ) {
+		$clean = array();
+		foreach ( is_array( $value ) ? $value : array( $value ) as $one ) {
+			if ( ! is_scalar( $one ) || '' === trim( (string) $one ) ) {
+				continue;
+			}
+			$one    = trim( (string) $one );
+			$prefix = str_ends_with( $one, '*' );
+			$path   = Collector::path( $prefix ? substr( $one, 0, -1 ) : $one );
+			if ( '' === $path ) {
+				return self::error( sprintf( '%s takes paths that start with "/".', $field ) );
+			}
+			$clean[] = $path . ( $prefix ? '*' : '' );
+		}
+		return array_values( array_unique( $clean ) );
 	}
 
 	/**
@@ -584,6 +642,9 @@ final class Query {
 			$columns[] = "SUBSTRING_INDEX(GROUP_CONCAT(v.path ORDER BY v.seq, v.id SEPARATOR '\\n'), '\\n', " . self::JOURNEY_STEPS . ') AS journey';
 			$columns[] = 'IF(COUNT(*) > ' . self::JOURNEY_STEPS . ', 1, 0) AS more';
 		}
+		if ( $query['goal'] ) {
+			$columns[] = 'SUM(' . self::path_sql( 'v.path', $query['goal'], $args ) . ') AS goal_hits';
+		}
 		$path = $filters['path'] ?? null;
 		if ( $path && 'path' !== $dimension ) {
 			$columns[] = 'SUM(' . self::path_sql( 'v.path', (array) ( $path['in'] ?? $path['not'] ), $args ) . ') AS saw';
@@ -618,6 +679,10 @@ final class Query {
 			$to      = (int) $filters['hour']['to'];
 			$where[] = $from <= $to ? 'x.hour BETWEEN %d AND %d' : '(x.hour >= %d OR x.hour <= %d)';
 			array_push( $wargs, $from, $to );
+		}
+
+		if ( 'funnel' === $dimension ) {
+			return self::funnel( $query, $visits, $args, $where, $wargs, $site_ids, $first, $last );
 		}
 
 		$columns_of = array(
@@ -677,9 +742,10 @@ final class Query {
 			if ( 'journey' === $dimension ) {
 				$where[] = 'x.pages > 1';
 			}
-			$more  = 'journey' === $dimension ? ', MAX(x.more) AS more' : '';
+			$more    = 'journey' === $dimension ? ', MAX(x.more) AS more' : '';
+			$reached = $query['goal'] ? ', SUM(x.goal_hits > 0) AS reached' : '';
 			$group = $by_time ? "x.day, x.site_id, {$split}" : "k, {$split}";
-			$sql   = "SELECT {$key} AS k, {$split} AS b, MIN(x.site_id) AS s, COUNT(*) AS visits, SUM(x.pages) AS views, SUM(x.pages = 1) AS singles{$more}
+			$sql   = "SELECT {$key} AS k, {$split} AS b, MIN(x.site_id) AS s, COUNT(*) AS visits, SUM(x.pages) AS views, SUM(x.pages = 1) AS singles{$reached}{$more}
 				FROM ({$visits}) x WHERE " . implode( ' AND ', $where ) . " GROUP BY {$group}";
 			$all   = array_merge( $args, $wargs );
 			if ( ! $by_time && ! in_array( $dimension, self::TIME, true ) ) {
@@ -718,6 +784,7 @@ final class Query {
 					'known'   => (int) $row['visits'],
 					'entries' => (int) ( $row['entries'] ?? 0 ),
 					'exits'   => (int) ( $row['exits'] ?? 0 ),
+					'reached' => (int) ( $row['reached'] ?? 0 ),
 					'more'    => ! empty( $row['more'] ),
 				)
 			);
@@ -733,6 +800,7 @@ final class Query {
 						'known'   => 0,
 						'entries' => 0,
 						'exits'   => 0,
+						'reached' => 0,
 						'more'    => false,
 					);
 				}
@@ -766,11 +834,71 @@ final class Query {
 							'known'   => 0,
 							'entries' => 0,
 							'exits'   => 0,
+							'reached' => 0,
 							'more'    => false,
 						)
 					);
 				}
 			}
+		}
+		return $out;
+	}
+
+	/**
+	 * A funnel: the visits that saw each step after the one before, in the
+	 * same visit (not necessarily next). Each visit's pages that match a
+	 * step come back in order, and PHP walks them: a page that matches the
+	 * step it waits for moves it on, so steps can repeat ("/" → "/pricing/"
+	 * → "/") and be prefixes.
+	 *
+	 * @param array<string, mixed> $query    The query.
+	 * @param string               $visits   The visits subquery.
+	 * @param array<int, mixed>    $args     Its placeholder values.
+	 * @param array<int, string>   $where    Filters on the visit.
+	 * @param array<int, mixed>    $wargs    Their placeholder values.
+	 * @param array<int, int>      $site_ids Sites.
+	 * @param string               $first    Y-m-d.
+	 * @param string               $last     Y-m-d.
+	 * @return array<string, array<string, array<string, int|bool>>> `n|path` => '' => counts, in step order.
+	 */
+	private static function funnel( array $query, string $visits, array $args, array $where, array $wargs, array $site_ids, string $first, string $last ): array {
+		global $wpdb;
+		$views = Store::views();
+		$in    = implode( ',', array_fill( 0, count( $site_ids ), '%d' ) );
+		$sargs = array();
+		$any   = self::path_sql( 'r.path', $query['steps'], $sargs );
+		$sql   = "SELECT GROUP_CONCAT(r.path ORDER BY r.seq, r.id SEPARATOR '\n') AS pages
+			FROM {$views} r JOIN ({$visits}) x ON x.visit_id = r.visit_id AND x.site_id = r.site_id
+			WHERE r.site_id IN ({$in}) AND r.day BETWEEN %s AND %s AND {$any} AND " . implode( ' AND ', $where ) . '
+			GROUP BY r.visit_id, r.site_id';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- Built from allowlists; every value is a placeholder.
+		$visits_pages = (array) $wpdb->get_col( $wpdb->prepare( $sql, ...array_merge( $args, $site_ids, array( $first, $last ), $sargs, $wargs ) ) );
+		$reached = array_fill( 0, count( $query['steps'] ), 0 );
+		foreach ( $visits_pages as $list ) {
+			$at = 0;
+			foreach ( explode( "\n", (string) $list ) as $page ) {
+				$step = $query['steps'][ $at ];
+				if ( str_ends_with( $step, '*' ) ? str_starts_with( $page, substr( $step, 0, -1 ) ) : $page === $step ) {
+					++$reached[ $at ];
+					++$at;
+					if ( $at >= count( $query['steps'] ) ) {
+						break;
+					}
+				}
+			}
+		}
+		$out = array();
+		foreach ( $query['steps'] as $i => $step ) {
+			$out[ ( $i + 1 ) . '|' . $step ][''] = array(
+				'visits'  => $reached[ $i ],
+				'views'   => 0,
+				'singles' => 0,
+				'known'   => $reached[ $i ],
+				'entries' => 0,
+				'exits'   => 0,
+				'reached' => 0,
+				'more'    => false,
+			);
 		}
 		return $out;
 	}
@@ -922,6 +1050,8 @@ final class Query {
 	 */
 	private static function value( string $metric, array $c ) {
 		switch ( $metric ) {
+			case 'conversion_rate':
+				return $c['known'] > 0 ? round( 100 * (int) ( $c['reached'] ?? 0 ) / $c['known'], 1 ) : 0;
 			case 'pages_per_visit':
 				return $c['visits'] > 0 ? round( $c['views'] / $c['visits'], 2 ) : 0;
 			case 'single_page_rate':
@@ -1035,6 +1165,7 @@ final class Query {
 				'known'   => 0,
 				'entries' => 0,
 				'exits'   => 0,
+				'reached' => 0,
 				'more'    => false,
 			);
 			foreach ( $splits as $c ) {
@@ -1133,6 +1264,8 @@ final class Query {
 			'single_page_rate' => __( 'Single-page visits (%)', 'mody_cloud' ),
 			'entries'          => __( 'Entries', 'mody_cloud' ),
 			'exits'            => __( 'Exits', 'mody_cloud' ),
+			'reached'          => __( 'Visits that reached the goal', 'mody_cloud' ),
+			'conversion_rate'  => __( 'Conversion rate (%)', 'mody_cloud' ),
 		)[ $metric ] ?? $metric;
 	}
 
@@ -1187,6 +1320,9 @@ final class Query {
 				return '' !== $name ? $name : '#' . $key;
 			case 'journey':
 				return implode( ' → ', explode( "\n", $key ) );
+			case 'funnel':
+				list( $number, $step ) = array_pad( explode( '|', $key, 2 ), 2, '' );
+				return $number . '. ' . $step;
 			case 'none':
 				return '';
 			default:

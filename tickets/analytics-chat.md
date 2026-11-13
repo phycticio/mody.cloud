@@ -1,6 +1,6 @@
 # Analytics chat: a board of charts and a Mody that reads only the numbers
 
-**Builds on:** [analytics-journeys.md](analytics-journeys.md) (the views table, `Stats`), [mody-dashboard.md](mody-dashboard.md) (the Visitors section), the agent's job machinery ([ai-engine.md](../documentation/ai-engine.md#background-jobs): background jobs, `Agent\Slots`, `Agent\Budget`, `Agent\TurnMetrics`) · **Status:** planned 2026-11-12; phase 1 (the board) built and pushed the same day; phase 2 (the analyst) and phase 3a (dates, filters, channels) built 2026-11-13; not deployed.
+**Builds on:** [analytics-journeys.md](analytics-journeys.md) (the views table, `Stats`), [mody-dashboard.md](mody-dashboard.md) (the Visitors section), the agent's job machinery ([ai-engine.md](../documentation/ai-engine.md#background-jobs): background jobs, `Agent\Slots`, `Agent\Budget`, `Agent\TurnMetrics`) · **Status:** planned 2026-11-12; phase 1 (the board) built and pushed the same day; phase 2 (the analyst) and phase 3 (dates, filters, channels; goals, funnels; notes, CSV, explanations) built 2026-11-13; not deployed.
 
 ## Asked for
 By the maintainer on 2026-11-12:
@@ -196,6 +196,19 @@ Asked for: "The analyst should also be able to filter, reduce the graphic, ask f
 - **Seen and fixed:** long paths are cut from the left on horizontal bars; area legends use the line's color; tile buttons float so titles do not wrap; focus goes to Undo after remove and reset.
 - **Before deploying:** `pnpm build` (the deploy runs it) builds `app/dist/analytics-board.js`. Without it the Visitors section stays as before.
 - **Next:** phase 2, the analyst and its bubble.
+
+## Results: phases 3b and 3c (2026-11-13)
+- **Goals:** `reached` (visits that saw the `goal` page or prefix) and `conversion_rate` (their share of the visits counted from the views table), over time and by any visit dimension.
+- **Funnels:** the dimension and chart type `funnel`, with `steps` (2 to 5 pages in order). Each visit's matching pages come back in order, and PHP walks them, so steps may repeat and be prefixes. The chart shows each step's visits, its share of the first, and "−N left here (P%)" between steps.
+- **Notes on dates:** the site option `mody_analytics_notes` (at most 50, one per date, plain text up to 60 characters). The board tool's `note` and `unnote` actions manage them. Day, week and month charts draw a thin line with the label, and list the notes under the chart. Notes are not part of Undo, and the bubble offers Undo only after a change to the charts themselves.
+- **CSV:** a "Download CSV" link in every chart's table, built in the browser (a `Blob`, with a byte-order mark for spreadsheets). A cell that starts like a formula (`=`, `+`, `-`, `@`) is quoted with an apostrophe, since paths and sources are typed by visitors.
+- **Looking into "why":** rule 8 of the analyst's prompt. It counts that day by channel and entry page against the same weekday over the four weeks before, then answers with what was different.
+- **Tests:**
+  - `scripts/analytics-board-test.php` now has 100 checks (goals, funnels in order and with filters, the funnel type, notes); all pass.
+  - `scripts/analytics-analyst-test.php` now has 31 checks; all pass.
+  - `scripts/analytics-eval.php` now has 27 cases (4 new: a goal's share, a funnel chart, a note, a "why"). 27 of 27 pass. In the "why" case the analyst ran five counts and answered with that day's channels and entry page against a normal Friday.
+- **A privacy gap the evaluation found:** asked about a town under 5 visits, the analyst refused, then offered "France as a whole (1 visit)", which was the town's own number. The prompt now forbids offering a country's total or any other count as a way around a hidden town. Countries stay visible on the board, as decided. **Open question:** should a country with fewer than 5 visits in a period also be folded ("Other countries")? A very small site could otherwise show a country of one visit next to a hidden town.
+- **In headless Chromium:** a funnel, a conversion rate by channel with values, and a weekly line with two notes, with no script errors. The CSV links are named after the chart and its dates.
 
 ## Results: phase 3a (2026-11-13)
 - **Built:**
