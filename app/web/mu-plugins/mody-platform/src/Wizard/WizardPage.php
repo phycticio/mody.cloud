@@ -136,7 +136,7 @@ final class WizardPage {
 		<div class="wrap mody-wizard">
 			<h1><?php esc_html_e( 'Finish your payment', 'mody_cloud' ); ?></h1>
 			<div class="notice notice-info inline mody-wizard__payment">
-				<p><?php esc_html_e( 'Your account is ready. To start your 30-day trial, confirm your card with a 0.01 EUR check. Then you can create your first site.', 'mody_cloud' ); ?></p>
+				<p><?php esc_html_e( 'Your account is ready. To start, confirm your card with a 0.01 EUR check. Then you can create your first site.', 'mody_cloud' ); ?></p>
 				<p><?php esc_html_e( 'Card checks open soon.', 'mody_cloud' ); ?></p>
 			</div>
 		</div>
@@ -168,12 +168,27 @@ final class WizardPage {
 			<h1><?php esc_html_e( 'New site', 'mody_cloud' ); ?></h1>
 			<p class="mody-wizard__quota">
 				<?php
-				/* translators: 1: sites in use, 2: sites the plan includes. */
-				echo esc_html( sprintf( __( '%1$d of %2$d sites used', 'mody_cloud' ), $used, $limit ) );
+				echo esc_html(
+					$used > $limit
+						/* translators: %d: sites the account has (more than its plan includes: a trial account from before 2026-11-13). */
+						? sprintf( _n( '%d site used', '%d sites used', $used, 'mody_cloud' ), $used )
+						/* translators: 1: sites in use, 2: sites the plan includes. */
+						: sprintf( _n( '%1$d of %2$d site used', '%1$d of %2$d sites used', $limit, 'mody_cloud' ), $used, $limit )
+				);
 				?>
 			</p>
 			<?php if ( $used >= $limit ) : ?>
-				<div class="notice notice-warning inline"><p><?php esc_html_e( 'All the sites of your plan are in use, so you cannot create another one.', 'mody_cloud' ); ?></p></div>
+				<div class="notice notice-warning inline"><p>
+					<?php
+					echo esc_html(
+						'free' === (string) ( Members::get( $user_id )['plan'] ?? '' )
+							? __( 'The launch offer includes one site.', 'mody_cloud' )
+							/* translators: %d: the most sites an account can have. */
+							: sprintf( _n( 'An account can have %d site, so you cannot create another one.', 'An account can have %d sites, so you cannot create another one.', $limit, 'mody_cloud' ), $limit )
+					);
+					?>
+					<a href="<?php echo esc_url( \Mody\Platform\Billing\Billing::plan_url( $user_id ) ); ?>"><?php esc_html_e( 'Plan & billing', 'mody_cloud' ); ?></a>
+				</p></div>
 			<?php endif; ?>
 
 			<form id="mody-wizard-form" class="mody-wizard__form" novalidate>

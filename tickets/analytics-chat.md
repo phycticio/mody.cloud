@@ -80,7 +80,7 @@ The model never writes SQL, JavaScript, HTML or numbers into a chart. It writes 
 ### 5. The analyst (`Dashboard\Analyst`, in `mody-platform`)
 A second, small agent. It does not reuse `Agent::respond()`, which is built around the editors (page tools, held changes, sections). It reuses the agent's machinery:
 - **Endpoint:** `POST mody-platform/v1/analytics/analyst`, answered **within the request** (changed when built, rule 5): a turn is one to five short model calls with no page to write, 1 to 5 seconds, so there is no background job, no checker and no change to the editor chat's `ChatController`. `GET` returns the conversation, `DELETE` starts a new one (a transient per user and site, the last 16 messages, with the tool calls).
-- **Limits:** `Agent\Slots` (one job per person and site, three on the network), `Agent\Budget` (the same daily token budget), at most 5 model requests and 5 tool calls per message, a 90-second deadline, temperature 0.1, Qwen through Infomaniak (EU).
+- **Limits:** `Agent\Slots` (one job per person and site, three on the network), `Agent\Budget` (the site's token allowance, a month's and a day's since 2026-11-13), at most 5 model requests and 5 tool calls per message, a 90-second deadline, temperature 0.1, Qwen through Infomaniak (EU).
 - **Measurement:** `Agent\TurnMetrics` writes a `turn` row with a new kind, `analytics`. Mody's work gets a fourth group, **Analytics** (`Dashboard\Usage::GROUPS`).
 - **System prompt** (in English, rule 8):
   - what the data is: anonymous visits, per site, a new visit after 30 minutes, kept 13 months, no people;

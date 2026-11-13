@@ -2,6 +2,8 @@
 
 **Milestone:** M1 · **Spec:** documentation/mvp-spec.md §3, §4, §5, §11, §12 · **Status:** in progress: parts 1 and 2 done 2026-11-08; parts 3 to 5 to do. Split into parts on 2026-11-08 (rule 5); before that the ticket was one block. **Changed on 2026-11-08 by [M1-03](M1-03-chat-signup-and-editor-tour.md):** the trial needs no card, and the signup is a chat that creates the first site. Part 2's form is replaced, and part 3 moves to the end of the trial.
 
+**Changed 2026-11-13** ([pricing-per-site.md](pricing-per-site.md)): one price per site (7.99 EUR a month or 79.99 a year, VAT included) and the launch offer (the first 50 accounts, one site free for six months) replace the plans and the trial below. Part 3 now charges the price times the account's sites when the free months end, sends the reminders a month and a week before, and opens paid signups.
+
 ## Goal
 A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no card since 2026-11-08 ([M1-03](M1-03-chat-signup-and-editor-tour.md)), and a member manages their plan and card from the Mody dashboard. Past-due read-only and the 60-day deletion are [M1-02](M1-02-past-due-readonly-deletion.md).
 
@@ -30,6 +32,17 @@ A visitor reaches an active 30-day trial (3 sites) in under 2 minutes, with no c
   3. **A `pending_payment` account** logs in and sees a "Finish your payment" step on the dashboard, but creates no site.
 
 ### Part 3 · Mollie card verification and webhook (needs the Mollie test keys)
+**Decided 2026-11-13:** cards only; Mollie's REST API through `wp_remote_*` (no new dependency); invoices from Mollie at first, then our own invoicing plugin; the 14-day withdrawal refunds the first charge in full. Locally the payment's status is fetched on return from the checkout (Mollie cannot reach `mody.local`); the webhook is tested once on production with the test key before launch.
+
+**Built 2026-11-13 (part 3a), on `feature/pricing-per-site`, tested against a fake Mollie; the real sandbox waits for the test key** (`scripts/mollie-sandbox.md`):
+- `src/Billing/Mollie.php`: customers, payments, mandates, refunds; the key only from `MOLLIE_API_KEY`; an `Idempotency-Key` on every POST.
+- `src/Billing/Payments.php`: the `mody_payments` table (card checks and charges, Mollie's status, applied once, refunded).
+- `src/Billing/Billing.php`: Add your card (the terms ticked, a 0.01 EUR `first` payment, its mandate kept with the card's brand and last digits, the terms emailed with the model withdrawal form); charges when `billing_due_at` comes (sites × price, a `recurring` payment; paid → `paid` and a month or year on; failed → `past_due`, tried again daily for 60 days); no card at the end of the free months → `past_due`; the webhook `mody-platform/v1/mollie/webhook` (asks Mollie, acts only on its own payments, once, always 200; rate limited); the 14-day withdrawal (a full refund of the first charge, the account `canceled`); reminders a month and a week before the free months end; the daily run.
+- `src/Billing/Command.php`: `wp mody-billing run`, `process <tr_id>`, `status <user>`.
+- Plan & billing: the card, Add your card or Change card, the payments, the Withdraw button while it applies. The members table version 5 adds the status `canceled`.
+- **Still to do:** paid signups after the launch offer (part 3b); what starts the daily run (the WP-Cron decision; a host cron calling `wp mody-billing run` is the recommendation); read-only and deletion for `past_due` and `canceled` (M1-02); the seller's legal name and address in the emails (`mody_seller_name`, `mody_seller_address`) and the legal pages before real money.
+- Test: `scripts/billing-test.php`.
+
 - **The new plans (2026-11-10):** rename the plans in `Members::PLANS` and the `plan` and `next_plan` enums (a table version 3), add the billing period (monthly or yearly), and update `scripts/members-test.php` and `scripts/registration-test.php`.
 **Reworked on 2026-11-08** ([M1-03](M1-03-chat-signup-and-editor-tour.md)): the trial starts without a card, so this checkout now runs **during the trial**, from the dashboard, where the member also chooses their plan (`next_plan`). What happens at day 30 without a card is an open question (mvp-spec §16, question 7). The list below is the card-first design; keep what still applies.
 - A Mollie customer and a 0.01 EUR card-verification checkout, then the redirect to Mollie.

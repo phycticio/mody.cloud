@@ -64,6 +64,9 @@ final class RateLimit {
 	 * - altcha_challenge: challenges handed to one address.
 	 * - beacon:           analytics views from one address (only counted views
 	 *                     are dropped, nothing is refused).
+	 * - mollie_webhook:   Mollie's webhook calls from one address (each asks
+	 *                     Mollie's API once).
+	 * - card_check:       card checks one member starts (Mollie checkouts).
 	 */
 	public const DEFAULTS = array(
 		'signup_address'   => array( 3, DAY_IN_SECONDS ),
@@ -78,6 +81,8 @@ final class RateLimit {
 		'comment'          => array( 10, HOUR_IN_SECONDS ),
 		'altcha_challenge' => array( 60, 10 * MINUTE_IN_SECONDS ),
 		'beacon'           => array( 120, MINUTE_IN_SECONDS ),
+		'mollie_webhook'   => array( 120, MINUTE_IN_SECONDS ),
+		'card_check'       => array( 10, HOUR_IN_SECONDS ),
 	);
 
 	/** The table, without the network's prefix. */

@@ -298,7 +298,7 @@ final class Agent {
 		if ( '' !== $agent->input ) {
 			AgentEvents::log( $agent->input, TurnMetrics::TOOL, null, (string) wp_json_encode( $metrics, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $agent->started );
 		}
-		Budget::settle(); // The turn's row holds its tokens now (the daily budget).
+		Budget::settle(); // The turn's row holds its tokens now (the site's allowance).
 		return $turn;
 	}
 
@@ -750,7 +750,7 @@ final class Agent {
 		$scope       = in_array( $scope, array( 'selection', 'content' ), true ) ? $scope : ( $selected ? 'selection' : 'content' );
 
 		$error = null;
-		$over  = Budget::check(); // The daily allowance: an edit is one or many model runs.
+		$over  = Budget::check(); // The site's allowance: an edit is one or many model runs.
 		if ( $over ) {
 			$error = array( $over->get_error_code(), $over->get_error_message() );
 		} elseif ( $this->edited ) {

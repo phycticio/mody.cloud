@@ -8,7 +8,6 @@
 
 namespace Mody\Platform\Members;
 
-use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Wizard\WizardPage;
 use WP_Error;
 
@@ -17,19 +16,29 @@ defined( 'ABSPATH' ) || exit;
 /**
  * One row per member account, network-wide.
  *
- * - **Plans** (membership-tiers.md, decided 2026-11-10; in code since
- *   2026-11-11): the trial has 3 sites; the paid plans 1, 3 and 10, paid
- *   monthly or yearly (`billing_period`). A plan is a column, not a
- *   WordPress role (decided 2026-11-08): roles are per site in Multisite,
- *   and members are `administrator` of their own sites. During the trial
- *   `plan` is `trial` and `next_plan` holds the plan the member chose on
- *   the dashboard (choose_plan()), charged when the trial ends; later it
- *   holds a plan change for the next billing date.
- * - **Statuses** (spec section 4): `active` (the trial included: since
- *   2026-11-08 it starts without a card, start_trial(), M1-03),
+ * - **Plans** (membership-tiers.md, decided by the maintainer on
+ *   2026-11-13; they replace the 1, 3 and 10-site plans of 2026-11-10 and
+ *   the 30-day trial): every site costs the same, PRICE, VAT included,
+ *   monthly or yearly (`billing_period`), with the same features. `plan`
+ *   is `free` (the launch offer, below) or `paid`. A plan is a column, not
+ *   a WordPress role (decided 2026-11-08): roles are per site in Multisite,
+ *   and members are `administrator` of their own sites.
+ * - **The launch offer** (replaces the trial): during the first
+ *   PROMO_MONTHS months, the first FREE_PLACES accounts are free for
+ *   FREE_MONTHS months, with one site and no card (start_free()). The
+ *   offer's months count from the network option `mody_promo_starts_at`
+ *   (a Unix time), set by the first free account unless set before; the
+ *   places given are counted in `mody_promo_given`, so a deleted account
+ *   does not give its place back. When it ends (`free_until`, also the
+ *   first billing date), the account needs a card (Mollie, M1-01 part 3):
+ *   reminders a month and a week before, then the sites go read-only for
+ *   60 days, then they are deleted (spec section 4; not built yet).
+ * - **Statuses** (spec section 4): `active` (free accounts included),
  *   `pending_payment` until a card is verified, `past_due` after a failed
- *   charge, `expired_signup` when no payment arrived within 24 hours, and
- *   `expired` once the sites are deleted after 60 days past due.
+ *   charge or no card when the free months end, `canceled` after a
+ *   withdrawal (Billing\Billing::withdraw()), `expired_signup` when no payment
+ *   arrived within 24 hours, and `expired` once the sites are deleted after
+ *   60 days past due or canceled (M1-02).
  * - **What a row gives:** the dashboard capability (spec section 3) and the
  *   plan's site limit (`mody_site_limit`). No site may be created before the
  *   card is verified (`mody_can_create_site`, decided 2026-11-08). Past-due
@@ -41,58 +50,52 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Members {
 
-	/**
-	 * Plans: slug => sites, and the prices in EUR, monthly and yearly
-	 * (decided by the maintainer on 2026-11-10, membership-tiers.md). The
-	 * slugs replaced Collaborator, Member and Patron on 2026-11-11.
-	 */
-	public const PLANS = array(
-		'trial'    => array(
-			'sites'   => 3,
-			'monthly' => 0,
-			'yearly'  => 0,
-		),
-		'sites_1'  => array(
-			'sites'   => 1,
-			'monthly' => 9.99,
-			'yearly'  => 89.99,
-		),
-		'sites_3'  => array(
-			'sites'   => 3,
-			'monthly' => 25.99,
-			'yearly'  => 249.99,
-		),
-		'sites_10' => array(
-			'sites'   => 10,
-			'monthly' => 49.99,
-			'yearly'  => 499.99,
-		),
+	/** The plans: the launch offer, and paying per site. */
+	public const PLANS = array( 'free', 'paid' );
+
+	/** One site's price in EUR, VAT included (decided 2026-11-13: ten months for a year). */
+	public const PRICE = array(
+		'monthly' => 7.99,
+		'yearly'  => 79.99,
 	);
 
-	/** The billing periods of a paid plan. */
+	/**
+	 * The sites an account may have: one during the offer; ten when paying,
+	 * each paid (a real limit, rule 7; more is not offered yet).
+	 */
+	public const SITE_LIMITS = array(
+		'free' => 1,
+		'paid' => 10,
+	);
+
+	/** The billing periods. */
 	public const PERIODS = array( 'monthly', 'yearly' );
 
-	/** The plans before 2026-11-11, and the plan each became. */
+	/** The launch offer: how many accounts, for how long, and for how long it is offered. */
+	public const FREE_PLACES  = 50;
+	public const FREE_MONTHS  = 6;
+	public const PROMO_MONTHS = 3;
+
+	/** Network options: when the offer started (Unix time), and how many places it gave. */
+	public const PROMO_START_OPTION = 'mody_promo_starts_at';
+	public const PROMO_GIVEN_OPTION = 'mody_promo_given';
+
+	/** The plans before 2026-11-13, and the plan each became. */
 	private const OLD_PLANS = array(
-		'collaborator' => 'sites_3',
-		'member'       => 'sites_10',
-		'patron'       => 'sites_10',
+		'trial'    => 'free',
+		'sites_1'  => 'paid',
+		'sites_3'  => 'paid',
+		'sites_10' => 'paid',
 	);
-
-	/** How long the trial lasts (spec decision 3). */
-	public const TRIAL_DAYS = 30;
-
-	/** The plans a member chooses during the trial or later; the trial is not one of them. */
-	public const PAID_PLANS = array( 'sites_1', 'sites_3', 'sites_10' );
 
 	/** Statuses whose card is not verified yet (spec section 4): no site may be created. */
 	public const UNPAID_STATUSES = array( 'pending_payment', 'expired_signup' );
 
 	/** Account statuses, in the order an account usually moves through them. */
-	public const STATUSES = array( 'pending_payment', 'active', 'past_due', 'expired_signup', 'expired' );
+	public const STATUSES = array( 'pending_payment', 'active', 'past_due', 'canceled', 'expired_signup', 'expired' );
 
 	/** Bump when the table definition in install() changes. */
-	private const DB_VERSION = '3'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period.
+	private const DB_VERSION = '5'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`.
 
 	/** Network option that records the installed table version. */
 	private const DB_VERSION_OPTION = 'mody_members_db_version';
@@ -128,14 +131,22 @@ final class Members {
 		$table   = self::table();
 		$charset = $wpdb->get_charset_collate();
 
-		// Version 3: the old plans become the new ones. Both sets are allowed for the update, then dbDelta() keeps the new.
+		// Version 4: the old plans become free and paid; the trial's end becomes free_until, six months after signup.
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Schema check.
-			$both = "'trial','" . implode( "','", array_keys( self::OLD_PLANS ) ) . "','" . implode( "','", self::PAID_PLANS ) . "'";
 			// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Own table; constants only.
-			$wpdb->query( "ALTER TABLE {$table} MODIFY plan enum({$both}) NOT NULL DEFAULT 'trial', MODIFY next_plan enum({$both}) DEFAULT NULL" );
+			$columns = (array) $wpdb->get_col( "SHOW COLUMNS FROM {$table}" );
+			$both    = "'" . implode( "','", array_unique( array_merge( array( 'collaborator', 'member', 'patron' ), array_keys( self::OLD_PLANS ), self::PLANS ) ) ) . "'";
+			$wpdb->query( "ALTER TABLE {$table} MODIFY plan enum({$both}) NOT NULL DEFAULT 'free'" );
+			$wpdb->query( "UPDATE {$table} SET plan = 'paid' WHERE plan IN ('collaborator','member','patron')" );
 			foreach ( self::OLD_PLANS as $old => $new ) {
 				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET plan = %s WHERE plan = %s", $new, $old ) );
-				$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET next_plan = %s WHERE next_plan = %s", $new, $old ) );
+			}
+			if ( in_array( 'trial_ends_at', $columns, true ) && ! in_array( 'free_until', $columns, true ) ) {
+				$wpdb->query( "ALTER TABLE {$table} CHANGE trial_ends_at free_until datetime DEFAULT NULL" );
+			}
+			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET free_until = DATE_ADD(created_at, INTERVAL %d MONTH), billing_due_at = DATE_ADD(created_at, INTERVAL %d MONTH) WHERE plan = 'free'", self::FREE_MONTHS, self::FREE_MONTHS ) );
+			if ( in_array( 'next_plan', $columns, true ) ) {
+				$wpdb->query( "ALTER TABLE {$table} DROP COLUMN next_plan" );
 			}
 			// phpcs:enable
 		}
@@ -144,11 +155,10 @@ final class Members {
 		dbDelta(
 			"CREATE TABLE {$table} (
   user_id bigint(20) unsigned NOT NULL,
-  plan enum('trial','sites_1','sites_3','sites_10') NOT NULL DEFAULT 'trial',
-  next_plan enum('sites_1','sites_3','sites_10') DEFAULT NULL,
+  plan enum('free','paid') NOT NULL DEFAULT 'free',
   billing_period enum('monthly','yearly') NOT NULL DEFAULT 'monthly',
-  status enum('pending_payment','active','past_due','expired_signup','expired') NOT NULL,
-  trial_ends_at datetime DEFAULT NULL,
+  status enum('pending_payment','active','past_due','canceled','expired_signup','expired') NOT NULL,
+  free_until datetime DEFAULT NULL,
   billing_due_at datetime DEFAULT NULL,
   past_due_since datetime DEFAULT NULL,
   mollie_customer_id varchar(64) DEFAULT NULL,
@@ -183,21 +193,18 @@ final class Members {
 	}
 
 	/**
-	 * Creates a member's row. Registration (part 2) is its caller.
+	 * Creates a member's row. Registration is its caller (start_free()).
 	 *
-	 * @param int    $user_id   An existing user.
-	 * @param string $plan      One of the PLANS keys.
-	 * @param string $status    One of STATUSES.
-	 * @param string $next_plan One of PAID_PLANS, or '' for none: the plan
-	 *                          chosen at signup, charged when the trial ends
-	 *                          (and later a plan change for the next billing date).
+	 * @param int    $user_id An existing user.
+	 * @param string $plan    One of PLANS.
+	 * @param string $status  One of STATUSES.
 	 * @return true|WP_Error
 	 */
-	public static function create( int $user_id, string $plan = 'trial', string $status = 'pending_payment', string $next_plan = '' ): bool|WP_Error {
+	public static function create( int $user_id, string $plan = 'free', string $status = 'pending_payment' ): bool|WP_Error {
 		if ( ! get_userdata( $user_id ) ) {
 			return new WP_Error( 'mody_member_no_user', __( 'There is no such user.', 'mody_cloud' ) );
 		}
-		if ( ! isset( self::PLANS[ $plan ] ) || ( '' !== $next_plan && ! in_array( $next_plan, self::PAID_PLANS, true ) ) ) {
+		if ( ! in_array( $plan, self::PLANS, true ) ) {
 			return new WP_Error( 'mody_member_plan', __( 'There is no such plan.', 'mody_cloud' ) );
 		}
 		if ( ! in_array( $status, self::STATUSES, true ) ) {
@@ -207,62 +214,138 @@ final class Members {
 			return new WP_Error( 'mody_member_exists', __( 'This user already has a member account.', 'mody_cloud' ) );
 		}
 		global $wpdb;
-		$row = array(
-			'user_id' => $user_id,
-			'plan'    => $plan,
-			'status'  => $status,
-		);
-		if ( '' !== $next_plan ) {
-			$row['next_plan'] = $next_plan;
-		}
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
-		$inserted = $wpdb->insert( self::table(), $row, array_merge( array( '%d' ), array_fill( 0, count( $row ) - 1, '%s' ) ) );
+		$inserted = $wpdb->insert(
+			self::table(),
+			array(
+				'user_id' => $user_id,
+				'plan'    => $plan,
+				'status'  => $status,
+			),
+			array( '%d', '%s', '%s' )
+		);
 		unset( self::$rows[ $user_id ] );
 		return $inserted ? true : new WP_Error( 'mody_member_db', __( 'The member account could not be saved.', 'mody_cloud' ) );
 	}
 
 	/**
-	 * Starts a member's trial: plan `trial`, status `active`, and the trial's
-	 * end (also the first billing date) TRIAL_DAYS from now. No card is
-	 * needed (decided 2026-11-08, M1-03).
+	 * Gives a new account one of the launch offer's places: plan `free`,
+	 * status `active`, free for FREE_MONTHS months (`free_until`, also the
+	 * first billing date). No card is needed. The first place starts the
+	 * offer's months.
 	 *
 	 * @param int $user_id An existing user without a row.
-	 * @return true|WP_Error
+	 * @return true|WP_Error `mody_promo_closed` when no place is left or the offer has ended.
 	 */
-	public static function start_trial( int $user_id ): bool|WP_Error {
-		$created = self::create( $user_id, 'trial', 'active' );
-		if ( is_wp_error( $created ) ) {
-			return $created;
-		}
-		$ends = gmdate( 'Y-m-d H:i:s', time() + self::TRIAL_DAYS * DAY_IN_SECONDS );
+	public static function start_free( int $user_id ): bool|WP_Error {
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
-		$wpdb->update(
-			self::table(),
-			array(
-				'trial_ends_at'  => $ends,
-				'billing_due_at' => $ends,
-			),
-			array( 'user_id' => $user_id ),
-			array( '%s', '%s' ),
-			array( '%d' )
+		// One signup at a time takes a place, so two at once never make 51.
+		$locked = (bool) $wpdb->get_var( "SELECT GET_LOCK('mody_promo', 10)" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock, not data.
+		try {
+			if ( ! $locked || ! self::promo_open() ) {
+				return new WP_Error( 'mody_promo_closed', self::promo_closed_message() );
+			}
+			$created = self::create( $user_id, 'free', 'active' );
+			if ( is_wp_error( $created ) ) {
+				return $created;
+			}
+			if ( ! self::promo_starts() ) {
+				update_site_option( self::PROMO_START_OPTION, time() );
+			}
+			update_site_option( self::PROMO_GIVEN_OPTION, self::promo_given() + 1 );
+			$until = gmdate( 'Y-m-d H:i:s', (int) strtotime( '+' . self::FREE_MONTHS . ' months' ) );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
+			$wpdb->update(
+				self::table(),
+				array(
+					'free_until'     => $until,
+					'billing_due_at' => $until,
+				),
+				array( 'user_id' => $user_id ),
+				array( '%s', '%s' ),
+				array( '%d' )
+			);
+			unset( self::$rows[ $user_id ] );
+			return true;
+		} finally {
+			if ( $locked ) {
+				$wpdb->get_var( "SELECT RELEASE_LOCK('mody_promo')" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock, not data.
+			}
+		}
+	}
+
+	/** When the launch offer started, as a Unix time, or 0 before its first account. */
+	public static function promo_starts(): int {
+		return (int) get_site_option( self::PROMO_START_OPTION, 0 );
+	}
+
+	/** When the launch offer stops taking accounts, or 0 before it started. */
+	public static function promo_ends(): int {
+		$start = self::promo_starts();
+		return $start ? (int) strtotime( '+' . self::PROMO_MONTHS . ' months', $start ) : 0;
+	}
+
+	/** How many of the launch offer's places were given. */
+	public static function promo_given(): int {
+		return (int) get_site_option( self::PROMO_GIVEN_OPTION, 0 );
+	}
+
+	/** How many places are left. */
+	public static function promo_left(): int {
+		return max( 0, self::FREE_PLACES - self::promo_given() );
+	}
+
+	/** Whether the launch offer still takes accounts: places left, and within its months. */
+	public static function promo_open(): bool {
+		$ends = self::promo_ends();
+		return self::promo_left() > 0 && ( ! $ends || time() < $ends );
+	}
+
+	/** What a visitor reads once the offer has stopped taking accounts. */
+	public static function promo_closed_message(): string {
+		$first = self::promo_left() > 0
+			? __( 'Our launch offer has ended.', 'mody_cloud' )
+			/* translators: %d: how many free places the launch offer had. */
+			: sprintf( __( 'The %d free places of our launch offer are taken.', 'mody_cloud' ), self::FREE_PLACES );
+		return $first . ' ' . sprintf(
+			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
+			__( 'Sign-ups at %s a month per site, VAT included, open soon.', 'mody_cloud' ),
+			self::price( self::PRICE['monthly'] )
 		);
-		unset( self::$rows[ $user_id ] );
-		return true;
 	}
 
 	/**
-	 * When a member's trial ends, as a Unix timestamp, or 0 when they are not
-	 * on a trial.
+	 * When a member's free months end, as a Unix timestamp, or 0 when they
+	 * are not on the launch offer.
 	 *
 	 * @param int $user_id User ID.
 	 */
-	public static function trial_ends( int $user_id ): int {
+	public static function free_until( int $user_id ): int {
 		$row = self::get( $user_id );
-		if ( ! $row || 'trial' !== $row['plan'] || empty( $row['trial_ends_at'] ) ) {
+		if ( ! $row || 'free' !== $row['plan'] || empty( $row['free_until'] ) ) {
 			return 0;
 		}
-		return (int) strtotime( $row['trial_ends_at'] . ' UTC' );
+		return (int) strtotime( $row['free_until'] . ' UTC' );
+	}
+
+	/**
+	 * Changes columns of a member's row.
+	 *
+	 * @param int                  $user_id User ID.
+	 * @param array<string, mixed> $fields  Columns; null writes NULL.
+	 */
+	public static function update( int $user_id, array $fields ): void {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
+		$wpdb->update( self::table(), $fields, array( 'user_id' => $user_id ) );
+		unset( self::$rows[ $user_id ] );
+	}
+
+	/**
+	 * Forgets the rows read in this request (another process changed them).
+	 */
+	public static function forget(): void {
+		self::$rows = array();
 	}
 
 	/**
@@ -285,72 +368,70 @@ final class Members {
 	 */
 	public static function site_limit( int $limit, int $user_id ): int {
 		$row = self::get( $user_id );
-		return $row ? (int) self::PLANS[ $row['plan'] ]['sites'] : $limit;
+		return $row ? (int) ( self::SITE_LIMITS[ $row['plan'] ] ?? self::SITE_LIMITS['free'] ) : $limit;
 	}
 
 	/**
 	 * A plan's name, translated.
 	 *
-	 * @param string $plan One of the PLANS keys.
+	 * @param string $plan One of PLANS.
 	 */
 	public static function plan_label( string $plan ): string {
 		return match ( $plan ) {
-			'trial' => __( 'Trial', 'mody_cloud' ),
-			default => isset( self::PLANS[ $plan ] )
-				/* translators: %d: the number of sites a plan includes. */
-				? sprintf( _n( '%d site', '%d sites', self::PLANS[ $plan ]['sites'], 'mody_cloud' ), self::PLANS[ $plan ]['sites'] )
-				: $plan,
+			'free'  => __( 'Launch offer', 'mody_cloud' ),
+			'paid'  => __( 'Per site', 'mody_cloud' ),
+			default => $plan,
 		};
 	}
 
 	/**
-	 * A member chooses the plan that follows the trial, or a change for the
-	 * next billing date: `next_plan` and `billing_period`. The card and the
-	 * charge come with Mollie (M1-01 part 3).
+	 * A price: 7.99 EUR.
+	 *
+	 * @param float $eur Euros.
+	 */
+	public static function price( float $eur ): string {
+		/* translators: %s: an amount in euros, such as 7.99. */
+		return sprintf( __( '%s EUR', 'mody_cloud' ), number_format_i18n( $eur, 2 ) );
+	}
+
+	/**
+	 * What an account pays per period: the price times its sites (at least one).
+	 *
+	 * @param int    $sites  Sites.
+	 * @param string $period One of PERIODS.
+	 */
+	public static function total( int $sites, string $period ): float {
+		return round( max( 1, $sites ) * ( self::PRICE[ $period ] ?? self::PRICE['monthly'] ), 2 );
+	}
+
+	/**
+	 * A member chooses how to pay once the free months end, or from the next
+	 * billing date: `billing_period`. The card and the charge come with
+	 * Mollie (M1-01 part 3).
 	 *
 	 * @param int    $user_id A member.
-	 * @param string $plan    One of PAID_PLANS.
 	 * @param string $period  One of PERIODS.
-	 * @return true|WP_Error `mody_plan_too_small` when the member has more sites than the plan includes.
+	 * @return true|WP_Error
 	 */
-	public static function choose_plan( int $user_id, string $plan, string $period ): bool|WP_Error {
+	public static function choose_period( int $user_id, string $period ): bool|WP_Error {
 		if ( ! self::get( $user_id ) ) {
 			return new WP_Error( 'mody_member_none', __( 'This account has no plan.', 'mody_cloud' ) );
 		}
-		if ( ! in_array( $plan, self::PAID_PLANS, true ) || ! in_array( $period, self::PERIODS, true ) ) {
-			return new WP_Error( 'mody_member_plan', __( 'There is no such plan.', 'mody_cloud' ) );
-		}
-		$used = Quota::used( $user_id );
-		if ( $used > self::PLANS[ $plan ]['sites'] ) {
-			return new WP_Error(
-				'mody_plan_too_small',
-				/* translators: 1: sites in use, 2: sites the plan includes. */
-				sprintf( __( 'You have %1$d sites, and this plan includes %2$d. Delete sites first, or choose a larger plan.', 'mody_cloud' ), $used, self::PLANS[ $plan ]['sites'] )
-			);
+		if ( ! in_array( $period, self::PERIODS, true ) ) {
+			return new WP_Error( 'mody_member_period', __( 'There is no such billing period.', 'mody_cloud' ) );
 		}
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
-		$wpdb->update(
-			self::table(),
-			array(
-				'next_plan'      => $plan,
-				'billing_period' => $period,
-			),
-			array( 'user_id' => $user_id ),
-			array( '%s', '%s' ),
-			array( '%d' )
-		);
+		$wpdb->update( self::table(), array( 'billing_period' => $period ), array( 'user_id' => $user_id ), array( '%s' ), array( '%d' ) );
 		unset( self::$rows[ $user_id ] );
 		return true;
 	}
 
 	/**
-	 * What a yearly plan saves on twelve monthly payments, in EUR.
-	 *
-	 * @param string $plan One of PAID_PLANS.
+	 * What paying yearly saves on twelve monthly payments, per site, in EUR.
 	 */
-	public static function yearly_saving( string $plan ): float {
-		return isset( self::PLANS[ $plan ] ) ? round( 12 * self::PLANS[ $plan ]['monthly'] - self::PLANS[ $plan ]['yearly'], 2 ) : 0.0;
+	public static function yearly_saving(): float {
+		return round( 12 * self::PRICE['monthly'] - self::PRICE['yearly'], 2 );
 	}
 
 	/**
@@ -374,7 +455,7 @@ final class Members {
 	 */
 	public static function can_create_site( bool|WP_Error $allowed, int $user_id ): bool|WP_Error {
 		if ( true === $allowed && self::payment_pending( $user_id ) ) {
-			return new WP_Error( 'mody_payment_pending', __( 'Finish your payment to start your trial, then you can create your first site.', 'mody_cloud' ) );
+			return new WP_Error( 'mody_payment_pending', __( 'Finish your payment, then you can create your first site.', 'mody_cloud' ) );
 		}
 		return $allowed;
 	}

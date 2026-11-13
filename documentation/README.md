@@ -26,7 +26,7 @@ Coding agents and developers: read the document that matches the work **before**
 | [theme-development.md](theme-development.md) | Editing templates, parts, `theme.json`, palette, fonts or styles | The FSE theme scaffold and how to extend it | 1, 2, 4 |
 | [ai-engine.md](ai-engine.md) | Building or changing the AI agent: model calls, prompts, block whitelist, validation | Model, provider, block serialization, master prompt rules, first task | 3, 4, 12 |
 | [brand-profile.md](brand-profile.md) | Working on the wizard, the brand (each site's own settings and styles), prompt assembly or site creation | Wizard, where the brand lives, the brand context, site creation flow | 6, 7 |
-| [membership-tiers.md](membership-tiers.md) | Working on plans, prices, site limits or the space per site | The plans (1, 3 and 10 sites, monthly or yearly), what every site gets, gating | 5 |
+| [membership-tiers.md](membership-tiers.md) | Working on plans, prices, site limits or the space per site | The price per site (monthly or yearly, VAT included), the launch offer, what every site gets, gating | 5 |
 | [newsletter.md](newsletter.md) | Working on newsletter sending, sending caps or opt-in | Infomaniak Newsletter integration | 9 |
 | [roadmap.md](roadmap.md) | Choosing what to work on next, or checking milestone status | Milestones and the first concrete step | 10, 12 |
 | [tickets.md](tickets.md) | Creating, updating or picking up a ticket, or checking what the team is working on | Where tickets live, and how planning and in-progress work are tracked | n/a |

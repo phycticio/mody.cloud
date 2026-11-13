@@ -14,9 +14,9 @@ defined( 'ABSPATH' ) || exit;
 /**
  * The site quota, checked by the pipeline's `quota` step.
  *
- * Until M1 adds `mody_members`, every user gets the trial's 3 sites (decided
- * 2026-11-06). M1 replaces limit() with the plan's limit (3, 10 or 50),
- * through the `mody_site_limit` filter or here.
+ * A member's limit is their plan's, through the `mody_site_limit` filter
+ * (Members::site_limit(): one site on the launch offer, ten when paying,
+ * 2026-11-13). Users without a member row keep DEFAULT_LIMIT.
  *
  * A member's sites are the ones they OWN, not the ones where they hold the
  * administrator role (security pass, 2026-11-12): a role can be given, taken
@@ -29,7 +29,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Quota {
 
-	/** The trial and Collaborator limit, used for everyone until M1. */
+	/** The limit of users without a member row (they were all on the old trial's 3 until M1). */
 	public const DEFAULT_LIMIT = 3;
 
 	/** Site meta: the ID of the user who owns the site (the member it was created for). */

@@ -17,14 +17,16 @@
  * 3. Open, over HTTP: the page with the chat's script and the form (no
  *    password, no plans, no card); the check route (nonce, each field, the
  *    suggestion); the register route: bad answers (400 with fields), then a
- *    good one (201): the user without a main-site role, an active 30-day
- *    trial, the onboarding stage, the site with its starter page and no
+ *    good one (201): the user without a main-site role, a place of the
+ *    launch offer (six months free, one site, no card), the onboarding stage, the site with its starter page and no
  *    model call, the welcome email with the set-password link; the same
  *    email again is refused.
  * 4. The form without JavaScript: errors keep the answers, an expired nonce,
  *    and a good post says "Done!". A logged-in visitor is told they have an
  *    account; members log in to the dashboard.
- * 5. Closed again: the page says so, and nothing is created.
+ * 5. The launch offer's places taken: the page says so and the price, and
+ *    nothing is created.
+ * 6. Closed again: the page says so, and nothing is created.
  *
  * Antibot (tickets/antibot-altcha.md): the page has the ALTCHA widget and
  * its script; creating an account needs a solution (403 without one), and a
@@ -64,11 +66,20 @@ $suffix      = strtolower( wp_generate_password( 6, false ) );
 $emails      = array( 'a' => "modyreg{$suffix}@mody.local", 'b' => "modyregb{$suffix}@mody.local", 'c' => "modyregc{$suffix}@mody.local" );
 $slugs       = array( 'a' => "regtest{$suffix}", 'b' => "regtestb{$suffix}", 'c' => "regtestc{$suffix}" );
 $was_open    = get_site_option( Registration::OPEN_OPTION );
+$was_promo   = array(
+	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
+	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
+);
+delete_site_option( Members::PROMO_START_OPTION ); // The offer as at launch: 50 places.
+delete_site_option( Members::PROMO_GIVEN_OPTION );
 $page_before = (int) get_option( Registration::PAGE_OPTION );
 $admins      = get_super_admins();
 $super       = get_user_by( 'login', $admins[0] );
 register_shutdown_function(
-	static function () use ( $emails, $was_open, $page_before ): void {
+	static function () use ( $emails, $was_open, $was_promo, $page_before ): void {
+		foreach ( $was_promo as $option => $value ) {
+			null === $value ? delete_site_option( $option ) : update_site_option( $option, $value );
+		}
 		foreach ( $emails as $email ) {
 			$user = get_user_by( 'email', $email );
 			if ( ! $user ) {
@@ -231,7 +242,7 @@ $check( '... the antibot widget and its script, in the form', str_contains( $out
 $in_container = do_blocks( '<!-- wp:spectra/container {"tagName":"section"} --><div class="wp-block-spectra-container"><!-- wp:' . Registration::BLOCK . ' /--></div><!-- /wp:spectra/container -->' );
 $check( '... and inside a Spectra container too (its kses; the home page)', str_contains( $in_container, '<altcha-widget class="mody-altcha" name="altcha" challenge="' ) && str_contains( $in_container, 'auto="onfocus"' ) );
 $check( '... the four questions, the address\'s suffix', str_contains( $out['body'], 'name="mody_name"' ) && str_contains( $out['body'], 'name="mody_email"' ) && str_contains( $out['body'], 'name="mody_title"' ) && str_contains( $out['body'], 'name="mody_slug"' ) && str_contains( $out['body'], esc_html( Registration::address_suffix() ) ) );
-$check( '... no password, no plans; a free trial, no card, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && ! str_contains( $out['body'], 'EUR per month' ) && str_contains( $out['body'], '30-day trial' ) && str_contains( $out['body'], 'no card needed' ) && false === stripos( $out['body'], 'unlimited' ) );
+$check( '... no password; free for 6 months, no card, then the price with VAT, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && str_contains( $out['body'], 'free for 6 months' ) && str_contains( $out['body'], 'no card needed' ) && str_contains( $out['body'], '7.99 EUR a month, VAT included' ) && false === stripos( $out['body'], 'unlimited' ) );
 
 $out = $rest( 'register/check', array( 'field' => 'name', 'value' => 'Ada', 'nonce' => 'deadbeef00' ) );
 $check( 'check: a wrong nonce is refused (403)', 403 === $out['code'] && 'mody_registration_expired' === ( $out['json']['code'] ?? '' ), (string) $out['code'] );
@@ -284,8 +295,8 @@ $user    = get_user_by( 'email', $emails['a'] );
 $row     = $user ? Members::get( $user->ID ) : null;
 $check( 'register(): the account, in seconds', is_array( $account ) && $user && $seconds < 20, sprintf( '%.1fs', $seconds ) );
 $check( '... the user, with their name and no main-site role', $user && 'Ada Lovelace' === $user->display_name && ! ( new WP_User( $user->ID ) )->roles, $user ? $user->user_login : 'no user' );
-$days = $row ? ( strtotime( $row['trial_ends_at'] . ' UTC' ) - time() ) / DAY_IN_SECONDS : 0;
-$check( '... an active trial of 30 days, no plan chosen yet', $row && 'trial' === $row['plan'] && 'active' === $row['status'] && null === $row['next_plan'] && $days > 29.9 && $days <= 30 && $row['trial_ends_at'] === $row['billing_due_at'], $row ? $row['trial_ends_at'] : '' );
+$until = $row ? (int) strtotime( $row['free_until'] . ' UTC' ) : 0;
+$check( '... a place of the launch offer: free for six months, active', $row && 'free' === $row['plan'] && 'active' === $row['status'] && abs( $until - (int) strtotime( '+6 months' ) ) < 300 && $row['free_until'] === $row['billing_due_at'] && 49 === Members::promo_left(), $row ? $row['free_until'] : '' );
 $check( '... the onboarding stage: password', $user && Onboarding::STAGE_PASSWORD === get_user_meta( $user->ID, Onboarding::META, true ) );
 $site_id = is_array( $account ) ? (int) $account['site_id'] : 0;
 $job     = $site_id ? Jobs::get( (int) get_blog_option( $site_id, 'mody_provisioning_job' ) ) : null;
@@ -301,7 +312,7 @@ $to_member = array_values( array_filter( $mails, static fn( array $mail ): bool 
 $welcome   = $to_member[0] ?? array();
 $body      = (string) ( $welcome['message'] ?? '' );
 $check( 'one email to the member: the welcome', 1 === count( $to_member ) && str_contains( (string) ( $welcome['subject'] ?? '' ), 'choose your password' ), count( $mails ) . ' sent' );
-$check( '... with the site, the trial, no card', str_contains( $body, 'https://' . Pipeline::domain( $slugs['a'] ) . '/' ) && str_contains( $body, 'Your free trial runs until' ) && str_contains( $body, 'No card is needed.' ) );
+$check( '... with the site, the free months, no card, then the price', str_contains( $body, 'https://' . Pipeline::domain( $slugs['a'] ) . '/' ) && str_contains( $body, 'Your site is free until' ) && str_contains( $body, 'no card is needed until then' ) && str_contains( $body, '7.99 EUR a month, VAT included' ) );
 preg_match( '#(https?://\S+wp-login\.php\?action=rp&key=([^&\s]+)&login=([^\s]+))#', $body, $link );
 $check( '... and the set-password link, with a valid key', isset( $link[2] ) && $user && rawurldecode( $link[3] ) === $user->user_login && check_password_reset_key( $link[2], $user->user_login ) instanceof WP_User );
 
@@ -356,13 +367,25 @@ if ( $user ) {
 	$out = $http( 'GET', $url, $cookie( $user->ID ) );
 	$check( 'a logged-in visitor: "You already have an account."', str_contains( $out['body'], 'You already have an account.' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
 	$out = $http( 'GET', Registration::dashboard_url(), $cookie( $user->ID ) );
-	$check( 'the trial member\'s dashboard: the wizard, 1 of 3 sites', 200 === $out['code'] && str_contains( $out['body'], 'id="mody-wizard-form"' ) && str_contains( $out['body'], '1 of 3 sites used' ), (string) $out['code'] );
-	$check( 'members log in to the dashboard', Registration::dashboard_url() === Registration::login_redirect( admin_url(), '', $user ) );
+	$check( 'the free member\'s dashboard: 1 of 1 site, no New site', 200 === $out['code'] && str_contains( $out['body'], '1 of 1 site used' ) && str_contains( $out['body'], 'The launch offer includes one site.' ), (string) $out['code'] );
+	$home = Registration::login_redirect( admin_url(), '', $user );
+	$check( 'members log in to their site\'s Mody dashboard (Plan & billing is there)', Registration::member_home( $user->ID ) === $home && str_contains( $home, Pipeline::domain( $slugs['a'] ) ) && str_contains( $home, 'page=mody-dashboard' ), $home );
 	$check( '... unless they asked for a page', 'https://example.test/x' === Registration::login_redirect( 'https://example.test/x', 'https://example.test/x', $user ) );
 	$check( '... and others keep the default', admin_url() === Registration::login_redirect( admin_url(), '', $super ) );
 }
 
-// 5. Closed again -------------------------------------------------------------------
+// 5. The launch offer's places taken ----------------------------------------------------
+
+echo "\nThe places taken\n";
+update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES );
+$other = 'modyrege' . $suffix . '@mody.local';
+$out   = $http( 'GET', $url );
+$check( 'the page says the 50 places are taken, and the price', str_contains( $out['body'], 'The 50 free places of our launch offer are taken.' ) && str_contains( $out['body'], '7.99 EUR a month per site, VAT included' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
+$out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
+$check( 'the register route refuses (403)', 403 === $out['code'] && 'mody_promo_closed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $other ), (string) $out['code'] );
+update_site_option( Members::PROMO_GIVEN_OPTION, 1 );
+
+// 6. Closed again -------------------------------------------------------------------
 
 echo "\nClosed again\n";
 delete_site_option( Registration::OPEN_OPTION );

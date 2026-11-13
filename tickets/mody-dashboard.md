@@ -7,6 +7,8 @@ By the maintainer on 2026-11-11:
 
 > Let's build the user's dashboard. This should be a page replacing the wordpress default Dashboard link. Using the same Icon and word and having the same layout as the mody-brand page and it should called only mody-dashboard. In there we are going to show metrics of the site (we need to build a tracking plugin), tokens used in the design of the page, tokens used in the configuration of the page (both need building), billing information, sites, current subscription plan, upgrade options. Etc […] If it aligns with what we have let's proceed with your recommendations I will get the Mollie information. […] Let's enforce the 3GB on site creation.
 
+**Changed 2026-11-13** ([pricing-per-site.md](pricing-per-site.md)): 1 GB per site instead of 3 GB, and Plan & billing shows one price per site and the launch offer instead of three plans and the trial.
+
 ## Decisions (the maintainer's recommendations, 2026-11-11)
 1. **Where:** on every site, wp-admin's **Dashboard** menu item (same word, same icon, same place) opens `admin.php?page=mody-dashboard`. Core's dashboard (`index.php`) redirects there, so logging in lands on it too. Main site included: the maintainer sees mody.cloud's own visitors.
 2. **Layout:** the Brand page's: sections on the left, a card on top, the section's panel below. It reuses `brand-page.css`.

@@ -8,6 +8,10 @@
 namespace Mody\Platform\Dashboard;
 
 use Mody\Analytics\Stats;
+use Mody\Platform\Agent\Budget;
+use Mody\Platform\Billing\Billing;
+use Mody\Platform\Billing\Mollie;
+use Mody\Platform\Billing\Payments;
 use Mody\Platform\Brand\BrandBook;
 use Mody\Platform\Brand\BrandPage;
 use Mody\Platform\Brand\BrandSettings;
@@ -559,6 +563,24 @@ final class DashboardPage {
 			self::render_tile( __( 'Tokens on configuration', 'mody_cloud' ), self::tokens( $usage['groups']['configuration']['tokens'] ), '' );
 			?>
 		</div>
+		<?php
+		$month = Budget::used( get_current_blog_id() )['month'];
+		$limit = Budget::limits( get_current_blog_id() )['month'];
+		?>
+		<p class="mody-dashboard__allowance">
+			<?php
+			echo esc_html(
+				sprintf(
+					/* translators: 1: tokens used this month, such as 1.2 M, 2: the month's allowance, such as 5.0 M, 3: a date. */
+					__( 'This month: %1$s of the site\'s %2$s tokens. The count starts again on %3$s.', 'mody_cloud' ),
+					self::tokens( $month ),
+					self::tokens( $limit ),
+					wp_date( get_option( 'date_format' ), Budget::resets( 'month' ) )
+				)
+			);
+			?>
+			<span class="mody-brand__bar" aria-hidden="true"><span style="width:<?php echo esc_attr( (string) min( 100, round( 100 * $month / max( 1, $limit ), 1 ) ) ); ?>%"></span></span>
+		</p>
 		<table class="mody-brand__rows mody-dashboard__usage">
 			<thead>
 				<tr>
@@ -649,11 +671,9 @@ final class DashboardPage {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: the result of the last choice.
 		$result = isset( $_GET['plan-result'] ) ? sanitize_key( wp_unslash( $_GET['plan-result'] ) ) : '';
 		if ( 'chosen' === $result ) {
-			echo '<div class="notice notice-success inline is-dismissible mody-brand__notice"><p>' . esc_html__( 'Your plan is chosen. Nothing is charged yet.', 'mody_cloud' ) . '</p></div>';
-		} elseif ( 'too-small' === $result ) {
-			echo '<div class="notice notice-error inline mody-brand__notice"><p>' . esc_html__( 'That plan includes fewer sites than you have. Delete sites first, or choose a larger plan.', 'mody_cloud' ) . '</p></div>';
+			echo '<div class="notice notice-success inline is-dismissible mody-brand__notice"><p>' . esc_html__( 'Saved. Nothing is charged yet.', 'mody_cloud' ) . '</p></div>';
 		} elseif ( '' !== $result ) {
-			echo '<div class="notice notice-error inline mody-brand__notice"><p>' . esc_html__( 'The plan could not be chosen. Try again.', 'mody_cloud' ) . '</p></div>';
+			echo '<div class="notice notice-error inline mody-brand__notice"><p>' . esc_html__( 'That could not be saved. Try again.', 'mody_cloud' ) . '</p></div>';
 		}
 	}
 
@@ -673,8 +693,13 @@ final class DashboardPage {
 		<div class="mody-dashboard__sites-head">
 			<p>
 				<?php
-				/* translators: 1: sites used, 2: sites the plan includes. */
-				echo esc_html( sprintf( _n( '%1$d of %2$d site used', '%1$d of %2$d sites used', $limit, 'mody_cloud' ), $used, $limit ) );
+				echo esc_html(
+					$used > $limit
+						/* translators: %d: sites the account has (more than its plan includes: a trial account from before 2026-11-13). */
+						? sprintf( _n( '%d site used', '%d sites used', $used, 'mody_cloud' ), $used )
+						/* translators: 1: sites used, 2: sites the plan includes. */
+						: sprintf( _n( '%1$d of %2$d site used', '%1$d of %2$d sites used', $limit, 'mody_cloud' ), $used, $limit )
+				);
 				?>
 				<span class="mody-brand__bar" aria-hidden="true"><span style="width:<?php echo esc_attr( (string) min( 100, round( 100 * $used / max( 1, $limit ) ) ) ); ?>%"></span></span>
 			</p>
@@ -682,8 +707,16 @@ final class DashboardPage {
 				<a class="button button-primary" href="<?php echo esc_url( network_admin_url( 'admin.php?page=' . WizardPage::SLUG ) ); ?>"><?php esc_html_e( 'New site', 'mody_cloud' ); ?></a>
 			<?php else : ?>
 				<span class="mody-dashboard__note">
-					<?php esc_html_e( 'Every site of your plan is in use.', 'mody_cloud' ); ?>
-					<a href="<?php echo esc_url( self::url( 'plan' ) ); ?>"><?php esc_html_e( 'See the plans', 'mody_cloud' ); ?></a>
+					<?php
+					$free = 'free' === (string) ( Members::get( $user )['plan'] ?? '' );
+					echo esc_html(
+						$free
+							? __( 'The launch offer includes one site.', 'mody_cloud' )
+							/* translators: %d: the most sites an account can have. */
+							: sprintf( __( 'An account can have %d sites.', 'mody_cloud' ), $limit )
+					);
+					?>
+					<a href="<?php echo esc_url( self::url( 'plan' ) ); ?>"><?php esc_html_e( 'Plan & billing', 'mody_cloud' ); ?></a>
 				</span>
 			<?php endif; ?>
 		</div>
@@ -841,41 +874,49 @@ final class DashboardPage {
 	}
 
 	/**
-	 * The billing period asked for on the plans: the query's, else the
-	 * member's own.
-	 *
-	 * @param array<string, mixed> $row The member's row.
-	 */
-	private static function billing_period( array $row ): string {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: which prices to show.
-		$period = isset( $_GET['period'] ) ? sanitize_key( wp_unslash( $_GET['period'] ) ) : (string) ( $row['billing_period'] ?? 'monthly' );
-		return in_array( $period, Members::PERIODS, true ) ? $period : 'monthly';
-	}
-
-	/**
-	 * A price: 9.99 EUR.
+	 * A price: 7.99 EUR.
 	 *
 	 * @param float $eur Euros.
 	 */
 	private static function price( float $eur ): string {
-		/* translators: %s: an amount in euros, such as 9.99. */
-		return sprintf( __( '%s EUR', 'mody_cloud' ), number_format_i18n( $eur, 2 ) );
+		return Members::price( $eur );
 	}
 
 	/**
-	 * Plan & billing: the plan, the trial, what follows it, the payment, and
-	 * the three plans to choose from.
+	 * "a month" or "a year".
+	 *
+	 * @param string $period One of Members::PERIODS.
+	 */
+	private static function per( string $period ): string {
+		return 'yearly' === $period ? __( 'a year', 'mody_cloud' ) : __( 'a month', 'mody_cloud' );
+	}
+
+	/**
+	 * Plan & billing (decided 2026-11-13): the launch offer's free months or
+	 * what the account pays (its sites times the price), the next payment,
+	 * the card, and the choice between paying monthly and yearly.
 	 */
 	private static function render_plan(): void {
-		$user   = get_current_user_id();
+		$user = get_current_user_id();
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: the payment Mollie's checkout returned from; it is checked with Mollie.
+		$back = isset( $_GET['payment'] ) ? Billing::returned( $user, absint( $_GET['payment'] ) ) : '';
+		self::render_billing_notice( $back );
 		$row    = (array) Members::get( $user );
-		$plan   = (string) ( $row['plan'] ?? 'trial' );
-		$next   = (string) ( $row['next_plan'] ?? '' );
-		$period = self::billing_period( $row );
-		$ends   = Members::trial_ends( $user );
+		$plan   = (string) ( $row['plan'] ?? 'free' );
+		$saved  = in_array( (string) ( $row['billing_period'] ?? '' ), Members::PERIODS, true ) ? (string) $row['billing_period'] : 'monthly';
+		$until  = Members::free_until( $user );
 		$due    = ! empty( $row['billing_due_at'] ) ? (int) strtotime( $row['billing_due_at'] . ' UTC' ) : 0;
-		$used   = Quota::used( $user );
+		$sites  = max( 1, Quota::used( $user ) );
+		$total  = Members::total( $sites, $saved );
 		$date   = static fn( int $time ): string => wp_date( get_option( 'date_format' ), $time );
+		$amount = static fn( string $period ): string => sprintf(
+			/* translators: 1: number of sites, 2: a site's price, 3: "a month" or "a year", 4: the total. */
+			_n( '%1$d site × %2$s %3$s: %4$s, VAT included', '%1$d sites × %2$s %3$s: %4$s, VAT included', $sites, 'mody_cloud' ),
+			$sites,
+			Members::price( Members::PRICE[ $period ] ),
+			self::per( $period ),
+			Members::price( Members::total( $sites, $period ) )
+		);
 		?>
 		<table class="mody-brand__rows">
 			<tbody>
@@ -883,60 +924,36 @@ final class DashboardPage {
 					<th scope="row"><?php esc_html_e( 'Your plan', 'mody_cloud' ); ?></th>
 					<td>
 						<?php
-						if ( 'trial' === $plan ) {
-							$left = max( 0, (int) ceil( ( $ends - time() ) / DAY_IN_SECONDS ) );
+						if ( 'free' === $plan ) {
+							$left = max( 0, (int) ceil( ( $until - time() ) / DAY_IN_SECONDS ) );
 							echo esc_html(
-								$ends
-									/* translators: 1: sites, 2: days left, 3: a date. */
-									? sprintf( _n( 'Free trial with %1$d sites: %2$d day left, until %3$s.', 'Free trial with %1$d sites: %2$d days left, until %3$s.', $left, 'mody_cloud' ), Members::PLANS['trial']['sites'], $left, $date( $ends ) )
-									: __( 'Free trial', 'mody_cloud' )
+								$until
+									/* translators: 1: a date, 2: days left. */
+									? sprintf( _n( 'Launch offer: one site, free until %1$s (%2$d day left).', 'Launch offer: one site, free until %1$s (%2$d days left).', $left, 'mody_cloud' ), $date( $until ), $left )
+									: __( 'Launch offer: one site, free.', 'mody_cloud' )
 							);
 						} else {
-							$paid = (string) ( $row['billing_period'] ?? 'monthly' );
-							echo esc_html(
-								sprintf(
-									/* translators: 1: the plan, 2: its price, 3: monthly or yearly. */
-									__( '%1$s, %2$s %3$s', 'mody_cloud' ),
-									Members::plan_label( $plan ),
-									self::price( (float) Members::PLANS[ $plan ][ $paid ] ),
-									'yearly' === $paid ? __( 'a year', 'mody_cloud' ) : __( 'a month', 'mody_cloud' )
-								)
-							);
+							echo esc_html( $amount( $saved ) );
 						}
 						?>
 					</td>
 				</tr>
-				<tr>
-					<th scope="row"><?php echo esc_html( 'trial' === $plan ? __( 'After the trial', 'mody_cloud' ) : __( 'From the next payment', 'mody_cloud' ) ); ?></th>
-					<td>
-						<?php
-						if ( '' === $next ) {
-							echo '<span class="mody-brand__empty">' . esc_html( 'trial' === $plan ? __( 'No plan chosen yet. Choose one below.', 'mody_cloud' ) : __( 'The same plan', 'mody_cloud' ) ) . '</span>';
-						} else {
-							$paid = (string) ( $row['billing_period'] ?? 'monthly' );
-							echo esc_html(
-								sprintf(
-									/* translators: 1: the plan, 2: its price, 3: monthly or yearly. */
-									__( '%1$s, %2$s %3$s', 'mody_cloud' ),
-									Members::plan_label( $next ),
-									self::price( (float) Members::PLANS[ $next ][ $paid ] ),
-									'yearly' === $paid ? __( 'a year', 'mody_cloud' ) : __( 'a month', 'mody_cloud' )
-								)
-							);
-						}
-						?>
-					</td>
-				</tr>
+				<?php if ( 'free' === $plan ) : ?>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'After the free months', 'mody_cloud' ); ?></th>
+						<td><?php echo esc_html( $amount( $saved ) ); ?></td>
+					</tr>
+				<?php endif; ?>
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Next payment', 'mody_cloud' ); ?></th>
 					<td>
 						<?php
-						if ( $due && '' !== $next ) {
+						if ( $due && empty( $row['mollie_payment_method_id'] ) ) {
 							/* translators: 1: an amount, 2: a date. */
-							echo esc_html( sprintf( __( '%1$s on %2$s', 'mody_cloud' ), self::price( (float) Members::PLANS[ $next ][ (string) ( $row['billing_period'] ?? 'monthly' ) ] ), $date( $due ) ) );
+							echo esc_html( sprintf( __( '%1$s on %2$s, once you add a card', 'mody_cloud' ), self::price( $total ), $date( $due ) ) );
 						} elseif ( $due ) {
-							/* translators: %s: a date. */
-							echo esc_html( sprintf( __( 'On %s, once you choose a plan', 'mody_cloud' ), $date( $due ) ) );
+							/* translators: 1: an amount, 2: a date. */
+							echo esc_html( sprintf( __( '%1$s on %2$s', 'mody_cloud' ), self::price( $total ), $date( $due ) ) );
 						} else {
 							echo '<span class="mody-brand__empty">' . esc_html__( 'None planned', 'mody_cloud' ) . '</span>';
 						}
@@ -946,76 +963,43 @@ final class DashboardPage {
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Payment method', 'mody_cloud' ); ?></th>
 					<td>
-						<?php if ( empty( $row['mollie_payment_method_id'] ) ) : ?>
-							<span class="mody-brand__empty"><?php esc_html_e( 'None yet.', 'mody_cloud' ); ?></span>
-							<?php esc_html_e( 'Card payments open soon: you add your card here before your trial ends, and nothing is charged before then.', 'mody_cloud' ); ?>
-						<?php else : ?>
-							<?php esc_html_e( 'A card is on file.', 'mody_cloud' ); ?>
-						<?php endif; ?>
+						<?php self::render_payment_method( $user, $row ); ?>
 					</td>
 				</tr>
 			</tbody>
 		</table>
 
+		<?php self::render_withdrawal( $user ); ?>
+		<?php self::render_payments( $user ); ?>
+
 		<div class="mody-dashboard__plans-head">
-			<h3><?php echo esc_html( 'trial' === $plan ? __( 'Choose your plan', 'mody_cloud' ) : __( 'Change your plan', 'mody_cloud' ) ); ?></h3>
-			<nav class="mody-brand__tabs" aria-label="<?php esc_attr_e( 'Billing period', 'mody_cloud' ); ?>">
-				<?php
-				foreach ( array(
-					'monthly' => __( 'Monthly', 'mody_cloud' ),
-					'yearly'  => __( 'Yearly', 'mody_cloud' ),
-				) as $slug => $label ) :
-					?>
-					<a href="<?php echo esc_url( self::url( 'plan', array( 'period' => $slug ) ) ); ?>" class="mody-brand__tab<?php echo $slug === $period ? ' is-active' : ''; ?>" <?php echo $slug === $period ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
-				<?php endforeach; ?>
-			</nav>
+			<h3><?php esc_html_e( 'How you pay', 'mody_cloud' ); ?></h3>
 		</div>
 		<ul class="mody-dashboard__plans">
-			<?php foreach ( Members::PAID_PLANS as $slug ) : ?>
-				<?php
-				$sites  = (int) Members::PLANS[ $slug ]['sites'];
-				$chosen = $slug === $next && $period === (string) ( $row['billing_period'] ?? '' );
-				$small  = $used > $sites;
-				?>
+			<?php foreach ( Members::PERIODS as $period ) : ?>
+				<?php $chosen = $period === $saved; ?>
 				<li class="mody-dashboard__plan<?php echo $chosen ? ' is-chosen' : ''; ?>">
-					<p class="mody-dashboard__plan-name"><?php echo esc_html( Members::plan_label( $slug ) ); ?></p>
+					<p class="mody-dashboard__plan-name"><?php echo esc_html( 'yearly' === $period ? __( 'Yearly', 'mody_cloud' ) : __( 'Monthly', 'mody_cloud' ) ); ?></p>
 					<p class="mody-dashboard__plan-price">
-						<?php echo esc_html( self::price( (float) Members::PLANS[ $slug ][ $period ] ) ); ?>
-						<span><?php echo esc_html( 'yearly' === $period ? __( 'a year', 'mody_cloud' ) : __( 'a month', 'mody_cloud' ) ); ?></span>
+						<?php echo esc_html( self::price( Members::PRICE[ $period ] ) ); ?>
+						<span><?php echo esc_html( sprintf( /* translators: %s: "a month" or "a year". */ __( 'per site %s', 'mody_cloud' ), self::per( $period ) ) ); ?></span>
 					</p>
 					<p class="mody-dashboard__note">
 						<?php
 						echo esc_html(
 							'yearly' === $period
 								/* translators: %s: an amount saved. */
-								? sprintf( __( 'You save %s on twelve monthly payments.', 'mody_cloud' ), self::price( Members::yearly_saving( $slug ) ) )
+								? sprintf( __( 'Ten months\' price for twelve: you save %s per site.', 'mody_cloud' ), self::price( Members::yearly_saving() ) )
 								: __( 'Cancel at the end of any month.', 'mody_cloud' )
 						);
 						?>
 					</p>
-					<ul class="mody-dashboard__plan-features">
-						<li>
-							<?php
-							/* translators: %d: sites. */
-							echo esc_html( sprintf( _n( '%d site, each with its own Mody', '%d sites, each with its own Mody', $sites, 'mody_cloud' ), $sites ) );
-							?>
-						</li>
-						<li><?php esc_html_e( '3 GB of space per site', 'mody_cloud' ); ?></li>
-					</ul>
 					<?php if ( $chosen ) : ?>
 						<p class="mody-brand__badge is-filled"><?php esc_html_e( 'Your choice', 'mody_cloud' ); ?></p>
-					<?php elseif ( $small ) : ?>
-						<p class="mody-dashboard__note">
-							<?php
-							/* translators: %d: sites in use. */
-							echo esc_html( sprintf( __( 'You have %d sites: delete some first to choose this plan.', 'mody_cloud' ), $used ) );
-							?>
-						</p>
 					<?php else : ?>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<?php wp_nonce_field( self::PLAN_ACTION ); ?>
 							<input type="hidden" name="action" value="<?php echo esc_attr( self::PLAN_ACTION ); ?>" />
-							<input type="hidden" name="plan" value="<?php echo esc_attr( $slug ); ?>" />
 							<input type="hidden" name="period" value="<?php echo esc_attr( $period ); ?>" />
 							<button type="submit" class="button button-primary"><?php esc_html_e( 'Choose', 'mody_cloud' ); ?></button>
 						</form>
@@ -1023,22 +1007,185 @@ final class DashboardPage {
 				</li>
 			<?php endforeach; ?>
 		</ul>
-		<p class="mody-dashboard__note"><?php esc_html_e( 'Every plan has the same features; plans differ only in the number of sites. Prices in euros.', 'mody_cloud' ); ?></p>
+		<p class="mody-dashboard__note">
+			<?php
+			echo esc_html(
+				sprintf(
+					/* translators: 1: space per site, such as 1 GB, 2: Mody's tokens a month, such as 5 million. */
+					__( 'Every site has the same: %1$s of space, every plugin in our market, the full Site Editor and its own Mody, with %2$s tokens a month. Prices in euros, VAT included.', 'mody_cloud' ),
+					size_format( Storage::SITE_MB * MB_IN_BYTES ),
+					number_format_i18n( Budget::MONTH )
+				)
+			);
+			?>
+		</p>
 		<?php
 	}
 
 	/**
-	 * admin-post `mody_dashboard_plan`: records the member's chosen plan,
+	 * What the last billing step did: from Mollie's checkout, or a form.
+	 *
+	 * @param string $back What returning from the checkout gave (Billing::returned()).
+	 */
+	private static function render_billing_notice( string $back ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: the result of the last step.
+		$result = '' !== $back ? $back : ( isset( $_GET['billing'] ) ? sanitize_key( wp_unslash( $_GET['billing'] ) ) : '' );
+		$notes  = array(
+			'card-added'     => array( 'success', __( 'Your card is added. We sent you the terms by email.', 'mody_cloud' ) ),
+			'card-waiting'   => array( 'info', __( 'Your card check is still being processed. This page shows it once it is done.', 'mody_cloud' ) ),
+			'card-failed'    => array( 'error', __( 'The card check did not go through, so no card was added. Try again, or use another card.', 'mody_cloud' ) ),
+			'card-error'     => array( 'error', __( 'The card check could not start. Please try again in a moment.', 'mody_cloud' ) ),
+			'accept'         => array( 'error', __( 'To add a card, tick the box to accept the terms.', 'mody_cloud' ) ),
+			'confirm'        => array( 'error', __( 'To withdraw, tick the box to confirm.', 'mody_cloud' ) ),
+			'withdrawn'      => array( 'success', __( 'You have withdrawn. Your payment goes back to your card in full, and nothing more will be charged.', 'mody_cloud' ) ),
+			'withdraw-error' => array( 'error', __( 'The withdrawal did not work. Please try again, or reply to any of our emails.', 'mody_cloud' ) ),
+		);
+		if ( isset( $notes[ $result ] ) ) {
+			printf( '<div class="notice notice-%1$s inline mody-brand__notice"><p>%2$s</p></div>', esc_attr( $notes[ $result ][0] ), esc_html( $notes[ $result ][1] ) );
+		}
+	}
+
+	/**
+	 * The card on file, and the form to add or change it (the terms to
+	 * accept, then Mollie's checkout).
+	 *
+	 * @param int                  $user The member.
+	 * @param array<string, mixed> $row  Their row.
+	 */
+	private static function render_payment_method( int $user, array $row ): void {
+		$card = (array) get_user_meta( $user, Billing::CARD_META, true );
+		$has  = ! empty( $row['mollie_payment_method_id'] );
+		if ( $has ) {
+			echo esc_html(
+				'' !== (string) ( $card['number'] ?? '' )
+					/* translators: 1: a card's brand, such as Visa, 2: its last digits. */
+					? sprintf( __( '%1$s ending in %2$s', 'mody_cloud' ), '' !== (string) ( $card['label'] ?? '' ) ? $card['label'] : __( 'Card', 'mody_cloud' ), $card['number'] )
+					: __( 'A card is on file.', 'mody_cloud' )
+			);
+		}
+		if ( in_array( (string) ( $row['status'] ?? '' ), array( 'canceled', 'expired' ), true ) ) {
+			return;
+		}
+		if ( ! Mollie::configured() ) {
+			if ( ! $has ) {
+				echo '<span class="mody-brand__empty">' . esc_html__( 'None yet.', 'mody_cloud' ) . '</span> ';
+				esc_html_e( 'Card payments open soon. You add your card here before your free months end, and nothing is charged before then. Without a card by then, your site becomes read-only for 60 days and is then deleted; you can download it at any time.', 'mody_cloud' );
+			}
+			return;
+		}
+		?>
+		<form class="mody-dashboard__card-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<?php wp_nonce_field( Billing::CARD_ACTION ); ?>
+			<input type="hidden" name="action" value="<?php echo esc_attr( Billing::CARD_ACTION ); ?>" />
+			<?php if ( ! $has ) : ?>
+				<p class="mody-brand__empty"><?php esc_html_e( 'None yet. Add your card before your free months end: nothing is charged before then, but a small card check.', 'mody_cloud' ); ?></p>
+			<?php endif; ?>
+			<p><label><input type="checkbox" name="accept" value="1" required /> <?php echo esc_html( Billing::terms( $user ) ); ?></label></p>
+			<p><button type="submit" class="button<?php echo $has ? '' : ' button-primary'; ?>"><?php echo esc_html( $has ? __( 'Change card', 'mody_cloud' ) : __( 'Add your card', 'mody_cloud' ) ); ?></button>
+			<?php if ( Mollie::test_mode() ) : ?>
+				<span class="mody-dashboard__note"><?php esc_html_e( 'Test mode: no real money moves.', 'mody_cloud' ); ?></span>
+			<?php endif; ?></p>
+		</form>
+		<?php
+	}
+
+	/**
+	 * The 14-day withdrawal: the button EU law asks for, while it applies.
+	 *
+	 * @param int $user The member.
+	 */
+	private static function render_withdrawal( int $user ): void {
+		$window = Billing::withdrawal( $user );
+		if ( ! $window ) {
+			return;
+		}
+		?>
+		<form class="mody-dashboard__withdraw" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<h3><?php esc_html_e( 'Withdraw from the contract', 'mody_cloud' ); ?></h3>
+			<p>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: a date, 2: an amount. */
+						__( 'Until %1$s you can withdraw without giving a reason and get your first payment, %2$s, back in full. Nothing more is charged, and your site stays online, read-only, for 60 days before it is deleted.', 'mody_cloud' ),
+						wp_date( (string) get_option( 'date_format' ), $window['until'] ),
+						self::price( (float) $window['row']['amount'] )
+					)
+				);
+				?>
+			</p>
+			<?php wp_nonce_field( Billing::WITHDRAW_ACTION ); ?>
+			<input type="hidden" name="action" value="<?php echo esc_attr( Billing::WITHDRAW_ACTION ); ?>" />
+			<p><label><input type="checkbox" name="confirm" value="1" required /> <?php esc_html_e( 'I withdraw from my contract.', 'mody_cloud' ); ?></label></p>
+			<p><button type="submit" class="button"><?php esc_html_e( 'Withdraw from the contract', 'mody_cloud' ); ?></button></p>
+		</form>
+		<?php
+	}
+
+	/**
+	 * The account's payments: charges, and card checks that went through.
+	 *
+	 * @param int $user The member.
+	 */
+	private static function render_payments( int $user ): void {
+		$rows = array_filter( Payments::of( $user ), static fn( array $r ): bool => 'charge' === $r['kind'] || 'paid' === $r['status'] );
+		if ( ! $rows ) {
+			return;
+		}
+		$labels = array(
+			'paid'     => __( 'Paid', 'mody_cloud' ),
+			'failed'   => __( 'Failed', 'mody_cloud' ),
+			'canceled' => __( 'Canceled', 'mody_cloud' ),
+			'expired'  => __( 'Expired', 'mody_cloud' ),
+		);
+		?>
+		<h3><?php esc_html_e( 'Payments', 'mody_cloud' ); ?></h3>
+		<table class="mody-brand__rows mody-dashboard__payments">
+			<thead>
+				<tr>
+					<th scope="col"><?php esc_html_e( 'Date', 'mody_cloud' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'For', 'mody_cloud' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Amount', 'mody_cloud' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Status', 'mody_cloud' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $rows as $payment ) : ?>
+					<tr>
+						<td><?php echo esc_html( wp_date( (string) get_option( 'date_format' ), (int) strtotime( $payment['created_at'] . ' UTC' ) ) ); ?></td>
+						<td>
+							<?php
+							echo esc_html(
+								'card' === $payment['kind']
+									? __( 'Card check', 'mody_cloud' )
+									: sprintf(
+										/* translators: 1: number of sites, 2: a date, 3: a date. */
+										_n( '%1$d site, %2$s to %3$s', '%1$d sites, %2$s to %3$s', (int) $payment['sites'], 'mody_cloud' ),
+										(int) $payment['sites'],
+										wp_date( (string) get_option( 'date_format' ), (int) strtotime( $payment['covers_from'] . ' UTC' ) ),
+										wp_date( (string) get_option( 'date_format' ), (int) strtotime( $payment['covers_to'] . ' UTC' ) )
+									)
+							);
+							?>
+						</td>
+						<td><?php echo esc_html( self::price( (float) $payment['amount'] ) ); ?></td>
+						<td><?php echo esc_html( ! empty( $payment['refunded_at'] ) ? __( 'Refunded', 'mody_cloud' ) : ( $labels[ $payment['status'] ] ?? __( 'Processing', 'mody_cloud' ) ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	/**
+	 * admin-post `mody_dashboard_plan`: records how the member pays,
 	 * then back to Plan & billing with the result.
 	 */
 	public static function save_plan(): void {
 		check_admin_referer( self::PLAN_ACTION );
-		$user   = get_current_user_id();
-		$plan   = isset( $_POST['plan'] ) ? sanitize_key( wp_unslash( $_POST['plan'] ) ) : '';
 		$period = isset( $_POST['period'] ) ? sanitize_key( wp_unslash( $_POST['period'] ) ) : '';
-		$result = Members::choose_plan( $user, $plan, $period );
-		$code   = true === $result ? 'chosen' : ( 'mody_plan_too_small' === $result->get_error_code() ? 'too-small' : 'error' );
-		wp_safe_redirect( self::url( 'plan', array( 'plan-result' => $code, 'period' => $period ) ) );
+		$result = Members::choose_period( get_current_user_id(), $period );
+		wp_safe_redirect( self::url( 'plan', array( 'plan-result' => true === $result ? 'chosen' : 'error' ) ) );
 		exit;
 	}
 
@@ -1153,7 +1300,7 @@ final class DashboardPage {
 	}
 
 	/**
-	 * The site's space: a bar and "1.2 GB of 3 GB used".
+	 * The site's space: a bar and "0.2 GB of 1 GB used".
 	 */
 	private static function render_storage(): void {
 		$usage = Storage::usage();
@@ -1166,7 +1313,7 @@ final class DashboardPage {
 		?>
 		<span class="mody-dashboard__meter<?php echo $share >= 90 ? ' is-full' : ''; ?>">
 			<?php
-			/* translators: 1: space used, 2: space the site has, such as 3 GB. */
+			/* translators: 1: space used, 2: space the site has, such as 1 GB. */
 			echo esc_html( sprintf( __( '%1$s of %2$s used', 'mody_cloud' ), size_format( $usage['used'], $usage['used'] < MB_IN_BYTES ? 0 : 1 ), size_format( $usage['allowed'] ) ) );
 			?>
 			<span class="mody-brand__bar" role="img" aria-label="<?php echo esc_attr( $share . '%' ); ?>"><span style="width:<?php echo esc_attr( (string) max( 1, $share ) ); ?>%"></span></span>

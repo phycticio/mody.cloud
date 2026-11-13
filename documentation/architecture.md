@@ -85,7 +85,7 @@ Member ──▶ WordPress (accounts, wizard, site panel)
 | Infomaniak Newsletter | Per-domain sending with monthly caps. See [newsletter.md](newsletter.md). | 3 |
 | Infomaniak DNS | Domain DNS, included with the domain. | 0 |
 | Dedicated Hetzner VPS | The briefing's top membership tier. Not offered since 2026-11-10: the plans stop at 10 sites ([membership-tiers.md](membership-tiers.md#open-questions)). | 3 |
-| Payments | Mollie (EU), decided 2026-11-01. See [mvp-spec.md](mvp-spec.md#4-tiers-trial-and-billing). | 3 |
+| Payments | Mollie (EU), decided 2026-11-01. See [mvp-spec.md](mvp-spec.md#4-price-launch-offer-and-billing). | 3 |
 
 ### Briefing recommendations not adopted
 

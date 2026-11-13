@@ -1,8 +1,8 @@
 <?php
 /**
  * The registration page on the main site: a chat that creates a member's
- * account, trial and first site (mvp-spec section 4, "Signup flow"; tickets
- * M1-01 part 2 and M1-03).
+ * account, its free months and first site (mvp-spec section 4, "Signup flow";
+ * tickets M1-01 part 2 and M1-03; the launch offer since 2026-11-13).
  *
  * @package Mody\Platform
  */
@@ -10,6 +10,7 @@
 namespace Mody\Platform\Members;
 
 use Mody\Platform\Agent\ChatController;
+use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Security\Altcha;
@@ -24,8 +25,8 @@ use WP_User;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * `mody.cloud/register/`: four questions, then the account, the trial and
- * the site exist, and an email holds the link to choose a password.
+ * `mody.cloud/register/`: four questions, then the account, its free months
+ * and the site exist, and an email holds the link to choose a password.
  *
  * Decided by the maintainer on 2026-11-08:
  * - **The page** holds the dynamic block `mody/register`, rendered by PHP.
@@ -40,12 +41,13 @@ defined( 'ABSPATH' ) || exit;
  *   on the main site only, and renders nothing elsewhere.
  * - **No WordPress role:** the `mody_members` row is the membership. The new
  *   user has no role on the main site and is `administrator` of their sites.
- * - **A chat, and a trial without a card** (M1-03): name, email, the
+ * - **A chat, and no card** (M1-03): name, email, the
  *   project's name and its address, one at a time (`assets/register.js`,
  *   no build step). Each answer is checked on the server (check(), through
  *   `mody-platform/v1/register/check`) before the next question. Then
- *   register() creates the user with a random password, starts the 30-day
- *   trial, creates the site (Pipeline, a `starter` site: no model call) and
+ *   register() creates the user with a random password, gives it a place
+ *   of the launch offer (Members::start_free(): six months free, one site),
+ *   creates the site (Pipeline, a `starter` site: no model call) and
  *   sends the welcome email with the set-password link. Choosing the
  *   password logs the member in on the site's Identity screen (Onboarding).
  * - **Without JavaScript** the block is a form with the same four fields,
@@ -68,7 +70,7 @@ defined( 'ABSPATH' ) || exit;
  *     any valid address, and register() answers the same for an address that
  *     has one, creating nothing and mailing that member a short note
  *     instead (send_existing_note()). It answers in the same time too: in a
- *     web request the account (user, trial, site, welcome email) or the
+ *     web request the account (user, free months, site, welcome email) or the
  *     note is made **after the response has been sent**
  *     (`fastcgi_finish_request()` in a shutdown hook, run_later(), the
  *     pattern of the wizard and the exports), so what the visitor waits for
@@ -83,6 +85,11 @@ defined( 'ABSPATH' ) || exit;
  * While it is off, nothing creates the page, the block says registration
  * opens soon, and both REST routes refuse. Open it with
  * `wp site option update mody_registration_open 1`.
+ *
+ * **Only the launch offer for now** (decided 2026-11-13): signing up gives
+ * one of its 50 places. Once they are taken, or its three months have
+ * passed, the block says so and that paid sign-ups open soon, and both
+ * routes refuse (takes_accounts()): paying needs Mollie (M1-01 part 3).
  */
 final class Registration {
 
@@ -144,6 +151,14 @@ final class Registration {
 	 */
 	public static function is_open(): bool {
 		return (bool) get_site_option( self::OPEN_OPTION );
+	}
+
+	/**
+	 * Whether a visitor can sign up now: registration is open and the launch
+	 * offer has a place left.
+	 */
+	public static function takes_accounts(): bool {
+		return self::is_open() && Members::promo_open();
 	}
 
 	/**
@@ -215,7 +230,7 @@ final class Registration {
 			array(
 				'post_type'    => 'page',
 				'post_status'  => 'publish',
-				'post_title'   => __( 'Start your free trial', 'mody_cloud' ),
+				'post_title'   => __( 'Create your site', 'mody_cloud' ),
 				'post_name'    => self::PAGE_SLUG,
 				'post_content' => '<!-- wp:' . self::BLOCK . ' /-->',
 				'post_author'  => $author ? $author->ID : 0,
@@ -350,7 +365,7 @@ final class Registration {
 	}
 
 	/**
-	 * Creates an account: the WordPress user, the trial, the first site and
+	 * Creates an account: the WordPress user, its free months, the first site and
 	 * the welcome email (M1-03).
 	 *
 	 * @param string $name  Full name, unsanitized.
@@ -475,7 +490,7 @@ final class Registration {
 	}
 
 	/**
-	 * Makes the account: the WordPress user, the trial, the first site and
+	 * Makes the account: the WordPress user, its free months, the first site and
 	 * the welcome email. Rolled back when a step fails.
 	 *
 	 * @param string $name  Full name, sanitized.
@@ -507,9 +522,10 @@ final class Registration {
 			wpmu_delete_user( $user_id ); // No user without a row and a site.
 		};
 
-		if ( is_wp_error( Members::start_trial( $user_id ) ) ) {
+		$free = Members::start_free( $user_id );
+		if ( is_wp_error( $free ) ) {
 			$undo();
-			return $failed;
+			return 'mody_promo_closed' === $free->get_error_code() ? $free : $failed;
 		}
 		$job_id = Pipeline::start(
 			$user_id,
@@ -544,7 +560,7 @@ final class Registration {
 	}
 
 	/**
-	 * The welcome email: the site, the trial, and the link to choose a
+	 * The welcome email: the site, its free months, and the link to choose a
 	 * password (WordPress's own reset screen, valid for a day).
 	 *
 	 * @param WP_User|false $user  The new member.
@@ -561,16 +577,17 @@ final class Registration {
 		}
 		$title = mb_substr( $title, 0, self::MAX_TITLE );
 		$link  = network_site_url( 'wp-login.php?action=rp&key=' . $key . '&login=' . rawurlencode( $user->user_login ), 'login' );
-		$ends  = Members::trial_ends( $user->ID );
+		$ends  = Members::free_until( $user->ID );
 		$body  = sprintf(
-			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page, 6: the trial's last day. */
-			__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour free trial runs until %6\$s. No card is needed.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
+			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page, 6: the last free day, 7: a site's monthly price. */
+			__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour site is free until %6\$s, and no card is needed until then. After that, it costs %7\$s a month, VAT included.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
 			mb_substr( $user->display_name, 0, self::MAX_NAME ),
 			$title,
 			$url,
 			$link,
 			wp_login_url(),
-			$ends ? wp_date( (string) get_option( 'date_format' ), $ends ) : ''
+			$ends ? wp_date( (string) get_option( 'date_format' ), $ends ) : '',
+			Members::price( Members::PRICE['monthly'] )
 		);
 		return wp_mail( $user->user_email, __( 'Welcome to Mody Cloud: choose your password', 'mody_cloud' ), $body );
 	}
@@ -589,7 +606,7 @@ final class Registration {
 		}
 		$body = sprintf(
 			/* translators: 1: the login page, 2: the lost-password page. */
-			__( "Hello,\n\nSomeone, maybe you, asked to start a free trial on Mody Cloud with this email address. You already have an account, so nothing new was created.\n\nLog in:\n%1\$s\n\nIf you forgot your password, choose a new one:\n%2\$s\n\nIf it was not you, you can ignore this email: nobody gets into your account with it.\n\nMody Cloud", 'mody_cloud' ),
+			__( "Hello,\n\nSomeone, maybe you, asked to create a site on Mody Cloud with this email address. You already have an account, so nothing new was created.\n\nLog in:\n%1\$s\n\nIf you forgot your password, choose a new one:\n%2\$s\n\nIf it was not you, you can ignore this email: nobody gets into your account with it.\n\nMody Cloud", 'mody_cloud' ),
 			wp_login_url(),
 			wp_lostpassword_url()
 		);
@@ -657,6 +674,9 @@ final class Registration {
 		if ( ! self::is_open() || ! is_main_site() ) {
 			return new WP_Error( 'mody_registration_closed', __( 'Registration is not open yet.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
+		if ( ! Members::promo_open() ) {
+			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message(), array( 'status' => 403 ) );
+		}
 		if ( ! wp_verify_nonce( (string) $request['nonce'], self::ACTION ) ) {
 			return new WP_Error( 'mody_registration_expired', __( 'This page expired. Please reload it and try again.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
@@ -696,7 +716,7 @@ final class Registration {
 	}
 
 	/**
-	 * POST `register`: the account, the trial and the site.
+	 * POST `register`: the account, its free months and the site.
 	 *
 	 * @param WP_REST_Request $request The four answers.
 	 * @return WP_REST_Response|WP_Error 201 with `email` and `address`; 400 with `fields`.
@@ -747,6 +767,10 @@ final class Registration {
 			self::$errors = array( 'form' => __( 'Registration is not open yet.', 'mody_cloud' ) );
 			return;
 		}
+		if ( ! Members::promo_open() ) {
+			self::$errors = array( 'form' => Members::promo_closed_message() );
+			return;
+		}
 		if ( ! Altcha::verify( Altcha::posted() ) ) {
 			self::$errors = array( 'form' => Altcha::failed_message() );
 			return;
@@ -764,9 +788,21 @@ final class Registration {
 	}
 
 	/**
+	 * Where a member lands: the Mody dashboard of their first site, where
+	 * Plan & billing is (every site's Dashboard since 2026-11-11), or
+	 * Network Admin → Mody → New site while they have no site.
+	 *
+	 * @param int $user_id The member.
+	 */
+	public static function member_home( int $user_id ): string {
+		$sites = DashboardPage::member_sites( $user_id );
+		return $sites ? get_admin_url( (int) $sites[0]['id'], 'admin.php?page=' . DashboardPage::SLUG ) : self::dashboard_url();
+	}
+
+	/**
 	 * `login_redirect`: a member who logs in without asking for a page lands
-	 * on the Mody dashboard, not the main site's wp-admin, where they have no
-	 * role.
+	 * on their site's Mody dashboard (member_home()), not the main site's
+	 * wp-admin, where they have no role.
 	 *
 	 * @param string           $redirect_to The destination so far.
 	 * @param string           $requested   The destination the request asked for.
@@ -774,7 +810,7 @@ final class Registration {
 	 */
 	public static function login_redirect( string $redirect_to, string $requested, WP_User|WP_Error $user ): string {
 		if ( $user instanceof WP_User && ( '' === $requested || admin_url() === $requested ) && Members::get( $user->ID ) ) {
-			return self::dashboard_url();
+			return self::member_home( $user->ID );
 		}
 		return $redirect_to;
 	}
@@ -821,9 +857,10 @@ final class Registration {
 				esc_html__( 'Go to your dashboard', 'mody_cloud' )
 			);
 		}
-		if ( ! self::is_open() ) {
-			// A form posted while closed says so; otherwise, when it opens.
-			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? __( 'Registration opens soon.', 'mody_cloud' ) ) . '</p></div>';
+		if ( ! self::takes_accounts() ) {
+			// A form posted while closed says so; otherwise, when it opens, or that the launch offer's places are taken.
+			$closed = self::is_open() ? Members::promo_closed_message() : __( 'Registration opens soon.', 'mody_cloud' );
+			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? $closed ) . '</p></div>';
 		}
 
 		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), array( Altcha::SCRIPT ), self::asset_version( 'register.js' ), true );
@@ -870,7 +907,7 @@ final class Registration {
 				<noscript><p class="mody-register__error"><?php esc_html_e( 'Signing up needs JavaScript: your browser solves a small puzzle that shows you are not a robot. Please turn JavaScript on and reload this page.', 'mody_cloud' ); ?></p></noscript>
 				<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::ACTION ); ?>">
 				<input type="hidden" name="_mody_nonce" value="<?php echo esc_attr( wp_create_nonce( self::ACTION ) ); ?>">
-				<p><button type="submit" class="wp-element-button"><?php esc_html_e( 'Start my free trial', 'mody_cloud' ); ?></button></p>
+				<p><button type="submit" class="wp-element-button"><?php esc_html_e( 'Create my free site', 'mody_cloud' ); ?></button></p>
 			</form>
 		</div>
 		<?php
@@ -959,7 +996,7 @@ final class Registration {
 	private static function preview_settings(): array {
 		return array(
 			'isMainSite' => is_main_site(),
-			'isOpen'     => self::is_open(),
+			'isOpen'     => self::takes_accounts(),
 			'strings'    => array(
 				'intro'       => self::intro(),
 				'mody'        => __( 'Mody', 'mody_cloud' ),
@@ -980,8 +1017,8 @@ final class Registration {
 	 * The first thing the page says, in the chat and above the form.
 	 */
 	private static function intro(): string {
-		/* translators: 1: the trial's length in days, 2: the number of sites in the trial. */
-		return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions and your website is ready: a free %1$d-day trial with up to %2$d sites, no card needed.', 'mody_cloud' ), Members::TRIAL_DAYS, Members::PLANS['trial']['sites'] );
+		/* translators: 1: free months, 2: a site's monthly price, such as 7.99 EUR. */
+		return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions and your website is ready. It is free for %1$d months, no card needed; after that, %2$s a month, VAT included.', 'mody_cloud' ), Members::FREE_MONTHS, Members::price( Members::PRICE['monthly'] ) );
 	}
 
 	/**

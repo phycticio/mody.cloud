@@ -354,7 +354,7 @@ $check( 'Overview: a Download your site button beside Visit site and Edit site',
 $check( 'Overview: not for an editor', ! str_contains( $page( $editor, 'overview' ), 'Download your site' ) );
 Members::install();
 Members::create( $owner );
-Members::start_trial( $owner );
+Members::create( $owner, 'free', 'active' );
 $sites = DashboardPage::member_sites( $owner );
 $mine  = array_values( array_filter( $sites, static fn( array $s ): bool => $s['id'] === $site ) );
 $check( 'member_sites() gives each site its own export address', 1 === count( $mine ) && str_contains( $mine[0]['export'], 'page=mody-dashboard' ) && str_contains( $mine[0]['export'], 'section=export' ) && str_contains( $mine[0]['export'], 'exp' . $suffix ), $mine ? $mine[0]['export'] : '' );
