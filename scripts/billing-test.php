@@ -34,6 +34,9 @@
  *     banner; Mody refuses; lifted when paid.
  * 12. Day 53: one last warning; day 60: the sites in the network's trash,
  *     the account expired.
+ * 13. A card that expires before the next charge: said on Plan & billing;
+ *     one email in the 30 days before that charge, again for a new card
+ *     only; nothing for a card that lasts, or a plan that is cancelled.
  *
  * Users and rows made here are removed. No real payment.
  */
@@ -443,6 +446,30 @@ Members::forget();
 $check( 'day 60: the site in the network\'s trash (restorable), the account expired, an email', 1 === $run['deleted'] && '1' === (string) get_site( $site )->deleted && 'expired' === Members::get( $jo )['status'] && str_contains( (string) end( $mails )['subject'], 'sites are deleted' ) );
 $check( '... and not again', 0 === Billing::run()['deleted'] );
 $check( 'an expired account cannot add a card', is_wp_error( Billing::add_card( $jo ) ) );
+
+// 13. A card that expires before the next charge -----------------------------------------------------------
+
+echo "\nAn expiring card\n";
+$liv = $member( 'liv', array( 'plan' => 'paid', 'mollie_customer_id' => 'cst_liv', 'mollie_payment_method_id' => 'mdt_liv', 'billing_due_at' => gmdate( 'Y-m-d H:i:s', time() + 20 * DAY_IN_SECONDS ) ) );
+update_user_meta( $liv, Billing::CARD_META, array( 'label' => 'Visa', 'number' => '1111', 'expiry' => gmdate( 'Y-m-d', time() + 10 * DAY_IN_SECONDS ) ) );
+$exp = static fn(): int => count( array_filter( $mails_to( 'billliv' . $suffix . '@mody.local' ), static fn( array $m ): bool => str_contains( $m['subject'], 'card expires' ) ) );
+$check( 'it expires before the charge: known', Billing::card_expires_first( $liv ) > time() );
+$html = $render( $liv );
+$check( '... Plan & billing says so, next to the card', str_contains( $html, 'This card expires on' ) && str_contains( $html, 'Change card' ) );
+$first = Billing::run();
+Billing::run();
+$check( '... one email in the 30 days before the charge', 1 === $first['expiring'] && 1 === $exp() );
+Members::update( $liv, array( 'mollie_payment_method_id' => 'mdt_liv2' ) ); // A new card that expires early too.
+Billing::run();
+$check( '... again for a new card only', 2 === $exp() );
+update_user_meta( $liv, Billing::CARD_META, array( 'label' => 'Visa', 'number' => '2222', 'expiry' => gmdate( 'Y-m-d', time() + 400 * DAY_IN_SECONDS ) ) );
+$check( 'a card that lasts: nothing said', 0 === Billing::card_expires_first( $liv ) && ! str_contains( $render( $liv ), 'This card expires on' ) );
+$far = $member( 'mo', array( 'plan' => 'paid', 'mollie_payment_method_id' => 'mdt_mo', 'billing_due_at' => gmdate( 'Y-m-d H:i:s', time() + 90 * DAY_IN_SECONDS ) ) );
+update_user_meta( $far, Billing::CARD_META, array( 'expiry' => gmdate( 'Y-m-d', time() + 30 * DAY_IN_SECONDS ) ) );
+Billing::run();
+$check( 'a charge more than 30 days away: shown on the page, no email yet', Billing::card_expires_first( $far ) > 0 && ! $mails_to( 'billmo' . $suffix . '@mody.local' ) );
+Members::update( $far, array( 'cancel_at' => Members::get( $far )['billing_due_at'] ) );
+$check( 'a cancelled plan: nothing to warn about', 0 === Billing::card_expires_first( $far ) );
 
 putenv( 'MOLLIE_API_KEY' );
 $html = $render( $di );

@@ -1068,6 +1068,20 @@ final class DashboardPage {
 					: __( 'A card is on file.', 'mody_cloud' )
 			);
 		}
+		$expires = Billing::card_expires_first( $user );
+		if ( $expires ) {
+			printf(
+				'<p class="mody-dashboard__card-expiry">%s</p>',
+				esc_html(
+					sprintf(
+						/* translators: 1: a date, 2: a date. */
+						__( 'This card expires on %1$s, before your next payment on %2$s. Change it below so the payment goes through.', 'mody_cloud' ),
+						wp_date( (string) get_option( 'date_format' ), $expires ),
+						wp_date( (string) get_option( 'date_format' ), (int) strtotime( $row['billing_due_at'] . ' UTC' ) )
+					)
+				)
+			);
+		}
 		if ( 'expired' === (string) ( $row['status'] ?? '' ) ) {
 			return;
 		}
