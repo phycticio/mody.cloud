@@ -198,6 +198,15 @@ restore_dev() {
 }
 trap restore_dev EXIT
 
+# Visitor locations (tickets/visitor-location.md): the DB-IP file travels with app/, and the sync deletes the
+# server's copy when this machine has none. Not a stop: without it, places are only "Unknown".
+GEOIP_FILE="app/data/geoip/dbip-city-lite.mmdb"
+if [ ! -f "$GEOIP_FILE" ]; then
+  log "WARNING" "No ${GEOIP_FILE}: visitor locations will be Unknown on the server (the sync removes its copy). Run ./bin/geoip first."
+elif [ -n "$(find "$GEOIP_FILE" -mtime +45 2>/dev/null)" ]; then
+  log "WARNING" "${GEOIP_FILE} is more than 45 days old. Run ./bin/geoip for this month's file."
+fi
+
 RESTORE_DEV=true
 ./bin/build "$ENV"
 

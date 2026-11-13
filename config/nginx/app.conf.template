@@ -96,8 +96,9 @@ server {
         return 404;
     }
 
-    # Composer credentials and metadata, the vendor directory, logs, dumps.
-    location ~* ^/(?:auth\.json|composer\.(?:json|lock)|vendor/|logs/|dumps/) {
+    # Composer credentials and metadata, the vendor directory, logs, dumps, and
+    # data files such as the visitor-location database (data/geoip/, 2026-11-13).
+    location ~* ^/(?:auth\.json|composer\.(?:json|lock)|vendor/|logs/|dumps/|data/) {
         deny all;
     }
 

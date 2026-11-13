@@ -124,6 +124,8 @@ final class Board {
 			$list( 'exit-pages', __( 'Exit pages', 'mody_cloud' ), 'exit' ),
 			$list( 'sources', __( 'Sources', 'mody_cloud' ), 'source' ),
 			$list( 'devices', __( 'Devices', 'mody_cloud' ), 'device' ),
+			$list( 'countries', __( 'Countries', 'mody_cloud' ), 'country' ), // tickets/visitor-location.md (2026-11-13).
+			$list( 'cities', __( 'Cities', 'mody_cloud' ), 'city' ),
 		);
 	}
 

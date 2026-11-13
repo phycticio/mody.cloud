@@ -108,7 +108,7 @@ $refused = static function ( array $query ): string {
 	return is_wp_error( $result ) ? $result->get_error_message() : '';
 };
 $check( 'an unknown metric is refused, with the list', str_contains( $refused( array( 'metrics' => array( 'revenue' ) ) ), 'Metrics: visits' ) );
-$check( 'an unknown dimension is refused', str_contains( $refused( array( 'dimension' => 'country' ) ), 'Unknown dimension' ) );
+$check( 'an unknown dimension is refused', str_contains( $refused( array( 'dimension' => 'region' ) ), 'Unknown dimension' ) );
 $check( 'a site in the query is refused: sites come from the caller', str_contains( $refused( array( 'site_id' => $other ) ), 'Unknown query field' ) );
 $check( 'an unknown filter is refused', str_contains( $refused( array( 'filters' => array( 'visit_id' => 'x' ) ) ), 'Unknown filter' ) );
 $check( 'SQL in a source filter is refused', str_contains( $refused( array( 'filters' => array( 'source' => "x' OR 1=1 --" ) ) ), 'must be a host' ) );

@@ -203,7 +203,7 @@ $left    = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Store
 $totals  = $wpdb->get_results( $wpdb->prepare( 'SELECT kind, value, views, visitors FROM ' . Store::daily() . ' WHERE site_id = %d AND day = %s ORDER BY kind, value', $site, $old ), ARRAY_A );
 // phpcs:enable
 $archive = array_map( static fn( array $r ): string => implode( ':', $r ), (array) $totals );
-$check( 'after 13 months: daily totals kept, the views gone', 0 === $left && array( 'device:desktop:1:1', 'page:/:1:1', 'page:/old/:1:1', 'source:example.net:1:1', 'total::2:1' ) === $archive, implode( ', ', $archive ) );
+$check( 'after 13 months: daily totals kept, the views gone', 0 === $left && array( 'country::1:1', 'device:desktop:1:1', 'page:/:1:1', 'page:/old/:1:1', 'source:example.net:1:1', 'total::2:1' ) === $archive, implode( ', ', $archive ) );
 restore_current_blog();
 $salts = get_site_option( 'mody_analytics_salts' );
 $check( 'salts: at most two days kept', is_array( $salts ) && count( $salts ) <= 2 && count( $salts ) >= 1, implode( ', ', array_keys( (array) $salts ) ) );

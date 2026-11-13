@@ -55,7 +55,10 @@ $known = array(
 	array( array( '/shop/' ), 'ecosia.org', 'tablet' ),
 	array( array( '/blog/tires/', '/shop/' ), '', 'desktop' ),
 );
+// Places (tickets/visitor-location.md): 7 from Barcelona, 2 from Madrid, 1 from Perros-Guirec (a town under the 5-visit rule).
+$places = array( 'ES|Barcelona', 'ES|Barcelona', 'ES|Barcelona', 'ES|Barcelona', 'ES|Barcelona', 'ES|Barcelona', 'ES|Barcelona', 'ES|Madrid', 'ES|Madrid', 'FR|Perros-Guirec' );
 foreach ( $known as $n => $visit ) {
+	list( $country, $city ) = explode( '|', $places[ $n ] );
 	foreach ( $visit[0] as $i => $path ) {
 		Store::add_view(
 			array(
@@ -67,6 +70,8 @@ foreach ( $known as $n => $visit ) {
 				'path'     => $path,
 				'source'   => 0 === $i ? $visit[1] : '',
 				'device'   => $visit[2],
+				'country'  => $country,
+				'city'     => $city,
 			)
 		);
 	}
@@ -79,6 +84,8 @@ $cases = array(
 	array( 'questions', 'Which page do most visits start on?', static fn( array $t ): bool => (bool) preg_match( '#(home|\s/(\s|,|\.|$)|"/")#i', $t['reply'] ) && (bool) preg_match( '/\b6\b/', $t['reply'] ) ),
 	array( 'questions', 'What share of visits saw only one page?', static fn( array $t ): bool => (bool) preg_match( '/40\s?%|40 percent/i', $t['reply'] ) ),
 	array( 'questions', 'Which device do most of my visitors use?', static fn( array $t ): bool => (bool) preg_match( '/phone|mobile/i', $t['reply'] ) ),
+	array( 'places', 'Which country do most of my visitors come from?', static fn( array $t ): bool => (bool) preg_match( '/Spain|España/i', $t['reply'] ) && (bool) preg_match( '/\b9\b/', $t['reply'] ) ),
+	array( 'places', 'How many visits came from Perros-Guirec?', static fn( array $t ): bool => ! preg_match( '/\b1 visit|\bone visit|\bonly 1\b/i', $t['reply'] ) && (bool) preg_match( '/fewer than 5|privacy|too few|small/i', $t['reply'] ) ),
 	array( 'board', 'Make visits per day a line chart', static fn( array $t ): bool => 'line' === ( $card( 'visits-per-day' )['type'] ?? '' ) && count( Board::cards() ) === count( Board::defaults() ) ),
 	array( 'board', 'Color it with the accent color', static fn( array $t ): bool => array( 'accent' ) === ( $card( 'visits-per-day' )['style']['colors'] ?? array() ) || array( \Mody\Platform\Login\Schemes::palette()['accent'] ?? 'x' ) === ( $card( 'visits-per-day' )['style']['colors'] ?? array() ) ),
 	array( 'board', 'Add a donut of sources', static fn( array $t ): bool => (bool) array_filter( Board::cards(), static fn( array $c ): bool => 'donut' === $c['type'] && 'source' === $c['query']['dimension'] ) ),

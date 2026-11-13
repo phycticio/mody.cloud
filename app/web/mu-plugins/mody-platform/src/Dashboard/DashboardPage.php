@@ -431,6 +431,25 @@ final class DashboardPage {
 		echo '<div id="mody-analytics-board" class="mody-board">';
 		self::render_visitors_fallback();
 		echo '</div>';
+		if ( class_exists( \Mody\Analytics\Geo\Locator::class ) && \Mody\Analytics\Geo\Locator::reader() ) {
+			// DB-IP City Lite is CC BY 4.0: the credit it asks for (tickets/visitor-location.md).
+			printf(
+				'<p class="mody-dashboard__note">%s</p>',
+				wp_kses(
+					sprintf(
+						/* translators: %s: a link to DB-IP. */
+						__( 'Countries and cities are worked out on our own server from %s (CC BY 4.0); visitors\' addresses are never kept. A city with fewer than 5 visits in a period is counted under its country.', 'mody_cloud' ),
+						'<a href="https://db-ip.com" rel="noopener">IP Geolocation by DB-IP</a>'
+					),
+					array(
+						'a' => array(
+							'href' => true,
+							'rel'  => true,
+						),
+					)
+				)
+			);
+		}
 	}
 
 	/**

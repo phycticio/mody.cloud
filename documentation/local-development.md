@@ -190,6 +190,7 @@ docker run --rm -v proxy_data:/from -v "$PWD:/to" alpine tar czf /to/proxy_data.
 | `cd app && composer update --no-install` | Regenerate `composer.lock` on the host. |
 | `pnpm build` / `pnpm start` | Lint `src/` and compile it into `app/dist` with `@wordpress/scripts` / the same in watch mode. `pnpm lint:js:fix` and `pnpm lint:scss:fix` apply fixes. Run it once after cloning: the antibot widget (`app/dist/altcha.js`) is needed to sign up, log in or comment. |
 | `./bin/build [prod\|stage]` | `pnpm build`, then `composer install` in the app container. Without an argument it includes dev requirements. `prod` and `stage` leave them out and use the frozen lockfile. |
+| `./bin/geoip [YYYY-MM]` | Download the month's DB-IP City Lite file for visitor locations into `app/data/geoip/` (not in git), and check it with the app's reader in the container. Run it before a deploy, at least monthly ([tickets/visitor-location.md](../tickets/visitor-location.md)). |
 | `./bin/deploy --env=prod [--dry-run]` | Deploy committed `main` to production after checks, a preview and a typed confirmation. See [architecture.md](architecture.md#production). |
 | `docker exec mody_cloud_server nginx -s reload` | Reload Nginx after editing its config. |
 

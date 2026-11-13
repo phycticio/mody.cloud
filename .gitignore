@@ -16,6 +16,8 @@ acf-json-old/
 
 app/auth.json
 app/dumps/*
+# The visitor-location database (DB-IP City Lite, about 130 MB), downloaded by bin/geoip and carried by bin/deploy.
+app/data/geoip/
 app/logs/*
 app/vendor/*
 app/web/.htaccess
