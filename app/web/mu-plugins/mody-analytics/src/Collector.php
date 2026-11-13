@@ -162,7 +162,7 @@ final class Collector {
 				'path'     => Store::admit( $site, $day, 'p', $path, $max ) ? $path : self::OTHER,
 				'source'   => ( '' === $source || Store::admit( $site, $day, 's', $source, $max ) ) ? $source : self::OTHER,
 				'device'   => self::device( $width ),
-			)
+			) + Geo\Locator::locate( $address ) // Country and city from our own copy of DB-IP; the address is not kept.
 		);
 		return true;
 	}

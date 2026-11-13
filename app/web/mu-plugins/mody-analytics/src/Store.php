@@ -38,7 +38,7 @@ defined( 'ABSPATH' ) || exit;
 final class Store {
 
 	/** Bump when the tables change. 2: the views table and the visit map (2026-11-12). 3: the distinct values (security pass, 2026-11-12). */
-	private const DB_VERSION = '3';
+	private const DB_VERSION = '4'; // 4: country and city on each view (2026-11-13, tickets/visitor-location.md).
 
 	/** Network option that records the installed version. */
 	private const DB_VERSION_OPTION = 'mody_analytics_db_version';
@@ -50,7 +50,7 @@ final class Store {
 	private const ARCHIVE_DAYS = 7;
 
 	/** The things the archive counts per day. */
-	public const KINDS = array( 'total', 'page', 'source', 'device' );
+	public const KINDS = array( 'total', 'page', 'source', 'device', 'country' );
 
 	/**
 	 * Hooks.
@@ -125,6 +125,8 @@ final class Store {
   path varchar(191) NOT NULL,
   source varchar(191) NOT NULL DEFAULT '',
   device varchar(8) NOT NULL DEFAULT '',
+  country char(2) NOT NULL DEFAULT '',
+  city varchar(80) NOT NULL DEFAULT '',
   PRIMARY KEY  (id),
   KEY site_day (site_id,day),
   KEY visit (visit_id,seq),
@@ -240,7 +242,7 @@ CREATE TABLE {$values} (
 	/**
 	 * Stores one page view.
 	 *
-	 * @param array{site_id: int, visit_id: string, seq: int, day: string, hour: int, path: string, source: string, device: string} $view The view.
+	 * @param array{site_id: int, visit_id: string, seq: int, day: string, hour: int, path: string, source: string, device: string, country?: string, city?: string} $view The view.
 	 */
 	public static function add_view( array $view ): void {
 		global $wpdb;
@@ -255,8 +257,10 @@ CREATE TABLE {$values} (
 				'path'     => mb_substr( $view['path'], 0, 191 ),
 				'source'   => mb_substr( $view['source'], 0, 191 ),
 				'device'   => substr( $view['device'], 0, 8 ),
+				'country'  => substr( (string) ( $view['country'] ?? '' ), 0, 2 ),
+				'city'     => mb_substr( (string) ( $view['city'] ?? '' ), 0, 80 ),
 			),
-			array( '%d', '%s', '%d', '%s', '%d', '%s', '%s', '%s' )
+			array( '%d', '%s', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
 		);
 	}
 
@@ -305,6 +309,8 @@ CREATE TABLE {$values} (
 			$wpdb->query( $wpdb->prepare( "INSERT INTO {$daily} (site_id, day, kind, value, views, visitors) SELECT site_id, day, 'page', path, COUNT(*), COUNT(DISTINCT visit_id) FROM {$views} WHERE day = %s GROUP BY site_id, path" . $upsert, $day ) );
 			$wpdb->query( $wpdb->prepare( "INSERT INTO {$daily} (site_id, day, kind, value, views, visitors) SELECT site_id, day, 'source', source, COUNT(*), COUNT(*) FROM {$views} WHERE day = %s AND seq = 1 GROUP BY site_id, source" . $upsert, $day ) );
 			$wpdb->query( $wpdb->prepare( "INSERT INTO {$daily} (site_id, day, kind, value, views, visitors) SELECT site_id, day, 'device', device, COUNT(*), COUNT(*) FROM {$views} WHERE day = %s AND seq = 1 GROUP BY site_id, device" . $upsert, $day ) );
+			// Countries are kept in the archive; cities are not (small towns, tickets/visitor-location.md).
+			$wpdb->query( $wpdb->prepare( "INSERT INTO {$daily} (site_id, day, kind, value, views, visitors) SELECT site_id, day, 'country', country, COUNT(*), COUNT(*) FROM {$views} WHERE day = %s AND seq = 1 GROUP BY site_id, country" . $upsert, $day ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$views} WHERE day = %s", $day ) );
 			++$done;
 		}

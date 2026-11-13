@@ -46,16 +46,19 @@ final class Query {
 	public const COUNTS = array( 'visits', 'views', 'entries', 'exits' );
 
 	/** What a query can be split by. */
-	public const DIMENSIONS = array( 'none', 'day', 'week', 'month', 'weekday', 'hour', 'hour_weekday', 'path', 'entry', 'exit', 'source', 'device', 'journey', 'next', 'site' );
+	public const DIMENSIONS = array( 'none', 'day', 'week', 'month', 'weekday', 'hour', 'hour_weekday', 'path', 'entry', 'exit', 'source', 'device', 'country', 'city', 'journey', 'next', 'site' );
 
 	/** Dimensions in time order, shown whole. */
 	public const TIME = array( 'day', 'week', 'month', 'weekday', 'hour', 'hour_weekday' );
 
 	/** Dimensions where every visit falls in exactly one value, so parts make a whole. */
-	public const PARTITIONS = array( 'weekday', 'hour', 'entry', 'exit', 'source', 'device', 'site' );
+	public const PARTITIONS = array( 'weekday', 'hour', 'entry', 'exit', 'source', 'device', 'country', 'city', 'site' );
 
 	/** What a series can be broken down by. */
-	public const BREAKDOWNS = array( 'device', 'source', 'entry', 'site' );
+	public const BREAKDOWNS = array( 'device', 'source', 'entry', 'country', 'site' );
+
+	/** A city with fewer visits than this in a period is counted as "Other places in <country>" (tickets/visitor-location.md). */
+	public const MIN_CITY_VISITS = 5;
 
 	/** Devices. */
 	public const DEVICES = array( 'mobile', 'tablet', 'desktop', 'unknown' );
@@ -166,8 +169,22 @@ final class Query {
 					}
 					$clean['device'] = $value;
 					break;
+				case 'country':
+					$value = strtoupper( $value );
+					if ( ! preg_match( '/^[A-Z]{2}$/', $value ) ) {
+						return self::error( 'The country filter must be a two-letter ISO code, such as "ES".' );
+					}
+					$clean['country'] = $value;
+					break;
+				case 'city':
+					$value = mb_substr( sanitize_text_field( $value ), 0, 80 );
+					if ( '' === $value ) {
+						return self::error( 'The city filter must be a city\'s English name, such as "Barcelona".' );
+					}
+					$clean['city'] = $value;
+					break;
 				default:
-					return self::error( sprintf( 'Unknown filter "%s". Filters: path, entry, source, device.', (string) $name ) );
+					return self::error( sprintf( 'Unknown filter "%s". Filters: path, entry, source, device, country, city.', (string) $name ) );
 			}
 		}
 		$from = '';
@@ -208,6 +225,29 @@ final class Query {
 			return self::error( 'No site to count.' );
 		}
 		$range = self::range( $query['days'] ?? max( 1, min( self::MAX_DAYS, $days ) ) );
+		if ( isset( $query['filters']['city'] ) ) {
+			// A small town is never shown by its number (tickets/visitor-location.md): fewer than 5 visits in a period, no answer.
+			$town = array(
+				'metrics'   => array( 'visits' ),
+				'dimension' => 'none',
+				'filters'   => array_intersect_key( $query['filters'], array_flip( array( 'city', 'country' ) ) ),
+			) + $query;
+			$periods = array( array( $range['first'], $range['last'] ) );
+			if ( $query['compare'] ) {
+				$periods[] = array( $range['prior_first'], $range['prior_last'] );
+			}
+			foreach ( $periods as $period ) {
+				$visits = 0;
+				foreach ( self::counted( $town, $site_ids, $period[0], $period[1] ) as $splits ) {
+					foreach ( $splits as $c ) {
+						$visits += (int) $c['visits'];
+					}
+				}
+				if ( $visits < self::MIN_CITY_VISITS ) {
+					return new WP_Error( 'mody_analytics_small_place', sprintf( 'Fewer than %d visits came from %s in this period. Places with so few visits are not shown, to protect visitors\' privacy.', self::MIN_CITY_VISITS, $query['filters']['city'] ) );
+				}
+			}
+		}
 		$now   = self::counted( $query, $site_ids, $range['first'], $range['last'] );
 		$prev  = $query['compare'] ? self::counted( $query, $site_ids, $range['prior_first'], $range['prior_last'] ) : null;
 		return self::shape( $query, $now, $prev, $range );
@@ -261,6 +301,8 @@ final class Query {
 			'MAX(CASE WHEN v.seq = 1 THEN v.path END) AS entry',
 			'MAX(CASE WHEN v.seq = 1 THEN v.source END) AS source',
 			'MAX(v.device) AS device',
+			'MAX(CASE WHEN v.seq = 1 THEN v.country END) AS country',
+			'MAX(CASE WHEN v.seq = 1 THEN v.city END) AS city',
 		);
 		$args         = array();
 		if ( $need_exit ) {
@@ -299,6 +341,14 @@ final class Query {
 		if ( isset( $filters['device'] ) ) {
 			$where[] = 'x.device = %s';
 			$wargs[] = $filters['device'];
+		}
+		if ( isset( $filters['country'] ) ) {
+			$where[] = 'x.country = %s';
+			$wargs[] = $filters['country'];
+		}
+		if ( isset( $filters['city'] ) ) {
+			$where[] = 'x.city = %s';
+			$wargs[] = $filters['city'];
 		}
 		$breakdown = $query['breakdown'];
 		$split     = '' !== $breakdown ? 'x.' . ( 'entry' === $breakdown ? 'entry' : ( 'site' === $breakdown ? 'site_id' : $breakdown ) ) : "''";
@@ -341,6 +391,8 @@ final class Query {
 				'exit'         => 'x.exit_path',
 				'source'       => 'x.source',
 				'device'       => 'x.device',
+				'country'      => 'x.country',
+				'city'         => "CONCAT(x.country, '|', x.city)",
 				'journey'      => 'x.journey',
 				'site'         => 'x.site_id',
 			)[ $dimension ];
@@ -352,7 +404,7 @@ final class Query {
 			$sql   = "SELECT {$key} AS k, {$split} AS b, MIN(x.site_id) AS s, COUNT(*) AS visits, SUM(x.pages) AS views, SUM(x.pages = 1) AS singles{$more}
 				FROM ({$visits}) x WHERE " . implode( ' AND ', $where ) . " GROUP BY {$group}";
 			$all   = array_merge( $args, $wargs );
-			if ( ! in_array( $dimension, self::TIME, true ) && 'none' !== $dimension ) {
+			if ( ! in_array( $dimension, self::TIME, true ) && ! in_array( $dimension, array( 'none', 'city' ), true ) ) {
 				$sql  .= " ORDER BY {$order} DESC, k ASC LIMIT %d";
 				$all[] = $query['limit'];
 			}
@@ -384,6 +436,10 @@ final class Query {
 			);
 		}
 
+		if ( 'city' === $dimension ) {
+			$out = self::fold_small_places( $out, $order, $query['limit'] );
+		}
+
 		// Days the views table no longer has: the archive's totals (views and visits; singles unknown).
 		if ( in_array( $dimension, array( 'none', 'day', 'week', 'month', 'weekday' ), true ) && ! $filters && '' === $breakdown ) {
 			$daily = Store::daily();
@@ -409,6 +465,50 @@ final class Query {
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * Cities with fewer than MIN_CITY_VISITS visits become "Other places in
+	 * <country>" (`~XX`), then the biggest rows are kept. Every city is
+	 * counted first, so the "Other places" rows add up.
+	 *
+	 * @param array<string, array<string, array<string, int|bool>>> $counts City key (`XX|Name`) => split => counts.
+	 * @param string                                                $order  The metric to rank by: visits or views.
+	 * @param int                                                   $limit  Rows kept.
+	 * @return array<string, array<string, array<string, int|bool>>>
+	 */
+	private static function fold_small_places( array $counts, string $order, int $limit ): array {
+		$out = array();
+		foreach ( $counts as $key => $splits ) {
+			$visits = 0;
+			foreach ( $splits as $c ) {
+				$visits += (int) $c['visits'];
+			}
+			$key = (string) $key;
+			if ( $visits < self::MIN_CITY_VISITS || str_ends_with( $key, '|' ) ) {
+				$key = '~' . strstr( $key, '|', true ); // Small, or a place DB-IP knows only by its country.
+			}
+			foreach ( $splits as $split => $c ) {
+				self::add_counts( $out, $key, (string) $split, $c );
+			}
+		}
+		$rank = static function ( array $splits ) use ( $order ): int {
+			$sum = 0;
+			foreach ( $splits as $c ) {
+				$sum += (int) $c[ $order ];
+			}
+			return $sum;
+		};
+		uksort(
+			$out,
+			static function ( $a, $b ) use ( $out, $rank ): int {
+				$a = (string) $a;
+				$b = (string) $b;
+				$other = ( str_starts_with( $a, '~' ) <=> str_starts_with( $b, '~' ) ); // Named cities first, then "Other places".
+				return $other ?: ( $rank( $out[ $b ] ) <=> $rank( $out[ $a ] ) ?: strcmp( $a, $b ) );
+			}
+		);
+		return array_slice( $out, 0, $limit, true );
 	}
 
 	/**
@@ -670,6 +770,17 @@ final class Query {
 				)[ $key ] ?? __( 'Unknown', 'mody_cloud' );
 			case 'source':
 				return '' === $key ? __( 'Direct, or no source given', 'mody_cloud' ) : $key;
+			case 'country':
+				return Geo\Locator::country_name( $key );
+			case 'city':
+				if ( str_starts_with( $key, '~' ) ) {
+					$code = substr( $key, 1 );
+					/* translators: %s: a country. */
+					return '' === $code ? __( 'Unknown', 'mody_cloud' ) : sprintf( __( 'Other places in %s', 'mody_cloud' ), Geo\Locator::country_name( $code ) );
+				}
+				list( $code, $name ) = array_pad( explode( '|', $key, 2 ), 2, '' );
+				/* translators: 1: a city, 2: its country. */
+				return sprintf( __( '%1$s, %2$s', 'mody_cloud' ), $name, Geo\Locator::country_name( $code ) );
 			case 'site':
 				$name = (string) get_blog_option( (int) $key, 'blogname' );
 				return '' !== $name ? $name : '#' . $key;

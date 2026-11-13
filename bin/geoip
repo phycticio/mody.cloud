@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+# Download the month's DB-IP City Lite file for visitor locations
+# (tickets/visitor-location.md): country and city, looked up on our own
+# server. Run it before ./bin/deploy, which carries the file with the build.
+#
+#   ./bin/geoip            # this month's file (last month's when it is not out yet)
+#   ./bin/geoip 2026-11    # a given month
+#
+# The file goes to app/data/geoip/dbip-city-lite.mmdb (ignored by git: about
+# 130 MB). It is checked before it replaces the old one: it must open as MMDB
+# in the app container and place a few known public addresses in a country.
+# Data: DB-IP.com, CC BY 4.0 (credited on the Visitors section). DB-IP is
+# Eris Networks S.A.S., France (rule 1).
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+DIR="app/data/geoip"
+TARGET="${DIR}/dbip-city-lite.mmdb"
+mkdir -p "$DIR"
+
+for CMD in curl gunzip docker; do
+  command -v "$CMD" >/dev/null 2>&1 || { ./bin/log "ERROR" "${CMD} is needed."; exit 1; }
+done
+
+if [ $# -gt 0 ]; then
+  MONTHS=("$1")
+else
+  MONTHS=("$(date -u +%Y-%m)" "$(date -u -v-1m +%Y-%m 2>/dev/null || date -u -d '-1 month' +%Y-%m)")
+fi
+
+TMP="$(mktemp "${DIR}/download.XXXXXX")"
+trap 'rm -f "$TMP" "${TMP}.mmdb"' EXIT
+
+FOUND=""
+for MONTH in "${MONTHS[@]}"; do
+  URL="https://download.db-ip.com/free/dbip-city-lite-${MONTH}.mmdb.gz"
+  ./bin/log "INFO" "Downloading ${URL}"
+  if curl --fail --silent --show-error --location --max-time 600 -o "$TMP" "$URL"; then
+    FOUND="$MONTH"
+    break
+  fi
+  ./bin/log "INFO" "Not available: ${MONTH}"
+done
+[ -n "$FOUND" ] || { ./bin/log "ERROR" "No DB-IP City Lite file could be downloaded."; exit 1; }
+
+gunzip -c "$TMP" > "${TMP}.mmdb"
+SIZE=$(wc -c < "${TMP}.mmdb" | tr -d ' ')
+[ "$SIZE" -gt 20000000 ] || { ./bin/log "ERROR" "The file is too small (${SIZE} bytes)."; exit 1; }
+
+# Check it with our own reader, in the app container (app/ is mounted at /var/www/html).
+CHECK=$(docker exec -i -u www-data mody_cloud_app wp --path=/var/www/html/wp --url="https://${HOST_NAME:-mody.local}" eval "
+  define( 'MODY_GEOIP_FILE', '/var/www/html/${TMP#app/}.mmdb' );
+  \$found = 0;
+  foreach ( array( '1.1.1.1', '8.8.8.8', '9.9.9.9', '193.0.6.139' ) as \$ip ) {
+    \$place = Mody\\Analytics\\Geo\\Locator::locate( \$ip );
+    \$found += '' !== \$place['country'] ? 1 : 0;
+  }
+  echo \$found;
+" 2>/dev/null || echo "error")
+[ "$CHECK" = "4" ] || { ./bin/log "ERROR" "The file did not pass the check (${CHECK})."; exit 1; }
+
+mv "${TMP}.mmdb" "$TARGET"
+./bin/log "INFO" "Visitor locations: DB-IP City Lite ${FOUND} in ${TARGET} (${SIZE} bytes). Deploy to send it to the server."

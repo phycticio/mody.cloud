@@ -1,6 +1,6 @@
 # Visitor location: country and city, looked up on our own server
 
-**Builds on:** [analytics-journeys.md](analytics-journeys.md) (the views table, the beacon), [analytics-chat.md](analytics-chat.md) (the board and the analyst) · **Status:** planned 2026-11-13, not started.
+**Builds on:** [analytics-journeys.md](analytics-journeys.md) (the views table, the beacon), [analytics-chat.md](analytics-chat.md) (the board and the analyst) · **Status:** planned and built 2026-11-13; not deployed.
 
 ## Asked for
 By the maintainer on 2026-11-13:
@@ -45,3 +45,21 @@ By the maintainer on 2026-11-13:
 ## Not in this ticket
 - Regions or provinces, coordinates and maps (a map would need shapes of countries: a later decision).
 - Filling in locations for visits counted before this.
+
+## Results (2026-11-13)
+- **Built:**
+  - `Geo\Reader`: MMDB, record sizes 24, 28 and 32, IPv4 and IPv6, read with seeks.
+  - `Geo\Locator`: country and city only; a district in brackets is cut; private addresses are skipped.
+  - `Collector` stores both on each view (Store version 4: `country`, `city`). The archive keeps countries after 13 months, not cities.
+  - `Query`: `country` and `city` as dimensions, `country` as a breakdown (no breakdown by city: it would show small towns over time), `country` and `city` as filters. Cities under 5 visits fold into "Other places in <country>", counted before the top rows are picked. A city filter under 5 visits is refused with the reason.
+  - The default board's Countries and Cities cards, the credit line, the analyst's prompt.
+  - `bin/geoip`, the deploy's warning, Nginx's `/data/` deny.
+- **The real file** (DB-IP City Lite 2026-11, 127 MB, 28-bit records, an IPv6 tree): about 1 ms per lookup. 8.8.8.8 is Mountain View, 80.58.61.250 Madrid, an IPv6 address Frankfurt.
+- **End to end:** a beacon through Nginx, with a Madrid address in `X-Forwarded-For`, stored Spain and Madrid. Earlier views stay "Unknown".
+- **Tests:**
+  - `scripts/visitor-location-test.php`, 26 checks, all pass. It writes its own small MMDB to check the reader without the real file, then checks the locator, what is stored (never the address), the 5-visit rule, the archive, the board, the analyst's prompt, the file never served (403), and the real file when present.
+  - `scripts/analytics-eval.php` gained two cases: the top country, and a town of one visit refused with the reason. 18 of 18 pass.
+  - The board, analyst and dashboard tests still pass.
+- **Demo data on mody.local:** the fake visits have places: Spain first, the rest of Europe, a few from the Americas, and five small towns that never show by name.
+- **On deploy:** run `./bin/geoip` first, then deploy, then restart Nginx on the server (`docker compose restart nginx`) for the `/data/` deny. The database moves to version 4 by itself.
+- **Open:** the legal pages, when written, should say that visitors' country and city are worked out from their address and kept, never the address. DB-IP's credit is on every Visitors section.
