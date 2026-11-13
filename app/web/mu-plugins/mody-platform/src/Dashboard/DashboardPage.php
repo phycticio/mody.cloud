@@ -132,6 +132,28 @@ final class DashboardPage {
 		LoginPage::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-brand-page' ) );
 		wp_add_inline_style( 'mody-brand-page', LoginPage::variables_css() );
 		ExportPanel::enqueue();
+		if ( 'visitors' === self::current() && class_exists( Board::class ) && Board::can_manage() ) {
+			self::enqueue_board();
+		}
+	}
+
+	/** The board's script handle: app/dist/analytics-board.js, built from src/analytics-board.js. */
+	public const BOARD_SCRIPT = 'mody-analytics-board';
+
+	/**
+	 * The analytics board's script, with the board and its first numbers
+	 * (tickets/analytics-chat.md). Without the built file (no `pnpm build`
+	 * yet) the Visitors section stays as the server draws it.
+	 */
+	private static function enqueue_board(): void {
+		$asset = WP_CONTENT_DIR . '/../dist/analytics-board.asset.php';
+		if ( ! is_readable( $asset ) ) {
+			return;
+		}
+		$info = require $asset;
+		wp_enqueue_script( self::BOARD_SCRIPT, WP_HOME . '/dist/analytics-board.js', (array) ( $info['dependencies'] ?? array() ), (string) ( $info['version'] ?? '' ), true );
+		wp_enqueue_style( 'dashicons' );
+		wp_add_inline_script( self::BOARD_SCRIPT, 'window.modyAnalyticsBoard = ' . wp_json_encode( array( 'board' => Board::payload( self::period() ) ) ) . ';', 'before' );
 	}
 
 	/**
@@ -386,6 +408,17 @@ final class DashboardPage {
 	 * devices.
 	 */
 	private static function render_visitors(): void {
+		// The board (src/analytics-board.js) replaces what is inside when its script runs; until then, and without it, the section as before.
+		echo '<div id="mody-analytics-board" class="mody-board">';
+		self::render_visitors_fallback();
+		echo '</div>';
+	}
+
+	/**
+	 * The Visitors section drawn on the server: the board's fallback, kept
+	 * until the board has been tried for real (tickets/analytics-chat.md).
+	 */
+	private static function render_visitors_fallback(): void {
 		$days  = self::period();
 		$stats = Stats::summary( get_current_blog_id(), $days );
 		$pages = $stats['visits'] > 0 ? $stats['views'] / $stats['visits'] : 0;

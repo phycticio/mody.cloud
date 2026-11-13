@@ -241,6 +241,275 @@
 	color: #646970;
 }
 
+/* The analytics board (Dashboard\Board, src/analytics-board.js) ----------------------- */
+
+.mody-board__bar {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px 16px;
+	margin: 4px 0 12px;
+}
+
+.mody-board__bar p {
+	margin: 0;
+}
+
+.mody-board__state {
+	color: #50575e;
+}
+
+.mody-board__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.mody-board__grid {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: 16px;
+	margin-bottom: 16px;
+}
+
+.mody-board__card {
+	position: relative;
+	grid-column: span 12;
+	min-width: 0;
+	padding: 12px 16px 16px;
+	border: 1px solid #f0f0f1;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.mody-board__card.is-small { grid-column: span 3; }
+.mody-board__card.is-third { grid-column: span 4; }
+.mody-board__card.is-half { grid-column: span 6; }
+.mody-board__card.is-wide { grid-column: span 8; }
+
+.mody-board__card.is-type-tile {
+	background: #fcfcfc;
+}
+
+.mody-board__card-head {
+	display: flex;
+	align-items: center;
+	gap: 4px 8px;
+	margin: 0 0 8px;
+}
+
+.mody-board__card-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.mody-board__card.is-type-tile .mody-board__card-title {
+	color: #50575e;
+	font-weight: 400;
+}
+
+.mody-board__card-period {
+	color: #646970;
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.mody-board__tools {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 2px;
+	opacity: 0.55;
+	transition: opacity 0.15s;
+}
+
+.mody-board__card:hover .mody-board__tools,
+.mody-board__card:focus-within .mody-board__tools {
+	opacity: 1;
+}
+
+.mody-board__tool {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 3px;
+	background: transparent;
+	color: #50575e;
+	cursor: pointer;
+}
+
+.mody-board__tool:hover:not(:disabled),
+.mody-board__tool:focus-visible {
+	background: #f0f0f1;
+	color: #1d2327;
+}
+
+.mody-board__tool:focus-visible {
+	outline: 2px solid var(--wp-admin-theme-color, #2271b1);
+	outline-offset: 1px;
+}
+
+.mody-board__tool:disabled {
+	visibility: hidden;
+}
+
+.mody-board__tool .dashicons {
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+.mody-board__card.is-type-tile .mody-board__tools {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	background: #fcfcfc;
+	opacity: 0;
+}
+
+.mody-board__card.is-type-tile:hover .mody-board__tools,
+.mody-board__card.is-type-tile:focus-within .mody-board__tools {
+	opacity: 1;
+}
+
+.mody-board__tile {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.mody-board__canvas {
+	position: relative;
+	height: 240px;
+}
+
+.mody-board__canvas.is-donut {
+	height: 220px;
+}
+
+.mody-board__list-head {
+	display: flex;
+	justify-content: space-between;
+	margin: 0 0 6px;
+	color: #646970;
+	font-size: 12px;
+	font-weight: 400;
+}
+
+.mody-board__card .mody-dashboard__journeys {
+	margin: 0;
+}
+
+.mody-board__details {
+	margin-top: 8px;
+}
+
+.mody-board__table-wrap {
+	max-height: 320px;
+	overflow: auto;
+}
+
+.mody-board__table th,
+.mody-board__table td {
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+}
+
+.mody-board__heat {
+	overflow-x: auto;
+}
+
+.mody-board__heatmap {
+	display: grid;
+	grid-template-columns: 40px repeat(24, minmax(12px, 1fr));
+	gap: 2px;
+	min-width: 360px;
+	font-size: 11px;
+	color: #646970;
+}
+
+.mody-board__heat-hour {
+	text-align: left;
+}
+
+.mody-board__heat-day {
+	align-self: center;
+}
+
+.mody-board__heat-cell {
+	position: relative;
+	aspect-ratio: 1;
+	min-height: 12px;
+	border-radius: 2px;
+}
+
+.mody-board__heat-cell:hover::after {
+	content: attr(data-tip);
+	position: absolute;
+	z-index: 2;
+	bottom: calc(100% + 6px);
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 4px 8px;
+	border-radius: 3px;
+	background: #1d2327;
+	color: #fff;
+	font-size: 12px;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.mody-board__heat-legend {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin: 8px 0 0;
+	color: #646970;
+	font-size: 12px;
+}
+
+.mody-board__heat-legend span:first-child {
+	margin-right: 6px;
+}
+
+.mody-board__heat-legend span:last-child {
+	margin-left: 6px;
+}
+
+.mody-board__heat-swatch {
+	width: 14px;
+	height: 14px;
+	border-radius: 2px;
+}
+
+.mody-board[aria-busy="true"] .mody-board__grid {
+	opacity: 0.6;
+}
+
+@media (max-width: 1100px) {
+	.mody-board__card.is-small { grid-column: span 6; }
+	.mody-board__card.is-third,
+	.mody-board__card.is-half,
+	.mody-board__card.is-wide { grid-column: span 12; }
+}
+
+@media (max-width: 600px) {
+	.mody-board__tools,
+	.mody-board__card.is-type-tile .mody-board__tools { opacity: 1; }
+}
+
+@media (hover: none) {
+	.mody-board__card.is-type-tile .mody-board__tools { opacity: 1; }
+}
+
 /* Your sites ---------------------------------------------------------------------- */
 
 .mody-dashboard__across {
