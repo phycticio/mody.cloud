@@ -1100,6 +1100,9 @@ final class DashboardPage {
 				<p class="mody-brand__empty"><?php esc_html_e( 'None yet. Add your card before your free months end: nothing is charged before then, but a small card check.', 'mody_cloud' ); ?></p>
 			<?php endif; ?>
 			<p><label><input type="checkbox" name="accept" value="1" required /> <?php echo esc_html( Billing::terms( $user ) ); ?></label></p>
+			<?php if ( '' !== Billing::legal_links() ) : ?>
+				<p class="mody-dashboard__note"><?php echo Billing::legal_links(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in legal_links(). ?></p>
+			<?php endif; ?>
 			<p><button type="submit" class="button<?php echo $has ? '' : ' button-primary'; ?>"><?php echo esc_html( $has ? __( 'Change card', 'mody_cloud' ) : __( 'Add your card', 'mody_cloud' ) ); ?></button>
 			<?php if ( Mollie::test_mode() ) : ?>
 				<span class="mody-dashboard__note"><?php esc_html_e( 'Test mode: no real money moves.', 'mody_cloud' ); ?></span>

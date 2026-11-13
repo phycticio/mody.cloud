@@ -114,7 +114,9 @@ foreach ( $data as $locale => $language ) {
 	preg_match_all( '#"text":"((?:[^"\\\\]|\\\\.)*)"#', $english->post_content, $labels );
 	$sources = array_merge( $texts[2], array_map( static fn( $raw ) => json_decode( '"' . $raw . '"' ), $labels[1] ) );
 	foreach ( array_unique( array_map( 'trim', $sources ) ) as $source ) {
-		if ( '' !== $source && ! preg_match( '#^<[^>]+>$#', $source ) && ! array_key_exists( $source, $language['texts'] ) ) {
+		// A line made only of links (the legal pages): each link's label is checked on its own.
+		$only_links = (bool) preg_match( '#^(\s*<a\b[^>]*>[^<]*</a>\s*(·\s*)?)+$#u', $source );
+		if ( '' !== $source && ! $only_links && ! preg_match( '#^<[^>]+>$#', $source ) && ! array_key_exists( $source, $language['texts'] ) ) {
 			$left[] = $source;
 		}
 	}

@@ -276,7 +276,7 @@ $markup = <<<'HTML'
 <!-- /wp:spectra/container -->
 
 <!-- wp:paragraph {"textColor":"secondary","fontSize":"small","style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size"><strong>Where we are not there yet:</strong> while Mody Cloud is small, four things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. WordPress's default avatars still load from Gravatar. We will replace them as soon as we can afford European ones.</p>
+<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size"><strong>Where we are not there yet:</strong> while Mody Cloud is small, three things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. We will replace them as soon as we can afford European ones.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
@@ -606,6 +606,22 @@ $markup = <<<'HTML'
 <!-- /wp:buttons -->
 <!-- /wp:spectra/container -->
 HTML;
+
+// The legal pages (scripts/legal-pages.php), once published: one line of links at the very end.
+$legal = array();
+foreach ( array( 'legal-notice' => 'Legal notice', 'terms' => 'Terms of service', 'privacy' => 'Privacy policy' ) as $slug => $label ) {
+	$found = get_page_by_path( $slug, OBJECT, 'page' );
+	if ( $found && 'publish' === $found->post_status ) {
+		$legal[] = '<a href="' . esc_url( get_permalink( $found ) ) . '">' . $label . '</a>';
+	}
+}
+if ( $legal ) {
+	$markup .= "\n\n" . '<!-- wp:spectra/container {"variationSelected":true,"htmlTag":"section","align":"full","isBlockRootParent":true,"style":{"spacing":{"margin":{"top":"0","bottom":"0"},"padding":{"top":"var:preset|spacing|30","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}},"layout":{"type":"constrained"}} -->' . "\n"
+		. '<!-- wp:paragraph {"fontSize":"small","style":{"typography":{"textAlign":"center"}}} -->' . "\n"
+		. '<p class="has-text-align-center has-small-font-size">' . implode( ' · ', $legal ) . '</p>' . "\n"
+		. '<!-- /wp:paragraph -->' . "\n"
+		. '<!-- /wp:spectra/container -->';
+}
 
 $markup = SpectraLayout::with_ids( SpectraBlocks::normalize( $markup ) );
 

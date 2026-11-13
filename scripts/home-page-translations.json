@@ -53,7 +53,6 @@
 			"Your site's fonts, patterns and images are stored on our own servers in Europe, never fetched from Google Fonts, and we add no analytics or trackers.": "Las fuentes, los patrones y las imágenes de tu sitio se guardan en nuestros propios servidores en Europa, nunca se cargan desde Google Fonts, y no añadimos analítica ni rastreadores.",
 			"No lock-in": "Sin ataduras",
 			"Your site is WordPress: a block theme with Gutenberg and Spectra blocks, both free and open source, and no proprietary page builder. Download your theme as a zip, export your content, and move your site wherever you like.": "Tu sitio es WordPress: un tema de bloques con bloques de Gutenberg y Spectra, ambos libres y de código abierto, y sin maquetador propietario. Descarga tu tema en un zip, exporta tu contenido y lleva tu sitio donde quieras.",
-			"<strong>Where we are not there yet:</strong> while Mody Cloud is small, four things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. WordPress's default avatars still load from Gravatar. We will replace them as soon as we can afford European ones.": "<strong>Donde aún no llegamos:</strong> mientras Mody Cloud sea pequeño, cuatro cosas siguen fuera de nuestra regla de solo Europa. Cloudflare, una empresa estadounidense, está delante de nuestra red y ve su tráfico. Wordfence, también estadounidense, busca amenazas de seguridad. Brevo, una empresa francesa, envía nuestros emails; está en esta lista porque aún no hemos comprobado desde dónde envía. Los avatares por defecto de WordPress aún se cargan desde Gravatar. Los sustituiremos en cuanto podamos pagar alternativas europeas.",
 			"What you get": "Qué incluye",
 			"Everything included, on every site": "Todo incluido, en cada sitio",
 			"Its own Mody": "Su propio Mody",
@@ -116,7 +115,11 @@
 			"Yearly": "Anual",
 			"79.99 €": "79,99 €",
 			"per site a year, VAT included: twelve months for the price of ten": "por sitio al año, IVA incluido: doce meses al precio de diez",
-			"You save 15.89 € on twelve monthly payments.": "Ahorras 15,89 € frente a doce pagos mensuales."
+			"You save 15.89 € on twelve monthly payments.": "Ahorras 15,89 € frente a doce pagos mensuales.",
+			"<strong>Where we are not there yet:</strong> while Mody Cloud is small, three things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. We will replace them as soon as we can afford European ones.": "<strong>Donde aún no llegamos:</strong> mientras Mody Cloud sea pequeño, tres cosas siguen fuera de nuestra regla de solo Europa. Cloudflare, una empresa estadounidense, está delante de nuestra red y ve su tráfico. Wordfence, también estadounidense, busca amenazas de seguridad. Brevo, una empresa francesa, envía nuestros emails; está en esta lista porque aún no hemos comprobado desde dónde envía. Los sustituiremos en cuanto podamos pagar alternativas europeas.",
+			"Legal notice": "Aviso legal",
+			"Terms of service": "Condiciones del servicio",
+			"Privacy policy": "Política de privacidad"
 		}
 	},
 	"de_DE": {
@@ -172,7 +175,6 @@
 			"Your site's fonts, patterns and images are stored on our own servers in Europe, never fetched from Google Fonts, and we add no analytics or trackers.": "Die Schriften, Vorlagen und Bilder deiner Website liegen auf unseren eigenen Servern in Europa, werden nie von Google Fonts geladen, und wir fügen weder Analyse noch Tracker hinzu.",
 			"No lock-in": "Keine Bindung",
 			"Your site is WordPress: a block theme with Gutenberg and Spectra blocks, both free and open source, and no proprietary page builder. Download your theme as a zip, export your content, and move your site wherever you like.": "Deine Website ist WordPress: ein Block-Theme mit Gutenberg- und Spectra-Blöcken, beide frei und Open Source, ohne proprietären Page Builder. Lade dein Theme als ZIP herunter, exportiere deine Inhalte und zieh mit deiner Website um, wohin du willst.",
-			"<strong>Where we are not there yet:</strong> while Mody Cloud is small, four things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. WordPress's default avatars still load from Gravatar. We will replace them as soon as we can afford European ones.": "<strong>Wo wir noch nicht so weit sind:</strong> Solange Mody Cloud klein ist, fallen vier Dinge noch aus unserer Nur-Europa-Regel. Cloudflare, ein US-Unternehmen, steht vor unserem Netz und sieht dessen Verkehr. Wordfence, ebenfalls aus den USA, sucht nach Sicherheitsbedrohungen. Brevo, ein französisches Unternehmen, versendet unsere E-Mails; es steht auf dieser Liste, weil wir noch nicht geprüft haben, von wo aus es versendet. Die Standard-Avatare von WordPress werden noch von Gravatar geladen. Wir ersetzen sie, sobald wir uns europäische Alternativen leisten können.",
 			"What you get": "Was du bekommst",
 			"Everything included, on every site": "Alles inklusive, auf jeder Website",
 			"Its own Mody": "Ein eigener Mody",
@@ -235,7 +237,11 @@
 			"Yearly": "Jährlich",
 			"79.99 €": "79,99 €",
 			"per site a year, VAT included: twelve months for the price of ten": "pro Website im Jahr, inkl. MwSt.: zwölf Monate zum Preis von zehn",
-			"You save 15.89 € on twelve monthly payments.": "Du sparst 15,89 € gegenüber zwölf Monatszahlungen."
+			"You save 15.89 € on twelve monthly payments.": "Du sparst 15,89 € gegenüber zwölf Monatszahlungen.",
+			"<strong>Where we are not there yet:</strong> while Mody Cloud is small, three things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. We will replace them as soon as we can afford European ones.": "<strong>Wo wir noch nicht so weit sind:</strong> Solange Mody Cloud klein ist, fallen drei Dinge noch aus unserer Nur-Europa-Regel. Cloudflare, ein US-Unternehmen, steht vor unserem Netz und sieht dessen Verkehr. Wordfence, ebenfalls aus den USA, sucht nach Sicherheitsbedrohungen. Brevo, ein französisches Unternehmen, versendet unsere E-Mails; es steht auf dieser Liste, weil wir noch nicht geprüft haben, von wo aus es versendet. Wir ersetzen sie, sobald wir uns europäische Alternativen leisten können.",
+			"Legal notice": "Impressum",
+			"Terms of service": "Nutzungsbedingungen",
+			"Privacy policy": "Datenschutzerklärung"
 		}
 	},
 	"it_IT": {
@@ -291,7 +297,6 @@
 			"Your site's fonts, patterns and images are stored on our own servers in Europe, never fetched from Google Fonts, and we add no analytics or trackers.": "I font, i pattern e le immagini del tuo sito sono sui nostri server in Europa, mai caricati da Google Fonts, e non aggiungiamo analytics né tracker.",
 			"No lock-in": "Nessun vincolo",
 			"Your site is WordPress: a block theme with Gutenberg and Spectra blocks, both free and open source, and no proprietary page builder. Download your theme as a zip, export your content, and move your site wherever you like.": "Il tuo sito è WordPress: un tema a blocchi con blocchi Gutenberg e Spectra, entrambi liberi e open source, e nessun page builder proprietario. Scarica il tuo tema in uno zip, esporta i tuoi contenuti e porta il tuo sito dove vuoi.",
-			"<strong>Where we are not there yet:</strong> while Mody Cloud is small, four things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. WordPress's default avatars still load from Gravatar. We will replace them as soon as we can afford European ones.": "<strong>Dove non siamo ancora arrivati:</strong> finché Mody Cloud è piccolo, quattro cose restano fuori dalla nostra regola solo Europa. Cloudflare, un'azienda statunitense, sta davanti alla nostra rete e ne vede il traffico. Wordfence, anch'essa statunitense, cerca minacce alla sicurezza. Brevo, un'azienda francese, invia le nostre email; è in questo elenco perché non abbiamo ancora verificato da dove invia. Gli avatar predefiniti di WordPress si caricano ancora da Gravatar. Li sostituiremo appena potremo permetterci alternative europee.",
 			"What you get": "Cosa ottieni",
 			"Everything included, on every site": "Tutto incluso, su ogni sito",
 			"Its own Mody": "Il suo Mody",
@@ -354,7 +359,11 @@
 			"Yearly": "Annuale",
 			"79.99 €": "79,99 €",
 			"per site a year, VAT included: twelve months for the price of ten": "per sito all'anno, IVA inclusa: dodici mesi al prezzo di dieci",
-			"You save 15.89 € on twelve monthly payments.": "Risparmi 15,89 € rispetto a dodici pagamenti mensili."
+			"You save 15.89 € on twelve monthly payments.": "Risparmi 15,89 € rispetto a dodici pagamenti mensili.",
+			"<strong>Where we are not there yet:</strong> while Mody Cloud is small, three things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. We will replace them as soon as we can afford European ones.": "<strong>Dove non siamo ancora arrivati:</strong> finché Mody Cloud è piccolo, tre cose restano fuori dalla nostra regola solo Europa. Cloudflare, un'azienda statunitense, sta davanti alla nostra rete e ne vede il traffico. Wordfence, anch'essa statunitense, cerca minacce alla sicurezza. Brevo, un'azienda francese, invia le nostre email; è in questo elenco perché non abbiamo ancora verificato da dove invia. Li sostituiremo appena potremo permetterci alternative europee.",
+			"Legal notice": "Note legali",
+			"Terms of service": "Termini di servizio",
+			"Privacy policy": "Informativa sulla privacy"
 		}
 	}
 }

@@ -891,6 +891,9 @@ final class Registration {
 			</p>
 			<?php echo $notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
 			<p><label class="mody-register__accept"><input type="checkbox" name="accept" value="1" required /> <?php echo esc_html( Billing::signup_terms() ); ?></label></p>
+			<?php if ( '' !== Billing::legal_links() ) : ?>
+				<p class="mody-register__note"><?php echo Billing::legal_links(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in legal_links(). ?></p>
+			<?php endif; ?>
 			<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::PAY_ACTION ); ?>">
 			<input type="hidden" name="mody_pay" value="<?php echo esc_attr( $token ); ?>">
 			<input type="hidden" name="u" value="<?php echo esc_attr( (string) $user ); ?>">
@@ -1231,6 +1234,21 @@ final class Registration {
 				<input type="hidden" name="_mody_nonce" value="<?php echo esc_attr( wp_create_nonce( self::ACTION ) ); ?>">
 				<p><button type="submit" class="wp-element-button"><?php echo esc_html( self::paying() ? __( 'Continue', 'mody_cloud' ) : __( 'Create my free site', 'mody_cloud' ) ); ?></button></p>
 			</form>
+			<?php if ( '' !== Billing::legal_url( 'terms' ) ) : ?>
+				<p class="mody-register__note mody-register__legal">
+					<?php
+					echo wp_kses(
+						sprintf(
+							/* translators: 1: a link to the terms of service, 2: a link to the privacy policy. */
+							__( 'By creating your site you accept the %1$s and the %2$s.', 'mody_cloud' ),
+							'<a href="' . esc_url( Billing::legal_url( 'terms' ) ) . '">' . esc_html__( 'terms of service', 'mody_cloud' ) . '</a>',
+							'<a href="' . esc_url( Billing::legal_url( 'privacy' ) ) . '">' . esc_html__( 'privacy policy', 'mody_cloud' ) . '</a>'
+						),
+						array( 'a' => array( 'href' => array() ) )
+					);
+					?>
+				</p>
+			<?php endif; ?>
 		</div>
 		<?php
 		return (string) ob_get_clean();
