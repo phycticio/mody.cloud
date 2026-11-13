@@ -14,8 +14,9 @@ defined( 'ABSPATH' ) || exit;
  * webhook, the return from the checkout and the daily run all apply a
  * payment once, and Plan & billing lists what was paid.
  *
- * - `kind`: `card` (the 0.01 EUR check that makes the card's mandate) or
- *   `charge` (the sites for a period).
+ * - `kind`: `card` (the 0.01 EUR check that makes the card's mandate),
+ *   `charge` (the sites for a period), or `signup` (a paid sign-up's first
+ *   month, which also makes the mandate).
  * - `status`: Mollie's (`open`, `pending`, `authorized`, `paid`, `failed`,
  *   `canceled`, `expired`); `applied` says whether the platform acted on it.
  * - `covers_from` and `covers_to`: the period a charge pays for.
@@ -24,7 +25,7 @@ defined( 'ABSPATH' ) || exit;
 final class Payments {
 
 	/** Bump when the table definition changes. */
-	private const DB_VERSION = '1';
+	private const DB_VERSION = '2'; // 2: `signup`, a paid sign-up's first payment (2026-11-13).
 
 	/** Network option with the installed version. */
 	private const DB_VERSION_OPTION = 'mody_payments_db_version';
@@ -55,7 +56,7 @@ final class Payments {
   id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   user_id bigint(20) unsigned NOT NULL,
   mollie_id varchar(32) NOT NULL,
-  kind enum('card','charge') NOT NULL,
+  kind enum('card','charge','signup') NOT NULL,
   amount decimal(10,2) NOT NULL,
   sites int(10) unsigned NOT NULL DEFAULT 0,
   period enum('monthly','yearly') DEFAULT NULL,

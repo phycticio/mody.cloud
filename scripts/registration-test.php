@@ -380,9 +380,14 @@ echo "\nThe places taken\n";
 update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES );
 $other = 'modyrege' . $suffix . '@mody.local';
 $out   = $http( 'GET', $url );
-$check( 'the page says the 50 places are taken, and the price', str_contains( $out['body'], 'The 50 free places of our launch offer are taken.' ) && str_contains( $out['body'], '7.99 EUR a month per site, VAT included' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
-$out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
-$check( 'the register route refuses (403)', 403 === $out['code'] && 'mody_promo_closed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $other ), (string) $out['code'] );
+if ( Mody\Platform\Billing\Mollie::configured() ) {
+	// With a Mollie key (the web server's environment), signing up means paying (billing-test.php covers it).
+	$check( 'with Mollie: the chat asks for the first month by card', str_contains( $out['body'], 'pay the first month by card' ) && str_contains( $out['body'], 'name="mody_email"' ) );
+} else {
+	$check( 'the page says the 50 places are taken, and the price', str_contains( $out['body'], 'The 50 free places of our launch offer are taken.' ) && str_contains( $out['body'], '7.99 EUR a month per site, VAT included' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
+	$out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
+	$check( 'the register route refuses (403)', 403 === $out['code'] && 'mody_promo_closed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $other ), (string) $out['code'] );
+}
 update_site_option( Members::PROMO_GIVEN_OPTION, 1 );
 
 // 6. Closed again -------------------------------------------------------------------

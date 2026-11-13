@@ -32,3 +32,11 @@ On Plan & billing, **Withdraw from the contract** (tick, then the button): the c
 ## On production, once before launch
 
 The same steps with the test key in production's `.env`, to see Mollie's real webhook call `https://mody.cloud/wp-json/mody-platform/v1/mollie/webhook` (the page updates without the member coming back). Then put the live key in its place.
+
+## A paid sign-up (after the launch offer)
+
+1. Mark the 50 places as taken: `./bin/wp site option update mody_promo_given 50` (note the value before, and put it back after; delete the option if there was none).
+2. Sign up on `https://mody.local/register/` with a new email. The chat asks the same four questions; Mailpit gets "pay and create your site".
+3. Open the link: the pay page shows the site, 7.99 EUR a month, the terms to tick, and **Pay with card**. Pay with a test card, outcome **Paid**.
+4. Back on the page: "Paid, thank you! Your site is ready". Mailpit has the welcome email (password link) and the terms; `./bin/wp mody-billing status <email>` shows `paid`, `active`, a charge next month.
+

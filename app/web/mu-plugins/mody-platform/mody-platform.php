@@ -152,6 +152,7 @@ add_action( 'init', array( Members\Registration::class, 'register_block' ) );
 add_action( 'init', array( Members\Registration::class, 'ensure_page' ), 20 );
 add_action( 'rest_api_init', array( Members\Registration::class, 'register_routes' ) );
 add_action( 'template_redirect', array( Members\Registration::class, 'handle' ) );
+add_action( 'template_redirect', array( Members\Registration::class, 'handle_pay' ) ); // The pay page of a paid sign-up (M1-01 part 3b).
 add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirect' ), 10, 3 );
 
 /*
