@@ -153,7 +153,26 @@ final class DashboardPage {
 		$info = require $asset;
 		wp_enqueue_script( self::BOARD_SCRIPT, WP_HOME . '/dist/analytics-board.js', (array) ( $info['dependencies'] ?? array() ), (string) ( $info['version'] ?? '' ), true );
 		wp_enqueue_style( 'dashicons' );
-		wp_add_inline_script( self::BOARD_SCRIPT, 'window.modyAnalyticsBoard = ' . wp_json_encode( array( 'board' => Board::payload( self::period() ) ) ) . ';', 'before' );
+		$analyst = function_exists( 'wp_ai_client_prompt' ) && wp_get_ability( Analyst::QUERY_ABILITY );
+		if ( $analyst ) {
+			// The analyst's bubble (phase 2) wears the editors' bubble: the same two stylesheets, in the user's color scheme.
+			$root    = dirname( __DIR__, 2 );
+			$url     = static fn( string $file ): string => plugins_url( 'assets/' . $file, $root . '/mody-platform.php' );
+			$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
+			wp_enqueue_style( 'mody-agent-chat', $url( 'agent-chat.css' ), array(), $version( 'agent-chat.css' ) );
+			\Mody\Platform\Admin\AdminColors::add_agent_chat_css();
+			wp_enqueue_style( 'mody-agent-bubble', $url( 'agent-bubble.css' ), array( 'mody-agent-chat' ), $version( 'agent-bubble.css' ) );
+		}
+		wp_add_inline_script(
+			self::BOARD_SCRIPT,
+			'window.modyAnalyticsBoard = ' . wp_json_encode(
+				array(
+					'board'   => Board::payload( self::period() ),
+					'analyst' => (bool) $analyst,
+				)
+			) . ';',
+			'before'
+		);
 	}
 
 	/**
@@ -509,6 +528,7 @@ final class DashboardPage {
 			'design'        => array( __( 'Design', 'mody_cloud' ), __( 'Pages, templates, the design and the styles', 'mody_cloud' ) ),
 			'configuration' => array( __( 'Configuration', 'mody_cloud' ), __( 'Settings, the menu, publishing, opening screens', 'mody_cloud' ) ),
 			'conversation'  => array( __( 'Questions and answers', 'mody_cloud' ), __( 'Messages that changed nothing', 'mody_cloud' ) ),
+			'analytics'     => array( __( 'Analytics', 'mody_cloud' ), __( 'Questions and charts on the Visitors section', 'mody_cloud' ) ),
 		);
 		$max    = max( 1, max( array_column( $usage['groups'], 'tokens' ) ) );
 		?>
