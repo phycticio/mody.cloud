@@ -126,6 +126,9 @@ final class Budget {
 		if ( is_super_admin() ) {
 			return null;
 		}
+		if ( \Mody\Platform\Billing\Lifecycle::site_lock( get_current_blog_id() ) ) {
+			return new WP_Error( 'mody_site_read_only', __( 'This site is read-only until its plan is paid, so Mody cannot work on it. The owner can sort it out on Plan & billing.', 'mody_cloud' ), array( 'status' => 403 ) );
+		}
 		$site   = get_current_blog_id();
 		$limits = self::limits( $site );
 		$used   = self::used( $site );

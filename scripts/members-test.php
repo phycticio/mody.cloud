@@ -74,7 +74,7 @@ $columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}" );
 $status  = $wpdb->get_row( "SHOW COLUMNS FROM {$table} LIKE 'status'", ARRAY_A );
 $plan    = $wpdb->get_row( "SHOW COLUMNS FROM {$table} LIKE 'plan'", ARRAY_A );
 // phpcs:enable
-$expected = array( 'user_id', 'plan', 'billing_period', 'status', 'free_until', 'billing_due_at', 'past_due_since', 'mollie_customer_id', 'mollie_payment_method_id', 'created_at', 'updated_at' );
+$expected = array( 'user_id', 'plan', 'billing_period', 'status', 'free_until', 'billing_due_at', 'past_due_since', 'cancel_at', 'mollie_customer_id', 'mollie_payment_method_id', 'created_at', 'updated_at' );
 $sorted   = (array) $columns;
 sort( $sorted );
 sort( $expected );

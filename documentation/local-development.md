@@ -234,7 +234,7 @@ The stack scripts came from an earlier project (Tamarind Intelligence). The prev
 | `config/bin/install.config`, `config/bin/build.config` | `install.config` lists plugins (`redirection`, `ultimate-addons-for-gutenberg`) that `app/composer.json` does not require. Redirection was briefly in Composer as a market seed and was dropped on 2026-11-08 (M4-02). Composer has the current Spectra instead (`spectra-blocks`); `ultimate-addons-for-gutenberg` is now "Spectra Legacy". `build.config` is an empty placeholder that `bin/build` still sources. |
 | `bin/install` | Calls `./bin/db import` (needs a database dump). Use the first-run steps above, or `--no-build` and expect the import to fail. |
 | `bin/migrate-*`, `bin/subscription-migration-local-env`, `config/bin/db.config` | Tamarind data-migration tooling. `db.config` now maps only `mody.cloud` to `mody.local`. `bin/wp` also forwards `TAMARIND_MIGRATION_*` variables. |
-| `compose.yml` | Ofelia labels for `wp tamarind newsletters run-due`. No Ofelia service is defined, so they do nothing. |
+| `compose.yml` | Ofelia labels for `wp tamarind newsletters run-due`. No Ofelia service is defined, so they do nothing locally; production replaces them with the billing job (`compose.prod.yml.sample`, 2026-11-13). Locally, run `./bin/wp mody-billing run` by hand. |
 | `.github/workflows/*` | Deployment and CI for the previous project (`tamarind styles refresh`, `./bin/build`). Production is deployed with `./bin/deploy`, not from CI. |
 | `app/assets/` | About 295 MB of font files (`.ttf`, `.ufm`) and one image. Nothing in this repository references it. |
 | `test.md` | QA notes for a Tamarind search refactor. |
