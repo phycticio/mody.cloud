@@ -103,6 +103,9 @@ add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::cla
  * site has 3 GB, with WordPress's own upload quota (Site\Storage).
  */
 Dashboard\DashboardPage::register();
+if ( class_exists( \Mody\Analytics\Query::class ) ) {
+	Dashboard\Board::register(); // The Visitors section's board of charts (2026-11-12, tickets/analytics-chat.md).
+}
 Site\Storage::register();
 Site\Seo::register(); // A page's SEO title (post meta) and description (its excerpt), 2026-11-12.
 

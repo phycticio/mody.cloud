@@ -45,6 +45,8 @@ module.exports = {
         'app': path.resolve(process.cwd(), 'src/app.js'),
         // The ALTCHA widget (tickets/antibot-altcha.md).
         'altcha': path.resolve(process.cwd(), 'src/altcha.js'),
+        // The analytics board's charts, with Chart.js (tickets/analytics-chat.md).
+        'analytics-board': path.resolve(process.cwd(), 'src/analytics-board.js'),
     },
     module: {
         ...defaults.module,
