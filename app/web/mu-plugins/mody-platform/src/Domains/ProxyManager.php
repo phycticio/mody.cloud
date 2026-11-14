@@ -27,6 +27,13 @@ defined( 'ABSPATH' ) || exit;
  *   proxy hosts and certificates.
  * - `NPM_LETSENCRYPT_EMAIL` (optional): Let's Encrypt's contact; else the
  *   network option `mody_seller_email`.
+ *
+ * **Where a domain's proxy host forwards** (fixed 2026-11-14): like the
+ * network's own proxy host when the NPM user can see it; otherwise (an NPM
+ * user with "created items only", the safer choice on a host shared by other
+ * stacks) to `NPM_FORWARD_HOST` (default `host.docker.internal`) and
+ * `NPM_FORWARD_PORT` (default `NGINX_HTTP_PORT`, the stack's published HTTP
+ * port), over HTTP.
  */
 final class ProxyManager {
 
@@ -168,7 +175,16 @@ final class ProxyManager {
 				);
 			}
 		}
-		return new WP_Error( 'mody_npm_network', sprintf( 'NPM has no proxy host for %s to copy.', $network ) );
+		// Not visible to this NPM user: the stack's own published port.
+		$port = (int) ( getenv( 'NPM_FORWARD_PORT' ) ?: getenv( 'NGINX_HTTP_PORT' ) );
+		if ( $port > 0 ) {
+			return array(
+				'scheme' => 'http',
+				'host'   => (string) ( getenv( 'NPM_FORWARD_HOST' ) ?: 'host.docker.internal' ),
+				'port'   => $port,
+			);
+		}
+		return new WP_Error( 'mody_npm_network', sprintf( 'NPM shows no proxy host for %s to copy, and NPM_FORWARD_PORT (or NGINX_HTTP_PORT) is not set.', $network ) );
 	}
 
 	/**
