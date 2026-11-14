@@ -14,7 +14,7 @@
 #   1. builds the payload with Portable::assemble() on the platform;
 #   2. makes a single-site WordPress in the container's /tmp/mody-exit-test/site
 #      with its own database, mody_exit_test;
-#   3. installs it, activates the theme and the four plugins, adds a page;
+#   3. installs it, activates the theme and the five plugins, adds a page;
 #   4. checks it from PHP (scripts/export-portable-check.php) and over HTTP
 #      with PHP's built-in server on 127.0.0.1:8099.
 
@@ -57,7 +57,7 @@ case "$OUT" in OK*) check "assembled, every class Mody Site names is in it" 0 ;;
 check "no agent, platform or gating code in Mody Site" "$(in_app "ls -R $T/payload/plugins/mody-site | grep -qE 'Agent|AI|Abilities|Gating|Members|Provisioning|Wizard|Onboarding|Dashboard|Altcha|FormGuard|NetworkProfile|Storage|SpectraLoader|SiteDesign|SiteEditor' && echo 1 || echo 0")"
 check "no mody-mail, mody-analytics, ai, mcp-adapter or wordfence" "$(in_app "ls $T/payload/plugins | grep -qE 'mody-mail|mody-analytics|^ai$|mcp-adapter|ollama|wordfence|query-monitor|user-switching' && echo 1 || echo 0")"
 check "Inter is in the theme" "$(in_app "test -f $T/payload/themes/theme/assets/fonts/inter/InterVariable.woff2 && grep -q 'file:./assets/fonts/inter/InterVariable.woff2' $T/payload/themes/theme/theme.json && echo 0 || echo 1")"
-check "GPL text with each Mody plugin and the theme" "$(in_app "test -f $T/payload/plugins/mody-site/LICENSE.txt -a -f $T/payload/plugins/mody-languages/LICENSE.txt -a -f $T/payload/themes/theme/LICENSE.txt && echo 0 || echo 1")"
+check "GPL text with each Mody plugin and the theme" "$(in_app "test -f $T/payload/plugins/mody-site/LICENSE.txt -a -f $T/payload/plugins/mody-languages/LICENSE.txt -a -f $T/payload/plugins/mody-images/LICENSE.txt -a -f $T/payload/themes/theme/LICENSE.txt && echo 0 || echo 1")"
 
 echo "2. A plain WordPress"
 in_app "cp -R /var/www/html/wp $SITE && mkdir -p $SITE/wp-content/uploads && cp -R $T/payload/themes $T/payload/plugins $SITE/wp-content/"
@@ -104,8 +104,9 @@ check "installed" $?
 check "single site" "$(wp_site eval 'echo is_multisite() ? 1 : 0;')"
 wp_site theme activate theme >/dev/null
 check "the theme is active" $?
-wp_site plugin activate mody-site mody-languages spectra-blocks antispam-bee >/dev/null 2>&1
-check "the four plugins activate" $?
+wp_site plugin activate mody-site mody-languages mody-images spectra-blocks antispam-bee >/dev/null 2>&1
+check "the five plugins activate" $?
+check "an upload becomes a WebP (Mody Images)" "$(wp_site eval 'require_once ABSPATH . "wp-admin/includes/media.php"; require_once ABSPATH . "wp-admin/includes/file.php"; require_once ABSPATH . "wp-admin/includes/image.php"; $t = wp_tempnam( "p.jpg" ); $i = imagecreatetruecolor( 800, 600 ); imagejpeg( $i, $t, 95 ); $id = media_handle_sideload( array( "name" => "p.jpg", "tmp_name" => $t ), 0 ); echo ! is_wp_error( $id ) && "image/webp" === get_post_mime_type( $id ) ? 0 : 1; if ( ! is_wp_error( $id ) ) { wp_delete_attachment( $id, true ); }')"
 wp_site rewrite structure '/%postname%/' >/dev/null
 
 echo "3. From PHP"

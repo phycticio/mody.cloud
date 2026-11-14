@@ -413,7 +413,7 @@ try {
 	$names = $entries( $out1, $zip );
 	$check( 'every entry is inside mody-import/ (an installable plugin zip)', $names && ! array_filter( $names, static fn( string $name ): bool => ! str_starts_with( $name, 'mody-import/' ) ) );
 	$check( 'no unsafe entry names', ! preg_grep( '#^/|\.\.|\\\\#', $names ) );
-	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-site/mody-site.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
+	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-site/mody-site.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/plugins/mody-images/mody-images.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
 		$check( 'has ' . $name, in_array( $name, $names, true ) );
 	}
 	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|wordfence|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-site/src/(Agent|AI|Gating|Members|Provisioning|Wizard|Dashboard|Onboarding)/|mody-site/src/(Abilities|Spectra/SpectraLoader|Users/NetworkProfile|Security/Altcha|Security/FormGuard)\.php#', $names );
@@ -468,6 +468,7 @@ try {
 		'the importer'    => 'mody-import/mody-import.php',
 		'Mody Site'       => 'mody-import/payload/plugins/mody-site/mody-site.php',
 		'Mody Languages'  => 'mody-import/payload/plugins/mody-languages/mody-languages.php',
+		'Mody Images'     => 'mody-import/payload/plugins/mody-images/mody-images.php',
 	);
 	foreach ( $no_update as $label => $name ) {
 		$data = get_file_data( $unzipped . '/' . $name, array( 'uri' => 'Update URI' ) );

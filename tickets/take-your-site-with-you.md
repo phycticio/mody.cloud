@@ -19,6 +19,7 @@ By the maintainer on 2026-11-12:
    - the theme `theme`, with Inter baked into its theme.json;
    - Spectra Blocks and Antispam Bee, the exact installed versions (both unmodified wp.org plugins, GPL);
    - Mody Languages (it stands alone);
+   - Mody Images (it stands alone; added 2026-11-14, [image-optimization.md](image-optimization.md));
    - **Mody Site**: the part of the platform the site needs to look and work the same (below).
 2. **Media:** the site's uploads folder, the fonts the owner installed included. STORE zip, uploads root at the zip root.
 3. **Database:** only this site's tables, cleaned; gzip, data only, one statement per line, a JSON manifest on the first line.

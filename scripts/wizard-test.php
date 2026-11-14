@@ -332,7 +332,7 @@ switch_to_blog( $site );
 $logo = (int) get_option( 'site_logo' );
 $mime = (string) get_post_mime_type( $logo );
 restore_current_blog();
-$check( 'a PNG: the site gets it as its logo', 'done' === ( $out['data']['status'] ?? '' ) && $logo > 0 && 'image/png' === $mime, $out['code'] . ' ' . $mime );
+$check( 'a PNG: the site gets it as its logo (a WebP, Mody Images)', 'done' === ( $out['data']['status'] ?? '' ) && $logo > 0 && 'image/webp' === $mime, $out['code'] . ' ' . $mime );
 $check( '...and the upload on the main site is removed', $before === $main_attachments(), ( $main_attachments() - $before ) . ' left' );
 
 $out = $rest( 'POST', '', $answers( 'logotext' ), $png( 'This is not an image.' ) );
