@@ -192,6 +192,22 @@ $check( '... logged in with a token', 'Bearer tok123' === $host[0][3] );
 $check( '... the site\'s public address is the domain; the admin stays; the old one kept', 'https://' . $domain === get_blog_option( $site, 'home' ) && str_contains( (string) get_blog_option( $site, 'siteurl' ), 'domtest' . $suffix . '.' . $network ) && $old === $after['old_home'] );
 $check( '... the mapping finds it', is_array( Mapping::active( $domain ) ) && $site === (int) Mapping::active( $domain )['site_id'] );
 
+// An NPM user that sees only its own items: the forwarding comes from the stack's published port.
+$saved_hosts  = $npm['hosts'];
+$saved_port   = getenv( 'NGINX_HTTP_PORT' );
+$npm['hosts'] = array();
+$npm['calls'] = array();
+putenv( 'NGINX_HTTP_PORT=8195' );
+$third = 'www.third' . $suffix . '.test';
+$made  = ProxyManager::add( $third );
+$post  = array_values( array_filter( $npm['calls'], static fn( array $c ): bool => 'POST' === $c[0] && '/nginx/proxy-hosts' === $c[1] ) );
+$check( 'an NPM user that cannot see mody.cloud\'s host: forwards to host.docker.internal and the stack\'s port', is_array( $made ) && 1 === count( $post ) && 'host.docker.internal' === $post[0][2]['forward_host'] && 8195 === $post[0][2]['forward_port'], is_wp_error( $made ) ? $made->get_error_message() : '' );
+putenv( 'NGINX_HTTP_PORT' );
+$none = ProxyManager::add( 'www.fourth' . $suffix . '.test' );
+$check( '... and says so when neither is known', is_wp_error( $none ) && 'mody_npm_network' === $none->get_error_code() );
+false === $saved_port ? putenv( 'NGINX_HTTP_PORT' ) : putenv( 'NGINX_HTTP_PORT=' . $saved_port );
+$npm['hosts'] = $saved_hosts;
+
 // Another domain whose certificate fails: it keeps trying, then stops after a day; Try again restarts.
 $dom2 = 'shop' . $suffix . '.test';
 $row2 = Domains::add( $other, $dom2 );
