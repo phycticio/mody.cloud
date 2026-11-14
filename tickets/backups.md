@@ -1,6 +1,6 @@
 # Backups: production off the laptop, every night, and a restore drill
 
-**Builds on:** [M5-01](M5-01-hardening-launch.md) (backup and restore drill) · **Status:** planned and built 2026-11-14; tested locally against a local repository. Waiting on the server steps below.
+**Builds on:** [M5-01](M5-01-hardening-launch.md) (backup and restore drill) · **Status:** planned and built 2026-11-14; running on production since 2026-11-14 (`7ac84f1`); Uptime Kuma alerts on; the first drill passed the same day.
 
 ## Asked for
 By the maintainer on 2026-11-14, after deciding that production stays on the laptop at launch:
@@ -68,6 +68,24 @@ The code is not backed up: it is in git and reaches the server through `./bin/de
 
   The drill passed and left nothing behind.
 
+## On production (2026-11-14)
+- **The service:** the server's `compose.prod.yml` got the `backup` service and the two Proxy Manager volumes, added by the maintainer from the prepared file; the old file is `compose.prod.yml.before-backups-20261114`. It reuses the `proxy` network the file already declared.
+- **The build:** the server's `~/.docker/config.json` still names Docker Desktop's credential helper (`"credsStore": "desktop"`), which is not installed under Colima, so `docker compose build` failed. It was built with a temporary `DOCKER_CONFIG` holding `{}` and a link to `~/.docker/cli-plugins`, and started alone (`up -d --no-deps backup`). Do the same after a change to `config/backup/`, or remove `credsStore` from that file.
+- **The repository:** `mody-backup init` created it at `swift:mody-cloud-backups:/` (Swiss Backup, `swiss-backup02`).
+- **The first full backup** (12:00 UTC): 626 files, 115 MB, stored as 19 MB, in 5 seconds. The local dump is in `/Users/javo/backups/mody.cloud/db`, owned by `javo`, mode 600.
+- **Ofelia,** restarted: it registered `mody-backup-db`, `mody-backup-full` and `mody-backup-prune`, and the other 9 jobs of the host came back.
+- **Uptime Kuma:** after the maintainer put the push monitor's real token in `BACKUP_PING_URL`, the push answers `{"ok":true}`.
+- **The first database snapshot** (12:13 UTC): 12.2 MB of SQL added 0.5 MB to the repository.
+- **The first drill** (`./bin/restore-drill` on the Mac, 28 s), run with `.env.backup` holding the server's `RESTIC_*` and `OS_*` lines (mode 600):
+  - both snapshots were minutes old;
+  - the restore and the import into MariaDB 11.4.7 passed;
+  - 3 sites, 2 members and 3 users, which matches production;
+  - every site's pages, and all 15 attachment files, are there;
+  - `.env`, `compose.prod.yml` and Proxy Manager's database and certificates came back.
+
+  It passed and left nothing behind.
+- **A stray copy of the secrets:** the server also has `/Volumes/Extreme/mody.cloud/.env.backup`, a full copy of its `.env` made on 2026-11-14. The deploy never touches it, and the backup does not include it. Delete it once it is no longer needed.
+
 ## Setting it up on the server
 1. **Deploy:** `./bin/deploy` ships `config/backup/`, `bin/restore-drill` and the sample.
 2. **Swiss Backup:** in Infomaniak's Manager, create a device of the "Cloud backup" kind (OpenStack Swift) and open its connection details.
@@ -86,5 +104,5 @@ On the laptop, or on a new machine with Docker and this repository:
 5. Check `https://mody.cloud/` and one member site, and log in. On a new machine, point DNS (Cloudflare) at the new address.
 
 ## Open
-- **The full-stack check of the drill**: WordPress started on the restored data, with a member site opened in a browser. The drill checks the data. This check is M5-01's acceptance line, and it is done once by hand with `--keep`.
+- **The full-stack check of the drill**: WordPress started on the restored data, with a member site opened in a browser. The drill checks the data (it passed on 2026-11-14). This check is the rest of M5-01's acceptance line, and it is done once by hand with `--keep`.
 - **The other projects on the laptop** (the other WordPress stacks, Immich, Akaunting) are not covered. The same image could cover them.

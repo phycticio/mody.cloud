@@ -13,7 +13,7 @@ The platform is launch-ready for 100 founding members: member sites reachable in
 ## Deliverables
 - **[M5-02](M5-02-production-member-sites.md):** member sites in production (wildcard DNS and certificate, the proxy host), `home` without `/wp`, and real mail through an EU SMTP relay.
 - **The production host: decided 2026-11-14, the laptop at launch, for budget** (architecture.md, Open questions). A European VPS (Hetzner, Infomaniak) later; replacing Cloudflare depends on it.
-- **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule. **Built 2026-11-14** ([backups.md](backups.md)): restic to Infomaniak Swiss Backup (database every 6 hours, the rest nightly) and `bin/restore-drill`; waiting on the server steps and the first drill.
+- **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule. **Built 2026-11-14** ([backups.md](backups.md)): restic to Infomaniak Swiss Backup (database every 6 hours, the rest nightly) and `bin/restore-drill`; running on production since 2026-11-14, and the first drill passed (data: sites, members, every attachment, the server's files). The full-stack check is still to do.
 - **WP-Cron on subsites** (architecture.md, Open questions), if M1 has not settled it already.
 - **Security pass** over M1 to M4:
   - **Endpoints:** nonce and capability checks on the wizard REST routes (`mody-platform/v1/sites`), the agent chat endpoint and its jobs, and the `mody/*` abilities' permission callbacks (REST and MCP). Inputs sanitized: the wizard fields, the logo upload, chat messages.
