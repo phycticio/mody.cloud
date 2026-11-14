@@ -207,7 +207,8 @@
 			method: 'POST',
 			credentials: 'same-origin',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify( { ...body, nonce: config.nonce } ),
+			// The invite code the page was opened with, if any: the permission check and the account both need it.
+			body: JSON.stringify( { ...body, nonce: config.nonce, ref: config.ref || '' } ),
 		} );
 		const data = await response.json().catch( () => ( {} ) );
 		return { ok: response.ok, data };

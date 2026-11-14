@@ -16,6 +16,7 @@ use Mody\Platform\Brand\BrandBook;
 use Mody\Platform\Brand\BrandPage;
 use Mody\Platform\Brand\BrandSettings;
 use Mody\Platform\Login\LoginPage;
+use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Wizard\WizardPage;
@@ -202,6 +203,9 @@ final class DashboardPage {
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
 			$sections['plan']  = __( 'Plan & billing', 'mody_cloud' );
 		}
+		if ( Invites::available() ) {
+			$sections[ Invites::SECTION ] = __( 'Invite friends', 'mody_cloud' );
+		}
 		return $sections;
 	}
 
@@ -308,6 +312,9 @@ final class DashboardPage {
 				break;
 			case 'plan':
 				self::render_plan();
+				break;
+			case Invites::SECTION:
+				Invites::render();
 				break;
 			case \Mody\Platform\Domains\Panel::SECTION:
 				\Mody\Platform\Domains\Panel::render();

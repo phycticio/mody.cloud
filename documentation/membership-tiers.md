@@ -27,6 +27,7 @@ Each site has:
 ## The launch offer (instead of the trial)
 
 - **What:** during the **first three months**, the **first 50 accounts** get their site **free for six months**, with **one site** and **no card**. Signing up is the chat on `/register/`, unchanged (M1-03).
+- **Its numbers and who may take a place** are set on Network Admin → Mody → Offers (since 2026-11-14, [invites-and-offers.md](../tickets/invites-and-offers.md), `Members\Offers`, the network option `mody_offers`): on or off, **everyone or invited people only** (signups through a member's invite link), places, free months, how many months it takes accounts, and its start date. The defaults are the values above. A change applies to the next signups, and the home page and legal pages state the numbers in their text, so rerun their scripts after one.
 - **The count:** the network option `mody_promo_given` counts the places given (`Members::start_free()`, one at a time under a database lock, so two signups at once never make 51); a deleted account does not give its place back. The three months count from `mody_promo_starts_at` (a Unix time), set by the first free account unless set before, for example to the launch day: `wp site option update mody_promo_starts_at <time>`.
 - **The account:** plan `free`, status `active`, `free_until` six calendar months after signup, also the first billing date (`billing_due_at`).
 - **When the 50 are taken or the three months have passed:** signing up means paying (built 2026-11-13, M1-01 part 3b): the same chat, then an email with a link to a page with the terms and Pay with card; the first month (7.99 EUR) on Mollie's checkout, then the site. Without a Mollie key the signup page says the places are taken and paid sign-ups open soon, and both routes refuse (`mody_promo_closed`). There is no waiting list.
@@ -40,6 +41,10 @@ Each site has:
 - **Read-only, then deleted** (M1-02, built 2026-11-13): while an account is past due or canceled, nobody but a super admin can change its sites (Mody neither); a banner says why and until when. A last warning on day 53; on day 60 the sites go to the network's trash and the account is `expired`. A payment lifts it at once.
 - **The daily run** (`wp mody-billing run`): on production, the host's Ofelia scheduler, from the labels in `compose.prod.yml.sample`.
 - **Accounts from before 2026-11-13:** the migration (table version 4) made every trial account `free`, free until six months after it signed up, and every paid plan `paid`. They do not count as places of the offer. A trial account with more than one site keeps its sites (Your sites says "2 sites used"), cannot add another, and after the free months pays for each.
+
+## Invite friends
+
+Since 2026-11-14 ([invites-and-offers.md](../tickets/invites-and-offers.md), `Members\Invites`), every member's Dashboard, and a super admin's, has an **Invite friends** section with a personal link (`/register/?ref=<code>`, a random code). A signup through it records the inviter in `mody_members.invited_by`. The friend gets what every signup gets: a place of the launch offer while it takes them, otherwise a paid sign-up. **A point** (`invite_point_at`) counts once, when the friend's first payment is paid; a withdrawal takes it back. **Points give nothing yet**, and the section says so (rule 7). It shows how many joined and the points, never who. Invites can be switched off on the Offers page.
 
 ## Gating
 

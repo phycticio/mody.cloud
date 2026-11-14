@@ -176,17 +176,34 @@ final class Registration {
 
 	/**
 	 * Whether a visitor can sign up now: registration is open and the launch
-	 * offer has a place left.
+	 * offer takes them, or card payments are offered.
+	 *
+	 * @param bool $invited Whether they came through an invite link.
 	 */
-	public static function takes_accounts(): bool {
-		return self::is_open() && ( Members::promo_open() || Mollie::offered() );
+	public static function takes_accounts( bool $invited = false ): bool {
+		return self::is_open() && ( Members::promo_open( $invited ) || Mollie::offered() );
 	}
 
 	/**
-	 * Whether signing up now means paying: the offer has ended and Mollie is set up.
+	 * Whether signing up now means paying: the offer does not take them and Mollie is set up.
+	 *
+	 * @param bool $invited Whether they came through an invite link.
 	 */
-	public static function paying(): bool {
-		return ! Members::promo_open() && Mollie::offered();
+	public static function paying( bool $invited = false ): bool {
+		return ! Members::promo_open( $invited ) && Mollie::offered();
+	}
+
+	/**
+	 * The invite code of this page view: from the address (`?ref=`) or the
+	 * form just posted; '' without one (Invites).
+	 */
+	public static function invite_code(): string {
+		// phpcs:disable WordPress.Security.NonceVerification -- Only which invite link was followed; Invites::inviter() checks it.
+		if ( isset( $_POST['mody_ref'] ) ) {
+			return Invites::clean( wp_unslash( $_POST['mody_ref'] ) );
+		}
+		return isset( $_GET[ Invites::ARG ] ) ? Invites::clean( wp_unslash( $_GET[ Invites::ARG ] ) ) : '';
+		// phpcs:enable
 	}
 
 	/**
@@ -417,6 +434,7 @@ final class Registration {
 	 *                      here, and a new account's real `user_id`, `url` and `site_id` come back.
 	 *                      The `mody_registration_defer` filter overrides what "a web request"
 	 *                      means (tests).
+	 * @param string $ref   The invite code the visitor came with ('' for none): who invited them (Invites).
 	 * @return array{user_id: int, email: string, address: string, url: string, site_id: int}|WP_Error
 	 *         The account (for an email that already has one, or when deferred, the same answer with `user_id`
 	 *         0: nothing is created here, and that member gets a note), or `mody_invalid_input`
@@ -424,7 +442,7 @@ final class Registration {
 	 *         `mody_registration_failed`. A failure of deferred work cannot be shown: it is
 	 *         logged (code and message only), and the visitor can sign up again.
 	 */
-	public static function register( string $name, string $email, string $title, string $slug, bool $defer = false ): array|WP_Error {
+	public static function register( string $name, string $email, string $title, string $slug, bool $defer = false, string $ref = '' ): array|WP_Error {
 		$slug   = self::normalize_slug( $slug );
 		$values = compact( 'name', 'email', 'title', 'slug' );
 		$fields = array();
@@ -470,7 +488,7 @@ final class Registration {
 			if ( $wait ) {
 				return RateLimit::error( $wait, __( 'Many people are signing up right now. Please try again in %s.', 'mody_cloud' ) );
 			}
-			$work = static fn() => self::create_account( $name, $email, $title, $slug );
+			$work = static fn() => self::create_account( $name, $email, $title, $slug, $ref );
 		}
 
 		if ( $defer && (bool) apply_filters( 'mody_registration_defer', function_exists( 'fastcgi_finish_request' ) ) ) {
@@ -535,9 +553,10 @@ final class Registration {
 	 * @param string $email Email, sanitized and valid.
 	 * @param string $title The project's name, sanitized.
 	 * @param string $slug  The site's address, normalized.
+	 * @param string $ref   The invite code, or ''.
 	 * @return array{user_id: int, email: string, address: string, url: string, site_id: int}|WP_Error
 	 */
-	private static function create_account( string $name, string $email, string $title, string $slug ): array|WP_Error {
+	private static function create_account( string $name, string $email, string $title, string $slug, string $ref = '' ): array|WP_Error {
 		$failed  = new WP_Error( 'mody_registration_failed', __( 'Your account could not be created. Please try again.', 'mody_cloud' ) );
 		$names   = self::new_names( $name );
 		$user_id = wp_insert_user(
@@ -560,7 +579,8 @@ final class Registration {
 			wpmu_delete_user( $user_id ); // No user without a row and a site.
 		};
 
-		$free = Members::start_free( $user_id );
+		$inviter = Invites::inviter( $ref );
+		$free    = Members::start_free( $user_id, $inviter > 0 );
 		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && Mollie::offered() ) {
 			// The offer is over: a paid sign-up, no site until the first payment.
 			$pending = self::start_paid( $user_id, $title, $slug );
@@ -568,6 +588,7 @@ final class Registration {
 				$undo();
 				return $failed;
 			}
+			Invites::record( $user_id, $inviter );
 			return array(
 				'user_id' => $user_id,
 				'email'   => $email,
@@ -580,6 +601,7 @@ final class Registration {
 			$undo();
 			return 'mody_promo_closed' === $free->get_error_code() ? $free : $failed;
 		}
+		Invites::record( $user_id, $inviter );
 		$job_id = Pipeline::start(
 			$user_id,
 			array(
@@ -943,6 +965,12 @@ final class Registration {
 			'required'  => true,
 			'maxLength' => $max,
 		);
+		// The invite code the visitor came with (Invites), optional.
+		$ref = array(
+			'type'      => 'string',
+			'default'   => '',
+			'maxLength' => 64,
+		);
 		register_rest_route(
 			ChatController::REST_NAMESPACE,
 			'/register/check',
@@ -958,6 +986,7 @@ final class Registration {
 					),
 					'value' => $string( 500 ),
 					'nonce' => $string( 64 ),
+					'ref'   => $ref,
 				),
 			)
 		);
@@ -979,6 +1008,7 @@ final class Registration {
 						'default'   => '',
 						'maxLength' => 4096,
 					),
+					'ref'    => $ref,
 				),
 			)
 		);
@@ -995,8 +1025,9 @@ final class Registration {
 		if ( ! self::is_open() || ! is_main_site() ) {
 			return new WP_Error( 'mody_registration_closed', __( 'Registration is not open yet.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
-		if ( ! Members::promo_open() && ! Mollie::offered() ) {
-			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message(), array( 'status' => 403 ) );
+		$invited = Invites::inviter( (string) $request['ref'] ) > 0;
+		if ( ! Members::promo_open( $invited ) && ! Mollie::offered() ) {
+			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message( $invited ), array( 'status' => 403 ) );
 		}
 		if ( ! wp_verify_nonce( (string) $request['nonce'], self::ACTION ) ) {
 			return new WP_Error( 'mody_registration_expired', __( 'This page expired. Please reload it and try again.', 'mody_cloud' ), array( 'status' => 403 ) );
@@ -1046,7 +1077,7 @@ final class Registration {
 		if ( ! Altcha::verify( $request['altcha'] ) ) {
 			return new WP_Error( 'mody_altcha_failed', Altcha::failed_message(), array( 'status' => 403 ) );
 		}
-		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'], true );
+		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'], true, (string) $request['ref'] );
 		if ( is_wp_error( $account ) ) {
 			$status = (int) ( ( (array) $account->get_error_data() )['status'] ?? 0 );
 			$account->add_data( array_merge( (array) $account->get_error_data(), array( 'status' => $status ? $status : ( 'mody_invalid_input' === $account->get_error_code() ? 400 : 500 ) ) ) );
@@ -1088,8 +1119,10 @@ final class Registration {
 			self::$errors = array( 'form' => __( 'Registration is not open yet.', 'mody_cloud' ) );
 			return;
 		}
-		if ( ! Members::promo_open() && ! Mollie::offered() ) {
-			self::$errors = array( 'form' => Members::promo_closed_message() );
+		$ref     = self::invite_code();
+		$invited = Invites::inviter( $ref ) > 0;
+		if ( ! Members::promo_open( $invited ) && ! Mollie::offered() ) {
+			self::$errors = array( 'form' => Members::promo_closed_message( $invited ) );
 			return;
 		}
 		if ( ! Altcha::verify( Altcha::posted() ) ) {
@@ -1097,7 +1130,7 @@ final class Registration {
 			return;
 		}
 
-		$account = self::register( $field( 'mody_name' ), $field( 'mody_email' ), $field( 'mody_title' ), $field( 'mody_slug' ), true );
+		$account = self::register( $field( 'mody_name' ), $field( 'mody_email' ), $field( 'mody_title' ), $field( 'mody_slug' ), true, $ref );
 		if ( is_wp_error( $account ) ) {
 			self::$errors = (array) ( $account->get_error_data()['fields'] ?? array( 'form' => $account->get_error_message() ) );
 			return;
@@ -1182,14 +1215,19 @@ final class Registration {
 				esc_html__( 'Go to your dashboard', 'mody_cloud' )
 			);
 		}
-		if ( ! self::takes_accounts() ) {
+		$ref     = self::invite_code();
+		$invited = Invites::inviter( $ref ) > 0;
+		if ( ! $invited ) {
+			$ref = ''; // An unknown code is ignored.
+		}
+		if ( ! self::takes_accounts( $invited ) ) {
 			// A form posted while closed says so; otherwise, when it opens, or that the launch offer's places are taken.
-			$closed = self::is_open() ? Members::promo_closed_message() : __( 'Registration opens soon.', 'mody_cloud' );
+			$closed = self::is_open() ? Members::promo_closed_message( $invited ) : __( 'Registration opens soon.', 'mody_cloud' );
 			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? $closed ) . '</p></div>';
 		}
 
 		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), array( Altcha::SCRIPT ), self::asset_version( 'register.js' ), true );
-		wp_add_inline_script( self::SCRIPT, 'window.modyRegister = ' . wp_json_encode( self::chat_settings() ) . ';', 'before' );
+		wp_add_inline_script( self::SCRIPT, 'window.modyRegister = ' . wp_json_encode( self::chat_settings( $invited, $ref ) ) . ';', 'before' );
 
 		$value = static fn( string $key ): string => self::$values[ $key ] ?? '';
 		$error = static fn( string $key ): string => isset( self::$errors[ $key ] )
@@ -1202,7 +1240,7 @@ final class Registration {
 		<div <?php echo $wrapper; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by WordPress and wrapper_attributes(). ?>>
 			<div class="mody-register__chat" id="mody-register-chat" hidden></div>
 			<form class="mody-register__form" id="mody-register-form" method="post" action="<?php echo esc_url( (string) get_permalink() ); ?>" novalidate>
-				<p class="mody-register__intro"><?php echo esc_html( self::intro() ); ?></p>
+				<p class="mody-register__intro"><?php echo esc_html( self::intro( $invited ) ); ?></p>
 				<?php echo $error( 'form' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $error. ?>
 				<p class="mody-register__field">
 					<label for="mody-register-name"><?php esc_html_e( 'Your name', 'mody_cloud' ); ?></label>
@@ -1232,7 +1270,10 @@ final class Registration {
 				<noscript><p class="mody-register__error"><?php esc_html_e( 'Signing up needs JavaScript: your browser solves a small puzzle that shows you are not a robot. Please turn JavaScript on and reload this page.', 'mody_cloud' ); ?></p></noscript>
 				<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::ACTION ); ?>">
 				<input type="hidden" name="_mody_nonce" value="<?php echo esc_attr( wp_create_nonce( self::ACTION ) ); ?>">
-				<p><button type="submit" class="wp-element-button"><?php echo esc_html( self::paying() ? __( 'Continue', 'mody_cloud' ) : __( 'Create my free site', 'mody_cloud' ) ); ?></button></p>
+				<?php if ( '' !== $ref ) : ?>
+					<input type="hidden" name="mody_ref" value="<?php echo esc_attr( $ref ); ?>">
+				<?php endif; ?>
+				<p><button type="submit" class="wp-element-button"><?php echo esc_html( self::paying( $invited ) ? __( 'Continue', 'mody_cloud' ) : __( 'Create my free site', 'mody_cloud' ) ); ?></button></p>
 			</form>
 			<?php if ( '' !== Billing::legal_url( 'terms' ) ) : ?>
 				<p class="mody-register__note mody-register__legal">
@@ -1356,13 +1397,13 @@ final class Registration {
 	/**
 	 * The first thing the page says, in the chat and above the form.
 	 */
-	private static function intro(): string {
-		if ( self::paying() ) {
+	private static function intro( bool $invited = false ): string {
+		if ( self::paying( $invited ) ) {
 			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
 			return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions, then pay the first month by card: %s a month per site, VAT included. Your site is ready right after.', 'mody_cloud' ), Members::price( Members::PRICE['monthly'] ) );
 		}
 		/* translators: 1: free months, 2: a site's monthly price, such as 7.99 EUR. */
-		return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions and your website is ready. It is free for %1$d months, no card needed; after that, %2$s a month, VAT included.', 'mody_cloud' ), Members::FREE_MONTHS, Members::price( Members::PRICE['monthly'] ) );
+		return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions and your website is ready. It is free for %1$d months, no card needed; after that, %2$s a month, VAT included.', 'mody_cloud' ), Offers::free_months(), Members::price( Members::PRICE['monthly'] ) );
 	}
 
 	/**
@@ -1370,16 +1411,17 @@ final class Registration {
 	 *
 	 * @return array<string, mixed>
 	 */
-	private static function chat_settings(): array {
+	private static function chat_settings( bool $invited = false, string $ref = '' ): array {
 		return array(
 			'endpoint' => rest_url( ChatController::REST_NAMESPACE . '/register' ),
+			'ref'      => $ref,
 			'nonce'    => wp_create_nonce( self::ACTION ),
 			'suffix'   => self::address_suffix(),
 			'login'    => wp_login_url(),
 			'maxName'  => self::MAX_NAME,
 			'maxTitle' => self::MAX_TITLE,
 			'strings'  => array(
-				'intro'      => self::intro(),
+				'intro'      => self::intro( $invited ),
 				'mody'       => __( 'Mody', 'mody_cloud' ),
 				'you'        => __( 'You', 'mody_cloud' ),
 				'askName'    => __( 'What\'s your name?', 'mody_cloud' ),

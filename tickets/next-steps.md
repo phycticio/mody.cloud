@@ -2,9 +2,10 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-14, images made web efficient on upload (deployed, existing media converted).
+**Last updated:** 2026-11-14, invite friends and the Offers page (built, not deployed).
 
 ## Waiting on the maintainer
+- **Invite friends and the Offers page** ([invites-and-offers.md](invites-and-offers.md), built 2026-11-14, not deployed): every member's Dashboard has Invite friends (a personal link; a point when the friend first pays, worth nothing yet), and Network Admin → Mody → Offers sets the launch offer (everyone or invited people only, places, months, start) and invites. To give the first places to the maintainer's clients: deploy, set the offer to invited people only, and send them the link from his Dashboard.
 - **Backups** ([backups.md](backups.md), built 2026-11-14): restic to Infomaniak Swiss Backup, the database every 6 hours and the rest nightly, with Uptime Kuma alerts and `bin/restore-drill`. Running on production since 2026-11-14 (first full backup: 115 MB stored as 19 MB), with Uptime Kuma alerts; the first `./bin/restore-drill` passed the same day. Still: the full-stack check (WordPress on the restored data), once, by hand.
 - **Images made web efficient** ([image-optimization.md](image-optimization.md), built and deployed 2026-11-14): the `mody-images` MU plugin stores every uploaded JPEG, PNG or HEIC as an upright WebP of at most 2560 pixels, without camera data, with WebP sizes. The media already on production was converted the same day (12 pictures, 6.4 MB to 1.7 MB). Waiting on a look in the editor.
 - **Custom domains** ([custom-domains.md](custom-domains.md), built 2026-11-13, not deployed): Your domain on the site's Dashboard, a CNAME to `sites.mody.cloud`, certificates through Nginx Proxy Manager's API. Before it works on production: the `sites.mody.cloud` DNS-only record kept on the home's address, the `NPM_API_*` variables in the server's `.env`, and the app reaching NPM's API.
