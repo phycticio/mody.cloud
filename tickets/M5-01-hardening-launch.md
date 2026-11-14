@@ -12,8 +12,8 @@ The platform is launch-ready for 100 founding members: member sites reachable in
 
 ## Deliverables
 - **[M5-02](M5-02-production-member-sites.md):** member sites in production (wildcard DNS and certificate, the proxy host), `home` without `/wp`, and real mail through an EU SMTP relay.
-- **The production host** (architecture.md, Open questions): stay on the laptop (on its internal disk since 2026-11-09, after the USB disk failed twice), or move to a European VPS (Hetzner, Infomaniak) before launch. Replacing Cloudflare depends on it.
-- **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule, which does not exist yet.
+- **The production host: decided 2026-11-14, the laptop at launch, for budget** (architecture.md, Open questions). A European VPS (Hetzner, Infomaniak) later; replacing Cloudflare depends on it.
+- **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule. **Built 2026-11-14** ([backups.md](backups.md)): restic to Infomaniak Swiss Backup (database every 6 hours, the rest nightly) and `bin/restore-drill`; waiting on the server steps and the first drill.
 - **WP-Cron on subsites** (architecture.md, Open questions), if M1 has not settled it already.
 - **Security pass** over M1 to M4:
   - **Endpoints:** nonce and capability checks on the wizard REST routes (`mody-platform/v1/sites`), the agent chat endpoint and its jobs, and the `mody/*` abilities' permission callbacks (REST and MCP). Inputs sanitized: the wizard fields, the logo upload, chat messages.
@@ -41,6 +41,11 @@ An audit of six surfaces (signup and login, the agent and REST, wp-admin handler
 - **Accepted for now:** the PHP container receives every `.env` secret (narrowing `env_file` risks production; plan in architecture.md); anyone can send up to 1 GB to the three upload endpoints (Nginx cannot see a login).
 - **Tests:** `scripts/security-signup-test.php`, `security-agent-test.php`, `security-isolation-test.php`, `nginx-hardening-test.sh`, plus the existing suites.
 - **After the deploy, on the server:** recreate the containers and restart Nginx; delete any `app/core*`; check whether `/AUTH.JSON` or `/Logs/debug.log` answered before (if so, rotate the `plugins.mody.cloud` Composer credential and treat the logs as exposed).
+
+## Small items before launch (2026-11-14)
+- **The home page's promises** (rule 7): "Every plugin in our market" became "Everything built in" (Spectra's blocks, languages, cookieless visitor stats, antispam and image optimization; more plugins as we check them), because members have no plugin to switch on yet. Custom domains are no longer "soon" (built and live, 2026-11-13). Done in `scripts/home-page.php` and its translations, and published on production in all four languages.
+- **The main site:** WordPress's "Sample Page" and its default "Privacy Policy" draft are in the trash. `wp_page_for_privacy_policy` points at the published privacy page (276), which core links from login and signup.
+- **The theme's spacing sizes** are fixed without moving anything (theme-development.md, Design tokens).
 
 ## Acceptance (launch checklist)
 - [ ] Fresh machine: `cp sample.env .env`, certs, `docker compose up`, core install, multisite activation — the site is usable (documented in local-development.md).

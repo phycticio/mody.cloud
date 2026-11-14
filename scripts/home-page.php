@@ -312,11 +312,11 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/container {"variationSelected":true,"backgroundColor":"base","style":{"border":{"radius":"16px"},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|40","right":"var:preset|spacing|40","bottom":"var:preset|spacing|40","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"textColor":"primary","fontSize":"large"} -->
-<h3 class="wp-block-heading has-primary-color has-text-color has-large-font-size">Every plugin in our market</h3>
+<h3 class="wp-block-heading has-primary-color has-text-color has-large-font-size">Everything built in</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>Switch on any plugin from our market, on any site. We check each one against our European rules first.</p>
+<p>Spectra's blocks, languages, cookieless visitor stats, antispam and image optimization come with every site. More plugins join our market as we check each one against our European rules.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
@@ -326,7 +326,7 @@ $markup = <<<'HTML'
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>Each site starts at <em>your-name</em>.mody.cloud. Soon you can point your own domain to our servers, and your site answers at it.</p>
+<p>Each site starts at <em>your-name</em>.mody.cloud. Point your own domain to us with one DNS record, and your site answers at it, over HTTPS.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
@@ -392,7 +392,7 @@ $markup = <<<'HTML'
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center">Every site gets the same: 1 GB of space, every plugin in our market, its own Mody and the full Site Editor. Every site costs the same, however many you have. Pay monthly, or yearly and get two months free.</p>
+<p class="has-text-align-center">Every site gets the same: 1 GB of space, everything built in, its own Mody and the full Site Editor. Every site costs the same, however many you have. Pay monthly, or yearly and get two months free.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|40"},"@tablet":{"layout":{"columnCount":1}},"@mobile":{"layout":{"columnCount":1}}},"layout":{"type":"grid","columnCount":3,"minimumColumnWidth":null}} -->
@@ -527,7 +527,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Yes: every plugin in our market is available on every site, and you switch each one on for the site that needs it. You can't upload your own: we check each plugin against our European rules first, and we keep them all up to date.</p>
+<p>Not your own. Every site comes with Spectra's blocks, languages, cookieless visitor stats, antispam and image optimization built in. Plugins join our market as we check each one against our European rules; then you switch each one on for the site that needs it, and we keep them all up to date.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -541,7 +541,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Yes, soon. Every site starts at <em>your-name</em>.mody.cloud. When domains open, you point your domain to our servers and your site answers at it.</p>
+<p>Yes. Every site starts at <em>your-name</em>.mody.cloud. Buy your domain from any registrar, add the DNS record your site's Dashboard shows you, and your site answers at it, over HTTPS. Your editor stays at the mody.cloud address.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->

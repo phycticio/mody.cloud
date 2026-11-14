@@ -80,37 +80,37 @@
 				{
 					"slug": "20",
 					"name": "2X-Small",
-					"size": "0.5rem"
+					"size": "0.44rem"
 				},
 				{
 					"slug": "30",
 					"name": "X-Small",
-					"size": "1rem"
+					"size": "0.67rem"
 				},
 				{
 					"slug": "40",
 					"name": "Small",
-					"size": "1.5rem"
+					"size": "1rem"
 				},
 				{
 					"slug": "50",
 					"name": "Medium",
-					"size": "2.5rem"
+					"size": "1.5rem"
 				},
 				{
 					"slug": "60",
 					"name": "Large",
-					"size": "4rem"
+					"size": "2.25rem"
 				},
 				{
 					"slug": "70",
 					"name": "X-Large",
-					"size": "6rem"
+					"size": "3.38rem"
 				},
 				{
 					"slug": "80",
 					"name": "2X-Large",
-					"size": "8rem"
+					"size": "5.06rem"
 				}
 			]
 		}

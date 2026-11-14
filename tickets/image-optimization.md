@@ -1,6 +1,6 @@
 # Images: every upload made web efficient
 
-**Status:** planned and built 2026-11-14; tested locally, not deployed.
+**Status:** planned, built and deployed 2026-11-14 (`65eb1c1`); the existing media on production converted the same day.
 
 ## Asked for
 By the maintainer on 2026-11-14:
@@ -60,6 +60,12 @@ Imagick does the work when it writes WebP, which it does on our stack (ImageMagi
   - The logo checks of `wizard-test` and `provisioning-test` now expect WebP.
   - `wizard-test`'s check "the theme's header with the brand name" fails with or without this plugin. It was already failing, and it is not part of this ticket.
 
+## Production (2026-11-14)
+- Deployed in `65eb1c1`. Imagick on the server writes WebP. A 3200 × 2400 JPEG of 4 MB became a 2560 × 1920 WebP of 343 KB there.
+- **Backups first:** the database in `backups/mody_cloud-prod-before-images-optimize-20261114-113738.sql` (local), and the uploads in `backups/uploads-before-images-optimize-20261114-113738.tgz` on the server.
+- **`wp mody-images optimize --network --yes`:** 12 pictures on three sites (mody.cloud, aliris, phycticio). 6.4 MB of files became 1.7 MB, and the uploads folder went from 7.6 MB to 2.9 MB. 6 posts were updated.
+- **No address left on an old file,** except two kinds of history: the attachments' `guid` (WordPress never changes it) and the `ai` plugin's upload record (`_wpai_monitor_record`).
+- The home pages of the three sites serve their WebP files (200).
+
 ## Open questions
-- **The existing media on production:** run `wp mody-images optimize --network --dry-run`, then the real run after a backup. It needs the maintainer.
 - **The quota counts the uploaded size**, not the stored one, so a 20 MB photo needs 20 MB free even though it is stored in a few hundred KB. Counting the stored size would mean running the conversion before WordPress's quota checks (REST checks before any filter).
