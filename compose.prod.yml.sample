@@ -76,7 +76,84 @@ services:
     # Don't publish MariaDB to the host in production.
     ports: !reset []
 
+  # Backups (tickets/backups.md): an idle container with restic and the
+  # MariaDB client; the host's Ofelia runs mody-backup in it
+  # (config/backup/mody-backup.sh). Every 6 hours the database is dumped and
+  # sent off site; every night the dump, the uploads, this server's .env and
+  # compose.prod.yml, and Nginx Proxy Manager's data; every Sunday old
+  # snapshots are pruned and part of the data checked. Off site is an
+  # encrypted restic repository at Infomaniak Swiss Backup: RESTIC_* and the
+  # OS_* (Swift) credentials in .env. The dumps also stay on the laptop's
+  # internal disk (BACKUP_LOCAL_DIR), apart from the sites' disk.
+  # Ofelia reads labels only when it starts: `docker restart ofelia` after
+  # adding or changing them. Schedules have seconds first, in UTC.
+  backup:
+    build:
+      context: ./config/backup
+    image: ${CONTAINER_PREFIX:-wp_}backup:1
+    container_name: ${CONTAINER_PREFIX:-wp_}backup
+    hostname: mody-backup
+    restart: unless-stopped
+    depends_on:
+      - database
+    environment:
+      BACKUP_HOST: "${HOST_NAME:-mody.cloud}"
+      BACKUP_DB_HOST: database
+      BACKUP_DB_NAME: "${DB_NAME}"
+      BACKUP_DB_USER: "${DB_USER}"
+      BACKUP_DB_PASSWORD: "${DB_PASSWORD}"
+      BACKUP_KEEP_LOCAL_DUMPS: "${BACKUP_KEEP_LOCAL_DUMPS:-12}"
+      BACKUP_PING_URL: "${BACKUP_PING_URL:-}"
+      RESTIC_REPOSITORY: "${RESTIC_REPOSITORY:-}"
+      RESTIC_PASSWORD: "${RESTIC_PASSWORD:-}"
+      OS_AUTH_URL: "${OS_AUTH_URL:-}"
+      OS_REGION_NAME: "${OS_REGION_NAME:-}"
+      OS_PROJECT_NAME: "${OS_PROJECT_NAME:-}"
+      OS_USERNAME: "${OS_USERNAME:-}"
+      OS_PASSWORD: "${OS_PASSWORD:-}"
+      OS_USER_DOMAIN_NAME: "${OS_USER_DOMAIN_NAME:-}"
+      OS_PROJECT_DOMAIN_NAME: "${OS_PROJECT_DOMAIN_NAME:-}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+    volumes:
+      - ${BACKUP_LOCAL_DIR:-/Users/javo/backups/mody.cloud}:/backups
+      - ./app/web/uploads:/sources/uploads:ro
+      - ./.env:/sources/server/.env:ro
+      - ./compose.prod.yml:/sources/server/compose.prod.yml:ro
+      - npm_data:/sources/npm/data:ro
+      - npm_letsencrypt:/sources/npm/letsencrypt:ro
+    networks:
+      - default
+      # Uptime Kuma's push monitor (BACKUP_PING_URL) is on the proxy's network.
+      - proxy
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.mody-backup-db.schedule: "${OFELIA_BACKUP_DB_SCHEDULE:-0 0 0,6,12,18 * * *}"
+      ofelia.job-exec.mody-backup-db.command: "mody-backup db"
+      ofelia.job-exec.mody-backup-db.no-overlap: "true"
+      ofelia.job-exec.mody-backup-full.schedule: "${OFELIA_BACKUP_FULL_SCHEDULE:-0 30 2 * * *}"
+      ofelia.job-exec.mody-backup-full.command: "mody-backup full"
+      ofelia.job-exec.mody-backup-full.no-overlap: "true"
+      ofelia.job-exec.mody-backup-prune.schedule: "${OFELIA_BACKUP_PRUNE_SCHEDULE:-0 30 4 * * 0}"
+      ofelia.job-exec.mody-backup-prune.command: "mody-backup prune"
+      ofelia.job-exec.mody-backup-prune.no-overlap: "true"
+
   mailpit:
     # Never start Mailpit in production. No profile named never-start is ever
     # enabled, so `docker compose up` skips this service.
     profiles: ["never-start"]
+
+# Nginx Proxy Manager's data and its network, from the proxy's own project on
+# this host (the backup service reads the volumes and reaches Uptime Kuma).
+volumes:
+  npm_data:
+    external: true
+    name: ${NPM_DATA_VOLUME:-proxy_data}
+  npm_letsencrypt:
+    external: true
+    name: ${NPM_LETSENCRYPT_VOLUME:-proxy_letsencrypt}
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy_default}

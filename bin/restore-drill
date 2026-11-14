@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+#
+# The restore drill (tickets/backups.md): proves that production's off-site
+# backup can be restored, from a machine that is not the server.
+#
+#   ./bin/restore-drill [--env-file=.env.backup] [--repo-volume=<docker volume>] [--keep]
+#
+# It builds the backup image (config/backup), then, in throwaway containers
+# on this machine:
+#   1. lists the snapshots and checks their age: the newest database snapshot
+#      at most 7 hours old, the newest full one at most 26 hours;
+#   2. restores the newest full snapshot (database dump, uploads, the server's
+#      .env and compose.prod.yml, Nginx Proxy Manager's data);
+#   3. imports the dump into a scratch MariaDB 11.4 (never the local stack's
+#      database) and checks it: the network's sites, members and pages, and
+#      that every attachment's file is in the restored uploads;
+#   4. checks the server's files and Proxy Manager's database came back;
+#   5. removes everything it made (unless --keep), and exits non-zero if any
+#      check failed.
+#
+# The repository's settings are read from --env-file (default .env.backup at
+# the repository root, ignored by git): RESTIC_REPOSITORY, RESTIC_PASSWORD
+# and the storage credentials (OS_* for Swiss Backup's Swift, or AWS_*),
+# the same values as on the server. Nothing is written to the repository.
+#
+# --repo-volume mounts a Docker volume at /repo, for testing against a local
+# repository (RESTIC_REPOSITORY=/repo).
+#
+# What this does not do: start WordPress on the restored data. After a drill
+# with --keep, the full-stack check is the steps in tickets/backups.md.
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+ENV_FILE=".env.backup"
+REPO_VOLUME=""
+KEEP=0
+for arg in "$@"; do
+	case "$arg" in
+		--env-file=*) ENV_FILE="${arg#*=}" ;;
+		--repo-volume=*) REPO_VOLUME="${arg#*=}" ;;
+		--keep) KEEP=1 ;;
+		-h|--help) sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		*) echo "Unknown option: $arg" >&2; exit 2 ;;
+	esac
+done
+
+[ -f "$ENV_FILE" ] || { echo "No $ENV_FILE: put RESTIC_REPOSITORY, RESTIC_PASSWORD and the storage credentials in it (tickets/backups.md)." >&2; exit 2; }
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+: "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is not set in $ENV_FILE}"
+: "${RESTIC_PASSWORD:?RESTIC_PASSWORD is not set in $ENV_FILE}"
+HOST_TAG="${BACKUP_HOST:-mody.cloud}"
+
+RUN_ID="mody-drill-$(date +%Y%m%d-%H%M%S)"
+NETWORK="$RUN_ID"
+DB_CONTAINER="$RUN_ID-db"
+RESTORE_VOLUME="$RUN_ID-restore"
+DB_PASSWORD="drill-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
+IMAGE="mody-backup:drill"
+
+cleanup() {
+	if [ "$KEEP" -eq 1 ]; then
+		echo "Kept: network $NETWORK, database container $DB_CONTAINER (root password $DB_PASSWORD), volume $RESTORE_VOLUME."
+		return
+	fi
+	docker rm -f "$DB_CONTAINER" >/dev/null 2>&1 || true
+	docker volume rm "$RESTORE_VOLUME" >/dev/null 2>&1 || true
+	docker network rm "$NETWORK" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# Pass the repository's settings through by name: values never appear on a command line.
+ENV_ARGS=()
+for name in RESTIC_REPOSITORY RESTIC_PASSWORD \
+	OS_AUTH_URL OS_REGION_NAME OS_PROJECT_NAME OS_PROJECT_ID OS_USERNAME OS_USER_ID OS_PASSWORD \
+	OS_USER_DOMAIN_NAME OS_USER_DOMAIN_ID OS_PROJECT_DOMAIN_NAME OS_PROJECT_DOMAIN_ID OS_STORAGE_URL OS_AUTH_TOKEN \
+	AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION; do
+	if [ -n "${!name:-}" ]; then
+		export "${name?}"
+		ENV_ARGS+=(-e "$name")
+	fi
+done
+REPO_ARGS=()
+[ -n "$REPO_VOLUME" ] && REPO_ARGS=(-v "$REPO_VOLUME:/repo")
+
+restic_run() {
+	docker run --rm --entrypoint restic "${ENV_ARGS[@]}" "${REPO_ARGS[@]}" \
+		-v "$RESTORE_VOLUME:/restore" --network "$NETWORK" "$IMAGE" "$@"
+}
+
+echo "== Building the backup image"
+docker build -q -t "$IMAGE" config/backup >/dev/null
+docker network create "$NETWORK" >/dev/null
+docker volume create "$RESTORE_VOLUME" >/dev/null
+
+echo "== Snapshots"
+restic_run snapshots --host "$HOST_TAG" --compact | tail -n 8
+
+FAILED=0
+ok()   { printf 'ok   %s\n' "$1"; }
+fail() { printf 'FAIL %s\n' "$1"; FAILED=1; }
+
+# The newest snapshot of a tag, as "<id> <epoch seconds>".
+newest() {
+	restic_run snapshots --host "$HOST_TAG" --tag "$1" --latest 1 --json \
+		| tr ',' '\n' | grep -E '"(time|short_id)"' | sed -E 's/.*":"?([^"]*)"?.*/\1/' | tr '\n' ' '
+}
+age_check() { # tag max_hours
+	read -r time id <<<"$(newest "$1")"
+	if [ -z "${id:-}" ]; then fail "a $1 snapshot exists"; return; fi
+	stamp="$(date -u -j -f '%Y-%m-%dT%H:%M:%S' "${time:0:19}" +%s 2>/dev/null || date -u -d "${time:0:19}" +%s)"
+	hours=$(( ( $(date -u +%s) - stamp ) / 3600 ))
+	if [ "$hours" -le "$2" ]; then ok "newest $1 snapshot $id: ${hours} h old (at most $2)"; else fail "newest $1 snapshot $id: ${hours} h old (at most $2)"; fi
+}
+age_check db 7
+age_check full 26
+
+echo "== Restoring the newest full snapshot"
+restic_run restore latest --host "$HOST_TAG" --tag full --target /restore | tail -n 2
+
+echo "== A scratch MariaDB, and the dump in it"
+docker run -d --name "$DB_CONTAINER" --network "$NETWORK" -e MARIADB_ROOT_PASSWORD="$DB_PASSWORD" -e MARIADB_DATABASE=drill mariadb:11.4.7 >/dev/null
+# Its first start runs a setup server without networking, then the real one, which logs "port: 3306".
+for _ in $(seq 1 120); do
+	docker logs "$DB_CONTAINER" 2>&1 | grep -q 'port: 3306' && break
+	sleep 1
+done
+
+# The checks run in the backup image, against the restored files and the scratch database.
+docker run --rm -i --entrypoint sh -e DRILL_DB_HOST="$DB_CONTAINER" -e MYSQL_PWD="$DB_PASSWORD" \
+	-v "$RESTORE_VOLUME:/restore" --network "$NETWORK" "$IMAGE" -s <<'CHECKS' || FAILED=1
+set -eu
+failed=0
+ok()   { printf 'ok   %s\n' "$1"; }
+fail() { printf 'FAIL %s\n' "$1"; failed=1; }
+sql()  { mariadb --no-defaults -h "$DRILL_DB_HOST" -uroot -N -B drill -e "$1"; }
+
+dump="$(ls /restore/backups/db/*.sql 2>/dev/null | head -n 1)"
+if [ -n "$dump" ] && tail -n 1 "$dump" | grep -q 'Dump completed'; then ok "the dump is complete: $(basename "$dump"), $(du -h "$dump" | cut -f1)"; else fail "a complete dump"; exit 1; fi
+if mariadb --no-defaults -h "$DRILL_DB_HOST" -uroot drill < "$dump"; then ok "the dump imports into MariaDB 11.4"; else fail "the dump imports"; exit 1; fi
+
+prefix="$(sql "SELECT LEFT(table_name, LENGTH(table_name) - 5) FROM information_schema.tables WHERE table_schema = 'drill' AND table_name LIKE '%blogs' ORDER BY LENGTH(table_name) LIMIT 1")"
+[ -n "$prefix" ] && ok "a multisite network (tables $prefix*)" || { fail "the network's tables"; exit 1; }
+sites="$(sql "SELECT COUNT(*) FROM ${prefix}blogs WHERE deleted = 0")"
+[ "$sites" -gt 0 ] && ok "sites: $sites" || fail "sites: $sites"
+members="$(sql "SELECT COUNT(*) FROM ${prefix}mody_members" 2>/dev/null || echo 0)"
+ok "members: $members"
+users="$(sql "SELECT COUNT(*) FROM ${prefix}users")"
+[ "$users" -gt 0 ] && ok "users: $users" || fail "users: $users"
+
+# Every site: its published pages, and every attachment's file in the restored uploads.
+missing=0
+attachments=0
+for id in $(sql "SELECT blog_id FROM ${prefix}blogs WHERE deleted = 0 ORDER BY blog_id"); do
+	if [ "$id" = 1 ]; then p="$prefix"; dir=/restore/sources/uploads; else p="${prefix}${id}_"; dir="/restore/sources/uploads/sites/$id"; fi
+	domain="$(sql "SELECT domain FROM ${prefix}blogs WHERE blog_id = $id")"
+	pages="$(sql "SELECT COUNT(*) FROM ${p}posts WHERE post_type = 'page' AND post_status = 'publish'")"
+	count=0
+	for file in $(sql "SELECT meta_value FROM ${p}postmeta WHERE meta_key = '_wp_attached_file'"); do
+		count=$((count + 1))
+		[ -f "$dir/$file" ] || { missing=$((missing + 1)); echo "     missing: site $id: $file"; }
+	done
+	attachments=$((attachments + count))
+	ok "site $id ($domain): $pages published page(s), $count attachment(s)"
+done
+[ "$missing" -eq 0 ] && ok "every attachment's file is in the restored uploads ($attachments)" || fail "$missing of $attachments attachment file(s) missing"
+
+[ -s /restore/sources/server/.env ] && ok "the server's .env" || fail "the server's .env"
+[ -s /restore/sources/server/compose.prod.yml ] && ok "the server's compose.prod.yml" || fail "the server's compose.prod.yml"
+[ -s /restore/sources/npm/data/database.sqlite ] && ok "Nginx Proxy Manager's database" || fail "Nginx Proxy Manager's database"
+[ -d /restore/sources/npm/letsencrypt ] && ok "Nginx Proxy Manager's certificates" || fail "Nginx Proxy Manager's certificates"
+exit "$failed"
+CHECKS
+
+if [ "$FAILED" -eq 0 ]; then
+	echo "== The drill passed."
+else
+	echo "== The drill FAILED: see the checks above." >&2
+	exit 1
+fi

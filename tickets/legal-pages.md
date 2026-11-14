@@ -11,8 +11,10 @@
 - **Links, once published:** a line at the end of the home page (all four languages: `Legal notice`, `Terms of service`, `Privacy policy` in `scripts/home-page-translations.json`; the translation script skips a line made only of links), under the signup chat ("By creating your site you accept…"), on the pay page and the Add your card form (`Billing::legal_links()`), and in the terms email (`Billing::legal_url()`).
 - **Also:** the home page's note on services outside Europe no longer names Gravatar (gone since 2026-11-11): three things, in all four languages.
 
+## Reviewed
+- **The texts were reviewed** (the maintainer, 2026-11-14: "Legal review is done").
+
 ## Open
-- **A lawyer or gestor reads the texts** before real money (they are a first draft).
 - **Cloudflare hides the email address** in the pages' HTML (its email obfuscation): visitors with JavaScript see it, a page read without JavaScript shows "[email protected]". Turn it off in Cloudflare (Scrape Shield) if the address must be readable everywhere.
 - **The pages in Spanish, German and Italian:** English only for now; the translated home pages link to them.
 - **To check:** whether Cloudflare and Wordfence (Defiant) are certified under the EU–US Data Privacy Framework (the privacy policy says "where the provider is certified, or standard contractual clauses").
