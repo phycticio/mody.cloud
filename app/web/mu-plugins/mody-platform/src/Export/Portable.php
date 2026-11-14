@@ -23,8 +23,8 @@ defined( 'ABSPATH' ) || exit;
  *   look and work the same (SITE_FILES), with its own bootstrap
  *   (export-kit/mody-site/mody-site.php). Same namespace, so options, post
  *   meta and addresses keep their names.
- * - `plugins/mody-languages`, `plugins/spectra-blocks`, `plugins/antispam-bee`:
- *   copies of what the platform runs as MU plugins; the downloaded site runs
+ * - `plugins/mody-languages`, `plugins/mody-images`, `plugins/spectra-blocks`,
+ *   `plugins/antispam-bee`: copies of what the platform runs as MU plugins; the downloaded site runs
  *   them as normal plugins, which its owner updates and switches off.
  *
  * Never: the agent (Agent/, AI/, Abilities, the `ai` plugin and its
@@ -55,6 +55,7 @@ final class Portable {
 	/** Plugins copied from mu-plugins/, by folder: their main file. */
 	public const PLUGINS = array(
 		'antispam-bee'   => 'antispam_bee.php',
+		'mody-images'    => 'mody-images.php',
 		'mody-languages' => 'mody-languages.php',
 		'spectra-blocks' => 'spectra-blocks.php',
 	);
@@ -132,7 +133,7 @@ final class Portable {
 				return $done;
 			}
 		}
-		$licenses = array( $site . '/LICENSE.txt', $dir . '/plugins/mody-languages/LICENSE.txt', $theme . '/LICENSE.txt' );
+		$licenses = array( $site . '/LICENSE.txt', $dir . '/plugins/mody-languages/LICENSE.txt', $dir . '/plugins/mody-images/LICENSE.txt', $theme . '/LICENSE.txt' );
 
 		// The plugins the platform runs as MU plugins.
 		foreach ( array_keys( self::PLUGINS ) as $folder ) {

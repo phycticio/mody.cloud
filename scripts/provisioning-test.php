@@ -541,7 +541,7 @@ restore_current_blog();
 $logo_path = (string) wp_parse_url( $logo_url, PHP_URL_PATH );
 $site_url  = 'https://' . Pipeline::domain( $slug ) . $logo_path;
 $check( 'the site gets the logo', ! is_wp_error( $job ) && 'done' === $job['status'] && 1 === count( $logos ) && $logos[0] === $logo_id && $on_disk, $site_url );
-$check( '...in its own media library', str_contains( $logo_path, '/uploads/sites/' . $site_id . '/' ) && 'image/png' === $logo_mime, $logo_mime );
+$check( '...in its own media library (a WebP, Mody Images)', str_contains( $logo_path, '/uploads/sites/' . $site_id . '/' ) && 'image/webp' === $logo_mime, $logo_mime );
 $check( '...shown in the header', str_contains( $header, 'wp-block-site-logo' ) && str_contains( $header, wp_basename( $logo_url ) ) );
 $check( '...its address on the site\'s host, in the job', $site_url === ( $job['result']['logo_url'] ?? '' ), (string) ( $job['result']['logo_url'] ?? '' ) );
 $check( '...and the upload on the main site removed', ! $source_left );
