@@ -25,8 +25,8 @@ defined( 'ABSPATH' ) || exit;
  *   `http://host.docker.internal:81/api`.
  * - `NPM_API_EMAIL` and `NPM_API_PASSWORD`: an NPM user that may manage
  *   proxy hosts and certificates.
- * - `NPM_LETSENCRYPT_EMAIL` (optional): Let's Encrypt's contact; else the
- *   network option `mody_seller_email`.
+ * - Let's Encrypt's contact is the NPM user's own email (NPM 2.16 takes no
+ *   other on a certificate request, 2026-11-14).
  *
  * **Where a domain's proxy host forwards** (fixed 2026-11-14): like the
  * network's own proxy host when the NPM user can see it; otherwise (an NPM
@@ -74,18 +74,14 @@ final class ProxyManager {
 			return $certificate;
 		}
 		if ( ! $certificate ) {
-			$email = (string) ( getenv( 'NPM_LETSENCRYPT_EMAIL' ) ?: get_site_option( 'mody_seller_email', '' ) );
-			$made  = self::request(
+			// NPM 2.16's schema allows no other `meta` here: Let's Encrypt's contact is the NPM user's own email.
+			$made = self::request(
 				'POST',
 				'/nginx/certificates',
 				array(
 					'provider'     => 'letsencrypt',
 					'domain_names' => array( $domain ),
-					'meta'         => array(
-						'letsencrypt_email' => $email,
-						'letsencrypt_agree' => true,
-						'dns_challenge'     => false,
-					),
+					'meta'         => array( 'dns_challenge' => false ),
 				)
 			);
 			if ( is_wp_error( $made ) ) {
@@ -117,10 +113,6 @@ final class ProxyManager {
 					'hsts_subdomains'         => false,
 					'advanced_config'         => '',
 					'locations'               => array(),
-					'meta'                    => array(
-						'letsencrypt_agree' => false,
-						'dns_challenge'     => false,
-					),
 				)
 			);
 			if ( is_wp_error( $made ) ) {
