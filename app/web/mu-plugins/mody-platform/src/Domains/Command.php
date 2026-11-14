@@ -52,7 +52,8 @@ final class Command {
 	}
 
 	/**
-	 * Checks a site's domain now and moves it on as far as it can.
+	 * Checks a site's domain now and moves it on as far as it can; for a live
+	 * domain, sets its NPM proxy host and certificate again (a repair).
 	 *
 	 * ## OPTIONS
 	 *
@@ -65,6 +66,15 @@ final class Command {
 		$row = Domains::of_site( (int) $args[0] );
 		if ( ! $row ) {
 			WP_CLI::error( 'That site has no custom domain.' );
+		}
+		if ( 'active' === $row['status'] ) {
+			// Live already: give its NPM proxy host and certificate the right settings again.
+			$made = ProxyManager::add( (string) $row['domain'] );
+			if ( is_wp_error( $made ) ) {
+				WP_CLI::error( $made->get_error_message() );
+			}
+			WP_CLI::success( $row['domain'] . ': active; NPM proxy host ' . $made['host'] . ' and certificate ' . $made['certificate'] . ' set again.' );
+			return;
 		}
 		$row = Domains::advance( $row );
 		WP_CLI::success( $row['domain'] . ': ' . $row['status'] . ( $row['error'] ? ' (' . $row['error'] . ')' : '' ) );

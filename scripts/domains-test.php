@@ -173,6 +173,9 @@ add_filter(
 			$npm['hosts'][] = array( 'id' => 77, 'domain_names' => $body['domain_names'] );
 			return $reply( 201, array( 'id' => 77 ) );
 		}
+		if ( 'PUT' === $args['method'] ) {
+			return $reply( 200, array( 'id' => (int) basename( $path ) ) );
+		}
 		if ( 'DELETE' === $args['method'] ) {
 			return $reply( 200, true );
 		}
@@ -192,20 +195,39 @@ $check( '... logged in with a token', 'Bearer tok123' === $host[0][3] );
 $check( '... the site\'s public address is the domain; the admin stays; the old one kept', 'https://' . $domain === get_blog_option( $site, 'home' ) && str_contains( (string) get_blog_option( $site, 'siteurl' ), 'domtest' . $suffix . '.' . $network ) && $old === $after['old_home'] );
 $check( '... the mapping finds it', is_array( Mapping::active( $domain ) ) && $site === (int) Mapping::active( $domain )['site_id'] );
 
-// An NPM user that sees only its own items: the forwarding comes from the stack's published port.
+// An NPM user that sees only its own items: forward to the stack's Nginx container (as mody.cloud's own host does).
 $saved_hosts  = $npm['hosts'];
-$saved_port   = getenv( 'NGINX_HTTP_PORT' );
+$saved_env    = array( 'CONTAINER_PREFIX' => getenv( 'CONTAINER_PREFIX' ), 'NGINX_HTTP_PORT' => getenv( 'NGINX_HTTP_PORT' ), 'NPM_FORWARD_HOST' => getenv( 'NPM_FORWARD_HOST' ), 'NPM_FORWARD_PORT' => getenv( 'NPM_FORWARD_PORT' ) );
 $npm['hosts'] = array();
 $npm['calls'] = array();
-putenv( 'NGINX_HTTP_PORT=8195' );
+putenv( 'CONTAINER_PREFIX=mody_cloud_' );
+putenv( 'NPM_FORWARD_HOST' );
+putenv( 'NPM_FORWARD_PORT' );
 $third = 'www.third' . $suffix . '.test';
 $made  = ProxyManager::add( $third );
 $post  = array_values( array_filter( $npm['calls'], static fn( array $c ): bool => 'POST' === $c[0] && '/nginx/proxy-hosts' === $c[1] ) );
-$check( 'an NPM user that cannot see mody.cloud\'s host: forwards to host.docker.internal and the stack\'s port', is_array( $made ) && 1 === count( $post ) && 'host.docker.internal' === $post[0][2]['forward_host'] && 8195 === $post[0][2]['forward_port'], is_wp_error( $made ) ? $made->get_error_message() : '' );
-putenv( 'NGINX_HTTP_PORT' );
+$check( 'an NPM user that cannot see mody.cloud\'s host: forwards to the stack\'s Nginx container, port 80', is_array( $made ) && 1 === count( $post ) && 'mody_cloud_server' === $post[0][2]['forward_host'] && 80 === $post[0][2]['forward_port'], is_wp_error( $made ) ? $made->get_error_message() : wp_json_encode( $post[0][2]['forward_host'] ?? '' ) );
+$npm['calls'] = array();
+ProxyManager::add( $third ); // Its proxy host exists now (77): corrected, not doubled.
+$put  = array_values( array_filter( $npm['calls'], static fn( array $c ): bool => 'PUT' === $c[0] ) );
+$more = array_filter( $npm['calls'], static fn( array $c ): bool => 'POST' === $c[0] && '/nginx/proxy-hosts' === $c[1] );
+$check( '... a proxy host that exists gets the right forwarding again (an update), none doubled', 1 === count( $put ) && '/nginx/proxy-hosts/77' === $put[0][1] && 'mody_cloud_server' === $put[0][2]['forward_host'] && ! $more );
+putenv( 'NPM_FORWARD_HOST=10.0.0.5' );
+putenv( 'NPM_FORWARD_PORT=8080' );
+$npm['hosts'] = array();
+$npm['calls'] = array();
+ProxyManager::add( 'www.fifth' . $suffix . '.test' );
+$post = array_values( array_filter( $npm['calls'], static fn( array $c ): bool => 'POST' === $c[0] && '/nginx/proxy-hosts' === $c[1] ) );
+$check( '... NPM_FORWARD_HOST and NPM_FORWARD_PORT win when set', '10.0.0.5' === ( $post[0][2]['forward_host'] ?? '' ) && 8080 === ( $post[0][2]['forward_port'] ?? 0 ) );
+foreach ( array( 'CONTAINER_PREFIX', 'NGINX_HTTP_PORT', 'NPM_FORWARD_HOST', 'NPM_FORWARD_PORT' ) as $name ) {
+	putenv( $name );
+}
+$npm['hosts'] = array();
 $none = ProxyManager::add( 'www.fourth' . $suffix . '.test' );
-$check( '... and says so when neither is known', is_wp_error( $none ) && 'mody_npm_network' === $none->get_error_code() );
-false === $saved_port ? putenv( 'NGINX_HTTP_PORT' ) : putenv( 'NGINX_HTTP_PORT=' . $saved_port );
+$check( '... and says so when nothing is known', is_wp_error( $none ) && 'mody_npm_network' === $none->get_error_code() );
+foreach ( $saved_env as $name => $value ) {
+	false === $value ? putenv( $name ) : putenv( $name . '=' . $value );
+}
 $npm['hosts'] = $saved_hosts;
 
 // Another domain whose certificate fails: it keeps trying, then stops after a day; Try again restarts.
@@ -259,6 +281,10 @@ echo "\nAdmin links\n";
 switch_to_blog( $site );
 $moved = Domains::on_admin_host( home_url( '/?p=12&preview=true' ) );
 restore_current_blog();
+switch_to_blog( $site );
+$safe = wp_validate_redirect( site_url( '/wp-admin/admin.php?page=mody-dashboard' ), 'FALLBACK' );
+restore_current_blog();
+$check( 'safe redirects to the admin host are allowed (they looped back to wp-admin before)', str_contains( $safe, 'domtest' . $suffix . '.' . $network . '/wp-admin/admin.php' ), $safe );
 $check( 'previews and admin REST addresses stay on the admin host', str_contains( $moved, 'domtest' . $suffix . '.' . $network ) && ! str_contains( $moved, $domain ) && str_contains( $moved, 'preview=true' ), $moved );
 
 // 7. Taking it off ------------------------------------------------------------------------------------------

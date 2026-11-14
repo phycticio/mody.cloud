@@ -73,6 +73,7 @@ final class Domains {
 		add_action( 'template_redirect', array( self::class, 'send_to_domain' ), 1 );
 		add_filter( 'rest_url', array( self::class, 'rest_url' ), 10, 2 );
 		add_filter( 'preview_post_link', array( self::class, 'on_admin_host' ) );
+		add_filter( 'allowed_redirect_hosts', array( self::class, 'allowed_redirect_hosts' ) );
 		add_action( 'wp_delete_site', array( self::class, 'site_deleted' ) );
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			\WP_CLI::add_command( 'mody-domains', Command::class );
@@ -427,6 +428,23 @@ final class Domains {
 	public static function rest_url( string $url, string $path ): string {
 		unset( $path );
 		return is_admin() || ( defined( 'REST_REQUEST' ) && REST_REQUEST && is_user_logged_in() ) ? self::on_admin_host( $url ) : $url;
+	}
+
+	/**
+	 * `allowed_redirect_hosts`: the site's admin host too. WordPress allows
+	 * only the home host, so once `home` is the custom domain every
+	 * wp_safe_redirect() to the admin (`siteurl`) fell back to wp-admin, which
+	 * redirected again: a loop on the first real domain (2026-11-14).
+	 *
+	 * @param string[] $hosts Allowed hosts.
+	 * @return string[]
+	 */
+	public static function allowed_redirect_hosts( array $hosts ): array {
+		$admin = (string) wp_parse_url( site_url(), PHP_URL_HOST );
+		if ( '' !== $admin && ! in_array( $admin, $hosts, true ) ) {
+			$hosts[] = $admin;
+		}
+		return $hosts;
 	}
 
 	/**

@@ -31,9 +31,12 @@ defined( 'ABSPATH' ) || exit;
  * **Where a domain's proxy host forwards** (fixed 2026-11-14): like the
  * network's own proxy host when the NPM user can see it; otherwise (an NPM
  * user with "created items only", the safer choice on a host shared by other
- * stacks) to `NPM_FORWARD_HOST` (default `host.docker.internal`) and
- * `NPM_FORWARD_PORT` (default `NGINX_HTTP_PORT`, the stack's published HTTP
- * port), over HTTP.
+ * stacks) to `NPM_FORWARD_HOST` and `NPM_FORWARD_PORT` when set, else to the
+ * stack's Nginx container, `<CONTAINER_PREFIX>server` on port 80, over the
+ * Docker network NPM shares with it (`proxy_default`; that is how
+ * `mody.cloud`'s own proxy host forwards), else `host.docker.internal` and
+ * `NGINX_HTTP_PORT`. A proxy host that already exists for the domain gets
+ * these settings again (an update), so a wrong one is corrected.
  */
 final class ProxyManager {
 
@@ -93,7 +96,22 @@ final class ProxyManager {
 		if ( is_wp_error( $host ) ) {
 			return $host;
 		}
-		if ( ! $host ) {
+		if ( $host ) {
+			$fixed = self::request(
+				'PUT',
+				'/nginx/proxy-hosts/' . $host,
+				array(
+					'forward_scheme' => $forward['scheme'],
+					'forward_host'   => $forward['host'],
+					'forward_port'   => $forward['port'],
+					'certificate_id' => $certificate,
+					'ssl_forced'     => true,
+				)
+			);
+			if ( is_wp_error( $fixed ) ) {
+				return $fixed;
+			}
+		} else {
 			$made = self::request(
 				'POST',
 				'/nginx/proxy-hosts',
@@ -167,16 +185,26 @@ final class ProxyManager {
 				);
 			}
 		}
-		// Not visible to this NPM user: the stack's own published port.
-		$port = (int) ( getenv( 'NPM_FORWARD_PORT' ) ?: getenv( 'NGINX_HTTP_PORT' ) );
+		// Not visible to this NPM user: set by hand, else the stack's Nginx container, else its published port.
+		$host   = (string) getenv( 'NPM_FORWARD_HOST' );
+		$prefix = (string) getenv( 'CONTAINER_PREFIX' );
+		if ( '' !== $host ) {
+			$port = (int) ( getenv( 'NPM_FORWARD_PORT' ) ?: 80 );
+		} elseif ( '' !== $prefix ) {
+			$host = $prefix . 'server';
+			$port = (int) ( getenv( 'NPM_FORWARD_PORT' ) ?: 80 );
+		} else {
+			$host = 'host.docker.internal';
+			$port = (int) ( getenv( 'NPM_FORWARD_PORT' ) ?: getenv( 'NGINX_HTTP_PORT' ) );
+		}
 		if ( $port > 0 ) {
 			return array(
 				'scheme' => 'http',
-				'host'   => (string) ( getenv( 'NPM_FORWARD_HOST' ) ?: 'host.docker.internal' ),
+				'host'   => $host,
 				'port'   => $port,
 			);
 		}
-		return new WP_Error( 'mody_npm_network', sprintf( 'NPM shows no proxy host for %s to copy, and NPM_FORWARD_PORT (or NGINX_HTTP_PORT) is not set.', $network ) );
+		return new WP_Error( 'mody_npm_network', sprintf( 'NPM shows no proxy host for %s to copy, and neither NPM_FORWARD_HOST, CONTAINER_PREFIX nor NGINX_HTTP_PORT is set.', $network ) );
 	}
 
 	/**
@@ -202,7 +230,7 @@ final class ProxyManager {
 	/**
 	 * One API request, logged in first.
 	 *
-	 * @param string                    $method GET, POST or DELETE.
+	 * @param string                    $method GET, POST, PUT or DELETE.
 	 * @param string                    $path   After the base.
 	 * @param array<string, mixed>|null $body   JSON body.
 	 * @return array<mixed>|WP_Error
