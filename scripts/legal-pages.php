@@ -28,6 +28,7 @@ use Mody\Platform\Agent\Budget;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Lifecycle;
 use Mody\Platform\Members\Members;
+use Mody\Platform\Members\Offers;
 use Mody\Platform\Site\Storage;
 
 if ( ! is_main_site() ) {
@@ -67,9 +68,9 @@ $sites    = (int) Members::SITE_LIMITS['paid'];
 $days     = (int) Billing::WITHDRAWAL_DAYS;
 $grace    = (int) Lifecycle::DELETE_DAY;
 $warn     = (int) Lifecycle::WARN_DAY;
-$places   = (int) Members::FREE_PLACES;
-$free     = (int) Members::FREE_MONTHS;
-$offer    = (int) Members::PROMO_MONTHS;
+$places   = (int) Offers::places();
+$free     = (int) Offers::free_months();
+$offer    = (int) Offers::months();
 $check    = $e( Members::price( Billing::CARD_CHECK ) );
 $keep     = (int) AgentSettings::retention_days();
 $terms    = home_url( '/terms/' );

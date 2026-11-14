@@ -59,6 +59,7 @@ use Mody\Platform\Billing\Lifecycle;
 use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Billing\Payments;
 use Mody\Platform\Dashboard\DashboardPage;
+use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Platform\Provisioning\Quota;
@@ -270,8 +271,9 @@ $check( 'a replay of an applied payment: 200, Mollie asked again (for refunds), 
 // 4. Charges -----------------------------------------------------------------------------------
 
 echo "\nCharges\n";
-$due = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS );
-Members::update( $ada, array( 'free_until' => $due, 'billing_due_at' => $due ) );
+$due     = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS );
+$inviter = (int) get_user_by( 'login', get_super_admins()[0] )->ID;
+Members::update( $ada, array( 'free_until' => $due, 'billing_due_at' => $due, 'invited_by' => $inviter ) ); // Invited (tickets/invites-and-offers.md).
 $run    = Billing::run();
 $again  = Billing::run();
 $charge = $requests( 'POST', '/payments' );
@@ -286,6 +288,7 @@ Members::forget();
 $after = Members::get( $ada );
 $check( 'paid (through the webhook): plan paid, active, the next date a month on', 'paid' === $after['plan'] && 'active' === $after['status'] && $rows[0]['covers_to'] === $after['billing_due_at'] );
 $check( '... a receipt', str_contains( (string) ( end( $mails )['subject'] ?? '' ), 'payment received' ) );
+$check( '... the first paid charge: a point for who invited her', null !== Members::get( $ada )['invite_point_at'] );
 
 // 5. The 14-day withdrawal ------------------------------------------------------------------------
 
@@ -298,6 +301,7 @@ Members::forget();
 $check( 'withdrawn: the first charge refunded in full', true === $done && 1 === count( $refund ) && '7.99' === $refund[0]['body']['amount']['value'] && 'refund-' . $rows[0]['mollie_id'] === $refund[0]['key'] );
 $check( '... the account canceled, nothing more due, an email', 'canceled' === Members::get( $ada )['status'] && null === Members::get( $ada )['billing_due_at'] && str_contains( (string) end( $mails )['subject'], 'withdrawn' ) );
 $check( '... not twice', null === Billing::withdrawal( $ada ) && is_wp_error( Billing::withdraw( $ada ) ) );
+$check( '... the inviter\'s point taken back', null === Members::get( $ada )['invite_point_at'] && $inviter === (int) Members::get( $ada )['invited_by'] );
 $check( '... a canceled account can add a card to come back (section 10)', is_string( Billing::add_card( $ada ) ) );
 $late = $member( 'late', array( 'plan' => 'paid' ) );
 Payments::add( array( 'user_id' => $late, 'mollie_id' => 'tr_old' . $suffix, 'kind' => 'charge', 'amount' => 7.99, 'sites' => 1, 'period' => 'monthly', 'status' => 'paid', 'applied' => 1, 'created_at' => gmdate( 'Y-m-d H:i:s', time() - 15 * DAY_IN_SECONDS ) ) );
@@ -504,7 +508,7 @@ RateLimit::clear();
 wp_set_current_user( 0 );
 $email   = 'billpay' . $suffix . '@mody.local';
 $slug    = 'billpay' . $suffix;
-$account = Registration::register( 'Pia Payer', $email, 'Pia Paid Bakery', $slug );
+$account = Registration::register( 'Pia Payer', $email, 'Pia Paid Bakery', $slug, false, Invites::code( $inviter ) );
 $pia     = is_array( $account ) ? (int) $account['user_id'] : 0;
 $users[] = $pia;
 Members::forget();
@@ -545,6 +549,7 @@ $check( '... the terms by email; the 14-day withdrawal applies', (bool) array_fi
 $check( '... the pay page now says it is done', str_contains( $page( array( 'mody_pay' => $token, 'u' => $pia ) ), 'Paid, thank you!' ) );
 Billing::process( $row['mollie_id'] );
 $check( '... a replay makes no second site', 1 === count( Lifecycle::owned_sites( $pia ) ) );
+$check( 'invited (a paid sign-up): recorded, and the first month earns the point', $inviter === (int) Members::get( $pia )['invited_by'] && null !== Members::get( $pia )['invite_point_at'] );
 
 $email2 = 'billpay2' . $suffix . '@mody.local';
 $second = Registration::register( 'Quin Payer', $email2, 'Quin Shop', 'billpayq' . $suffix );

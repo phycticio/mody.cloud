@@ -8,6 +8,7 @@
 namespace Mody\Platform\Billing;
 
 use Mody\Platform\Dashboard\DashboardPage;
+use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Platform\Provisioning\Quota;
@@ -579,6 +580,7 @@ final class Billing {
 			);
 			self::remember_card( $user_id, (string) ( $payment['customerId'] ?? $member['mollie_customer_id'] ), (string) ( $payment['mandateId'] ?? '' ) );
 			Registration::finish_paid( $user_id );
+			Invites::credit( $user_id ); // Who invited them earns their point (once).
 			self::mail_card_added( $user_id );
 			return;
 		}
@@ -618,6 +620,7 @@ final class Billing {
 				)
 			);
 			Lifecycle::forget();
+			Invites::credit( $user_id ); // The first paid charge earns the inviter's point (once).
 			self::mail_paid( $user_id, $row );
 			return;
 		}
@@ -790,6 +793,7 @@ final class Billing {
 			)
 		);
 		Lifecycle::forget();
+		Invites::uncredit( $user_id ); // Refunded in full: no point for who invited them.
 		self::mail_withdrawn( $user_id, (float) $row['amount'] );
 		return true;
 	}

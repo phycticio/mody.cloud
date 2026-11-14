@@ -23,7 +23,8 @@ defined( 'ABSPATH' ) || exit;
  *   is `free` (the launch offer, below) or `paid`. A plan is a column, not
  *   a WordPress role (decided 2026-11-08): roles are per site in Multisite,
  *   and members are `administrator` of their own sites.
- * - **The launch offer** (replaces the trial): during the first
+ * - **The launch offer** (replaces the trial; its numbers on the Offers
+ *   page since 2026-11-14, Offers): during the first
  *   PROMO_MONTHS months, the first FREE_PLACES accounts are free for
  *   FREE_MONTHS months, with one site and no card (start_free()). The
  *   offer's months count from the network option `mody_promo_starts_at`
@@ -71,7 +72,11 @@ final class Members {
 	/** The billing periods. */
 	public const PERIODS = array( 'monthly', 'yearly' );
 
-	/** The launch offer: how many accounts, for how long, and for how long it is offered. */
+	/**
+	 * The launch offer's defaults: how many accounts, for how long, and for how
+	 * long it is offered. The Offers page changes them (Offers::places(),
+	 * free_months(), months(), since 2026-11-14).
+	 */
 	public const FREE_PLACES  = 50;
 	public const FREE_MONTHS  = 6;
 	public const PROMO_MONTHS = 3;
@@ -95,7 +100,7 @@ final class Members {
 	public const STATUSES = array( 'pending_payment', 'active', 'past_due', 'canceled', 'expired_signup', 'expired' );
 
 	/** Bump when the table definition in install() changes. */
-	private const DB_VERSION = '6'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`. 6: cancel_at.
+	private const DB_VERSION = '7'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`. 6: cancel_at. 7: invited_by, invite_point_at (2026-11-14).
 
 	/** Network option that records the installed table version. */
 	private const DB_VERSION_OPTION = 'mody_members_db_version';
@@ -164,10 +169,13 @@ final class Members {
   cancel_at datetime DEFAULT NULL,
   mollie_customer_id varchar(64) DEFAULT NULL,
   mollie_payment_method_id varchar(64) DEFAULT NULL,
+  invited_by bigint(20) unsigned DEFAULT NULL,
+  invite_point_at datetime DEFAULT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY  (user_id),
-  KEY status (status)
+  KEY status (status),
+  KEY invited_by (invited_by)
 ) {$charset};"
 		);
 
@@ -235,16 +243,18 @@ final class Members {
 	 * first billing date). No card is needed. The first place starts the
 	 * offer's months.
 	 *
-	 * @param int $user_id An existing user without a row.
-	 * @return true|WP_Error `mody_promo_closed` when no place is left or the offer has ended.
+	 * @param int  $user_id An existing user without a row.
+	 * @param bool $invited Whether they signed up through an invite link (Offers::invited_only()).
+	 * @return true|WP_Error `mody_promo_closed` when no place is left, the offer has ended or is off,
+	 *                       or is for invited people only and they were not.
 	 */
-	public static function start_free( int $user_id ): bool|WP_Error {
+	public static function start_free( int $user_id, bool $invited = false ): bool|WP_Error {
 		global $wpdb;
 		// One signup at a time takes a place, so two at once never make 51.
 		$locked = (bool) $wpdb->get_var( "SELECT GET_LOCK('mody_promo', 10)" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock, not data.
 		try {
-			if ( ! $locked || ! self::promo_open() ) {
-				return new WP_Error( 'mody_promo_closed', self::promo_closed_message() );
+			if ( ! $locked || ! self::promo_open( $invited ) ) {
+				return new WP_Error( 'mody_promo_closed', self::promo_closed_message( $invited ) );
 			}
 			$created = self::create( $user_id, 'free', 'active' );
 			if ( is_wp_error( $created ) ) {
@@ -254,7 +264,7 @@ final class Members {
 				update_site_option( self::PROMO_START_OPTION, time() );
 			}
 			update_site_option( self::PROMO_GIVEN_OPTION, self::promo_given() + 1 );
-			$until = gmdate( 'Y-m-d H:i:s', (int) strtotime( '+' . self::FREE_MONTHS . ' months' ) );
+			$until = gmdate( 'Y-m-d H:i:s', (int) strtotime( '+' . Offers::free_months() . ' months' ) );
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
 			$wpdb->update(
 				self::table(),
@@ -283,7 +293,7 @@ final class Members {
 	/** When the launch offer stops taking accounts, or 0 before it started. */
 	public static function promo_ends(): int {
 		$start = self::promo_starts();
-		return $start ? (int) strtotime( '+' . self::PROMO_MONTHS . ' months', $start ) : 0;
+		return $start ? (int) strtotime( '+' . Offers::months() . ' months', $start ) : 0;
 	}
 
 	/** How many of the launch offer's places were given. */
@@ -293,21 +303,40 @@ final class Members {
 
 	/** How many places are left. */
 	public static function promo_left(): int {
-		return max( 0, self::FREE_PLACES - self::promo_given() );
+		return max( 0, Offers::places() - self::promo_given() );
 	}
 
-	/** Whether the launch offer still takes accounts: places left, and within its months. */
-	public static function promo_open(): bool {
+	/**
+	 * Whether the launch offer takes this account: it is on, places are left,
+	 * within its months, and, when it is for invited people only, they were.
+	 *
+	 * @param bool $invited Whether the visitor came through an invite link.
+	 */
+	public static function promo_open( bool $invited = false ): bool {
 		$ends = self::promo_ends();
-		return self::promo_left() > 0 && ( ! $ends || time() < $ends );
+		return Offers::launch_on()
+			&& ( $invited || ! Offers::invited_only() )
+			&& self::promo_left() > 0
+			&& ( ! $ends || time() < $ends );
 	}
 
-	/** What a visitor reads once the offer has stopped taking accounts. */
-	public static function promo_closed_message(): string {
-		$first = self::promo_left() > 0
-			? __( 'Our launch offer has ended.', 'mody_cloud' )
+	/**
+	 * What a visitor reads when the offer does not take their account.
+	 *
+	 * @param bool $invited Whether the visitor came through an invite link.
+	 */
+	public static function promo_closed_message( bool $invited = false ): string {
+		$ends = self::promo_ends();
+		if ( ! Offers::launch_on() || ( $ends && time() >= $ends ) ) {
+			$first = __( 'Our launch offer has ended.', 'mody_cloud' );
+		} elseif ( self::promo_left() <= 0 ) {
 			/* translators: %d: how many free places the launch offer had. */
-			: sprintf( __( 'The %d free places of our launch offer are taken.', 'mody_cloud' ), self::FREE_PLACES );
+			$first = sprintf( __( 'The %d free places of our launch offer are taken.', 'mody_cloud' ), Offers::places() );
+		} elseif ( ! $invited && Offers::invited_only() ) {
+			$first = __( 'Our launch offer is by invitation for now: sign up through the link a member sent you.', 'mody_cloud' );
+		} else {
+			$first = __( 'Our launch offer has ended.', 'mody_cloud' );
+		}
 		return $first . ' ' . sprintf(
 			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
 			__( 'Sign-ups at %s a month per site, VAT included, open soon.', 'mody_cloud' ),

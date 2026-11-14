@@ -1316,3 +1316,8 @@ body.mody-board-dragging * {
 	gap: 8px;
 	margin-top: 16px;
 }
+
+/* Invite friends: the link, wide enough to read whole (Members\Invites). */
+.mody-invite__link input {
+	width: min(100%, 34em);
+}

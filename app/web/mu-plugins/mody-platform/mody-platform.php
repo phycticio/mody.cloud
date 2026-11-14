@@ -205,6 +205,14 @@ add_action( 'admin_menu', array( Login\SettingsPage::class, 'register_menu' ) );
  * Agent settings (Network Admin > Settings > Mody Agent): event retention.
  */
 add_action( 'network_admin_menu', array( Agent\AgentSettings::class, 'register_menu' ) );
+
+/*
+ * Offers (Network Admin → Mody → Offers, tickets/invites-and-offers.md): the
+ * launch offer's numbers and who may take a place, and invites on or off.
+ * Invite friends is a section of every member's Dashboard (Members\Invites).
+ */
+add_action( 'network_admin_menu', array( Members\Offers::class, 'register_menu' ), 20 );
+add_action( 'network_admin_edit_' . Members\Offers::SLUG, array( Members\Offers::class, 'save' ) );
 add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\AgentSettings::class, 'save' ) );
 
 /*
