@@ -65,9 +65,6 @@ add_filter( 'rest_attachment_query', array( Users\Avatars::class, 'hide_from_med
 add_action( 'delete_attachment', array( Users\Avatars::class, 'forget_attachment' ) );
 add_action( 'delete_user', array( Users\Avatars::class, 'forget_user' ) );
 
-// The page's SEO title (post meta mody_seo_title) and meta description (its excerpt).
-Site\Seo::register();
-
 // The login page in the site's brand, and Settings → Login.
 Login\LoginPage::register();
 add_action( 'admin_init', array( Login\SettingsPage::class, 'register_setting' ) );

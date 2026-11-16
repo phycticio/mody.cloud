@@ -15,8 +15,8 @@
  *
  * - The page: "Home", template "page-blank" (header and footer, no title),
  *   published, the site's front page.
- * - Search engines: the SEO title (post meta mody_seo_title) and the meta
- *   description (the excerpt), printed by Site\Seo.
+ * - Search engines: the SEO title and SEO description (post meta
+ *   mody_seo_title and mody_seo_description), printed by Mody SEO.
  * - The header's menu (the main site's wp_navigation): the page's sections
  *   and Log in, instead of the list of every page.
  * - Layout: Spectra containers (sections, grid rows, columns), palette slugs
@@ -632,9 +632,12 @@ $page     = array(
 	'post_title'   => 'Home',
 	'post_name'    => 'home',
 	'post_content' => $markup,
-	// The meta description (Site\Seo).
-	'post_excerpt' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. 6 months free for the first 50, no card; then 7.99 € a month per site, VAT included.',
-	'meta_input'   => array( 'mody_seo_title' => 'AI WordPress Website Builder, Hosted in Europe | Mody Cloud' ),
+	'post_excerpt' => '', // Until 2026-11-16 the meta description; now the field below.
+	// The SEO title and SEO description (Mody SEO).
+	'meta_input'   => array(
+		'mody_seo_title'       => 'AI WordPress Website Builder, Hosted in Europe | Mody Cloud',
+		'mody_seo_description' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. 6 months free for the first 50, no card; then 7.99 € a month per site, VAT included.',
+	),
 );
 if ( $existing ) {
 	$page['ID'] = $existing->ID;

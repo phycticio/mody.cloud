@@ -300,6 +300,19 @@
 		navigation: () => ( config.menu ? [ [ 'postType', 'wp_navigation', config.menu ] ] : [] ),
 	};
 
+	// Records reloaded after a change, but never reported as unsaved: the open page or
+	// post, whose SEO title and SEO description (post meta, Mody SEO) mody/update-seo changed
+	// (2026-11-14). Its content edits stay on top; only unsaved edits to its meta would hide the change.
+	const RELOADED = {
+		seo: ( core ) => {
+			const editor = wpData() && wpData().select( 'core/editor' );
+			const type = editor && editor.getCurrentPostType();
+			const id = editor && editor.getCurrentPostId();
+			return 'page' === type || 'post' === type ? [ [ 'postType', type, id ] ] : [];
+		},
+	};
+	const RELOADED_FIELDS = { seo: [ 'meta' ] };
+
 	// Loads those records again, so the open screen and the canvas show the change now,
 	// as after a page reload (the Site Editor keeps them from when it opened). Only
 	// records the editor has loaded: the others are read fresh when needed. Unsaved
@@ -313,15 +326,20 @@
 		const records = names
 			.flatMap( ( name ) => ( RECORDS[ name ] ? RECORDS[ name ]( core ) : [] ) )
 			.filter( ( args ) => core.hasFinishedResolution( 'getEntityRecord', args ) );
+		const reloaded = names
+			.filter( ( name ) => RELOADED[ name ] )
+			.flatMap( ( name ) => RELOADED[ name ]( core ).map( ( args ) => ( { args, fields: RELOADED_FIELDS[ name ] } ) ) )
+			.filter( ( item ) => core.hasFinishedResolution( 'getEntityRecord', item.args ) );
 		try {
-			await Promise.all( records.map( ( args ) => {
+			await Promise.all( records.concat( reloaded.map( ( item ) => item.args ) ).map( ( args ) => {
 				data.dispatch( 'core' ).invalidateResolution( 'getEntityRecord', args );
 				return data.resolveSelect( 'core' ).getEntityRecord( ...args );
 			} ) );
 		} catch ( e ) {
 			return;
 		}
-		if ( records.some( ( args ) => core.hasEditsForEntityRecord( ...args ) ) ) {
+		const editedFields = ( item ) => Object.keys( core.getEntityRecordEdits( ...item.args ) || {} ).some( ( key ) => item.fields.includes( key ) );
+		if ( records.some( ( args ) => core.hasEditsForEntityRecord( ...args ) ) || reloaded.some( editedFields ) ) {
 			underReply( element( 'p', 'mody-bubble__note', strings.unsaved ) );
 		}
 	}

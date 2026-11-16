@@ -15,6 +15,8 @@ use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Design\SiteStyles;
 use Mody\Platform\Site\PagePublisher;
 use Mody\Platform\Site\Menu;
+use Mody\Platform\Site\SeoTool;
+use Mody\Seo\Fields;
 use Mody\Platform\Site\Settings;
 use Mody\Platform\Site\SiteSettings;
 
@@ -374,6 +376,65 @@ final class Abilities {
 						'readonly'    => false,
 						'destructive' => false,
 						'idempotent'  => true,
+					),
+				),
+			)
+		);
+
+		/*
+		 * 2026-11-14 (tickets/seo.md): a page's search title and description.
+		 * The agent offers it only while the editor is open (Agent::EDITOR_ABILITIES);
+		 * when to use it is in SystemPrompt::for_editor().
+		 */
+		wp_register_ability(
+			'mody/update-seo',
+			array(
+				'label'               => __( 'Update search appearance', 'mody_cloud' ),
+				'description'         => __( 'Changes a page or post\'s title and description in search results; generate writes the description from its text.', 'mody_cloud' ),
+				'category'            => self::CATEGORY,
+				'input_schema'        => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'page_id'     => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+						),
+						'page_title'  => array(
+							'type'      => 'string',
+							'maxLength' => 200,
+						),
+						'title'       => array(
+							'type'      => 'string',
+							'maxLength' => Fields::TITLE_MAX,
+						),
+						'description' => array(
+							'type'      => 'string',
+							'maxLength' => Fields::DESCRIPTION_MAX,
+						),
+						'generate'    => array( 'type' => 'boolean' ),
+					),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'page_id'      => array( 'type' => 'integer' ),
+						'page'         => array( 'type' => 'string' ),
+						'type'         => array( 'type' => 'string' ),
+						'search_title' => array( 'type' => 'object' ),
+						'description'  => array( 'type' => 'object' ),
+						'note'         => array( 'type' => 'string' ),
+					),
+					'required'   => array( 'page_id', 'page' ),
+				),
+				'execute_callback'    => array( SeoTool::class, 'update' ),
+				'permission_callback' => array( SeoTool::class, 'can_update' ),
+				'meta'                => array(
+					'public'      => true, // REST, MCP and the agent.
+					'annotations' => array(
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => false, // generate writes a new text each time.
 					),
 				),
 			)

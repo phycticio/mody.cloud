@@ -59,7 +59,7 @@ defined( 'ABSPATH' ) || exit;
  *  - Post meta and comment meta: `_edit_lock`, the `ai` plugin's records
  *    (`_wpai_*` and `wpai_*`: monitor records, comment scores, the speech flag)
  *    and the platform's bookkeeping (`_mody_*`: provisioning job, fallback)
- *    go; `mody_seo_title`, `mody_lang` and `mody_source` stay.
+ *    go; `mody_seo_title`, `mody_seo_description`, `mody_lang` and `mody_source` stay.
  *  - Authors outside the exported users (`posts.post_author`,
  *    `comments.user_id`, `links.link_owner`, post meta `_edit_last`) become the
  *    owner who pressed the button. Zero (no author) stays zero.
