@@ -20,7 +20,7 @@
  * - The site's other languages: Spanish, German and Italian are added (the
  *   ones already there are kept).
  * - Each translation: the English page with every text replaced, its title,
- *   excerpt (the meta description) and SEO title (Site\Seo); published; the
+ *   SEO description and SEO title (Mody SEO); published; the
  *   front page's translation, so it lives at /es/, /de/ and /it/.
  * - The header's menu per language: a navigation post with the translated
  *   labels and links to the language's home page sections, used by a header
@@ -137,9 +137,12 @@ foreach ( $data as $locale => $language ) {
 				'ID'           => $id,
 				'post_status'  => 'publish',
 				'post_title'   => $language['title'],
-				'post_excerpt' => $language['excerpt'],
+				'post_excerpt' => '', // Until 2026-11-16 the meta description.
 				'post_content' => $markup,
-				'meta_input'   => array( 'mody_seo_title' => (string) ( $language['seo_title'] ?? '' ) ),
+				'meta_input'   => array(
+					'mody_seo_title'       => (string) ( $language['seo_title'] ?? '' ),
+					'mody_seo_description' => (string) $language['excerpt'], // The JSON's key is still "excerpt".
+				),
 			)
 		),
 		true

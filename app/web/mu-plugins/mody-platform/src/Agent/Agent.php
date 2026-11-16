@@ -12,6 +12,7 @@ use Mody\Platform\AI\PageOutline;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Site\Menu;
 use Mody\Platform\Site\PagePublisher;
+use Mody\Platform\Site\SeoTool;
 use Mody\Platform\Site\Settings;
 use Mody\Platform\SiteEditor;
 use WordPress\AiClient\Messages\DTO\Message;
@@ -56,6 +57,16 @@ final class Agent {
 	);
 
 	/**
+	 * Abilities offered only while the editor is open (a page, post, template
+	 * or part), like edit_content: the tools JSON stays under its size check
+	 * without them (documentation/ai-engine.md, "Prompt size"). Keyed like
+	 * ABILITIES; SystemPrompt::for_editor() describes them.
+	 */
+	public const EDITOR_ABILITIES = array(
+		'update_seo' => 'mody/update-seo', // 2026-11-14, tickets/seo.md.
+	);
+
+	/**
 	 * What each ability changes that an open editor holds a copy of: the
 	 * site's Global Styles, or its settings (title, tagline, mission, tone).
 	 * The turn lists them in `refresh`, and the editor's bubble reloads them,
@@ -67,6 +78,7 @@ final class Agent {
 		'mody/update-site-settings' => 'site',
 		'mody/update-settings'      => 'site',
 		'mody/update-menu'          => 'navigation',
+		'mody/update-seo'           => 'seo', // The open page's meta (Mody SEO's fields).
 	);
 
 	/**
@@ -107,6 +119,7 @@ final class Agent {
 		'mody/update-settings',
 		'mody/update-site-settings',
 		'mody/update-menu',
+		'mody/update-seo', // One page, but live at once in search results: someone else's page must not steer it.
 	);
 
 	/**
@@ -142,6 +155,7 @@ final class Agent {
 			'mody/update-site-settings' => __( 'Changing the settings…', 'mody_cloud' ),
 			'mody/update-menu'          => __( 'Changing the menu…', 'mody_cloud' ),
 			'mody/open-editor'          => __( 'Opening the screen…', 'mody_cloud' ),
+			'mody/update-seo'           => __( 'Changing how the page shows in search results…', 'mody_cloud' ),
 		);
 	}
 
@@ -309,11 +323,30 @@ final class Agent {
 	 */
 	public static function tool_names(): array {
 		$names = array_map( array( Resolver::class, 'ability_name_to_function_name' ), self::ABILITIES );
-		// edit_content is not here: only the editor's context offers it (SystemPrompt::for_editor()).
+		// edit_content and EDITOR_ABILITIES are not here: only the editor's context offers them (SystemPrompt::for_editor()).
 		return $names + array(
 			'ask_user' => self::ASK_USER,
 			'refuse'   => self::REFUSE,
 		);
+	}
+
+	/**
+	 * The function names of the editor-only abilities, keyed like EDITOR_ABILITIES.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function editor_tool_names(): array {
+		return array_map( array( Resolver::class, 'ability_name_to_function_name' ), self::EDITOR_ABILITIES );
+	}
+
+	/**
+	 * The abilities offered in a request.
+	 *
+	 * @param bool $editing Whether the editor is open.
+	 * @return list<string>
+	 */
+	private static function offered( bool $editing ): array {
+		return array_values( $editing ? self::ABILITIES + self::EDITOR_ABILITIES : self::ABILITIES );
 	}
 
 	/**
@@ -330,10 +363,10 @@ final class Agent {
 
 		$editing      = null !== $this->context;
 		$system       = SystemPrompt::for_agent( self::tool_names() )
-			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_settings'] ?? 'the settings tool', self::tool_names()['open_editor'] ?? 'the open-editor tool' ) : '' )
+			. ( $editing ? "\n\n" . SystemPrompt::for_editor( $this->context, self::EDIT_CONTENT, self::tool_names()['update_settings'] ?? 'the settings tool', self::tool_names()['open_editor'] ?? 'the open-editor tool', self::editor_tool_names()['update_seo'] ) : '' )
 			. ( null !== $this->screen ? "\n\n" . SystemPrompt::for_screen( $this->screen ) : '' );
 		$declarations = self::declarations( $editing );
-		$resolver     = new Resolver( ...array_values( self::ABILITIES ) );
+		$resolver     = new Resolver( ...self::offered( $editing ) );
 		$messages     = self::history_messages( $history, $editing );
 		$messages[]   = new UserMessage( array( new MessagePart( $this->input ) ) );
 
@@ -463,7 +496,7 @@ final class Agent {
 	 * Runs one tool call and returns what the model gets back.
 	 *
 	 * @param FunctionCall $call     The call.
-	 * @param Resolver     $resolver Core's resolver, limited to self::ABILITIES.
+	 * @param Resolver     $resolver Core's resolver, limited to the abilities offered (offered()).
 	 * @return mixed The function response.
 	 */
 	private function handle( FunctionCall $call, Resolver $resolver ) {
@@ -512,7 +545,7 @@ final class Agent {
 		}
 
 		$ability = $resolver->is_ability_call( $call ) ? Resolver::function_name_to_ability_name( $name ) : '';
-		if ( ! in_array( $ability, self::ABILITIES, true ) ) {
+		if ( ! in_array( $ability, self::offered( null !== $this->context ), true ) ) {
 			AgentEvents::log( $this->input, $name, $args, 'refused: unknown tool', $started );
 			return array(
 				'error' => sprintf( 'There is no tool named "%s". Nothing was run. Use only the tools you were given.', $name ),
@@ -1088,6 +1121,8 @@ final class Agent {
 				/* translators: %s: addresses, such as "https://example.com". */
 				$parts[] = sprintf( __( 'new links to: %s', 'mody_cloud' ), implode( ', ', $links ) );
 			}
+		} elseif ( 'mody/update-seo' === $ability ) {
+			$parts = self::describe_seo( $args );
 		} elseif ( 'mody/update-site-settings' === $ability ) {
 			foreach ( array( 'title', 'tagline', 'mission', 'tone' ) as $field ) {
 				if ( isset( $args[ $field ] ) && is_scalar( $args[ $field ] ) ) {
@@ -1109,8 +1144,39 @@ final class Agent {
 				return __( 'a change to the site\'s styles', 'mody_cloud' );
 			case 'mody/update-menu':
 				return __( 'a change to the site\'s menu', 'mody_cloud' );
+			case 'mody/update-seo':
+				return __( 'a change to how a page shows in search results', 'mody_cloud' );
 		}
 		return __( 'a change to the site', 'mody_cloud' );
+	}
+
+	/**
+	 * What a held mody/update-seo call changes, in words: the page, and each
+	 * new text in full (the owner reads what search results will show).
+	 *
+	 * @param array<string, mixed> $args The call's arguments.
+	 * @return string[]
+	 */
+	private static function describe_seo( array $args ): array {
+		$post  = SeoTool::find( (int) ( $args['page_id'] ?? 0 ), sanitize_text_field( (string) ( $args['page_title'] ?? '' ) ) );
+		$page  = $post instanceof \WP_Post ? self::shown( get_the_title( $post ), 80 ) : self::shown( (string) ( $args['page_title'] ?? '' ), 80 );
+		$parts = array();
+		foreach ( array(
+			/* translators: 1: a page title, 2: the new search title. */
+			'title'       => __( 'the search title of "%1$s" → "%2$s"', 'mody_cloud' ),
+			/* translators: 1: a page title, 2: the new description. */
+			'description' => __( 'the search description of "%1$s" → "%2$s"', 'mody_cloud' ),
+		) as $field => $text ) {
+			if ( isset( $args[ $field ] ) && is_scalar( $args[ $field ] ) ) {
+				$value   = self::shown( (string) $args[ $field ], 300 );
+				$parts[] = sprintf( $text, $page, '' === $value ? __( 'automatic', 'mody_cloud' ) : $value );
+			}
+		}
+		if ( ! empty( $args['generate'] ) ) {
+			/* translators: %s: a page title. */
+			$parts[] = sprintf( __( 'a new search description for "%s", written from its text', 'mody_cloud' ), $page );
+		}
+		return $parts;
 	}
 
 	/**
@@ -1436,7 +1502,7 @@ final class Agent {
 	 */
 	private static function declarations( bool $editing = false ): array {
 		$declarations = array();
-		foreach ( self::ABILITIES as $name ) {
+		foreach ( self::offered( $editing ) as $name ) {
 			$ability = wp_get_ability( $name );
 			if ( $ability ) {
 				$schema         = wp_prepare_json_schema_for_client( $ability->get_input_schema() );
@@ -1513,8 +1579,9 @@ final class Agent {
 	 * that did things without a tool call, and answered "publish it" with
 	 * "Done" and no call (2026-11-06, documentation/ai-engine.md).
 	 *
-	 * An edit_content call is left out when the editor is not open now: the
-	 * model would see a call to a function it was not given.
+	 * An edit_content call, or one of EDITOR_ABILITIES, is left out when the
+	 * editor is not open now: the model would see a call to a function it was
+	 * not given.
 	 *
 	 * @param list<array{role: string, text: string, calls?: list<array{id: string, name: string, args: array, result: mixed}>}> $history Earlier messages.
 	 * @param bool $editing Whether edit_content is offered in this request.
@@ -1536,7 +1603,7 @@ final class Agent {
 			}
 			foreach ( (array) ( $entry['calls'] ?? array() ) as $i => $call ) {
 				$name = is_array( $call ) ? (string) ( $call['name'] ?? '' ) : '';
-				if ( '' === $name || ( self::EDIT_CONTENT === $name && ! $editing ) ) {
+				if ( '' === $name || ( ! $editing && ( self::EDIT_CONTENT === $name || in_array( $name, self::editor_tool_names(), true ) ) ) ) {
 					continue;
 				}
 				$id         = '' !== (string) ( $call['id'] ?? '' ) ? (string) $call['id'] : 'call_' . count( $messages ) . '_' . $i;

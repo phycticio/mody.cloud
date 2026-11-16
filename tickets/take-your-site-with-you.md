@@ -20,6 +20,7 @@ By the maintainer on 2026-11-12:
    - Spectra Blocks and Antispam Bee, the exact installed versions (both unmodified wp.org plugins, GPL);
    - Mody Languages (it stands alone);
    - Mody Images (it stands alone; added 2026-11-14, [image-optimization.md](image-optimization.md));
+   - Mody SEO (its own MU plugin since 2026-11-16, [seo.md](seo.md); before, `Site\Seo` in Mody Site);
    - **Mody Site**: the part of the platform the site needs to look and work the same (below).
 2. **Media:** the site's uploads folder, the fonts the owner installed included. STORE zip, uploads root at the zip root.
 3. **Database:** only this site's tables, cleaned; gzip, data only, one statement per line, a JSON manifest on the first line.
@@ -66,7 +67,7 @@ Not a copy of `mody-platform`: shipped as it is, it would break the new site:
 So `scripts/build-mody-site.php` assembles **Mody Site** from an allowlist of classes, under the same namespace (`Mody\Platform`), so every option, meta and URL keeps its name:
 - `Design\Patterns` (only `/mody-placeholder/` serving) and the placeholder SVG;
 - `Design\Fonts` (only the theme's Inter faces) and `fonts/inter/`, unless baked into the theme;
-- `Site\Seo`;
+- `Site\Seo` (until 2026-11-16; now the Mody SEO plugin);
 - `Login\{LoginPage, Schemes, Color, SettingsPage}` with `assets/login.css` and `login-settings.css` (the palette read and the Site Editor links inlined);
 - `Spectra\SpectraGuard`, `Security\AntispamBee`;
 - `Design\PaletteOnly`, `Admin\AdminColors`;

@@ -35,7 +35,7 @@ $registry = WP_Block_Type_Registry::get_instance();
 $check( 'Spectra\'s container block is registered', $registry->is_registered( 'spectra/container' ) );
 $check( 'the Google Map block is not (the guard)', ! $registry->is_registered( 'spectra/google-map' ) );
 $check( 'the language switcher block is registered', $registry->is_registered( 'mody/language-switcher' ) );
-$check( 'the SEO title meta is registered', registered_meta_key_exists( 'post', 'mody_seo_title', 'page' ) );
+$check( 'the SEO fields are registered (Mody SEO)', registered_meta_key_exists( 'post', 'mody_seo_title', 'page' ) && registered_meta_key_exists( 'post', 'mody_seo_description', 'page' ) );
 $avatar = (string) get_avatar_url( $owner->ID );
 $check( 'avatars are initials on this site, not Gravatar', str_starts_with( $avatar, home_url( '/mody-avatar/' ) ) );
 $theme = wp_get_global_settings( array( 'typography', 'fontFamilies', 'theme' ) );
@@ -54,9 +54,11 @@ $page   = wp_insert_post(
 		'post_status'  => 'publish',
 		'post_title'   => 'Exit test',
 		'post_name'    => 'exit-test',
-		'post_excerpt' => 'The page\'s own description.',
 		'post_content' => $markup,
-		'meta_input'   => array( 'mody_seo_title' => 'Exit test SEO title' ),
+		'meta_input'   => array(
+			'mody_seo_title'       => 'Exit test SEO title',
+			'mody_seo_description' => 'The page\'s own description.',
+		),
 	),
 	true
 );

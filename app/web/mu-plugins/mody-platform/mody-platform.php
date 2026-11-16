@@ -110,7 +110,6 @@ if ( class_exists( \Mody\Analytics\Query::class ) ) {
 	}
 }
 Site\Storage::register();
-Site\Seo::register(); // A page's SEO title (post meta) and description (its excerpt), 2026-11-12.
 
 /*
  * Take your site with you (2026-11-12, tickets/take-your-site-with-you.md):
