@@ -25,7 +25,7 @@
  */
 
 use Mody\Platform\Agent\Agent;
-use Mody\Platform\Design\Fonts;
+use Mody\Fonts\Fonts;
 use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Design\SiteStyles;
 use Mody\Platform\SiteEditor;

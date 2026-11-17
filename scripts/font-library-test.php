@@ -21,7 +21,7 @@
  * No model call.
  */
 
-use Mody\Platform\Design\Fonts;
+use Mody\Fonts\Fonts;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 

@@ -8,7 +8,7 @@
 
 namespace Mody\Platform\Export;
 
-use Mody\Platform\Design\Fonts;
+use Mody\Fonts\Fonts;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -18,7 +18,8 @@ defined( 'ABSPATH' ) || exit;
  * into a folder laid out like wp-content:
  *
  * - `themes/theme`: the theme, with Inter baked into its theme.json (on the
- *   platform, Design\Fonts adds the faces from this plugin's fonts folder).
+ *   platform, Mody Fonts adds the faces from its fonts folder; without it,
+ *   the theme falls back to the system font, as it would anyway).
  * - `plugins/mody-site`: Mody Site, the platform's classes a site needs to
  *   look and work the same (SITE_FILES), with its own bootstrap
  *   (export-kit/mody-site/mody-site.php). Same namespace, so options, post
@@ -196,6 +197,9 @@ final class Portable {
 	 * @return true|WP_Error
 	 */
 	private static function bake_fonts( string $theme ) {
+		if ( ! class_exists( Fonts::class ) ) {
+			return true; // No Mody Fonts here: the theme keeps the system font.
+		}
 		$json = json_decode( (string) file_get_contents( $theme . '/theme.json' ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local file.
 		if ( ! is_array( $json ) ) {
 			return new WP_Error( 'mody_export_theme_json', 'The theme.json could not be read.' );

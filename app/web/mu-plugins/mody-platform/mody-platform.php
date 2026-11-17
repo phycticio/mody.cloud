@@ -44,15 +44,6 @@ add_action( 'rest_api_init', array( Design\Patterns::class, 'register' ), 5 );
 add_filter( 'rest_pre_dispatch', array( Design\Patterns::class, 'refuse_directory' ), 10, 3 );
 
 /*
- * The Font Library (rule 1): no Google Fonts collection (core registers it on
- * `init` at priority 10), the Mody fonts collection instead, and the theme's
- * Inter served from this plugin (M2-07).
- */
-add_action( 'init', array( Design\Fonts::class, 'remove_collections' ), 20 );
-add_action( 'init', array( Design\Fonts::class, 'register_collection' ), 20 ); // The Mody fonts collection (M2-07).
-add_filter( 'wp_theme_json_data_theme', array( Design\Fonts::class, 'theme_fonts' ) ); // Real Inter for the theme.
-
-/*
  * Network-wide tables (mvp-spec section 11). Creates or updates them only
  * when their version changed.
  */

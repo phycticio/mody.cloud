@@ -9,7 +9,7 @@ In the Site Editor (Styles → Typography → Fonts → Manage fonts), a member 
 
 ## Decisions (maintainer, 2026-11-07)
 - **The list:** proposed by the agent, ten families (below).
-- **Where the files live:** in the platform MU plugin, `app/web/mu-plugins/mody-platform/fonts/<slug>/`.
+- **Where the files live:** in the platform MU plugin, `app/web/mu-plugins/mody-platform/fonts/<slug>/` (since 2026-11-17 the `mody-fonts` plugin, `mody-fonts/fonts/<slug>/`, [independent-mody-plugins.md](independent-mody-plugins.md)).
 - **Where they come from:** each font's own repository, downloaded once and committed (approved). `fonts/sources.json` records the repository, the commit and the size of every file; each family's folder has its `LICENSE.txt`.
 
 ## The fonts (all SIL Open Font License 1.1, WOFF2, 3.8 MB in all)

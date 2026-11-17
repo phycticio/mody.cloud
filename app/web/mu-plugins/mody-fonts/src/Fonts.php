@@ -2,10 +2,10 @@
 /**
  * The Font Library: Mody's own collection of free fonts, nothing from outside (rule 1).
  *
- * @package Mody\Platform
+ * @package Mody\Fonts
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Fonts;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -249,7 +249,7 @@ final class Fonts {
 	 * @param string $file File name.
 	 */
 	public static function url( string $slug, string $file ): string {
-		return plugins_url( 'fonts/' . $slug . '/' . $file, dirname( __DIR__, 2 ) . '/mody-platform.php' );
+		return plugins_url( 'fonts/' . $slug . '/' . $file, dirname( __DIR__ ) . '/mody-fonts.php' );
 	}
 
 	/**
@@ -259,7 +259,7 @@ final class Fonts {
 	 * @param string $file File name.
 	 */
 	public static function path( string $slug, string $file ): string {
-		return dirname( __DIR__, 2 ) . '/fonts/' . $slug . '/' . $file;
+		return dirname( __DIR__ ) . '/fonts/' . $slug . '/' . $file;
 	}
 
 	/**
