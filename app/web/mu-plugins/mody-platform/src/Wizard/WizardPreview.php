@@ -7,7 +7,7 @@
 
 namespace Mody\Platform\Wizard;
 
-use Mody\Platform\Design\Presets;
+use Mody\Styles\Presets;
 use Mody\Platform\Provisioning\Pipeline;
 
 defined( 'ABSPATH' ) || exit;
@@ -74,7 +74,7 @@ final class WizardPreview {
 	public static function html( string $brand, string $mission, string $preset ): string {
 		$brand   = mb_substr( '' !== $brand ? $brand : __( 'Your brand', 'mody_cloud' ), 0, Pipeline::MAX_NAME_LENGTH );
 		$mission = mb_substr( '' !== $mission ? $mission : __( 'What you do, in one sentence.', 'mody_cloud' ), 0, Pipeline::MAX_MISSION_LENGTH );
-		$style   = Presets::variation( $preset ) ?? Presets::variation( Presets::DEFAULT );
+		$style   = class_exists( Presets::class ) ? ( Presets::variation( $preset ) ?? Presets::variation( Presets::DEFAULT ) ) : null;
 
 		$text    = static fn(): string => $brand;
 		$tagline = static fn(): string => $mission;
@@ -91,7 +91,7 @@ final class WizardPreview {
 			array(
 				'version'                     => \WP_Theme_JSON::LATEST_SCHEMA,
 				'isGlobalStylesUserThemeJSON' => true,
-			) + array_filter( $style ),
+			) + array_filter( (array) $style ),
 			'custom'
 		);
 		add_filter( 'wp_theme_json_data_user', $styles );

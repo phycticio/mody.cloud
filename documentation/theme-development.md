@@ -38,9 +38,9 @@ app/web/themes/theme/
 - **No font families** (M2-07): a variation that lists them replaces the theme's list, and Inter's font faces with it. The styles use the theme's Inter; members add fonts from the Font Library.
 - **The default:** `theme.json` itself is the sixth preset, Mody Teal ("Default" in the Site Editor).
 - **Where they appear:** in the Site Editor under Styles → Browse styles. Choosing one writes it into the site's own Global Styles, editable per site.
-- **The single source:** the wizard, provisioning and the agent's `mody/update-design` read them through `Mody\Platform\Design\Presets`, so a new file is a new preset everywhere.
+- **The single source:** the wizard, provisioning and the agent's `mody/update-design` read them through `Mody\Styles\Presets` (the `mody-styles` plugin), so a new file is a new preset everywhere.
 
-Not included yet: `languages/` and `screenshot.png`. **No `patterns/` folder (decided 2026-11-08):** every site's patterns are the Mody collection in the `mody-patterns` plugin (`mody-patterns/patterns/collection.json`, [the design market](../tickets/design-market-themes-patterns.md)), not the theme. New patterns go through `scripts/import-patterns.php` and `Design\PatternImport`, so they use palette slugs, the theme's fonts and local placeholder images.
+Not included yet: `languages/` and `screenshot.png`. **No `patterns/` folder (decided 2026-11-08):** every site's patterns are the Mody collection in the `mody-patterns` plugin (`mody-patterns/patterns/collection.json`, [the design market](../tickets/design-market-themes-patterns.md)), not the theme. New patterns go through `scripts/import-patterns.php` and `PatternImport` (the `mody-patterns` plugin), so they use palette slugs, the theme's fonts and local placeholder images.
 
 ## Design tokens
 

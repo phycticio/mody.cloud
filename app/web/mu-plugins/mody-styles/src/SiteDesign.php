@@ -2,12 +2,11 @@
 /**
  * The site's brand colors in Global Styles, and the ability mody/update-design.
  *
- * @package Mody\Platform
+ * @package Mody\Styles
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Styles;
 
-use Mody\Platform\SiteEditor;
 use WP_Error;
 use WP_Theme_JSON;
 use WP_Theme_JSON_Resolver;
@@ -292,7 +291,7 @@ final class SiteDesign {
 
 		// The editor shows the result (M3-09, decided 2026-11-08): Colors after a color
 		// change, Browse styles (with the preset active) after a preset.
-		$screen = SiteEditor::styles_screen( '' !== $preset ? 'browse' : 'colors' );
+		$screen = Screens::styles( '' !== $preset ? 'browse' : 'colors' );
 		return ( '' !== $preset ? array( 'preset' => $preset ) : array() ) + array(
 			'colors'                => $changes,
 			'url'                   => $screen['url'],

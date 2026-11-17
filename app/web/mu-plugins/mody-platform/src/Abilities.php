@@ -7,12 +7,12 @@
 
 namespace Mody\Platform;
 
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
+use Mody\Styles\SiteStyles;
 use Mody\Platform\Agent\Hardening;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Design\SiteStyles;
 use Mody\Platform\Site\PagePublisher;
 use Mody\Platform\Site\Menu;
 use Mody\Platform\Site\SeoTool;
@@ -178,122 +178,127 @@ final class Abilities {
 			)
 		);
 
-		/*
-		 * Kept short on purpose: with a longer description and a description
-		 * per color (a 3.8 KB tools block), Qwen on Infomaniak often answered
-		 * with bracketed transcript text instead of calling a tool (2026-11-06,
-		 * documentation/ai-engine.md "Prompt size").
-		 */
-		$color = array(
-			'type'    => 'string',
-			'pattern' => SiteDesign::HEX_PATTERN,
-		);
-		wp_register_ability(
-			'mody/update-design',
-			array(
-				'label'               => __( 'Update the design', 'mody_cloud' ),
-				/* translators: %s: the preset names. */
-				'description'         => sprintf( __( 'Changes the site\'s colors: a Mody design preset (%s), or new primary, secondary or accent colors as hex codes.', 'mody_cloud' ), implode( ', ', array_column( Presets::all(), 'name' ) ) ),
-				'category'            => self::CATEGORY,
-				'input_schema'        => array(
-					'type'                 => 'object',
-					'properties'           => array(
-						'preset'    => array(
-							'type' => 'string',
-							'enum' => Presets::slugs(),
+		// The design tools write the styles through Mody Styles: only with it.
+		if ( class_exists( SiteDesign::class ) ) {
+			/*
+			 * Kept short on purpose: with a longer description and a description
+			 * per color (a 3.8 KB tools block), Qwen on Infomaniak often answered
+			 * with bracketed transcript text instead of calling a tool (2026-11-06,
+			 * documentation/ai-engine.md "Prompt size").
+			 */
+			$color = array(
+				'type'    => 'string',
+				'pattern' => SiteDesign::HEX_PATTERN,
+			);
+			wp_register_ability(
+				'mody/update-design',
+				array(
+					'label'               => __( 'Update the design', 'mody_cloud' ),
+					/* translators: %s: the preset names. */
+					'description'         => sprintf( __( 'Changes the site\'s colors: a Mody design preset (%s), or new primary, secondary or accent colors as hex codes.', 'mody_cloud' ), implode( ', ', array_column( Presets::all(), 'name' ) ) ),
+					'category'            => self::CATEGORY,
+					'input_schema'        => array(
+						'type'                 => 'object',
+						'properties'           => array(
+							'preset'    => array(
+								'type' => 'string',
+								'enum' => Presets::slugs(),
+							),
+							'primary'   => $color,
+							'secondary' => $color,
+							'accent'    => $color,
 						),
-						'primary'   => $color,
-						'secondary' => $color,
-						'accent'    => $color,
+						'additionalProperties' => false,
 					),
-					'additionalProperties' => false,
-				),
-				'output_schema'       => array(
-					'type'       => 'object',
-					'properties' => array(
-						'preset'                => array( 'type' => 'string' ),
-						'colors'                => array(
-							'type'                 => 'object',
-							'additionalProperties' => array(
-								'type'       => 'object',
-								'properties' => array(
-									'old' => array( 'type' => 'string' ),
-									'new' => array( 'type' => 'string' ),
+					'output_schema'       => array(
+						'type'       => 'object',
+						'properties' => array(
+							'preset'                => array( 'type' => 'string' ),
+							'colors'                => array(
+								'type'                 => 'object',
+								'additionalProperties' => array(
+									'type'       => 'object',
+									'properties' => array(
+										'old' => array( 'type' => 'string' ),
+										'new' => array( 'type' => 'string' ),
+									),
 								),
 							),
+							'url'                   => array( 'type' => 'string' ),
+							'label'                 => array( 'type' => 'string' ),
+							'place'                 => array( 'type' => 'string' ),
+							'navigate'              => array( 'type' => 'boolean' ),
 						),
-						'url'                   => array( 'type' => 'string' ),
-						'label'                 => array( 'type' => 'string' ),
-						'place'                 => array( 'type' => 'string' ),
-						'navigate'              => array( 'type' => 'boolean' ),
+						'required'   => array( 'colors', 'url', 'label' ),
 					),
-					'required'   => array( 'colors', 'url', 'label' ),
-				),
-				'execute_callback'    => array( SiteDesign::class, 'update' ),
-				'permission_callback' => array( SiteDesign::class, 'can_update' ),
-				'meta'                => array(
-					'public'      => true, // REST, MCP and the agent.
-					'annotations' => array(
-						'readonly'    => false,
-						'destructive' => false,
-						'idempotent'  => true,
+					'execute_callback'    => array( SiteDesign::class, 'update' ),
+					'permission_callback' => array( SiteDesign::class, 'can_update' ),
+					'meta'                => array(
+						'public'      => true, // REST, MCP and the agent.
+						'annotations' => array(
+							'readonly'    => false,
+							'destructive' => false,
+							'idempotent'  => true,
+						),
 					),
-				),
-			)
-		);
+				)
+			);
+		}
 
-		/*
-		 * M3-10 (2026-11-08): every other part of the site's styles. One short
-		 * sentence and one property (ai-engine.md, "Prompt size"); the paths
-		 * and presets are in SystemPrompt::styles_context().
-		 */
-		wp_register_ability(
-			'mody/update-styles',
-			array(
-				'label'               => __( 'Update the styles', 'mody_cloud' ),
-				'description'         => __( 'Changes the site\'s styles: `changes`, a partial theme.json merged into them.', 'mody_cloud' ),
-				'category'            => self::CATEGORY,
-				'input_schema'        => array(
-					'type'                 => 'object',
-					'properties'           => array(
-						'changes' => array( 'type' => 'object' ),
+		if ( class_exists( SiteStyles::class ) ) {
+			/*
+			 * M3-10 (2026-11-08): every other part of the site's styles. One short
+			 * sentence and one property (ai-engine.md, "Prompt size"); the paths
+			 * and presets are in SystemPrompt::styles_context().
+			 */
+			wp_register_ability(
+				'mody/update-styles',
+				array(
+					'label'               => __( 'Update the styles', 'mody_cloud' ),
+					'description'         => __( 'Changes the site\'s styles: `changes`, a partial theme.json merged into them.', 'mody_cloud' ),
+					'category'            => self::CATEGORY,
+					'input_schema'        => array(
+						'type'                 => 'object',
+						'properties'           => array(
+							'changes' => array( 'type' => 'object' ),
+						),
+						'required'             => array( 'changes' ),
+						'additionalProperties' => false,
 					),
-					'required'             => array( 'changes' ),
-					'additionalProperties' => false,
-				),
-				'output_schema'       => array(
-					'type'       => 'object',
-					'properties' => array(
-						'changed'  => array(
-							'type'  => 'array',
-							'items' => array(
-								'type'       => 'object',
-								'properties' => array(
-									'path' => array( 'type' => 'string' ),
-									'old'  => array( 'type' => 'string' ),
-									'new'  => array( 'type' => 'string' ),
+					'output_schema'       => array(
+						'type'       => 'object',
+						'properties' => array(
+							'changed'  => array(
+								'type'  => 'array',
+								'items' => array(
+									'type'       => 'object',
+									'properties' => array(
+										'path' => array( 'type' => 'string' ),
+										'old'  => array( 'type' => 'string' ),
+										'new'  => array( 'type' => 'string' ),
+									),
 								),
 							),
+							'url'      => array( 'type' => 'string' ),
+							'label'    => array( 'type' => 'string' ),
+							'place'    => array( 'type' => 'string' ),
+							'navigate' => array( 'type' => 'boolean' ),
 						),
-						'url'      => array( 'type' => 'string' ),
-						'label'    => array( 'type' => 'string' ),
-						'place'    => array( 'type' => 'string' ),
-						'navigate' => array( 'type' => 'boolean' ),
+						'required'   => array( 'changed', 'url', 'label' ),
 					),
-					'required'   => array( 'changed', 'url', 'label' ),
-				),
-				'execute_callback'    => array( SiteStyles::class, 'update' ),
-				'permission_callback' => array( SiteStyles::class, 'can_update' ),
-				'meta'                => array(
-					'public'      => true, // REST, MCP and the agent.
-					'annotations' => array(
-						'readonly'    => false,
-						'destructive' => false,
-						'idempotent'  => true,
+					'execute_callback'    => array( SiteStyles::class, 'update' ),
+					'permission_callback' => array( SiteStyles::class, 'can_update' ),
+					'meta'                => array(
+						'public'      => true, // REST, MCP and the agent.
+						'annotations' => array(
+							'readonly'    => false,
+							'destructive' => false,
+							'idempotent'  => true,
+						),
 					),
-				),
-			)
-		);
+				)
+			);
+		}
 
 		/*
 		 * 2026-11-11 (tickets/agent-knows-gutenberg-spectra-settings.md): the

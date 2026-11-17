@@ -52,8 +52,8 @@ use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
 use Mody\Platform\Site\SiteSettings;
 use Mody\Platform\SiteEditor;
 

@@ -24,8 +24,8 @@
 
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Wizard\WizardController;

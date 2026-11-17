@@ -23,8 +23,8 @@
  */
 
 use Mody\Palette\PaletteOnly;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

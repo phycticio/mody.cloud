@@ -33,7 +33,7 @@ use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SpectraBlocks;
 use Mody\Platform\AI\SpectraLayout;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Design\SiteStyles;
+use Mody\Styles\SiteStyles;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";

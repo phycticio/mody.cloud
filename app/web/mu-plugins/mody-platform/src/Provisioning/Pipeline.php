@@ -11,8 +11,8 @@ use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SpectraLayout;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
 use Mody\Platform\SiteEditor;
 use WP_Error;
 
@@ -198,8 +198,9 @@ final class Pipeline {
 			$errors['tone'] = __( 'Choose one of the three tones.', 'mody_cloud' );
 		}
 
-		$preset = '' !== $text( 'preset' ) ? $text( 'preset' ) : Presets::DEFAULT;
-		if ( null === Presets::colors( $preset ) ) {
+		$styles = class_exists( Presets::class ); // Mody Styles: without it, the theme's own colors.
+		$preset = '' !== $text( 'preset' ) ? $text( 'preset' ) : ( $styles ? Presets::DEFAULT : '' );
+		if ( $styles && null === Presets::colors( $preset ) ) {
 			$errors['preset'] = __( 'Choose one of the design presets.', 'mody_cloud' );
 		}
 
@@ -647,7 +648,7 @@ final class Pipeline {
 	 */
 	private static function step_styles( array $job ): array|WP_Error {
 		$preset = (string) $job['input']['preset'];
-		if ( SiteDesign::active_preset() === $preset ) {
+		if ( '' === $preset || ! class_exists( SiteDesign::class ) || SiteDesign::active_preset() === $preset ) {
 			return array();
 		}
 		$applied = SiteDesign::apply_preset( $preset );

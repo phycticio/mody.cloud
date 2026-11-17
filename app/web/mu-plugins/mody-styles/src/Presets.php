@@ -2,10 +2,10 @@
 /**
  * The Mody design presets: the theme's style variations.
  *
- * @package Mody\Platform
+ * @package Mody\Styles
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Styles;
 
 use WP_Theme_JSON_Resolver;
 

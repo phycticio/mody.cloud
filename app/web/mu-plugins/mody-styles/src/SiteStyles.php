@@ -2,12 +2,11 @@
 /**
  * Every part of the site's styles, and the ability mody/update-styles (M3-10).
  *
- * @package Mody\Platform
+ * @package Mody\Styles
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Styles;
 
-use Mody\Platform\SiteEditor;
 use WP_Block_Type_Registry;
 use WP_Error;
 use WP_Theme_JSON;
@@ -1161,9 +1160,9 @@ final class SiteStyles {
 		$sections = array_values( array_unique( $sections ) );
 		$blocks   = array_values( array_unique( $blocks ) );
 		if ( 1 !== count( $sections ) ) {
-			return SiteEditor::styles_screen( 'overview' );
+			return Screens::styles( 'overview' );
 		}
-		return SiteEditor::styles_screen( $sections[0], 'blocks' === $sections[0] && 1 === count( $blocks ) ? $blocks[0] : '' );
+		return Screens::styles( $sections[0], 'blocks' === $sections[0] && 1 === count( $blocks ) ? $blocks[0] : '' );
 	}
 
 	/*

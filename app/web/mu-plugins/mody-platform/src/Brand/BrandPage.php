@@ -8,7 +8,6 @@
 namespace Mody\Platform\Brand;
 
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Design\SiteDesign;
 use Mody\Platform\Look;
 use Mody\Platform\SiteEditor;
 
@@ -528,7 +527,7 @@ final class BrandPage {
 	 * read from its Global Styles, and where to change them.
 	 */
 	private static function render_visual(): void {
-		$palette   = SiteDesign::palette();
+		$palette   = array_map( 'strtolower', Look::palette() );
 		$families  = array();
 		$settings  = (array) wp_get_global_settings( array( 'typography', 'fontFamilies' ) );
 		foreach ( $settings as $origin => $list ) {

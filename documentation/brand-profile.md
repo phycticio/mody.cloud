@@ -84,7 +84,7 @@ Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin ([M2-
    - `title`: the site title and the brand name, at most 120 characters.
    - `mission`: the "what do you do?" sentence, required, at most 200 characters. It becomes the tagline and the mission setting.
    - `tone`: formal, friendly (default) or technical.
-   - `preset`: one of the six design presets (`Design\Presets`), Mody Teal by default.
+   - `preset`: one of the six design presets (`Presets` (`mody-styles`)), Mody Teal by default.
    - `prompt`: the description of the first page, required, at most 2,000 characters.
    - `logo_id`: optional, an image the user uploaded to the main site (M2-05).
 

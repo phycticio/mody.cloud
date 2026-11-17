@@ -9,7 +9,7 @@ namespace Mody\Platform\Wizard;
 
 use Mody\Platform\Agent\ChatController;
 use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\Design\Presets;
+use Mody\Styles\Presets;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
@@ -233,7 +233,7 @@ final class WizardPage {
 					<h2><?php esc_html_e( 'Your design', 'mody_cloud' ); ?></h2>
 					<fieldset class="mody-wizard__cards mody-wizard__presets">
 						<legend><?php esc_html_e( 'Colors', 'mody_cloud' ); ?></legend>
-						<?php foreach ( Presets::all() as $slug => $preset ) : ?>
+						<?php foreach ( class_exists( Presets::class ) ? Presets::all() : array() as $slug => $preset ) : ?>
 							<label class="mody-wizard__card mody-wizard__preset">
 								<input type="radio" name="preset" value="<?php echo esc_attr( $slug ); ?>" <?php checked( Presets::DEFAULT, $slug ); ?>>
 								<strong><?php echo esc_html( $preset['name'] ); ?></strong>

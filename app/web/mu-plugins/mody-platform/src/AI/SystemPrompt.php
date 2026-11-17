@@ -9,7 +9,7 @@ namespace Mody\Platform\AI;
 
 use Mody\Platform\Brand\BrandBook;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\SiteStyles;
+use Mody\Styles\SiteStyles;
 use Mody\Platform\SiteEditor;
 
 defined( 'ABSPATH' ) || exit;
@@ -532,6 +532,9 @@ PROMPT;
 	 * the agent writes them.
 	 */
 	public static function styles_context(): string {
+		if ( ! class_exists( SiteStyles::class ) ) {
+			return ''; // No Mody Styles: no mody/update-styles either.
+		}
 		$overview = SiteStyles::overview();
 		$nodes    = array();
 		foreach ( $overview['styles'] as $path => $value ) {

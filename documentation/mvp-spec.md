@@ -132,7 +132,7 @@ Entry: **+ New site** on the dashboard. Until M1 builds the dashboard, the wizar
 - The wizard sets no font: every site starts with **Inter**. Members change fonts later in the Site Editor (Styles → Typography), from the Mody fonts collection (M2-07).
 - Fine-tuning is deliberately *not* in the wizard: members can later say "make the primary color a bit warmer" to the agent or adjust Styles in the Site Editor.
 
-The presets (kept as they are for M2, decided 2026-11-06). Since 2026-11-07 (M2-06) they are the theme's style variations: `theme.json` is Mody Teal, and `themes/theme/styles/forest.json`, `graphite.json`, `ocean.json`, `plum.json` and `sand.json` the others. `src/Design/Presets.php` reads them and is the single source for the wizard, provisioning and the agent's `mody/update-design`. The Site Editor lists them under Styles → Browse styles. On 2026-11-07 four colors were darkened, keeping their hue, so every pair passes WCAG AA (theme-development.md, "Contrast of the presets"): Forest, Ocean and Plum's accents, and Sand's primary.
+The presets (kept as they are for M2, decided 2026-11-06). Since 2026-11-07 (M2-06) they are the theme's style variations: `theme.json` is Mody Teal, and `themes/theme/styles/forest.json`, `graphite.json`, `ocean.json`, `plum.json` and `sand.json` the others. `mody-styles/src/Presets.php` reads them and is the single source for the wizard, provisioning and the agent's `mody/update-design`. The Site Editor lists them under Styles → Browse styles. On 2026-11-07 four colors were darkened, keeping their hue, so every pair passes WCAG AA (theme-development.md, "Contrast of the presets"): Forest, Ocean and Plum's accents, and Sand's primary.
 
 | Preset | Primary | Secondary | Accent |
 | --- | --- | --- | --- |

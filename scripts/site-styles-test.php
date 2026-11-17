@@ -26,8 +26,8 @@
 
 use Mody\Platform\Agent\Agent;
 use Mody\Fonts\Fonts;
-use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Design\SiteStyles;
+use Mody\Styles\SiteDesign;
+use Mody\Styles\SiteStyles;
 use Mody\Platform\SiteEditor;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
