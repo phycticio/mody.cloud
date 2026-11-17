@@ -23,8 +23,8 @@
  * taking real money.
  */
 
-use Mody\Platform\Agent\AgentSettings;
-use Mody\Platform\Agent\Budget;
+use Mody\Agent\AgentSettings;
+use Mody\Agent\Budget;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Lifecycle;
 use Mody\Platform\Members\Members;

@@ -23,12 +23,12 @@
  * the cache, and the page writer's rejected answers.
  */
 
-use Mody\Platform\Agent\Agent;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\EditorContext;
-use Mody\Platform\Agent\TurnMetrics;
-use Mody\Platform\AI\PageOutline;
-use Mody\Platform\AI\SpectraLayout;
+use Mody\Agent\Agent;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\EditorContext;
+use Mody\Agent\TurnMetrics;
+use Mody\Agent\AI\PageOutline;
+use Mody\Agent\AI\SpectraLayout;
 use Mody\Brand\BrandBook;
 use Mody\Brand\BrandSettings;
 

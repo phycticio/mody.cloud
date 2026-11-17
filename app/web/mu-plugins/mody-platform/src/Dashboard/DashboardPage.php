@@ -8,7 +8,8 @@
 namespace Mody\Platform\Dashboard;
 
 use Mody\Analytics\Stats;
-use Mody\Platform\Agent\Budget;
+use Mody\Agent\Budget;
+use Mody\Agent\AgentEvents;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Billing\Payments;
@@ -161,17 +162,14 @@ final class DashboardPage {
 		$info = require $asset;
 		wp_enqueue_script( self::BOARD_SCRIPT, WP_HOME . '/dist/analytics-board.js', (array) ( $info['dependencies'] ?? array() ), (string) ( $info['version'] ?? '' ), true );
 		wp_enqueue_style( 'dashicons' );
-		$analyst = function_exists( 'wp_ai_client_prompt' ) && wp_get_ability( Analyst::QUERY_ABILITY );
+		$analyst = function_exists( 'wp_ai_client_prompt' ) && wp_get_ability( Analyst::QUERY_ABILITY ) && wp_style_is( 'mody-agent-bubble', 'registered' );
 		if ( $analyst ) {
-			// The analyst's bubble (phase 2) wears the editors' bubble: the same two stylesheets, in the user's color scheme.
-			$root    = dirname( __DIR__, 2 );
-			$url     = static fn( string $file ): string => plugins_url( 'assets/' . $file, $root . '/mody-platform.php' );
-			$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
-			wp_enqueue_style( 'mody-agent-chat', $url( 'agent-chat.css' ), array(), $version( 'agent-chat.css' ) );
+			// The analyst's bubble (phase 2) wears the editors' bubble: Mody Agent's two stylesheets, in the user's color scheme.
+			wp_enqueue_style( 'mody-agent-chat' );
 			if ( class_exists( \Mody\AdminColors\AdminColors::class ) ) {
 				\Mody\AdminColors\AdminColors::add_agent_chat_css();
 			}
-			wp_enqueue_style( 'mody-agent-bubble', $url( 'agent-bubble.css' ), array( 'mody-agent-chat' ), $version( 'agent-bubble.css' ) );
+			wp_enqueue_style( 'mody-agent-bubble' );
 		}
 		wp_add_inline_script(
 			self::BOARD_SCRIPT,
@@ -195,7 +193,7 @@ final class DashboardPage {
 		if ( current_user_can( self::SITE_CAPABILITY ) && class_exists( Stats::class ) ) {
 			$sections['visitors'] = __( 'Visitors', 'mody_cloud' );
 		}
-		if ( current_user_can( self::SITE_CAPABILITY ) ) {
+		if ( current_user_can( self::SITE_CAPABILITY ) && class_exists( AgentEvents::class ) ) { // Mody Agent's log.
 			$sections['mody'] = __( 'Mody\'s work', 'mody_cloud' );
 		}
 		if ( Members::get( get_current_user_id() ) ) {
@@ -1031,7 +1029,7 @@ final class DashboardPage {
 					/* translators: 1: space per site, such as 1 GB, 2: Mody's tokens a month, such as 5 million. */
 					__( 'Every site has the same: %1$s of space, every plugin in our market, the full Site Editor and its own Mody, with %2$s tokens a month. Prices in euros, VAT included.', 'mody_cloud' ),
 					size_format( (int) get_site_option( 'blog_upload_space', 1024 ) * MB_IN_BYTES ), // The network's space per site (Mody Storage sets it).
-					number_format_i18n( Budget::MONTH )
+					number_format_i18n( class_exists( Budget::class ) ? Budget::MONTH : 5000000 ) // Mody Agent's monthly tokens; the plan's number without it.
 				)
 			);
 			?>

@@ -9,7 +9,6 @@
 
 namespace Mody\Platform\Members;
 
-use Mody\Platform\Agent\ChatController;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Dashboard\DashboardPage;
@@ -104,6 +103,9 @@ defined( 'ABSPATH' ) || exit;
  * Not paid within PAY_HOURS: the daily run removes the account.
  */
 final class Registration {
+
+	/** The signup chat's REST namespace: the address it has always had. */
+	public const REST_NAMESPACE = 'mody-platform/v1';
 
 	/** The block's name. */
 	public const BLOCK = 'mody/register';
@@ -976,7 +978,7 @@ final class Registration {
 			'maxLength' => 64,
 		);
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/register/check',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -995,7 +997,7 @@ final class Registration {
 			)
 		);
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/register',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -1417,7 +1419,7 @@ final class Registration {
 	 */
 	private static function chat_settings( bool $invited = false, string $ref = '' ): array {
 		return array(
-			'endpoint' => rest_url( ChatController::REST_NAMESPACE . '/register' ),
+			'endpoint' => rest_url( self::REST_NAMESPACE . '/register' ),
 			'ref'      => $ref,
 			'nonce'    => wp_create_nonce( self::ACTION ),
 			'suffix'   => self::address_suffix(),

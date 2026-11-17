@@ -7,8 +7,6 @@
 
 namespace Mody\Platform\Wizard;
 
-use Mody\Platform\Agent\ChatController;
-use Mody\Platform\AI\PageGenerator;
 use Mody\Styles\Presets;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Provisioning\Jobs;
@@ -85,7 +83,7 @@ final class WizardPage {
 			'mody-wizard',
 			'window.modyWizard = ' . wp_json_encode(
 				array(
-					'endpoint' => rest_url( ChatController::REST_NAMESPACE . '/sites' ),
+					'endpoint' => rest_url( WizardController::REST_NAMESPACE . '/sites' ),
 					'nonce'    => wp_create_nonce( 'wp_rest' ),
 					'pending'  => $pending ? WizardController::view( $pending ) : null,
 					'interval' => 1500,
@@ -276,7 +274,7 @@ final class WizardPage {
 					<h2><?php esc_html_e( 'Your first page', 'mody_cloud' ); ?></h2>
 					<p class="mody-wizard__field">
 						<label for="mody-prompt"><?php esc_html_e( 'Describe the first page of your site.', 'mody_cloud' ); ?></label>
-						<textarea id="mody-prompt" name="prompt" rows="5" maxlength="<?php echo (int) PageGenerator::MAX_PROMPT_LENGTH; ?>" required></textarea>
+						<textarea id="mody-prompt" name="prompt" rows="5" maxlength="<?php echo (int) Pipeline::MAX_PROMPT_LENGTH; ?>" required></textarea>
 						<?php $error( 'prompt' ); ?>
 					</p>
 					<p class="mody-wizard__chips">

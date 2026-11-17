@@ -53,7 +53,7 @@
  * Users and rows made here are removed. No real payment.
  */
 
-use Mody\Platform\Agent\Budget;
+use Mody\Agent\Budget;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Lifecycle;
 use Mody\Platform\Billing\Mollie;

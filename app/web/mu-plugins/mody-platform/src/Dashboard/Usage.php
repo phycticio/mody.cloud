@@ -7,8 +7,8 @@
 
 namespace Mody\Platform\Dashboard;
 
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\TurnMetrics;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\TurnMetrics;
 
 defined( 'ABSPATH' ) || exit;
 

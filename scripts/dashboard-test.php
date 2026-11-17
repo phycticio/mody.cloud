@@ -30,8 +30,8 @@
 use Mody\Analytics\Collector;
 use Mody\Analytics\Stats;
 use Mody\Analytics\Store;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\TurnMetrics;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\TurnMetrics;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Dashboard\Usage;
 use Mody\Platform\Members\Members;

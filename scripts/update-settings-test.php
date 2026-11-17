@@ -27,7 +27,7 @@
  *    `-e MODY_TEST_OFFLINE=1` skips them.
  */
 
-use Mody\Platform\Site\Settings;
+use Mody\Agent\Site\Settings;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";
@@ -228,7 +228,7 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 		foreach ( $before as $option => $value ) {
 			null === $value ? delete_option( $option ) : update_option( $option, $value );
 		}
-		Mody\Platform\Agent\Agent::forget_held();
+		Mody\Agent\Agent::forget_held();
 	};
 	$changes_of = static function ( array $turn ): array {
 		$changes = array();
@@ -263,7 +263,7 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 			$restore();
 			wp_set_current_user( $admin );
 			$started = microtime( true );
-			$turn    = Mody\Platform\Agent\Agent::respond( $text );
+			$turn    = Mody\Agent\Agent::respond( $text );
 			$changes = $changes_of( $turn );
 			$good    = $ok( $turn, $changes );
 			$passed += $good ? 1 : 0;

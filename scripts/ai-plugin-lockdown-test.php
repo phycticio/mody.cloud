@@ -91,7 +91,7 @@ foreach ( $ids as $id ) {
 $check( 'the switches', ! $wrong, $wrong ? implode( ', ', $wrong ) : '' );
 $check( '...a feature added later is off', '0' === get_option( 'wpai_feature_added-later_enabled' ) );
 $store = new \WordPress\AI\Connector_Approval\Approvals_Store();
-$check( 'the approvals: the plugin may use Infomaniak, nothing else', AiPlugin::APPROVALS === get_option( 'wpai_connector_approvals' ) && $store->is_approved( 'ai/ai.php', 'infomaniak' ) && ! $store->is_approved( 'mcp-adapter/mcp-adapter.php', 'infomaniak' ) );
+$check( 'the approvals: the plugin and Mody\'s own plugins may use Infomaniak, nothing else', AiPlugin::APPROVALS + AiPlugin::mody_approvals() === get_option( 'wpai_connector_approvals' ) && $store->is_approved( 'mody-agent', 'infomaniak' ) && ! $store->is_approved( 'mody-agent', 'ollama' ) && $store->is_approved( 'ai/ai.php', 'infomaniak' ) && ! $store->is_approved( 'mcp-adapter/mcp-adapter.php', 'infomaniak' ) );
 $table = $wpdb->options;
 $saved = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$table} WHERE option_name = %s", 'wpai_feature_type-ahead_enabled' ) ); // phpcs:ignore WordPress.DB
 update_option( 'wpai_feature_type-ahead_enabled', '0' );

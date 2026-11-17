@@ -20,7 +20,7 @@
  * created and removed. No model call.
  */
 
-use Mody\Platform\Agent\EditorBubble;
+use Mody\Agent\EditorBubble;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/screen.php';
@@ -76,7 +76,7 @@ register_shutdown_function(
 // 1. The page ------------------------------------------------------------------
 
 echo "The Mody Agent page\n";
-$check( 'removed: no class, no menu hook', ! class_exists( 'Mody\\Platform\\Agent\\ChatPage' ) && ! has_action( 'admin_menu', 'Mody\\Platform\\Agent\\ChatPage::register_menu' ) );
+$check( 'removed: no class, no menu hook', ! class_exists( 'Mody\\Agent\\ChatPage' ) && ! has_action( 'admin_menu', 'Mody\\Agent\\ChatPage::register_menu' ) );
 wp_set_current_user( $admin );
 
 // 2. Settings ---------------------------------------------------------------------
@@ -86,8 +86,8 @@ $settings = EditorBubble::settings();
 $check( 'the chat\'s settings', str_ends_with( $settings['endpoint'], '/mody-platform/v1/chat' ) && 1500 === $settings['interval'] && isset( $settings['nonce'], $settings['decisions'], $settings['strings']['greeting'], $settings['strings']['working'] ) && array_key_exists( 'pending', $settings ) );
 $check( '...plus the bubble\'s', true === $settings['bubble'] && EditorBubble::chips() === $settings['chips'] && 4 === count( $settings['chips'] ) && isset( $settings['strings']['open'] ) );
 $check( 'screens open in place: the strings', isset( $settings['strings']['opened'], $settings['strings']['back'] ) && str_contains( $settings['strings']['opened'], '%s' ) );
-$script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-bubble.js' );
-$check( '...the script: pushState, popstate, the screen sent', str_contains( $script, 'history.pushState' ) && str_contains( $script, "new PopStateEvent( 'popstate'" ) && str_contains( $script, 'config.screen' ) && str_contains( (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-chat.js' ), 'body.screen' ) );
+$script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-agent/assets/agent-bubble.js' );
+$check( '...the script: pushState, popstate, the screen sent', str_contains( $script, 'history.pushState' ) && str_contains( $script, "new PopStateEvent( 'popstate'" ) && str_contains( $script, 'config.screen' ) && str_contains( (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-agent/assets/agent-chat.js' ), 'body.screen' ) );
 $check( 'agent buttons open the editor with the chat open', 'mody-chat' === $settings['openParam'] && str_ends_with( EditorBubble::open_url( admin_url( 'site-editor.php?p=%2Fstyles' ) ), '&mody-chat=open' ) );
 $check( 'no brand gate: every site has its brand in its settings (M2-08)', ! array_key_exists( 'hasProfile', $settings ) && ! isset( $settings['strings']['profile'] ) );
 

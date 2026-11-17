@@ -25,10 +25,10 @@
  * Everything created is removed.
  */
 
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SpectraLayout;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SpectraLayout;
+use Mody\Agent\AI\SystemPrompt;
 use Mody\Platform\Provisioning\Pipeline;
 
 $failures = 0;

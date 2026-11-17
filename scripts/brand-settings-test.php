@@ -20,7 +20,7 @@
  */
 
 use Mody\Brand\BrandSettings;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\SystemPrompt;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

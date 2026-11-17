@@ -7,12 +7,9 @@
 
 namespace Mody\Platform\Wizard;
 
-use Mody\Platform\Agent\ChatController;
-use Mody\Platform\Agent\EditorBubble;
 use Mody\Images\ImageSize;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\SiteEditor;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -36,6 +33,9 @@ defined( 'ABSPATH' ) || exit;
  */
 final class WizardController {
 
+	/** The wizard's REST namespace: the address it has always had. */
+	public const REST_NAMESPACE = 'mody-platform/v1';
+
 	/** A retry of the generation not finished after this long has stopped. */
 	private const RETRY_TIMEOUT = 5 * MINUTE_IN_SECONDS;
 
@@ -53,7 +53,7 @@ final class WizardController {
 		);
 
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/sites',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -77,7 +77,7 @@ final class WizardController {
 			),
 		);
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/sites/jobs/(?P<id>\d+)',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -87,7 +87,7 @@ final class WizardController {
 			)
 		);
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/sites/jobs/(?P<id>\d+)/run',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -97,7 +97,7 @@ final class WizardController {
 			)
 		);
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/sites/jobs/(?P<id>\d+)/retry-generation',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -275,7 +275,7 @@ final class WizardController {
 				'url'    => home_url( '/' ),
 				'admin'  => admin_url(),
 				// With the agent's chat open there (decided 2026-11-07).
-				'editor' => EditorBubble::open_url( $page_id ? SiteEditor::page_url( $page_id ) : SiteEditor::url( '/' ) ),
+				'editor' => Pipeline::editor_url( $page_id ),
 			);
 			restore_current_blog();
 		}

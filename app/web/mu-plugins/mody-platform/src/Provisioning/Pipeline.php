@@ -7,13 +7,12 @@
 
 namespace Mody\Platform\Provisioning;
 
-use Mody\Platform\Agent\EditorBubble;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SpectraLayout;
+use Mody\Agent\EditorBubble;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SpectraLayout;
 use Mody\Brand\BrandSettings;
 use Mody\Styles\Presets;
 use Mody\Styles\SiteDesign;
-use Mody\Platform\SiteEditor;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -34,6 +33,9 @@ defined( 'ABSPATH' ) || exit;
  * Callers check permissions: the wizard (M2-03) for its user.
  */
 final class Pipeline {
+
+	/** The longest first-page request, in characters (the agent's own limit, PageGenerator::MAX_PROMPT_LENGTH). */
+	public const MAX_PROMPT_LENGTH = 2000;
 
 	/** The block theme every member site runs. */
 	public const THEME = 'theme';
@@ -207,9 +209,9 @@ final class Pipeline {
 		$prompt = trim( sanitize_textarea_field( $text( 'prompt' ) ) );
 		if ( '' === $prompt && ! $starter ) {
 			$errors['prompt'] = __( 'Describe the first page of your site.', 'mody_cloud' );
-		} elseif ( mb_strlen( $prompt ) > PageGenerator::MAX_PROMPT_LENGTH ) {
+		} elseif ( mb_strlen( $prompt ) > self::MAX_PROMPT_LENGTH ) {
 			/* translators: %d: maximum number of characters. */
-			$errors['prompt'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), PageGenerator::MAX_PROMPT_LENGTH );
+			$errors['prompt'] = sprintf( __( 'Use at most %d characters.', 'mody_cloud' ), self::MAX_PROMPT_LENGTH );
 		}
 
 		$logo_id = absint( $input['logo_id'] ?? 0 );
@@ -333,13 +335,13 @@ final class Pipeline {
 
 		switch_to_blog( $job['site_id'] );
 		$page_id = (int) $job['result']['page_id'];
-		$markup  = PageGenerator::generate_page( $job['site_id'], (string) $job['input']['prompt'] );
+		$markup  = self::generate( (int) $job['site_id'], (string) $job['input']['prompt'] );
 		if ( ! is_wp_error( $markup ) ) {
 			$saved = wp_update_post(
 				wp_slash(
 					array(
 						'ID'           => $page_id,
-						'post_title'   => PageGenerator::first_heading( $markup ),
+						'post_title'   => PageGenerator::first_heading( $markup ), // A page was generated: Mody Agent is here.
 						'post_content' => SpectraLayout::with_ids( $markup ), // As insert_page() saves it.
 					)
 				),
@@ -378,7 +380,7 @@ final class Pipeline {
 	public static function fallback_markup( string $brand, string $mission ): string {
 		/* translators: %s: the brand name. */
 		$heading = sprintf( __( 'Hello, I\'m %s', 'mody_cloud' ), $brand );
-		return '<!-- wp:spectra/container ' . SpectraLayout::SECTION . " -->\n"
+		return '<!-- wp:spectra/container ' . self::section_attributes() . " -->\n"
 			. "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $heading ) . "</h1>\n<!-- /wp:heading -->\n\n"
 			. "<!-- wp:paragraph -->\n<p>" . esc_html( $mission ) . "</p>\n<!-- /wp:paragraph -->\n"
 			. '<!-- /wp:spectra/container -->';
@@ -392,7 +394,7 @@ final class Pipeline {
 	 * @param string $title The site title.
 	 */
 	public static function starter_markup( string $title ): string {
-		return '<!-- wp:spectra/container ' . SpectraLayout::SECTION . " -->\n"
+		return '<!-- wp:spectra/container ' . self::section_attributes() . " -->\n"
 			. "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">" . esc_html( $title ) . "</h1>\n<!-- /wp:heading -->\n\n"
 			. "<!-- wp:paragraph -->\n<p>" . esc_html__( 'Our new website is on its way. Come back soon!', 'mody_cloud' ) . "</p>\n<!-- /wp:paragraph -->\n"
 			. '<!-- /wp:spectra/container -->';
@@ -681,7 +683,7 @@ final class Pipeline {
 			$page_id = (int) $found[0];
 		} elseif ( '' === (string) $job['input']['prompt'] ) {
 			// A starter site (M1-03): no model call; the member asks the agent for pages later.
-			$page_id = PageGenerator::insert_page(
+			$page_id = self::insert_page(
 				self::starter_markup( (string) $job['input']['title'] ),
 				array(
 					'post_title'  => __( 'Home', 'mody_cloud' ),
@@ -694,7 +696,7 @@ final class Pipeline {
 				return $page_id;
 			}
 		} else {
-			$markup   = PageGenerator::generate_page( $job['site_id'], $job['input']['prompt'] );
+			$markup   = self::generate( (int) $job['site_id'], (string) $job['input']['prompt'] );
 			$fallback = is_wp_error( $markup );
 			if ( $fallback ) {
 				$result['generation_error'] = $markup->get_error_code() . ': ' . $markup->get_error_message();
@@ -704,7 +706,7 @@ final class Pipeline {
 			if ( $fallback ) {
 				$meta['_mody_fallback'] = 1;
 			}
-			$page_id = PageGenerator::insert_page(
+			$page_id = self::insert_page(
 				$markup,
 				array(
 					'post_status' => 'publish',
@@ -755,10 +757,60 @@ final class Pipeline {
 			$title,
 			home_url( '/' ),
 			// The front page in the Site Editor, with the agent's chat open (decided 2026-11-07).
-			EditorBubble::open_url( SiteEditor::page_url( (int) ( $job['result']['page_id'] ?? 0 ) ) )
+			self::editor_url( (int) ( $job['result']['page_id'] ?? 0 ) )
 		);
 		/* translators: %s: the site title. */
 		$sent = wp_mail( $user->user_email, sprintf( __( 'Your site %s is ready', 'mody_cloud' ), $title ), $body );
 		return array( 'result' => array( 'email' => $sent ? 'sent' : 'failed' ) );
+	}
+
+	/**
+	 * The first page, written by Mody Agent; an error without it, so the
+	 * fallback page is used.
+	 *
+	 * @param int    $site_id The new site.
+	 * @param string $prompt  The member's request.
+	 * @return string|WP_Error Block markup.
+	 */
+	private static function generate( int $site_id, string $prompt ): string|WP_Error {
+		if ( ! class_exists( PageGenerator::class ) ) {
+			return new WP_Error( 'mody_no_agent', 'Mody Agent is not on this network.' );
+		}
+		return PageGenerator::generate_page( $site_id, $prompt );
+	}
+
+	/**
+	 * Saves a page: as Mody Agent saves its pages when it is there (block IDs,
+	 * the theme's page template), else as a plain page.
+	 *
+	 * @param string               $markup Block markup.
+	 * @param array<string, mixed> $args   wp_insert_post() arguments.
+	 */
+	private static function insert_page( string $markup, array $args ): int|WP_Error {
+		if ( class_exists( PageGenerator::class ) ) {
+			return PageGenerator::insert_page( $markup, $args );
+		}
+		$args += array( 'post_title' => __( 'Home', 'mody_cloud' ) );
+		return wp_insert_post( wp_slash( $args + array( 'post_type' => 'page', 'post_status' => 'draft', 'post_content' => $markup, 'post_author' => get_current_user_id() ) ), true );
+	}
+
+	/**
+	 * A section container's attributes: Mody Agent's layout when it is
+	 * there, else a plain section.
+	 */
+	private static function section_attributes(): string {
+		return class_exists( SpectraLayout::class ) ? SpectraLayout::SECTION : '{"htmlTag":"section"}';
+	}
+
+	/**
+	 * A page in the Site Editor (the Site Editor's start screen without one),
+	 * with Mody's chat open when Mody Agent is there (decided 2026-11-07).
+	 *
+	 * @param int $page_id A page on the current site, or 0.
+	 */
+	public static function editor_url( int $page_id ): string {
+		$args = $page_id ? array( 'p' => rawurlencode( '/page/' . $page_id ), 'canvas' => 'edit' ) : array( 'p' => rawurlencode( '/' ) );
+		$url  = add_query_arg( $args, admin_url( 'site-editor.php' ) );
+		return class_exists( EditorBubble::class ) ? EditorBubble::open_url( $url ) : $url;
 	}
 }

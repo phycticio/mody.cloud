@@ -22,7 +22,7 @@
  * at the end. Emails are captured, not sent. Never prints the token.
  */
 
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\SystemPrompt;
 use Mody\Brand\BrandSettings;
 use Mody\Styles\Presets;
 use Mody\Styles\SiteDesign;

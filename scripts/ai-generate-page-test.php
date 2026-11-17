@@ -20,9 +20,9 @@
  * Never prints the token.
  */
 
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SystemPrompt;
 use Mody\Brand\BrandSettings;
 
 $failures = 0;

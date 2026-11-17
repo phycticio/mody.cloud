@@ -17,11 +17,13 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 
 ## How it is wired
 
+Since 2026-11-17 the agent is its own plugin, `app/web/mu-plugins/mody-agent/` ([independent Mody plugins](../tickets/independent-mody-plugins.md)): paths below such as `src/AI/…`, `src/Site/…` and `assets/agent-…` are in it, and the old `src/Agent/…` files are at the top of its `src/`. The REST routes keep the namespace `mody-platform/v1`.
+
 ```text
 WordPress (any site in the network)
   └─ wp_ai_client_prompt( … )                         core, wp-includes/ai-client.php
        └─ AiClient default registry
-            └─ Mody\Platform\AI\InfomaniakProvider     app/web/mu-plugins/mody-platform/src/AI/
+            └─ Mody\Agent\AI\InfomaniakProvider        app/web/mu-plugins/mody-agent/src/AI/
                  ├─ InfomaniakModelMetadataDirectory   GET https://api.infomaniak.com/1/ai/models (type = llm)
                  └─ InfomaniakTextGenerationModel      POST {INFOMANIAK_AI_BASE_URL}/chat/completions
 ```
@@ -41,16 +43,16 @@ ability mody/generate-page   (agent chat, MCP, REST)                  src/Abilit
 The agent chat calls these abilities (2026-11-06, see [The agent](#the-agent)):
 
 ```text
-wp-admin "Mody Agent" page          fetch + X-WP-Nonce, polls the checker           src/Agent/ChatPage.php, assets/agent-chat.js
-  └─ POST mody-platform/v1/chat     202 + job, then the turn runs after the response src/Agent/ChatController.php
-       └─ Agent::respond()          tool loop, limits, chat buttons                  src/Agent/Agent.php
+wp-admin "Mody Agent" page          fetch + X-WP-Nonce, polls the checker           src/ChatPage.php, assets/agent-chat.js
+  └─ POST mody-platform/v1/chat     202 + job, then the turn runs after the response src/ChatController.php
+       └─ Agent::respond()          tool loop, limits, chat buttons                  src/Agent.php
             ├─ SystemPrompt::for_agent()   agent rules + brand context
             ├─ wp_ai_client_prompt()       tools: mody/generate-page, mody/open-editor, mody/update-design,
             │                                     ask_user, refuse_request
             ├─ core's ability resolver     permission callback + input schema of each ability
-            └─ AgentEvents::log()          every request and tool call → mody_agent_events   src/Agent/AgentEvents.php
+            └─ AgentEvents::log()          every request and tool call → mody_agent_events   src/AgentEvents.php
 GET mody-platform/v1/chat/jobs/<id> the checker: running, done or failed
-Network Admin → Settings → Mody Agent   event retention (days)                       src/Agent/AgentSettings.php
+Network Admin → Settings → Mody Agent   event retention (days)                       src/AgentSettings.php
 ```
 
 - **Configuration is environment-only.** The MU plugin registers the provider on `init` (priority 5, before core reads the registry at 15) only when `INFOMANIAK_AI_BASE_URL` is set. Without it, nothing is registered and no connector card appears, so a server without the variables is unaffected.
@@ -118,7 +120,7 @@ First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agen
 | `POST /wp-json/mody-platform/v1/chat` | Body `message` (1 to 2,000 characters). Logged-in users with `edit_pages`, cookie authentication with `X-WP-Nonce`: without the nonce the request counts as logged out (401), and with a wrong one it gets 403, both before any model call. Starts a [background job](#background-jobs) and answers at once: `202` with `job` and `status` `running`. While the user's previous message on this site is still running: `409` (`mody_agent_busy`). |
 | `GET /wp-json/mody-platform/v1/chat/jobs/<id>` | The checker. Returns `job`, `status` (`running`, `done` or `failed`) and, once finished, `turn`: `reply`, `actions` (buttons: `label`, `url`), `choices`, `refused` and `error`. Same permission as POST. 404 for an unknown or expired job, and for another user's. |
 | `DELETE /wp-json/mody-platform/v1/chat` | Starts a new conversation. |
-| Network Admin → Settings → **Mody Agent** (`settings.php?page=mody-agent-settings`, `src/Agent/AgentSettings.php`) | Super admins only (`manage_network_options`). How many days events are kept (1 to 3,650, default 90), stored in the network option `mody_agent_settings`. Shows how many events are stored and the oldest one. Saving purges at once. |
+| Network Admin → Settings → **Mody Agent** (`settings.php?page=mody-agent-settings`, `src/AgentSettings.php`) | Super admins only (`manage_network_options`). How many days events are kept (1 to 3,650, default 90), stored in the network option `mody_agent_settings`. Shows how many events are stored and the oldest one. Saving purges at once. |
 | `Mody\Platform\Agent\Agent::respond( $message, $history )` | The loop, for PHP callers. Runs on the current site, as the current user. |
 | Ability `mody/open-editor` (`src/SiteEditor.php`) | Opens a Site Editor screen (M3-09, 2026-11-08). Input `target` with: `page` (`page_id` or `page_title`; neither for the pages list); `template` (`template`, a slug; none for the list); `part` (`template`, a part's slug such as `header`; none for the parts list); `list` (`list`, a key of `SiteEditor::lists()`, opening the template that shows that list); `styles` (`section`: `overview`, `browse`, `colors`, `palette`, `typography`, `layout`, `blocks`, `revisions`, `stylebook`; or `block`, such as `core/button`); `navigation` (the only menu, or the menus); `patterns`; `home`; `identity` (the site's title, tagline, logo, icon, mission and tone, M2-08; needs `manage_options`); `brand` (Settings → Brand, [Your brand](#your-brand-2026-11-11); a wp-admin page, so the owner always gets a button; needs `manage_options`). Returns `url`, `label` (the button), `place` (what opens, such as "Styles → Colors") and `navigate`. Changes nothing. Pages need `edit_pages` and `edit_post`; everything else `edit_theme_options`. A page title that is not exact still opens the page when only one title partly matches (`SiteEditor::match_page()`: no accents, case or punctuation, without "the" in front or "page" at the end; "the harbour cafe page" opens "Harbour Café"). Several matches are `mody_page_ambiguous`. An unknown page, template, part, list or block is an error. Each error lists what exists, so the model can ask. Public, like `mody/generate-page`. See [Opening Site Editor screens](#opening-site-editor-screens). |
 | Ability `mody/update-design` (`mody-styles/src/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `mody-styles/src/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), Writes the colors to the site's Global Styles, the only place they live (M2-08: no brand question, no copy). Returns the old and new colors, and the screen that shows them: Styles → Colors, or Browse styles after a preset (M3-09), opened in place in the Site Editor. Needs `edit_theme_options`. Public. See [Changing the colors](#changing-the-colors). |
@@ -140,7 +142,7 @@ How a message runs:
 5. Abilities run in-process through core's `WP_AI_Client_Ability_Function_Resolver`, limited to those six. Each run checks the ability's permission callback and input schema as the current user. A tool name that is not offered, such as `delete_all_pages` or another plugin's ability, runs nothing: the model gets the error `mody_unknown_tool`, and the call is logged as refused.
 6. **Links:** a result can carry `url` (labelled by its `label`) and `edit_url` (a Site Editor link, labelled with the page title). Each becomes a chat button, shown below the reply, but only if it points to this site's wp-admin or front end (`home_url()`). `mody/publish-page` gives both, so the member gets **View** and **Edit** buttons. The URLs are removed from what the model sees, replaced by "Shown to the owner as a button below your reply", so the model cannot paste or change them. Buttons with the same URL are shown once.
 7. **Limits:** at most 4 model requests and 3 ability runs per message. Further tool calls are refused and logged. If the model has not answered by then, the reply says the request could not be finished.
-8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-platform] agent site N step n: …`, without the prompt or the token. If a tool had already run in that turn, the reply says that part of the request may already be done, and to check the site before asking again, so a retry does not create a second page. The buttons of the tools that ran are still shown. Seen once for real on 2026-11-06: "create a contact page and publish it" created and published the page, then the model's last request timed out while connecting to Infomaniak (cURL error 28, 10 s).
+8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-agent] agent site N step n: …`, without the prompt or the token. If a tool had already run in that turn, the reply says that part of the request may already be done, and to check the site before asking again, so a retry does not create a second page. The buttons of the tools that ran are still shown. Seen once for real on 2026-11-06: "create a contact page and publish it" created and published the page, then the model's last request timed out while connecting to Infomaniak (cURL error 28, 10 s).
 
 ### Limits (security pass, 2026-11-12)
 - **One job per person and site, three on the network** (`Agent\Slots`, MariaDB advisory locks): the editor's `ai/*` features take at most one of the three; chat and page jobs wait a few seconds before answering "Mody is busy right now". Chat jobs end after 10 minutes, REST and MCP ability runs after 4.
@@ -760,7 +762,7 @@ Decided by the maintainer on 2026-11-08: the agent uses every Spectra block but 
 
 ### The block reference, picked per request (2026-11-11)
 
-Part 4 of [agent-knows-gutenberg-spectra-settings.md](../tickets/agent-knows-gutenberg-spectra-settings.md). The families are cards, not prompt text: `mody-platform/reference/<family>.json` (its blocks, when to use it, a few rules, a checked example, and the words that name it in a request in the eight site languages), read by `Mody\Platform\AI\BlockReference`.
+Part 4 of [agent-knows-gutenberg-spectra-settings.md](../tickets/agent-knows-gutenberg-spectra-settings.md). The families are cards, not prompt text: `mody-agent/reference/<family>.json` (its blocks, when to use it, a few rules, a checked example, and the words that name it in a request in the eight site languages), read by `Mody\Platform\AI\BlockReference`.
 
 - **Every writer prompt** (page, edit, template) carries the index, one line per family, so the writer knows what exists, and the **cards of the families the request names** (its words, any of the eight languages, accents ignored) **or whose blocks are in the markup being edited**. An ordinary page ("an about page") gets the index and no card.
 - **The retry carries what was missing:** a rejected answer's feedback adds the cards of the families it used without one (`BlockReference::cards_for_markup()`, in `PageGenerator::ask()`).

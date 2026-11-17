@@ -26,8 +26,8 @@
  * Never prints the token.
  */
 
-use Mody\Platform\AI\PluginBrandContext;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\PluginBrandContext;
+use Mody\Agent\AI\SystemPrompt;
 use Mody\Brand\BrandSettings;
 
 $failures = 0;

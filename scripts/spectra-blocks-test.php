@@ -21,7 +21,7 @@
  * Read-only: nothing is saved. No model call.
  */
 
-use Mody\Platform\AI\BlockValidator;
+use Mody\Agent\AI\BlockValidator;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

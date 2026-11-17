@@ -97,7 +97,7 @@ $check( 'an unknown scheme: Ocean\'s', '#39535a' === AdminColors::second_color( 
 wp_set_current_user( $plain );
 $check( 'the inline CSS for the current user', ':root { --mody-agent-user-message: #39535a; }' === AdminColors::agent_chat_css(), AdminColors::agent_chat_css() );
 wp_set_current_user( 0 );
-$css = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-chat.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file.
+$css = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-agent/assets/agent-chat.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file.
 $check( 'agent-chat.css reads it for user messages', (bool) preg_match( '/\.mody-agent__message--user\s*\{[^}]*background:\s*var\(--mody-agent-user-message,\s*var\(--wp-admin-theme-color/', $css ) );
 
 // 3. Over HTTP ----------------------------------------------------------------------

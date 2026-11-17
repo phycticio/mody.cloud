@@ -85,6 +85,24 @@ final class AiPlugin {
 	public const ROUTES = array( '/mcp', '/ai/v1/mcp', '/ai/v1/connector-approvals', '/ai/v1/settings', '/ai/v1/abilities', '/ai/v1/providers', '/ai/v1/logs' );
 
 	/**
+	 * Mody's own MU plugins (`mody-*`) may use Infomaniak: the ai plugin
+	 * names a MU plugin by its folder, and since the platform became
+	 * independent plugins (2026-11-17), the wizard, provisioning and the
+	 * analyst call the model through Mody Agent from their own folders.
+	 *
+	 * @return array<string, array<string, bool>>
+	 */
+	public static function mody_approvals(): array {
+		$approvals = array();
+		foreach ( array_keys( get_mu_plugins() ) as $file ) {
+			if ( str_starts_with( $file, 'mody-' ) ) {
+				$approvals[ basename( $file, '.php' ) ] = array( 'infomaniak' => true );
+			}
+		}
+		return $approvals;
+	}
+
+	/**
 	 * Filters `pre_option` (every option, so the check is cheap): the
 	 * pinned values on member sites.
 	 *
@@ -97,7 +115,7 @@ final class AiPlugin {
 			return $pre;
 		}
 		if ( 'wpai_connector_approvals' === $option ) {
-			return self::APPROVALS;
+			return self::APPROVALS + self::mody_approvals();
 		}
 		if ( 'wpai_connector_approval_pending' === $option ) {
 			return array(); // No requests for members to review: the approvals are pinned.

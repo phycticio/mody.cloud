@@ -44,18 +44,18 @@
  * Never prints the token.
  */
 
-use Mody\Platform\Agent\Agent;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\AgentSettings;
-use Mody\Platform\Agent\EditorBubble;
-use Mody\Platform\Agent\EditorContext;
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\Agent;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\AgentSettings;
+use Mody\Agent\EditorBubble;
+use Mody\Agent\EditorContext;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\SystemPrompt;
 use Mody\Brand\BrandSettings;
 use Mody\Styles\Presets;
 use Mody\Styles\SiteDesign;
-use Mody\Platform\Site\SiteSettings;
-use Mody\Platform\SiteEditor;
+use Mody\Agent\Site\SiteSettings;
+use Mody\Agent\SiteEditor;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
@@ -965,7 +965,7 @@ $requests = array();
 $response = $rest( 'POST', array( 'message' => 'Another one' ) );
 $check( 'job running: 409, no model request', 409 === $response->get_status() && ! $requests, $response->get_status() . ' ' . ( $response->get_data()['code'] ?? '' ) );
 $since();
-set_transient( 'mody_agent_job_' . $busy_id, array( 'started' => time() - Mody\Platform\Agent\ChatController::JOB_TIMEOUT - 10 ) + $busy_job, HOUR_IN_SECONDS );
+set_transient( 'mody_agent_job_' . $busy_id, array( 'started' => time() - Mody\Agent\ChatController::JOB_TIMEOUT - 10 ) + $busy_job, HOUR_IN_SECONDS );
 $checked = rest_do_request( new WP_REST_Request( 'GET', '/mody-platform/v1/chat/jobs/' . $busy_id ) );
 $rows    = $since();
 $check( 'stale job: reported failed', 'failed' === ( $checked->get_data()['status'] ?? '' ) && true === ( $checked->get_data()['turn']['error'] ?? false ), $checked->get_data()['turn']['reply'] ?? '' );
@@ -974,7 +974,7 @@ delete_transient( 'mody_agent_job_' . $busy_id );
 $rest( 'DELETE' );
 $fakes    = array( 'Hi there.' );
 $rest( 'POST', array( 'message' => 'Hello' ) );
-$history = Mody\Platform\Agent\ChatController::history();
+$history = Mody\Agent\ChatController::history();
 $check( '...conversation stored', 2 === count( $history ) && 'Hello' === $history[0]['text'] && 'Hi there.' === $history[1]['text'] );
 $fakes    = array( 'Second answer.' );
 $requests = array();
@@ -989,9 +989,9 @@ $fakes    = array(
 	'Here are the styles.',
 );
 $response = $rest( 'POST', array( 'message' => 'Open the styles' ) );
-$stored   = Mody\Platform\Agent\ChatController::history()[1]['calls'] ?? array();
+$stored   = Mody\Agent\ChatController::history()[1]['calls'] ?? array();
 $check( 'ability calls stored with the reply', 1 === count( $stored ) && $names['open_editor'] === $stored[0]['name'] && array( 'target' => 'styles' ) === $stored[0]['args'] && ! str_contains( (string) wp_json_encode( $stored ), 'site-editor' ), mb_strimwidth( (string) wp_json_encode( $stored ), 0, 90, '...' ) );
-$check( '...not sent to the client', ! array_key_exists( 'calls', (array) ( $response->get_data()['turn'] ?? array() ) ) && ! array_key_exists( 'calls', Mody\Platform\Agent\ChatController::display_history()[1] ?? array() ) );
+$check( '...not sent to the client', ! array_key_exists( 'calls', (array) ( $response->get_data()['turn'] ?? array() ) ) && ! array_key_exists( 'calls', Mody\Agent\ChatController::display_history()[1] ?? array() ) );
 $fakes    = array( 'Glad to help.' );
 $requests = array();
 $rest( 'POST', array( 'message' => 'Thanks' ) );
@@ -999,7 +999,7 @@ $sent  = $requests[0]['messages'] ?? array();
 $roles = array_column( $sent, 'role' );
 $check( '...sent back to the model as a tool call', array( 'system', 'user', 'assistant', 'tool', 'assistant', 'user' ) === $roles && $names['open_editor'] === ( $sent[2]['tool_calls'][0]['function']['name'] ?? '' ) && ( $sent[2]['tool_calls'][0]['id'] ?? '' ) === ( $sent[3]['tool_call_id'] ?? 'none' ), implode( ', ', $roles ) );
 $rest( 'DELETE' );
-$check( 'DELETE forgets it', array() === Mody\Platform\Agent\ChatController::history() );
+$check( 'DELETE forgets it', array() === Mody\Agent\ChatController::history() );
 
 // A change held for the owner's decision (decided by the maintainer on 2026-11-09):
 // the bubble reports unsaved changes in the editor, the change waits for save, discard or cancel.
@@ -1018,13 +1018,13 @@ $rows          = $since();
 $check( 'unsaved styles: the change is held, nothing saved', $colors_before === $palette() && ! empty( $turn['decision']['id'] ) && 'styles' === ( $turn['decision']['record'] ?? '' ) && 1 === count( $requests ) && ! $turn['refresh'] && ! $turn['actions'], wp_json_encode( $turn['decision'] ?? null ) );
 $check( '...the owner is asked, the change named', str_contains( $turn['reply'] ?? '', 'unsaved changes to the styles' ) && str_contains( $turn['reply'] ?? '', 'primary color #2e8b57' ), $turn['reply'] ?? '' );
 $check( '...logged as held', array( 'mody/update-design' ) === $tools_of( $rows ) && str_starts_with( (string) ( $rows[0]['result'] ?? '' ), 'held:' ) );
-$check( '...stored with the reply, for the model', true === ( Mody\Platform\Agent\ChatController::history()[1]['calls'][0]['result']['held'] ?? null ) );
+$check( '...stored with the reply, for the model', true === ( Mody\Agent\ChatController::history()[1]['calls'][0]['result']['held'] ?? null ) );
 $response = $decide( wp_generate_uuid4(), 'save' );
 $check( 'decision with another ID: 410, nothing saved', 410 === $response->get_status() && $colors_before === $palette(), (string) $response->get_status() );
 $response = $decide( (string) ( $turn['decision']['id'] ?? '' ), 'save' );
 $done     = $response->get_data()['turn'] ?? array();
 $check( 'decision "save": the held change runs as made', 200 === $response->get_status() && '#2e8b57' === $palette()['primary'] && array( 'styles' ) === ( $done['refresh'] ?? null ) && true === ( $done['actions'][0]['navigate'] ?? null ), $response->get_status() . ' ' . ( $done['reply'] ?? '' ) );
-$history = Mody\Platform\Agent\ChatController::history();
+$history = Mody\Agent\ChatController::history();
 $check( '...the conversation keeps the choice and the call', Agent::decision_labels()['save'] === ( $history[2]['text'] ?? '' ) && $names['update_design'] === ( $history[3]['calls'][0]['name'] ?? '' ) && array( 'primary' => '#2E8B57' ) === ( $history[3]['calls'][0]['args'] ?? null ) );
 $check( '...and it runs once', 410 === $decide( (string) ( $turn['decision']['id'] ?? '' ), 'save' )->get_status() && null === Agent::held() );
 $restore_design();

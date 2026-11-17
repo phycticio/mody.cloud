@@ -24,8 +24,8 @@
  *   its spectraId (SpectraLayout::with_ids()).
  */
 
-use Mody\Platform\AI\SpectraBlocks;
-use Mody\Platform\AI\SpectraLayout;
+use Mody\Agent\AI\SpectraBlocks;
+use Mody\Agent\AI\SpectraLayout;
 
 if ( ! is_main_site() ) {
 	WP_CLI::error( 'Run this on the main site.' );

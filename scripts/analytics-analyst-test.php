@@ -239,7 +239,7 @@ restore_current_blog();
 echo "\nMody's work\n";
 $check( 'an analyst turn counts as Analytics, whatever it ran', 'analytics' === Usage::group( array( 'update-analytics-board' ), 'analytics' ) && 'analytics' === Usage::group( array(), 'analytics' ) );
 $check( '... the editor\'s turns as before', 'design' === Usage::group( array( 'generate-page' ) ) && 'conversation' === Usage::group( array() ) );
-\Mody\Platform\Agent\AgentEvents::log( 'How many visits?', \Mody\Platform\Agent\TurnMetrics::TOOL, null, (string) wp_json_encode( array( 'prompt_tokens' => 900, 'completion_tokens' => 100, 'tools' => array( 'analytics-query' ), 'kind' => 'analytics' ) ), microtime( true ) );
+\Mody\Agent\AgentEvents::log( 'How many visits?', \Mody\Agent\TurnMetrics::TOOL, null, (string) wp_json_encode( array( 'prompt_tokens' => 900, 'completion_tokens' => 100, 'tools' => array( 'analytics-query' ), 'kind' => 'analytics' ) ), microtime( true ) );
 $usage = Usage::summary( $site, 1 );
 $check( '... and the dashboard shows its tokens in the Analytics group', 1 === $usage['groups']['analytics']['messages'] && 1000 === $usage['groups']['analytics']['tokens'], wp_json_encode( $usage['groups'] ) );
 wp_set_current_user( 0 );

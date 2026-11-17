@@ -26,10 +26,10 @@
  * Everything the test adds is removed. Sections 1 to 5 make no model call.
  */
 
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\SystemPrompt;
 use Mody\Brand\BrandSettings;
-use Mody\Platform\SiteEditor;
-use Mody\Platform\Agent\Agent;
+use Mody\Agent\SiteEditor;
+use Mody\Agent\Agent;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

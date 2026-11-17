@@ -32,7 +32,7 @@
 
 use Mody\Locks\MemberPlugins;
 use Mody\Locks\MemberSite;
-use Mody\Platform\SiteEditor;
+use Mody\Agent\SiteEditor;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

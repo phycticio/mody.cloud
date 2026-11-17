@@ -9,10 +9,10 @@
 namespace Mody\Platform\Dashboard;
 
 use Mody\Analytics\Query;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\Budget;
-use Mody\Platform\Agent\Slots;
-use Mody\Platform\Agent\TurnMetrics;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\Budget;
+use Mody\Agent\Slots;
+use Mody\Agent\TurnMetrics;
 use Mody\Brand\BrandSettings;
 use Mody\Platform\Look;
 use WordPress\AiClient\Messages\DTO\Message;
