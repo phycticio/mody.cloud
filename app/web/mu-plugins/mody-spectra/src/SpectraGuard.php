@@ -3,10 +3,10 @@
  * Keeps Spectra (spectra-blocks) inside rule 1: no connections to US or
  * other non-European services.
  *
- * @package Mody\Platform
+ * @package Mody\Spectra
  */
 
-namespace Mody\Platform\Spectra;
+namespace Mody\Spectra;
 
 use WP_Error;
 
@@ -321,7 +321,7 @@ final class SpectraGuard {
 		}
 		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Shows what tried to leave Europe.
-		error_log( sprintf( '[mody-platform] refused a request to %s (rule 1, SpectraGuard)', $host ) );
+		error_log( sprintf( '[mody-spectra] refused a request to %s (rule 1, SpectraGuard)', $host ) );
 		return new WP_Error( 'mody_denied_host', sprintf( 'Requests to %s are blocked (rule 1: no non-European services).', $host ) );
 	}
 

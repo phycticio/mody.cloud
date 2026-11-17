@@ -29,19 +29,6 @@ spl_autoload_register(
 );
 
 /*
- * Spectra: switch off everything that connects to a non-European service
- * (rule 1). Runs now, before plugins load, so it is in place before Spectra.
- */
-Spectra\SpectraGuard::boot();
-
-/*
- * Spectra is a MU plugin (M3-11, decided 2026-11-08): mu-plugins/spectra-blocks.php
- * loads it after this file. The copy it had as a network-active plugin
- * must never load beside it.
- */
-Spectra\SpectraLoader::boot();
-
-/*
  * The design market (built 2026-11-08): every site's patterns are the Mody
  * collection (patterns/collection.json), rewritten from WordPress.org's
  * Pattern Directory and core's patterns; nothing is fetched from

@@ -44,7 +44,6 @@ final class Portable {
 		'Login/SettingsPage.php',
 		'Media/ImageSize.php',
 		'Security/AntispamBee.php',
-		'Spectra/SpectraGuard.php',
 		'Users/Avatars.php',
 	);
 
@@ -58,6 +57,7 @@ final class Portable {
 		'mody-images'       => 'mody-images.php',
 		'mody-languages'    => 'mody-languages.php',
 		'mody-seo'          => 'mody-seo.php',
+		'mody-spectra'      => 'mody-spectra.php',
 		'spectra-blocks'    => 'spectra-blocks.php',
 	);
 

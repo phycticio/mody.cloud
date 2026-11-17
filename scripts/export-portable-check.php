@@ -26,9 +26,10 @@ foreach ( array( 'Mody\Platform\Agent\ChatController', 'Mody\Platform\Abilities'
 $check( 'no Mody ability registered', ! function_exists( 'wp_get_abilities' ) || ! array_filter( array_keys( (array) wp_get_abilities() ), static fn( $name ) => str_starts_with( (string) $name, 'mody/' ) ) );
 $check( 'wp_mail is WordPress\'s own (no pre_wp_mail filter)', ! has_filter( 'pre_wp_mail' ) );
 
-// Plugins load in order: Mody Site before Spectra, so the guard is first.
+// Plugins load in order: Mody Spectra before Spectra, so the guard is first.
 $active = (array) get_option( 'active_plugins' );
-$check( 'Mody Site loads before Spectra', array_search( 'mody-site/mody-site.php', $active, true ) < array_search( 'spectra-blocks/spectra-blocks.php', $active, true ) );
+$check( 'Mody Spectra loads before Spectra', array_search( 'mody-spectra/mody-spectra.php', $active, true ) < array_search( 'spectra-blocks/spectra-blocks.php', $active, true ) );
+$check( 'the Spectra guard is on, and its loader is not (Spectra is a normal plugin here)', false !== has_filter( 'pre_http_request', array( Mody\Spectra\SpectraGuard::class, 'refuse_denied_hosts' ) ) && false === has_filter( 'option_active_plugins', array( Mody\Spectra\SpectraLoader::class, 'not_site_active' ) ) );
 
 // What Mody Site and the plugins bring.
 $registry = WP_Block_Type_Registry::get_instance();

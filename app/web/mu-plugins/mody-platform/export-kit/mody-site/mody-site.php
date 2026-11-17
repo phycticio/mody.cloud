@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Mody Site
- * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: its login page and Settings → Login, SEO titles and descriptions, placeholder images, initials avatars, and the Spectra privacy guard. Mody, the AI agent, is not part of it.
+ * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: its login page and Settings → Login, SEO titles and descriptions, placeholder images and initials avatars. Mody, the AI agent, is not part of it.
  * Version:           1.0.0
  * Author:            Mody Cloud
  * Author URI:        https://mody.cloud
@@ -38,13 +38,6 @@ spl_autoload_register(
 		}
 	}
 );
-
-/*
- * Spectra connects to no service outside Europe: no Google Maps, Google
- * Fonts, AI design library or telemetry. This plugin loads before Spectra
- * (plugins load in alphabetical order), so the guard is in place first.
- */
-Spectra\SpectraGuard::boot();
 
 /*
  * Placeholder images (/mody-placeholder/<w>x<h>.svg) and initials avatars

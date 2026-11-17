@@ -2,10 +2,10 @@
 /**
  * Spectra as a must-use plugin (ticket M3-11).
  *
- * @package Mody\Platform
+ * @package Mody\Spectra
  */
 
-namespace Mody\Platform\Spectra;
+namespace Mody\Spectra;
 
 defined( 'ABSPATH' ) || exit;
 
