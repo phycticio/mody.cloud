@@ -12,7 +12,7 @@ The infrastructure is the Docker stack already in this repository. The briefing'
 | Cache | Redis (alpine) container. No object-cache plugin is installed yet. | `compose.yml` |
 | Mail | The `mody-mail` MU plugin (`app/web/mu-plugins/mody-mail/`, decided by the maintainer on 2026-11-10; it replaced WP Mail SMTP, used from 2026-11-09) sends all of the platform's mail. It has no settings screen: it reads `MAIL_SENDER_EMAIL`, `MAIL_SENDER_NAME` and `BREVO_API_KEY` from the environment (`.env`, through `env_file`). Every message leaves from that one sender; the name replaces only WordPress's default "WordPress". With `BREVO_API_KEY` set, `wp_mail()` is handed a `BrevoMailer` that posts each message to Brevo's transactional API (production, see [Temporary exceptions to rule 1](#temporary-exceptions-to-rule-1)). Without it, WordPress sends as usual: PHP's `mail()` through msmtp to Mailpit, which captures everything locally, served at `MAIL_HOST` through Nginx. Production without the key fails every message with a clear error instead. Every failure's reason (never the key, never the message) goes to PHP's error log as `[mody-mail] Email not sent: …`. Stage and production disable Mailpit (profile `never-start`) and do not load its Nginx template. No library: Brevo's API is one HTTPS request (`wp_remote_post()`); any dependency it ever needs goes in `app/composer.json`. Test: `scripts/mail-test.php`. | `app/web/mu-plugins/mody-mail/`, `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
 | Images | The `mody-images` MU plugin (`app/web/mu-plugins/mody-images/`, decided by the maintainer on 2026-11-14): every uploaded JPEG, PNG or HEIC is stored as a WebP, upright, at most 2560 pixels on a side, without camera data; the sizes are WebP. Imagick in the app image does the work (ImageMagick with WebP, AVIF and HEIC; GD otherwise). No outside service, no settings. [tickets/image-optimization.md](../tickets/image-optimization.md) | `app/web/mu-plugins/mody-images/` |
-| SEO | The `mody-seo` MU plugin (`app/web/mu-plugins/mody-seo/`, decided by the maintainer on 2026-11-16: Mody's plugins do one thing each): a page's SEO title and SEO description, post meta on every public post type, edited in the editor's sidebar and printed in the head; the page's title and excerpt when empty. No outside service, no settings. [tickets/seo.md](../tickets/seo.md) | `app/web/mu-plugins/mody-seo/` |
+| SEO | The `mody-seo` MU plugin (`app/web/mu-plugins/mody-seo/`, decided by the maintainer on 2026-11-16: Mody's plugins do one thing each, see [Mody plugins](#mody-plugins)): a page's SEO title and SEO description, post meta on every public post type, edited in the editor's sidebar and printed in the head; the page's title and excerpt when empty. No outside service, no settings. [tickets/seo.md](../tickets/seo.md) | `app/web/mu-plugins/mody-seo/` |
 | Site languages | The `mody-languages` MU plugin (`app/web/mu-plugins/mody-languages/`, decided by the maintainer on 2026-11-10): translations as pages, language prefixes in addresses, the switcher and the translation matrix, on every site. No third-party multilingual plugin and no outbound calls. | [tickets/site-languages.md](../tickets/site-languages.md) |
 | Backups | The `backup` service (production only, `compose.prod.yml.sample`; decided by the maintainer on 2026-11-14): restic, run by the host's Ofelia, sends the database every 6 hours, and the uploads, the server's `.env` and `compose.prod.yml` and Nginx Proxy Manager's data every night, to an encrypted repository at Infomaniak Swiss Backup (Switzerland). The dumps also stay on the laptop's internal disk. `bin/restore-drill` restores the newest snapshot into scratch containers and checks it. [tickets/backups.md](../tickets/backups.md) | `config/backup/`, `bin/restore-drill` |
 | Dependencies | Composer. WordPress plugins and themes install into `app/web/`. | `app/composer.json` |
@@ -36,6 +36,7 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 │   ├── web/                     # WP_CONTENT_DIR
 │   │   ├── themes/theme/       # the FSE theme (the only tracked theme)
 │   │   ├── plugins/             # Composer-managed, not tracked
+│   │   ├── mu-plugins/          # Mody's plugins (mody-<name>/ and its loader mody-<name>.php), Spectra and Antispam Bee
 │   │   ├── uploads/             # media, not tracked
 │   │   └── db.php               # symlink to the Query Monitor drop-in
 │   ├── dist/                    # pnpm build output (not tracked)
@@ -55,6 +56,27 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 ```
 
 `wp-config.php` sets `WP_CONTENT_DIR` to `app/web` and `ABSPATH` to `app/wp/`. **No address carries `/wp`** (decided by the maintainer on 2026-11-10): every site's `home` and `siteurl` are its bare domain (`https://mody.cloud`), and `WP_SITEURL` matches (multisite reads the options, not the constant). Nginx serves core from the root by rewriting `/wp-admin`, `/wp-includes` and root `wp-*.php` into `/wp/` internally (not `xmlrpc.php`: it is refused, see [Security hardening](#security-hardening)), and sends any old `/wp/…` address to the same address without `/wp` (a 308, which keeps a posted login form's method; it names `https://$host`, so `/wp//evil.example` cannot leave the site). Other redirects are relative (`absolute_redirect off`), so they stay `https` behind the proxies.
+
+## Mody plugins
+
+Decided by the maintainer on 2026-11-16 ([tickets/independent-mody-plugins.md](../tickets/independent-mody-plugins.md)). It replaces "platform logic lives in one MU plugin" (`mody-platform`) and the exceptions made to it one by one (`mody-mail`, `mody-languages`, `mody-analytics`, `mody-images`, `mody-seo`).
+
+- **One thing each.** A Mody plugin takes care of one single thing.
+- **Independent.** Each has its own folder (`app/web/mu-plugins/mody-<name>/`), loader (`mu-plugins/mody-<name>.php`), plugin header, namespace (`Mody\<Name>`), autoloader, assets and test. It runs with no other Mody plugin present. It reaches another only through hooks that one documents, or behind a `class_exists()` or `function_exists()` check with a fallback. A missing plugin means less is done, never a fatal error.
+- **Every Mody plugin is a normal plugin; some are loaded as MU plugins** (decided 2026-11-17). Each is written as a normal plugin. Plugins for performance, for languages and global plugins (what must hold on every site, with no switch) are loaded as MU plugins (always on, nobody can switch them off). **Every Mody plugin that exists today is a MU plugin.** Where a future normal Mody plugin lives (`app/web/plugins/` is Composer-managed and not tracked) is an open question in the ticket.
+- **The plugin header** lets the same folder run as a normal plugin in a site downloaded with Take your site with you, as `mody-seo` does.
+- **Load order.** WordPress loads `mu-plugins/*.php` alphabetically. A plugin that needs another waits for `muplugins_loaded` instead of relying on the order. The Spectra guard must load before `spectra-blocks.php`.
+
+| Plugin | One thing | State |
+| --- | --- | --- |
+| `mody-mail` | Outgoing mail | Independent |
+| `mody-languages` | Site languages | Independent |
+| `mody-analytics` | The visitor counter | Independent |
+| `mody-images` | Web-efficient uploads | Independent |
+| `mody-seo` | A page's search appearance | Independent |
+| `mody-platform` | Everything else: the agent, members, billing, the dashboard, sites, the brand, design, gating, security, login, domains, export | To be split into one plugin per thing (the ticket has the proposed list and order) |
+
+New features go in a plugin of their own, never in `mody-platform`.
 
 ## Target system
 

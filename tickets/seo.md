@@ -32,7 +32,7 @@
   - It makes at most 3 tool calls per message.
 
 ## The base: our own small build (recommended)
-**Where it lives (decided by the maintainer on 2026-11-10):** its own MU plugin, `app/web/mu-plugins/mody-seo/`, loaded by `mody-seo.php`, like `mody-languages`. It is the third exception to "platform logic lives in one MU plugin".
+**Where it lives (decided by the maintainer on 2026-11-10):** its own MU plugin, `app/web/mu-plugins/mody-seo/`, loaded by `mody-seo.php`, like `mody-languages`. It was the third exception to "platform logic lives in one MU plugin"; since 2026-11-16 every Mody plugin is independent ([independent-mody-plugins.md](independent-mody-plugins.md)).
 - **`mody-seo` holds:** the fields, the head, the sitemap, the audit and the panel.
 - **The agent's side stays in `mody-platform`,** behind a `class_exists` check, as `mody-languages` is used: the SEO context in the prompt, the `mody/update-seo` ability and the editor's refresh.
 
