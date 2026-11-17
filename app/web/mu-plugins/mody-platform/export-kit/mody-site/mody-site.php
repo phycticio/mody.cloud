@@ -74,9 +74,5 @@ add_action( 'admin_menu', array( Login\SettingsPage::class, 'register_menu' ) );
 // Color pickers offer the palette only, as on Mody Cloud.
 add_action( 'enqueue_block_editor_assets', array( Design\PaletteOnly::class, 'enqueue' ) );
 
-// wp-admin's Ocean colors for new users.
-add_filter( 'insert_user_meta', array( Admin\AdminColors::class, 'new_user_scheme' ), 10, 4 );
-add_filter( 'get_user_option_admin_color', array( Admin\AdminColors::class, 'default_scheme' ) );
-
 // Antispam Bee's checks that call outside services stay off.
 Security\AntispamBee::register();

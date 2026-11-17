@@ -3,10 +3,10 @@
  * wp-admin colors: Ocean by default, and the agent chat in the user's own
  * color scheme.
  *
- * @package Mody\Platform
+ * @package Mody\AdminColors
  */
 
-namespace Mody\Platform\Admin;
+namespace Mody\AdminColors;
 
 defined( 'ABSPATH' ) || exit;
 

@@ -165,7 +165,9 @@ final class DashboardPage {
 			$url     = static fn( string $file ): string => plugins_url( 'assets/' . $file, $root . '/mody-platform.php' );
 			$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 			wp_enqueue_style( 'mody-agent-chat', $url( 'agent-chat.css' ), array(), $version( 'agent-chat.css' ) );
-			\Mody\Platform\Admin\AdminColors::add_agent_chat_css();
+			if ( class_exists( \Mody\AdminColors\AdminColors::class ) ) {
+				\Mody\AdminColors\AdminColors::add_agent_chat_css();
+			}
 			wp_enqueue_style( 'mody-agent-bubble', $url( 'agent-bubble.css' ), array( 'mody-agent-chat' ), $version( 'agent-bubble.css' ) );
 		}
 		wp_add_inline_script(

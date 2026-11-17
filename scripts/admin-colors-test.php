@@ -19,7 +19,7 @@
  * The test users are removed at the end. No model call.
  */
 
-use Mody\Platform\Admin\AdminColors;
+use Mody\AdminColors\AdminColors;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

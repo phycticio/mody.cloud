@@ -182,15 +182,6 @@ add_action( 'after_password_reset', array( Onboarding\Onboarding::class, 'after_
 add_action( 'enqueue_block_editor_assets', array( Onboarding\EditorTour::class, 'enqueue' ), 20 ); // After the chat bubble.
 
 /*
- * wp-admin colors (decided 2026-11-08): Ocean is every user's color scheme
- * unless they choose another; users on WordPress's default are moved to it
- * once. The agent chat's colors follow the user's scheme (Admin\AdminColors).
- */
-add_filter( 'insert_user_meta', array( Admin\AdminColors::class, 'new_user_scheme' ), 10, 4 );
-add_filter( 'get_user_option_admin_color', array( Admin\AdminColors::class, 'default_scheme' ) );
-add_action( 'init', array( Admin\AdminColors::class, 'migrate' ), 1 );
-
-/*
  * The login page (tickets/login-branding.md): each site's wp-login.php wears
  * that site's logo, palette and fonts (the theme's variables, read on each
  * request), arranged by the scheme its admins choose in Settings → Login.

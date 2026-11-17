@@ -20,7 +20,7 @@ Asked for by the maintainer on 2026-11-08:
 ## Results (2026-11-08)
 **What "primary" was.** In WordPress 7.1 a scheme has a palette of three or four colors, shown in the profile, and an accent, `--wp-admin-theme-color`, set by core's `admin-schemes.css`. The chat used the accent for everything. For Ocean the accent is the palette's third color (`#567958`, green), and the second is `#39535a`. For Modern, WordPress's default since 7.0, both are `#3858e9`.
 
-**Built** in `app/web/mu-plugins/mody-platform/src/Admin/AdminColors.php`:
+**Built** in `app/web/mu-plugins/mody-platform/src/Admin/AdminColors.php` (since 2026-11-17 its own plugin, `mody-admin-colors`, [independent-mody-plugins.md](independent-mody-plugins.md)):
 - **The chat color:**
   - `second_color()` reads the user's scheme from core's registry. An unknown scheme counts as Ocean.
   - `add_agent_chat_css()` puts it on the `mody-agent-chat` style as `--mody-agent-user-message`. Both places that load the chat call it: `EditorBubble::enqueue()` and `ChatPage::enqueue()`.

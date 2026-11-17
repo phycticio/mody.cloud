@@ -464,13 +464,10 @@ try {
 	$check( 'the stub shows the README itself: its .txt is not served', ! str_contains( $stub, 'plugins_url' ) && str_contains( $stub, "'/README-restore.txt'" ) );
 
 	// "Update URI: false": core would match these folder names to wordpress.org, where anyone can register a plugin by that name.
-	$no_update = array(
-		'the importer'    => 'mody-import/mody-import.php',
-		'Mody Site'       => 'mody-import/payload/plugins/mody-site/mody-site.php',
-		'Mody Languages'  => 'mody-import/payload/plugins/mody-languages/mody-languages.php',
-		'Mody Images'     => 'mody-import/payload/plugins/mody-images/mody-images.php',
-		'Mody SEO'        => 'mody-import/payload/plugins/mody-seo/mody-seo.php',
-	);
+	$no_update = array( 'the importer' => 'mody-import/mody-import.php' );
+	foreach ( glob( $unzipped . '/mody-import/payload/plugins/mody-*', GLOB_ONLYDIR ) as $folder ) { // Every Mody plugin carried.
+		$no_update[ basename( $folder ) ] = 'mody-import/payload/plugins/' . basename( $folder ) . '/' . basename( $folder ) . '.php';
+	}
 	foreach ( $no_update as $label => $name ) {
 		$data = get_file_data( $unzipped . '/' . $name, array( 'uri' => 'Update URI' ) );
 		$check( 'the header of ' . $label . ' says Update URI: false', 'false' === $data['uri'], $data['uri'] );

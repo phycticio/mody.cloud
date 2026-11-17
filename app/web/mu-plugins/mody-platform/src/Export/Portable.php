@@ -23,9 +23,10 @@ defined( 'ABSPATH' ) || exit;
  *   look and work the same (SITE_FILES), with its own bootstrap
  *   (export-kit/mody-site/mody-site.php). Same namespace, so options, post
  *   meta and addresses keep their names.
- * - `plugins/mody-languages`, `plugins/mody-images`, `plugins/mody-seo`,
- *   `plugins/spectra-blocks`, `plugins/antispam-bee`: copies of what the platform runs as MU plugins; the downloaded site runs
- *   them as normal plugins, which its owner updates and switches off.
+ * - the plugins in PLUGINS (the independent Mody plugins a site needs,
+ *   Spectra and Antispam Bee): copies of what the platform runs as MU
+ *   plugins; the downloaded site runs them as normal plugins, which its
+ *   owner updates and switches off (tickets/independent-mody-plugins.md).
  *
  * Never: the agent (Agent/, AI/, Abilities, the `ai` plugin and its
  * connectors), the platform's billing, signup, provisioning, quota and locks
@@ -35,7 +36,6 @@ final class Portable {
 
 	/** Mody Site's classes, from this plugin's src/. */
 	public const SITE_FILES = array(
-		'Admin/AdminColors.php',
 		'Design/PaletteOnly.php',
 		'Design/Patterns.php',
 		'Login/Color.php',
@@ -53,11 +53,12 @@ final class Portable {
 
 	/** Plugins copied from mu-plugins/, by folder: their main file. */
 	public const PLUGINS = array(
-		'antispam-bee'   => 'antispam_bee.php',
-		'mody-images'    => 'mody-images.php',
-		'mody-languages' => 'mody-languages.php',
-		'mody-seo'       => 'mody-seo.php',
-		'spectra-blocks' => 'spectra-blocks.php',
+		'antispam-bee'      => 'antispam_bee.php',
+		'mody-admin-colors' => 'mody-admin-colors.php',
+		'mody-images'       => 'mody-images.php',
+		'mody-languages'    => 'mody-languages.php',
+		'mody-seo'          => 'mody-seo.php',
+		'spectra-blocks'    => 'spectra-blocks.php',
 	);
 
 	/** Mody Site's main file, in its folder. */
@@ -133,7 +134,12 @@ final class Portable {
 				return $done;
 			}
 		}
-		$licenses = array( $site . '/LICENSE.txt', $dir . '/plugins/mody-languages/LICENSE.txt', $dir . '/plugins/mody-images/LICENSE.txt', $dir . '/plugins/mody-seo/LICENSE.txt', $theme . '/LICENSE.txt' );
+		$licenses = array( $site . '/LICENSE.txt', $theme . '/LICENSE.txt' );
+		foreach ( array_keys( self::PLUGINS ) as $folder ) {
+			if ( str_starts_with( $folder, 'mody-' ) ) {
+				$licenses[] = $dir . '/plugins/' . $folder . '/LICENSE.txt'; // Our own plugins carry no license file on the platform.
+			}
+		}
 
 		// The plugins the platform runs as MU plugins.
 		foreach ( array_keys( self::PLUGINS ) as $folder ) {
