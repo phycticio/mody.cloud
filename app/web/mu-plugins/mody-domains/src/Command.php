@@ -2,10 +2,10 @@
 /**
  * WP-CLI: `wp mody-domains`.
  *
- * @package Mody\Platform
+ * @package Mody\Domains
  */
 
-namespace Mody\Platform\Domains;
+namespace Mody\Domains;
 
 use WP_CLI;
 

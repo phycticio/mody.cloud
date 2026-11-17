@@ -3,10 +3,10 @@
  * Custom domains for member sites: adding one, checking its DNS, its
  * certificate, switching the site's address, and taking it off.
  *
- * @package Mody\Platform
+ * @package Mody\Domains
  */
 
-namespace Mody\Platform\Domains;
+namespace Mody\Domains;
 
 use WP_Error;
 

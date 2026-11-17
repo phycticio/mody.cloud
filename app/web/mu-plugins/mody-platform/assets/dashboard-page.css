@@ -1304,19 +1304,6 @@ body.mody-board-dragging * {
 	font-weight: 600;
 }
 
-/* Your domain (2026-11-13). */
-.mody-domain__record {
-	max-width: 640px;
-	margin: 8px 0 12px;
-}
-
-.mody-domain__actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	margin-top: 16px;
-}
-
 /* Invite friends: the link, wide enough to read whole (Members\Invites). */
 .mody-invite__link input {
 	width: min(100%, 34em);

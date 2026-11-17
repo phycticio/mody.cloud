@@ -2,10 +2,10 @@
 /**
  * Nginx Proxy Manager's API: a certificate and a proxy host per custom domain.
  *
- * @package Mody\Platform
+ * @package Mody\Domains
  */
 
-namespace Mody\Platform\Domains;
+namespace Mody\Domains;
 
 use WP_Error;
 

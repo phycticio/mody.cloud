@@ -1,0 +1,15 @@
+/**
+ * The Your domain section of the Mody dashboard (Panel). The dashboard's
+ * own stylesheet gives the section its layout; these are the panel's parts.
+ */
+.mody-domain__record {
+	max-width: 640px;
+	margin: 8px 0 12px;
+}
+
+.mody-domain__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 16px;
+}

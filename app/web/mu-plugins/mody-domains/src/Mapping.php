@@ -3,10 +3,10 @@
  * Custom domains: the table, and the lookup that runs before WordPress picks
  * a site (sunrise.php).
  *
- * @package Mody\Platform
+ * @package Mody\Domains
  */
 
-namespace Mody\Platform\Domains;
+namespace Mody\Domains;
 
 defined( 'ABSPATH' ) || exit;
 

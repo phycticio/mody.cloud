@@ -33,6 +33,13 @@ defined( 'ABSPATH' ) || exit;
  * The layout is the Brand page's (its stylesheet, its classes): the sections
  * on the left, the site's card, the section's panel. Which sections show
  * depends on the user (sections()).
+ *
+ * Other plugins add sections of their own (tickets/independent-mody-plugins.md):
+ *
+ * - `mody_dashboard_sections` (filter): the sections this user sees, slug =>
+ *   label, in order. Add yours where it belongs, only for users who may see it.
+ * - `mody_dashboard_section_<slug>` (action): prints the section's panel.
+ *   It runs inside the panel, under the section's title.
  */
 final class DashboardPage {
 
@@ -198,9 +205,6 @@ final class DashboardPage {
 		if ( ExportPanel::available() ) {
 			$sections[ ExportPanel::SECTION ] = __( 'Download your site', 'mody_cloud' );
 		}
-		if ( \Mody\Platform\Domains\Panel::available() ) {
-			$sections[ \Mody\Platform\Domains\Panel::SECTION ] = __( 'Your domain', 'mody_cloud' );
-		}
 		if ( Members::get( get_current_user_id() ) ) {
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
 			$sections['plan']  = __( 'Plan & billing', 'mody_cloud' );
@@ -208,7 +212,8 @@ final class DashboardPage {
 		if ( Invites::available() ) {
 			$sections[ Invites::SECTION ] = __( 'Invite friends', 'mody_cloud' );
 		}
-		return $sections;
+		$added = apply_filters( 'mody_dashboard_sections', $sections ); // Other plugins' sections.
+		return is_array( $added ) && isset( $added['overview'] ) ? array_map( 'strval', $added ) : $sections;
 	}
 
 	/** The periods the numbers cover, in days. */
@@ -318,10 +323,11 @@ final class DashboardPage {
 			case Invites::SECTION:
 				Invites::render();
 				break;
-			case \Mody\Platform\Domains\Panel::SECTION:
-				\Mody\Platform\Domains\Panel::render();
-				break;
 			default:
+				if ( 'overview' !== $section && has_action( 'mody_dashboard_section_' . $section ) ) {
+					do_action( 'mody_dashboard_section_' . $section ); // Another plugin's section.
+					break;
+				}
 				self::render_overview();
 		}
 	}

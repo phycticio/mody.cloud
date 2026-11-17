@@ -2,10 +2,10 @@
 /**
  * The Dashboard's Your domain section.
  *
- * @package Mody\Platform
+ * @package Mody\Domains
  */
 
-namespace Mody\Platform\Domains;
+namespace Mody\Domains;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,11 +19,44 @@ final class Panel {
 	/** The section's key on the Dashboard. */
 	public const SECTION = 'domain';
 
+	/** The Mody dashboard's page (admin.php?page=…). */
+	private const DASHBOARD = 'mody-dashboard';
+
 	/**
 	 * Whether the section shows: a member site, run by the current user.
 	 */
 	public static function available(): bool {
 		return ! is_main_site() && current_user_can( 'manage_options' );
+	}
+
+	/**
+	 * `mody_dashboard_sections`: Your domain, after Download your site when
+	 * the dashboard has it, else before Your sites, else last.
+	 *
+	 * @param mixed $sections Slug => label.
+	 * @return mixed
+	 */
+	public static function add_section( $sections ) {
+		if ( ! is_array( $sections ) || ! self::available() ) {
+			return $sections;
+		}
+		$keys  = array_keys( $sections );
+		$after = array_search( 'export', $keys, true );
+		$at    = false !== $after ? $after + 1 : array_search( 'sites', $keys, true );
+		$at    = false !== $at ? (int) $at : count( $sections );
+		return array_slice( $sections, 0, $at, true ) + array( self::SECTION => __( 'Your domain', 'mody_cloud' ) ) + array_slice( $sections, $at, null, true );
+	}
+
+	/**
+	 * `admin_enqueue_scripts`: the panel's stylesheet, on the dashboard.
+	 */
+	public static function enqueue(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Which screen this is.
+		if ( ! isset( $_GET['page'] ) || self::DASHBOARD !== $_GET['page'] || ! self::available() ) {
+			return;
+		}
+		$file = dirname( __DIR__ ) . '/assets/panel.css';
+		wp_enqueue_style( 'mody-domains-panel', plugins_url( 'assets/panel.css', dirname( __DIR__ ) . '/mody-domains.php' ), array(), (string) filemtime( $file ) );
 	}
 
 	/**

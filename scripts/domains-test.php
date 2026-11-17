@@ -27,10 +27,10 @@
  * A throwaway site is made and deleted. No real DNS, no real NPM.
  */
 
-use Mody\Platform\Domains\Domains;
-use Mody\Platform\Domains\Mapping;
-use Mody\Platform\Domains\Panel;
-use Mody\Platform\Domains\ProxyManager;
+use Mody\Domains\Domains;
+use Mody\Domains\Mapping;
+use Mody\Domains\Panel;
+use Mody\Domains\ProxyManager;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
