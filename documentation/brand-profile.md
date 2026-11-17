@@ -77,7 +77,7 @@ The master prompt rules, whitelist and validation are in [ai-engine.md](ai-engin
 
 ## Site creation flow
 
-Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin ([M2-01](../tickets/M2-01-site-provisioning.md), [mvp-spec.md §7](mvp-spec.md#7-site-provisioning-pipeline)). It runs in-process: no REST, no Application Passwords, and no credentials in the welcome email.
+Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin (since 2026-11-17 `Mody\Sites\Pipeline`, the `mody-sites` plugin) ([M2-01](../tickets/M2-01-site-provisioning.md), [mvp-spec.md §7](mvp-spec.md#7-site-provisioning-pipeline)). It runs in-process: no REST, no Application Passwords, and no credentials in the welcome email.
 
 1. **`Pipeline::start( $user_id, $input )`** validates the wizard's answers (`Pipeline::validate()`), checks the quota and queues a job in `mody_provisioning_jobs`.
    - `slug`: the subdomain, checked with WordPress's own site-name rules.
@@ -101,7 +101,7 @@ Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin ([M2-
    A logo that cannot be copied does not stop the site (`result.logo_error`).
 3. **Resuming.** Each step's outcome and the next step are written in one update, after the step's side effects. A run killed in the middle of a step starts that step again without repeating its work. A running job not updated for 5 minutes counts as killed.
 4. **Generation failure** never blocks the site. `Pipeline::retry_generation( $job_id )` generates the page again and replaces it.
-5. **The quota:** `Provisioning\Quota::can_create_site()`. With M1-01, the plan's limit (see [membership-tiers.md](membership-tiers.md#open-questions)).
+5. **The quota:** `Quota::can_create_site()` (`mody-sites`). With M1-01, the plan's limit (see [membership-tiers.md](membership-tiers.md#open-questions)).
 
 **The signup's site** (M1-03): `Members\Registration::register()` starts and runs a starter job in the signup request (a few seconds, no model call). The member then gives the brand to the agent: the editor tour on the Identity screen asks them to tell Mody what they do, which the agent saves as the mission or the tagline (`mody/update-site-settings`).
 

@@ -31,9 +31,9 @@ use Mody\Agent\AI\SystemPrompt;
 use Mody\Brand\BrandSettings;
 use Mody\Styles\Presets;
 use Mody\Styles\SiteDesign;
-use Mody\Platform\Provisioning\Jobs;
-use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Provisioning\Quota;
+use Mody\Sites\Jobs;
+use Mody\Sites\Pipeline;
+use Mody\Sites\Quota;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

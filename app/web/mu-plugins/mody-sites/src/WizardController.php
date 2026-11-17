@@ -2,14 +2,12 @@
 /**
  * REST endpoints of the brand wizard: `mody-platform/v1/sites`.
  *
- * @package Mody\Platform
+ * @package Mody\Sites
  */
 
-namespace Mody\Platform\Wizard;
+namespace Mody\Sites;
 
 use Mody\Images\ImageSize;
-use Mody\Platform\Provisioning\Jobs;
-use Mody\Platform\Provisioning\Pipeline;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;

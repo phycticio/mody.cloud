@@ -2,16 +2,12 @@
 /**
  * The brand wizard: Network Admin → Mody → New site.
  *
- * @package Mody\Platform
+ * @package Mody\Sites
  */
 
-namespace Mody\Platform\Wizard;
+namespace Mody\Sites;
 
 use Mody\Styles\Presets;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Provisioning\Jobs;
-use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Provisioning\Quota;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -69,14 +65,14 @@ final class WizardPage {
 	 * Loads the wizard's script and its settings (`load-<page>`).
 	 */
 	public static function enqueue(): void {
-		$root    = dirname( __DIR__, 2 );
+		$root    = dirname( __DIR__ );
 		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 
-		wp_enqueue_style( 'mody-wizard', plugins_url( 'assets/wizard.css', $root . '/mody-platform.php' ), array(), $version( 'wizard.css' ) );
-		if ( Members::payment_pending( get_current_user_id() ) ) {
+		wp_enqueue_style( 'mody-wizard', plugins_url( 'assets/wizard.css', $root . '/mody-sites.php' ), array(), $version( 'wizard.css' ) );
+		if ( self::payment_pending( get_current_user_id() ) ) {
 			return; // No form, so no script: render() shows the payment step.
 		}
-		wp_enqueue_script( 'mody-wizard', plugins_url( 'assets/wizard.js', $root . '/mody-platform.php' ), array(), $version( 'wizard.js' ), true );
+		wp_enqueue_script( 'mody-wizard', plugins_url( 'assets/wizard.js', $root . '/mody-sites.php' ), array(), $version( 'wizard.js' ), true );
 
 		$pending = Jobs::unfinished_for_user( get_current_user_id() );
 		wp_add_inline_script(
@@ -146,7 +142,7 @@ final class WizardPage {
 	 */
 	public static function render(): void {
 		$user_id = get_current_user_id();
-		if ( Members::payment_pending( $user_id ) ) {
+		if ( self::payment_pending( $user_id ) ) {
 			self::render_payment_pending();
 			return;
 		}
@@ -179,13 +175,16 @@ final class WizardPage {
 				<div class="notice notice-warning inline"><p>
 					<?php
 					echo esc_html(
-						'free' === (string) ( Members::get( $user_id )['plan'] ?? '' )
+						apply_filters( 'mody_sites_on_launch_offer', false, $user_id ) // The accounts' plugin knows.
 							? __( 'The launch offer includes one site.', 'mody_cloud' )
 							/* translators: %d: the most sites an account can have. */
 							: sprintf( _n( 'An account can have %d site, so you cannot create another one.', 'An account can have %d sites, so you cannot create another one.', $limit, 'mody_cloud' ), $limit )
 					);
 					?>
-					<a href="<?php echo esc_url( \Mody\Platform\Billing\Billing::plan_url( $user_id ) ); ?>"><?php esc_html_e( 'Plan & billing', 'mody_cloud' ); ?></a>
+					<?php $plan = (string) apply_filters( 'mody_sites_plan_url', '', $user_id ); // The billing plugin's Plan & billing, if any. ?>
+					<?php if ( '' !== $plan ) : ?>
+						<a href="<?php echo esc_url( $plan ); ?>"><?php esc_html_e( 'Plan & billing', 'mody_cloud' ); ?></a>
+					<?php endif; ?>
 				</p></div>
 			<?php endif; ?>
 
@@ -293,5 +292,15 @@ final class WizardPage {
 			<div id="mody-wizard-status" class="mody-wizard__status" hidden aria-live="polite"></div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Whether the account must pay before its first site: the plugin that
+	 * keeps the accounts answers `mody_sites_payment_pending`.
+	 *
+	 * @param int $user_id The user.
+	 */
+	private static function payment_pending( int $user_id ): bool {
+		return (bool) apply_filters( 'mody_sites_payment_pending', false, $user_id );
 	}
 }

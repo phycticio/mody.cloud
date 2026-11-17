@@ -44,8 +44,8 @@
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Onboarding\Onboarding;
-use Mody\Platform\Provisioning\Jobs;
-use Mody\Platform\Provisioning\Pipeline;
+use Mody\Sites\Jobs;
+use Mody\Sites\Pipeline;
 use Mody\Security\Altcha;
 use Mody\Security\RateLimit;
 

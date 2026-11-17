@@ -2,10 +2,10 @@
 /**
  * The network-wide `mody_provisioning_jobs` table (mvp-spec section 11).
  *
- * @package Mody\Platform
+ * @package Mody\Sites
  */
 
-namespace Mody\Platform\Provisioning;
+namespace Mody\Sites;
 
 defined( 'ABSPATH' ) || exit;
 

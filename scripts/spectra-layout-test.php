@@ -29,7 +29,7 @@ use Mody\Agent\AI\BlockValidator;
 use Mody\Agent\AI\PageGenerator;
 use Mody\Agent\AI\SpectraLayout;
 use Mody\Agent\AI\SystemPrompt;
-use Mody\Platform\Provisioning\Pipeline;
+use Mody\Sites\Pipeline;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

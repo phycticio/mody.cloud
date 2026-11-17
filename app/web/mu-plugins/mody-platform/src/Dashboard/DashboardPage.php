@@ -18,8 +18,8 @@ use Mody\Brand\BrandPage;
 use Mody\Platform\Look;
 use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
-use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Wizard\WizardPage;
+use Mody\Sites\Quota;
+use Mody\Sites\WizardPage;
 
 defined( 'ABSPATH' ) || exit;
 

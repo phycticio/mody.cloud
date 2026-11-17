@@ -166,7 +166,7 @@ Runs **in-process** in the MU plugin (no REST, no Application Passwords — that
 
 **Starter sites** (the signup's, 2026-11-08, [M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md)): the job's input has `starter`, with only a slug and a title. The mission and the prompt may be empty, the `page` step publishes a starter front page (the site's name and "Our new website is on its way") without a model call, and the `email` step sends nothing, because the signup's welcome email replaces it. **Every new site** (signup and wizard) also refuses the reserved addresses in `Pipeline::RESERVED_SLUGS` (`www`, `mail`, `api`, `admin`, `plugins` and other infrastructure names), besides core's `illegal_names`.
 
-**Built 2026-11-06** ([M2-01](../tickets/M2-01-site-provisioning.md)): `Provisioning\Pipeline` in the MU plugin, tested by `scripts/provisioning-test.php`. How it works: [brand-profile.md](brand-profile.md#site-creation-flow). The profile row needs the new site's ID, so `profile` runs after `site`. The table below is in the order the steps run.
+**Built 2026-11-06** ([M2-01](../tickets/M2-01-site-provisioning.md)): `Pipeline` (`mody-sites`) in the MU plugin, tested by `scripts/provisioning-test.php`. How it works: [brand-profile.md](brand-profile.md#site-creation-flow). The profile row needs the new site's ID, so `profile` runs after `site`. The table below is in the order the steps run.
 
 | Step | Action |
 | --- | --- |
@@ -377,7 +377,7 @@ mody_agent_events (
 
   A row gives the dashboard capability and the plan's site limit through `mody_site_limit`. Table version 2 (part 2, 2026-11-08) added `next_plan`; version 3 (2026-11-11) the 2026-11-10 plans and `billing_period`. **Version 4 (2026-11-13):** `plan` is `free` or `paid` (site limits 1 and 10), `trial_ends_at` became `free_until` (old trials: six months after signup), and `next_plan` is gone: there is one price, and the member chooses only monthly or yearly.
 - ~~`mody_brand_profiles`~~ (2026-11-06, M2-02): dropped on 2026-11-08 by `BrandSettings::migrate()` (`mody-brand`), which first moved each site's mission and tone into its settings (M2-08).
-- `mody_provisioning_jobs` (2026-11-06, M2-01). `Provisioning\Jobs::install()` creates it the same way (`mody_provisioning_jobs_db_version`). It matches the definition above, with these additions: unsigned `bigint(20)` IDs; a `queued` status (a job not run yet); `input`, the validated wizard answers, and `result`, what the steps produced (`profile_id`, `page_id`, `fallback`, `generation_error`, `email`), both JSON in `LONGTEXT`; indexes on `user_id` and `status`. The `step` enum lists the steps in the order they run (`profile` after `site`).
+- `mody_provisioning_jobs` (2026-11-06, M2-01). `Jobs::install()` (`mody-sites`) creates it the same way (`mody_provisioning_jobs_db_version`). It matches the definition above, with these additions: unsigned `bigint(20)` IDs; a `queued` status (a job not run yet); `input`, the validated wizard answers, and `result`, what the steps produced (`profile_id`, `page_id`, `fallback`, `generation_error`, `email`), both JSON in `LONGTEXT`; indexes on `user_id` and `status`. The `step` enum lists the steps in the order they run (`profile` after `site`).
 - `mody_agent_events` (2026-11-06, M3-01). `Agent\AgentEvents::install()` creates it the same way (`mody_agent_events_db_version`). It matches the definition above, with these additions:
   - `duration_ms` (section 8 asks for the duration);
   - unsigned `bigint(20)` IDs;

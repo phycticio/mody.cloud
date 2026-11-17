@@ -8,7 +8,7 @@
 namespace Mody\Platform\Billing;
 
 use Mody\Platform\Members\Members;
-use Mody\Platform\Provisioning\Quota;
+use Mody\Sites\Quota;
 
 defined( 'ABSPATH' ) || exit;
 

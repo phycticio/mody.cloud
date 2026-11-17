@@ -29,8 +29,8 @@
  */
 
 use Mody\Platform\Members\Members;
-use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Wizard\WizardPage;
+use Mody\Sites\Quota;
+use Mody\Sites\WizardPage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

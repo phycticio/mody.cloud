@@ -8,7 +8,7 @@
 
 namespace Mody\Platform\Members;
 
-use Mody\Platform\Wizard\WizardPage;
+use Mody\Sites\WizardPage;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;

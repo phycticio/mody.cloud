@@ -42,12 +42,12 @@ use Mody\Locks\MemberMail;
 use Mody\Locks\MemberSite;
 use Mody\Locks\Throttle;
 use Mody\Images\ImageSize;
-use Mody\Platform\Provisioning\Jobs as ProvisioningJobs;
-use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Provisioning\Quota;
+use Mody\Sites\Jobs as ProvisioningJobs;
+use Mody\Sites\Pipeline;
+use Mody\Sites\Quota;
 use Mody\Spectra\SpectraGuard;
 use Mody\Profiles\Avatars;
-use Mody\Platform\Wizard\WizardController;
+use Mody\Sites\WizardController;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/misc.php';

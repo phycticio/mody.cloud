@@ -2,13 +2,12 @@
 /**
  * The wizard's live preview: the site's header and a hero, rendered by the theme.
  *
- * @package Mody\Platform
+ * @package Mody\Sites
  */
 
-namespace Mody\Platform\Wizard;
+namespace Mody\Sites;
 
 use Mody\Styles\Presets;
-use Mody\Platform\Provisioning\Pipeline;
 
 defined( 'ABSPATH' ) || exit;
 

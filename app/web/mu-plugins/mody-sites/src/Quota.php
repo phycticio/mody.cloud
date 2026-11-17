@@ -2,10 +2,10 @@
 /**
  * How many sites a member may have (mvp-spec section 4).
  *
- * @package Mody\Platform
+ * @package Mody\Sites
  */
 
-namespace Mody\Platform\Provisioning;
+namespace Mody\Sites;
 
 use WP_Error;
 
@@ -15,7 +15,7 @@ defined( 'ABSPATH' ) || exit;
  * The site quota, checked by the pipeline's `quota` step.
  *
  * A member's limit is their plan's, through the `mody_site_limit` filter
- * (Members::site_limit(): one site on the launch offer, ten when paying,
+ * (Mody Members' site_limit(): one site on the launch offer, ten when paying,
  * 2026-11-13). Users without a member row keep DEFAULT_LIMIT.
  *
  * A member's sites are the ones they OWN, not the ones where they hold the

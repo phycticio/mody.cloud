@@ -27,7 +27,7 @@ use Mody\Analytics\Store;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Onboarding\Onboarding;
-use Mody\Platform\Provisioning\Pipeline;
+use Mody\Sites\Pipeline;
 use Mody\Security\Altcha;
 use Mody\Security\ClientAddress;
 use Mody\Security\FormGuard;

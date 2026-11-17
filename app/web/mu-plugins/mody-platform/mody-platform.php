@@ -41,7 +41,6 @@ if ( class_exists( \Mody\Analytics\Query::class ) ) {
 	}
 }
 
-add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );
 add_action( 'init', array( Members\Members::class, 'install' ), 1 );
 
 /*
@@ -59,6 +58,9 @@ add_filter( 'mody_agent_site_locked', static fn( $locked, $site_id ) => $locked 
 add_filter( 'user_has_cap', array( Members\Members::class, 'grant_dashboard' ), 10, 3 );
 add_filter( 'mody_site_limit', array( Members\Members::class, 'site_limit' ), 10, 2 );
 add_filter( 'mody_can_create_site', array( Members\Members::class, 'can_create_site' ), 10, 2 ); // No site before the card is verified.
+add_filter( 'mody_sites_payment_pending', static fn( $pending, $user_id ) => $pending || Members\Members::payment_pending( (int) $user_id ), 10, 2 ); // Mody Sites' wizard: the payment step first.
+add_filter( 'mody_sites_on_launch_offer', static fn( $free, $user_id ) => $free || 'free' === (string) ( Members\Members::get( (int) $user_id )['plan'] ?? '' ), 10, 2 );
+add_filter( 'mody_sites_plan_url', static fn( $url, $user_id ) => '' !== $url ? $url : Billing\Billing::plan_url( (int) $user_id ), 10, 2 );
 
 /*
  * Registration (M1-01 part 2, M1-03): the `mody/register` block on the main
@@ -90,16 +92,4 @@ add_filter( 'mody_onboarding_free_until', static fn( $ends, $user_id ) => Member
 add_action( 'network_admin_menu', array( Members\Offers::class, 'register_menu' ), 20 );
 add_action( 'network_admin_edit_' . Members\Offers::SLUG, array( Members\Offers::class, 'save' ) );
 
-/*
- * Brand wizard (Network Admin → Mody → New site, ticket M2-03): its page and
- * its REST endpoint, which runs the provisioning pipeline after the response.
- */
-add_action( 'network_admin_menu', array( Wizard\WizardPage::class, 'register_menu' ) );
-add_action( 'rest_api_init', array( Wizard\WizardController::class, 'register_routes' ) );
-add_action( 'template_redirect', array( Wizard\WizardPreview::class, 'maybe_render' ), 0 ); // Step 2's live preview (M2-04).
 
-/*
- * The plan's sites are the ones a member owns (security pass, 2026-11-12).
- */
-add_action( 'wp_initialize_site', array( Provisioning\Quota::class, 'on_initialize_site' ), 10, 2 );
-add_action( 'admin_init', array( Provisioning\Quota::class, 'backfill' ) );

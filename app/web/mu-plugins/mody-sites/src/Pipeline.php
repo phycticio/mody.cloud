@@ -2,10 +2,10 @@
 /**
  * The site provisioning pipeline (mvp-spec section 7, ticket M2-01).
  *
- * @package Mody\Platform
+ * @package Mody\Sites
  */
 
-namespace Mody\Platform\Provisioning;
+namespace Mody\Sites;
 
 use Mody\Agent\EditorBubble;
 use Mody\Agent\AI\PageGenerator;

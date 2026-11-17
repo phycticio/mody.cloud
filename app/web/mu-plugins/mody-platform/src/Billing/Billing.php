@@ -11,7 +11,7 @@ use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
-use Mody\Platform\Provisioning\Quota;
+use Mody\Sites\Quota;
 use Mody\Security\RateLimit;
 use WP_Error;
 use WP_REST_Request;
