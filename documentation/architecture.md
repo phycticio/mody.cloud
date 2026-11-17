@@ -214,8 +214,8 @@ Visitor
 ### Deploying
 
 **The deploy strategy** (decided by the maintainer on 2026-11-08):
-1. Commit every change on its own topic branch, never directly on `main`. Name it after the work: `feature/m1-01-registration`, `fix/…`, `docs/…`.
-2. Merge it into `main` locally with `git merge --no-ff`, so the branch stays visible in the history.
+1. Commit every change on its own topic branch, never directly on `main`. Name it after the work and its GitHub issue (since 2026-11-17, [tickets.md](tickets.md)): `feature/#12-registration`, `fix/…`, `docs/…`. Work without an issue keeps the plain form, `feature/<topic>`.
+2. Merge it into `main` locally with `git merge --no-ff`, so the branch stays visible in the history. The merge commit's body says `Closes #12` (or `Part of #12` when the ticket has more parts), so pushing `main` closes the issue.
 3. Push `main`. The repository's rule asks for pull requests; the maintainer's account bypasses it by choice, and GitHub reports the bypass on every push.
 4. Deploy from `main` with `./bin/deploy --env=prod`.
 
