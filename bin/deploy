@@ -219,6 +219,9 @@ fi
 # is not in the build, so the sync would delete it. Refuse instead. A folder
 # the deployed composer.lock installed is Composer's own: the build moved or
 # removed it (Spectra moved to mu-plugins, M3-11), so the sync may delete it.
+# An entry git tracked at the deployed commit (REVISION) is ours too: the
+# repository removed it (mody-platform, split into independent plugins on
+# 2026-11-17), so the sync may delete it.
 REMOTE_LOCK="$(remote "cat '${REMOTE_DIR}/app/composer.lock' 2>/dev/null" || true)"
 for DIR in app/web/plugins app/web/mu-plugins app/web/themes; do
   REMOTE_ENTRIES="$(remote "ls -1A '${REMOTE_DIR}/${DIR}' 2>/dev/null" || true)"
@@ -229,6 +232,10 @@ for DIR in app/web/plugins app/web/mu-plugins app/web/themes; do
     ENTRY_RE="$(printf '%s' "$ENTRY" | sed 's/[][\.*^$()+?{}|]/\\&/g')"
     if grep -Eq "\"name\": \"[^\"]+/${ENTRY_RE}\"" <<< "$REMOTE_LOCK"; then
       log "INFO" "${DIR}/${ENTRY} on the server was installed by Composer and is no longer in the build: the sync removes it."
+      continue
+    fi
+    if [ -n "$DEPLOYED_COMMIT" ] && git cat-file -e "${DEPLOYED_COMMIT}:${DIR}/${ENTRY}" 2>/dev/null; then
+      log "INFO" "${DIR}/${ENTRY} on the server came from the deployed commit (${DEPLOYED_COMMIT:0:12}) and the repository removed it: the sync removes it."
       continue
     fi
     EXTRA="${EXTRA} ${ENTRY}"
