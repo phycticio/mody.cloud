@@ -18,12 +18,12 @@ Project skills live in `.claude/skills/` (2026-11-17). Use the one that fits the
 | Skill | For |
 | --- | --- |
 | `mody-ticket` | Writing or updating a ticket in `tickets/`, `next-steps.md`, and its GitHub issue |
-| `mody-delivery` | A ticket to a tested local change on `feature/#NN-slug`; commit, `--no-ff` merge with `Closes #NN` and push only when asked |
+| `mody-delivery` | A ticket to a tested local change on `feature/#NN-slug`; commit, push and a pull request with `Closes #NN` only when asked; the maintainer merges on GitHub |
 | `mody-investigate` | Read-only diagnosis, locally or on production |
 | `mody-test` | Which `scripts/*-test.php` to run and how; the agent's evaluation set; the headless browser check |
 | `mody-plugin` | A new independent Mody plugin, or code crossing between plugins |
 | `mody-dependency` | Composer, npm or core changes: ask first, rule 1 review, guard tests |
-| `mody-deploy` | `./bin/deploy --env=prod`, only when the maintainer asks |
+| `mody-deploy` | `./bin/deploy --env=prod`: builds the merged `origin/main` and syncs it, only when the maintainer asks |
 | `mody-branding` | Mody Cloud's own logo, favicon, colors and voice (not members' brands) |
 
 When a skill and a document disagree, the document wins: fix the skill in the same change.

@@ -1,6 +1,6 @@
 # Every Mody plugin is an independent plugin
 
-**Builds on:** the `mody-seo` split ([seo.md](seo.md), 2026-11-16) · **Status:** decided by the maintainer on 2026-11-16, documentation changed the same day. The three questions answered on 2026-11-17 ([Decisions](#decisions-2026-11-17)). **Built on 2026-11-17 on `feature/independent-mody-plugins`, not merged or deployed: `mody-platform` is gone, 22 new plugins** ([Results](#results)).
+**Builds on:** the `mody-seo` split ([seo.md](seo.md), 2026-11-16) · **Status:** decided by the maintainer on 2026-11-16, documentation changed the same day. The three questions answered on 2026-11-17 ([Decisions](#decisions-2026-11-17)). **Built on 2026-11-17 on `feature/independent-mody-plugins`, merged and deployed the same day (`6db8aaf`): `mody-platform` is gone, 22 new plugins** ([Results](#results)).
 
 ## Goal (maintainer, 2026-11-16)
 > Every plugin should be an independent plugin. Some mody plugins should be MU and some not. For now all the things we have available are MU plugin.
@@ -182,3 +182,5 @@ The maintainer answered the three questions of 2026-11-16:
 **The whole suite (2026-11-17, offline, `MODY_TEST_OFFLINE=1`):** 53 test scripts plus `export-portable-test.sh` (55 checks on a plain WordPress) run in the local stack. Everything passes but 8 checks in three scripts, which fail the same way on `main`: `wizard-test.php` (1), `agent-template-test.php` (3) and `editor-navigation-test.php` (4). They read the local main site's content: its header part has no site title (the home page script's), and its lists differ from what the tests expect. Not checked here: the real-model evaluations (`agent-eval.php`, `analytics-eval.php`) and `nginx-hardening-test.sh`.
 
 **Before the deploy:** `./bin/deploy --dry-run` should show `mody-platform/` and `mody-platform.php` deleted and the 22 new folders added. The REST routes keep `mody-platform/v1`, the options, tables and post meta keep their names, so nothing in the database changes.
+
+**Deployed (2026-11-17, `6db8aaf`, at the maintainer's request).** The production database was dumped first (`backups/mody_cloud-prod-before-independent-plugins-20261117-140920.sql`). The first dry run stopped: `bin/deploy` took `mody-platform/` and `mody-platform.php` on the server for plugins installed outside Composer. It now lets the sync remove an entry git tracked at the deployed commit (`fix/deploy-removed-tracked-files`). The second dry run deleted only `mody-platform` (236 paths). After the sync: the main site, `/wp-login.php`, `/register/`, `/es/`, the ALTCHA route and both member sites answer 200, and the 29 MU plugins load. One 500 (Uptime Kuma's check at 13:11:18) and one fatal error came while files were changing (a loader before its folder); none since.

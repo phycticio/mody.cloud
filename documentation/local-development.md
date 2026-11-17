@@ -192,7 +192,7 @@ docker run --rm -v proxy_data:/from -v "$PWD:/to" alpine tar czf /to/proxy_data.
 | `./bin/build [prod\|stage]` | `pnpm build`, then `composer install` in the app container. Without an argument it includes dev requirements. `prod` and `stage` leave them out and use the frozen lockfile. |
 | `./bin/geoip [YYYY-MM]` | Download the month's DB-IP City Lite file for visitor locations into `app/data/geoip/` (not in git), and check it with the app's reader in the container. Run it before a deploy, at least monthly ([tickets/visitor-location.md](../tickets/visitor-location.md)). |
 | `./bin/restore-drill [--keep]` | Restore production's newest off-site backup into scratch containers on this Mac and check it: snapshot ages, the dump imported into MariaDB 11.4, sites, members, every attachment's file, the server's files. Needs `.env.backup` (not in git) with the repository's settings. Monthly, and after any change to the backups ([tickets/backups.md](../tickets/backups.md)). |
-| `./bin/deploy --env=prod [--dry-run]` | Deploy committed `main` to production after checks, a preview and a typed confirmation. See [architecture.md](architecture.md#production). |
+| `./bin/deploy --env=prod [--dry-run] [--ref=<sha>]` | Build `origin/main` (what GitHub merged) in its own checkout, `~/.cache/mody.cloud/release`, and deploy it to production after checks, a preview and a typed confirmation; `--ref` deploys an earlier commit of `main` (a rollback). Any branch may be checked out. See [architecture.md](architecture.md#deploying). |
 | `docker exec mody_cloud_server nginx -s reload` | Reload Nginx after editing its config. |
 
 Container, volume and network names are prefixed with `CONTAINER_PREFIX` (`mody_cloud_` in `sample.env`).
@@ -236,8 +236,7 @@ The stack scripts came from an earlier project (Tamarind Intelligence). The prev
 | `bin/install` | Calls `./bin/db import` (needs a database dump). Use the first-run steps above, or `--no-build` and expect the import to fail. |
 | `bin/migrate-*`, `bin/subscription-migration-local-env`, `config/bin/db.config` | Tamarind data-migration tooling. `db.config` now maps only `mody.cloud` to `mody.local`. `bin/wp` also forwards `TAMARIND_MIGRATION_*` variables. |
 | `compose.yml` | Ofelia labels for `wp tamarind newsletters run-due`. No Ofelia service is defined, so they do nothing locally; production replaces them with the billing job (`compose.prod.yml.sample`, 2026-11-13). Locally, run `./bin/wp mody-billing run` by hand. |
-| `.github/workflows/*` | Deployment and CI for the previous project (`tamarind styles refresh`, `./bin/build`). Production is deployed with `./bin/deploy`, not from CI. |
 | `app/assets/` | About 295 MB of font files (`.ttf`, `.ufm`) and one image. Nothing in this repository references it. |
 | `test.md` | QA notes for a Tamarind search refactor. |
 
-Clean these up as the real deployment and CI for Mody Cloud get defined.
+Clean these up as they get in the way. The previous project's GitHub workflows were removed on 2026-11-17: there is no CI on GitHub (its runners are on Azure, rule 1), and production is deployed with `./bin/deploy` ([architecture.md](architecture.md#deploying)).

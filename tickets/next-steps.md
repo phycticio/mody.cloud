@@ -2,10 +2,11 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-17, every Mody plugin an independent plugin (built, not merged).
+**Last updated:** 2026-11-17, independent Mody plugins deployed; deploys through pull requests (in review).
 
 ## Now
-- **[Every Mody plugin is an independent plugin](independent-mody-plugins.md)** (decided by the maintainer on 2026-11-16 and 2026-11-17): **built on 2026-11-17** on `feature/independent-mody-plugins`, not merged or deployed. `mody-platform` is gone: 22 new plugins, one thing each, all MU plugins. Waiting on the maintainer's review, then the merge and a deploy (check `./bin/deploy --dry-run` first).
+- **[Deploys through pull requests](deploy-through-pull-requests.md)** ([#11](https://github.com/phycticio/mody.cloud/issues/11), decided by the maintainer on 2026-11-17): every change reaches `main` through a pull request merged on GitHub, and `./bin/deploy` builds the merged `origin/main` in its own checkout before syncing it. Built the same day, in review as the first pull request of the new flow.
+- **[Every Mody plugin is an independent plugin](independent-mody-plugins.md)** (decided by the maintainer on 2026-11-16 and 2026-11-17): built, merged and **deployed on 2026-11-17** (`6db8aaf`). `mody-platform` is gone: 22 new plugins, one thing each, all MU plugins. Waiting on a look at the editors and the dashboard in production.
 
 ## Waiting on the maintainer
 - **Invite friends and the Offers page** ([invites-and-offers.md](invites-and-offers.md), built 2026-11-14, not deployed): every member's Dashboard has Invite friends (a personal link; a point when the friend first pays, worth nothing yet), and Network Admin → Mody → Offers sets the launch offer (everyone or invited people only, places, months, start) and invites. To give the first places to the maintainer's clients: deploy, set the offer to invited people only, and send them the link from his Dashboard.

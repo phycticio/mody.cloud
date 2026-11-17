@@ -7,7 +7,7 @@ The platform is launch-ready for 100 founding members: member sites reachable in
 
 ## Already done
 - **Production compose** (2026-11-04): the server runs `compose.yml` with `compose.prod.yml` from the sample. Only nginx's HTTP port is published; Xdebug and MariaDB publish nothing; Mailpit never starts (architecture.md, Host). There is no agent service any more: the AI runs in PHP since 2026-11-04.
-- **Deploys** (2026-11-04): `./bin/deploy --env=prod`, with checks, from pushed commits on `main` only.
+- **Deploys** (2026-11-04): `./bin/deploy --env=prod`, with checks, from pushed commits on `main` only; since 2026-11-17 from pull requests merged on GitHub, built in their own checkout ([deploy-through-pull-requests.md](deploy-through-pull-requests.md)).
 - **No updates from wp-admin** (2026-11-08): [updates-through-composer-only.md](updates-through-composer-only.md).
 
 ## Deliverables
