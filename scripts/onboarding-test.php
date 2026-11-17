@@ -26,8 +26,8 @@
 
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
-use Mody\Platform\Onboarding\EditorTour;
-use Mody\Platform\Onboarding\Onboarding;
+use Mody\Onboarding\EditorTour;
+use Mody\Onboarding\Onboarding;
 use Mody\Platform\SiteEditor;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';

@@ -3,13 +3,11 @@
  * A new member's first steps: their first password opens their site's
  * Identity screen, and the editor tour runs there (ticket M1-03).
  *
- * @package Mody\Platform
+ * @package Mody\Onboarding
  */
 
-namespace Mody\Platform\Onboarding;
+namespace Mody\Onboarding;
 
-use Mody\Platform\Members\Registration;
-use Mody\Platform\SiteEditor;
 use WP_REST_Response;
 use WP_User;
 
@@ -152,10 +150,17 @@ final class Onboarding {
 	public static function first_url( int $user_id ): string {
 		$site_id = self::first_site( $user_id );
 		if ( ! $site_id ) {
-			return Registration::dashboard_url();
+			/**
+			 * Filters where a member with no site goes after their first
+			 * password: the plugin that makes sites offers to try again there.
+			 *
+			 * @param string $url     wp-admin, by default.
+			 * @param int    $user_id The member.
+			 */
+			return (string) apply_filters( 'mody_onboarding_no_site_url', admin_url(), $user_id );
 		}
 		switch_to_blog( $site_id );
-		$url = SiteEditor::url( '/identity' );
+		$url = self::identity_url();
 		restore_current_blog();
 		return $url;
 	}
@@ -176,5 +181,13 @@ final class Onboarding {
 			}
 		}
 		return $sites ? min( $sites ) : 0;
+	}
+
+	/**
+	 * The Site Editor's Identity screen on the current site (WordPress 7.1
+	 * routes the Site Editor with `?p=<path>`).
+	 */
+	public static function identity_url(): string {
+		return add_query_arg( 'p', rawurlencode( '/identity' ), admin_url( 'site-editor.php' ) );
 	}
 }

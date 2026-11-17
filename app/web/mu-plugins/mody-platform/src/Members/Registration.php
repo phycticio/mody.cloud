@@ -13,7 +13,7 @@ use Mody\Platform\Agent\ChatController;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Onboarding\Onboarding;
+use Mody\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Security\Altcha;
 use Mody\Security\RateLimit;
@@ -615,7 +615,9 @@ final class Registration {
 			$fields = (array) ( $job_id->get_error_data()['fields'] ?? array() );
 			return $fields ? new WP_Error( 'mody_invalid_input', reset( $fields ), array( 'fields' => $fields ) ) : $failed;
 		}
-		update_user_meta( $user_id, Onboarding::META, Onboarding::STAGE_PASSWORD );
+		if ( class_exists( Onboarding::class ) ) { // Mody Onboarding: the first password opens the tour.
+			update_user_meta( $user_id, Onboarding::META, Onboarding::STAGE_PASSWORD );
+		}
 
 		// No model call, so this takes seconds. A failed step keeps the account: the
 		// member's first login opens the dashboard, where the wizard offers Try again.
@@ -805,7 +807,9 @@ final class Registration {
 		if ( is_wp_error( $job_id ) ) {
 			return 0;
 		}
-		update_user_meta( $user_id, Onboarding::META, Onboarding::STAGE_PASSWORD );
+		if ( class_exists( Onboarding::class ) ) { // Mody Onboarding: the first password opens the tour.
+			update_user_meta( $user_id, Onboarding::META, Onboarding::STAGE_PASSWORD );
+		}
 		$job     = Pipeline::run( $job_id );
 		$site_id = is_array( $job ) ? (int) $job['site_id'] : 0;
 		$url     = $site_id ? get_home_url( $site_id, '/' ) : 'https://' . Pipeline::domain( $slug ) . '/';

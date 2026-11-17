@@ -77,13 +77,11 @@ add_action( 'template_redirect', array( Members\Registration::class, 'handle_pay
 add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirect' ), 10, 3 );
 
 /*
- * Onboarding (M1-03): the first password logs the member in on their site's
- * Identity screen, where the editor tour shows the agent, then the editor.
+ * Onboarding (Mody Onboarding, M1-03): where a member without a site goes
+ * after their first password, and when their free months end, for the tour.
  */
-add_action( 'init', array( Onboarding\Onboarding::class, 'register_meta' ) );
-add_action( 'after_password_reset', array( Onboarding\Onboarding::class, 'after_password_reset' ) );
-add_action( 'enqueue_block_editor_assets', array( Onboarding\EditorTour::class, 'enqueue' ), 20 ); // After the chat bubble.
-add_filter( 'rest_prepare_user', array( Onboarding\Onboarding::class, 'hide_stage' ), 10, 3 ); // The tour's stage is nobody else's business (security pass).
+add_filter( 'mody_onboarding_no_site_url', array( Members\Registration::class, 'dashboard_url' ) );
+add_filter( 'mody_onboarding_free_until', static fn( $ends, $user_id ) => Members\Members::free_until( (int) $user_id ), 10, 2 );
 
 /*
  * Agent settings (Network Admin > Settings > Mody Agent): event retention.

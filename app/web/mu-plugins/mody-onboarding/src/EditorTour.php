@@ -3,13 +3,11 @@
  * The editor tour: the Mody agent first, then the Site Editor's parts
  * (ticket M1-03).
  *
- * @package Mody\Platform
+ * @package Mody\Onboarding
  */
 
-namespace Mody\Platform\Onboarding;
+namespace Mody\Onboarding;
 
-use Mody\Platform\Members\Members;
-use Mody\Platform\SiteEditor;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -47,8 +45,8 @@ final class EditorTour {
 			return;
 		}
 
-		$root    = dirname( __DIR__, 2 );
-		$url     = static fn( string $file ): string => plugins_url( 'assets/' . $file, $root . '/mody-platform.php' );
+		$root    = dirname( __DIR__ );
+		$url     = static fn( string $file ): string => plugins_url( 'assets/' . $file, $root . '/mody-onboarding.php' );
 		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 		$agent   = wp_script_is( 'mody-agent-chat', 'enqueued' );
 		$deps    = array( 'wp-data', 'wp-api-fetch', 'wp-preferences' );
@@ -73,14 +71,21 @@ final class EditorTour {
 		$user  = get_userdata( $user_id );
 		$name  = $user ? $user->display_name : '';
 		$site  = get_bloginfo( 'name' );
-		$ends  = Members::free_until( $user_id );
+		/**
+		 * Filters when the member's free months end, as a timestamp; 0 when
+		 * they have none (the plugin that keeps the plans knows).
+		 *
+		 * @param int $ends    0 by default.
+		 * @param int $user_id The member.
+		 */
+		$ends  = (int) apply_filters( 'mody_onboarding_free_until', 0, $user_id );
 		$steps = self::steps( $site, $agent );
 
 		return array(
 			'pending'  => $pending,
 			'meta'     => Onboarding::META,
 			'done'     => Onboarding::STAGE_DONE,
-			'identity' => SiteEditor::url( '/identity' ),
+			'identity' => Onboarding::identity_url(),
 			'steps'    => $steps,
 			'name'     => $name,
 			'site'     => $site,

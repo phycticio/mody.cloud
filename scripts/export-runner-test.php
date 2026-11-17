@@ -917,7 +917,7 @@ $parts = array( 'DatabaseDump', 'Archives', 'Notices' );
 $have  = array_filter(
 	$parts,
 	static function ( string $part ): bool {
-		return is_readable( dirname( __DIR__ ) . '/app/web/mu-plugins/mody-platform/src/Export/' . $part . '.php' ) || is_readable( WPMU_PLUGIN_DIR . '/mody-platform/src/Export/' . $part . '.php' );
+		return is_readable( dirname( __DIR__ ) . '/app/web/mu-plugins/mody-export/src/' . $part . '.php' ) || is_readable( WPMU_PLUGIN_DIR . '/mody-export/src/' . $part . '.php' );
 	}
 );
 if ( getenv( 'EXPORT_TEST_SKIP_BUILD' ) ) {

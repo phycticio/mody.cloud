@@ -26,7 +26,7 @@ use Mody\Analytics\Collector;
 use Mody\Analytics\Store;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
-use Mody\Platform\Onboarding\Onboarding;
+use Mody\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Security\Altcha;
 use Mody\Security\ClientAddress;
@@ -253,7 +253,7 @@ foreach ( $out['cookies'] as $name => $value ) {
 $nonce_out = $http( 'GET', $home . 'wp-admin/admin-ajax.php?action=rest-nonce', $cookies );
 $me        = $http( 'GET', $home . 'wp-json/wp/v2/users/me', $cookies, null, array( 'X-WP-Nonce' => trim( $nonce_out['body'] ) ) );
 $check( '... another request accepts the cookie and the nonce made for it', 200 === $nonce_out['code'] && 200 === $me['code'] && $uid_a === (int) ( $me['json']['id'] ?? 0 ), $nonce_out['code'] . ' ' . $me['code'] );
-$downloads = (string) preg_replace( '#^\s*(/\*|\*|//).*$#m', '', (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/src/Export/Downloads.php' ) ); // Code only, no comments.
+$downloads = (string) preg_replace( '#^\s*(/\*|\*|//).*$#m', '', (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-export/src/Downloads.php' ) ); // Code only, no comments.
 $check( 'the export links sign with their own key, not with wp_salt() or wp_hash()', '' !== $downloads && ! str_contains( $downloads, 'wp_salt(' ) && ! str_contains( $downloads, 'wp_hash(' ) && str_contains( $downloads, 'KEY_OPTION' ) );
 
 // 2. ALTCHA: once, atomically; its tag only on the main site ------------------------------

@@ -43,7 +43,7 @@
 
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
-use Mody\Platform\Onboarding\Onboarding;
+use Mody\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Security\Altcha;
