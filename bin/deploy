@@ -1,47 +1,60 @@
 #!/usr/bin/env bash
 
-# Deploy the project to production or stage over SSH with rsync.
+# Deploy a commit merged into main to production (or stage) over SSH with rsync.
 #
 # Usage:
-#   ./bin/deploy --env=prod             preview, confirm, deploy
+#   ./bin/deploy --env=prod             build origin/main, preview, confirm, deploy
 #   ./bin/deploy --env=prod --dry-run   build and preview only, the server is not changed
 #   ./bin/deploy --env=prod --yes       skip the confirmation prompt
+#   ./bin/deploy --env=prod --ref=SHA   deploy an earlier commit of main (a rollback)
+#
+# Changes reach main only through pull requests merged on GitHub
+# (tickets/deploy-through-pull-requests.md, 2026-11-17). This script deploys
+# what GitHub merged, never the working copy: the branch you are on and
+# uncommitted work do not matter.
 #
 # Steps:
-#   1. Local checks. The working tree must be clean, because only committed code
-#      is deployed. Production deploys run from main, pushed to its upstream.
+#   1. Fetch origin/main. The commit to deploy is origin/main, or --ref, which
+#      must be part of origin/main for prod.
 #   2. Server checks over SSH. Key authentication and a known host key are
 #      required, and there are no prompts. The target directory must hold a
 #      Mody Cloud stack (compose.yml and .env, HOST_NAME=mody.cloud for prod).
-#      Its app/composer.json and app/composer.lock must match the repository,
-#      so a hand edit on the server is never overwritten silently.
-#   3. Build with ./bin/build <env>: no dev requirements, frozen lockfile.
-#   4. Preview the files to update and delete, then confirm by typing the
+#   3. Build the release in its own checkout, ~/.cache/mody.cloud/release (a
+#      git worktree at that commit, cleaned on every run except node_modules): pnpm with the frozen
+#      lockfile, then Composer without dev requirements in a one-off container
+#      of the app image (same PHP as production). The local stack and the
+#      working copy are never touched. Copied in from the working copy because
+#      git does not hold them: WordPress core (app/wp, installed by
+#      ./bin/version), the visitor-location file (./bin/geoip) and
+#      app/auth.json (used by Composer, never sent).
+#   4. Check the release: the build changed no tracked file, the server's
+#      composer files are the deployed commit's, nothing installed on the server
+#      outside Composer would be deleted.
+#   5. Preview the files to update and delete, then confirm by typing the
 #      environment name.
-#   5. Sync an allowlist (app/, bin/, config/, the tracked compose files,
-#      wp-cli.yml), then write REVISION (the commit and the time) on the server.
-#   6. Restore the local dev Composer requirements.
+#   6. Sync an allowlist from the release (app/, bin/, config/, the tracked
+#      compose files, wp-cli.yml), then write REVISION (the commit, WordPress's
+#      version and the time) on the server.
 #
 # Server-owned, never sent and never deleted: .env and .env.*, compose.prod.yml,
 # compose.stage.yml, app/auth.json, uploads, logs, dumps, caches and
-# config/ssl. Everything outside the allowlist stays local: documentation,
-# tickets, node_modules, backups, .git and so on.
+# config/ssl. Everything outside the allowlist is never sent: documentation,
+# tickets, node_modules, .git and so on.
 #
-# Core dumps (app/core, app/core.<pid>) are never sent either: .gitignore hides
-# them from the clean-tree check above, so the sync has to refuse them itself.
-# The script warns when the server has one (it holds the container's whole
-# environment); delete it there by hand.
+# Core dumps (app/core, app/core.<pid>) are never sent either. The script warns
+# when the server has one (it holds the container's whole environment); delete
+# it there by hand.
 #
 # Containers are not restarted. When config/ or a compose file changes, the
 # script prints the command to apply it on the server.
 #
-# Targets: prod is home.local:/Users/javo/web/sites/mody.cloud, the server
-# user's ~/web/sites/mody.cloud (until 2026-11-09 it was on a USB disk,
-# /Volumes/Toshiba/mody.cloud). Override it with DEPLOY_PROD_HOST and
-# DEPLOY_PROD_DIR. Stage has no server yet: set DEPLOY_STAGE_HOST and
-# DEPLOY_STAGE_DIR. Hosts are SSH aliases from ~/.ssh/config. Directories are
-# absolute paths: the script quotes them in remote commands, so ~ would not
-# expand.
+# Targets: prod is home.local:/Volumes/Extreme/mody.cloud (since 2026-11-10).
+# Override it with DEPLOY_PROD_HOST and DEPLOY_PROD_DIR. Stage has no server
+# yet: set DEPLOY_STAGE_HOST and DEPLOY_STAGE_DIR. Hosts are SSH aliases from
+# ~/.ssh/config. Directories are absolute paths: the script quotes them in
+# remote commands, so ~ would not expand. DEPLOY_RELEASE_DIR moves the
+# release checkout (default: ~/.cache/mody.cloud/release, outside the
+# repository; Composer's cache is ~/.cache/mody.cloud/composer).
 #
 # See documentation/architecture.md#production.
 
@@ -50,9 +63,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-USAGE="Usage: ./bin/deploy --env=prod|stage [--dry-run] [--yes]"
+USAGE="Usage: ./bin/deploy --env=prod|stage [--ref=COMMIT] [--dry-run] [--yes]"
 
-log() { ./bin/log "$1" "$2"; }
+log() { "${ROOT_DIR}/bin/log" "$1" "$2"; }
 die() {
   log "ERROR" "$1"
   exit 1
@@ -60,11 +73,13 @@ die() {
 
 # --- Arguments ---------------------------------------------------------------
 ENV=""
+REF="origin/main"
 DRY_RUN=false
 ASSUME_YES=false
 for ARG in "$@"; do
   case "$ARG" in
     --env=*) ENV="${ARG#--env=}" ;;
+    --ref=*) REF="${ARG#--ref=}" ;;
     --dry-run) DRY_RUN=true ;;
     --yes) ASSUME_YES=true ;;
     -h | --help)
@@ -80,7 +95,7 @@ EXPECTED_HOST_NAME=""
 case "$ENV" in
   prod)
     SSH_HOST="${DEPLOY_PROD_HOST:-home.local}"
-    REMOTE_DIR="${DEPLOY_PROD_DIR:-/Users/javo/web/sites/mody.cloud}"
+    REMOTE_DIR="${DEPLOY_PROD_DIR:-/Volumes/Extreme/mody.cloud}"
     EXPECTED_HOST_NAME="mody.cloud"
     ;;
   stage)
@@ -99,6 +114,16 @@ esac
 [[ "$REMOTE_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "Invalid remote directory: ${REMOTE_DIR}"
 case "/${REMOTE_DIR}/" in
   */./* | */../*) die "The remote directory must not contain . or .. segments: ${REMOTE_DIR}" ;;
+esac
+
+CACHE_DIR="${HOME}/.cache/mody.cloud"
+RELEASE_DIR="${DEPLOY_RELEASE_DIR:-${CACHE_DIR}/release}"
+case "$RELEASE_DIR" in
+  /*) ;;
+  *) die "DEPLOY_RELEASE_DIR must be an absolute path: ${RELEASE_DIR}" ;;
+esac
+case "${RELEASE_DIR}/" in
+  "${ROOT_DIR}/"*) die "The release checkout must be outside the repository (ESLint and others read their parents' config): ${RELEASE_DIR}" ;;
 esac
 
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
@@ -121,26 +146,22 @@ remote_env_value() {
   printf '%s' "${LINE//\'/}"
 }
 
-# --- 1. Local checks ---------------------------------------------------------
+# --- 1. The commit -----------------------------------------------------------
 for CMD in git rsync ssh pnpm docker; do
   command -v "$CMD" >/dev/null 2>&1 || die "Required command not found: ${CMD}"
 done
-
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not a git repository: ${ROOT_DIR}"
-if [ -n "$(git status --porcelain)" ]; then
-  git status --short
-  die "The working tree has uncommitted or untracked changes. Only committed code is deployed: commit or stash them first."
-fi
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+[ "$NODE_MAJOR" -ge 22 ] || die "The build needs Node 22 (.nvmrc), found $(node -v 2>/dev/null || echo none). Run nvm use, then deploy again."
 
-COMMIT="$(git rev-parse HEAD)"
-BRANCH="$(git rev-parse --abbrev-ref HEAD | tr -cd 'A-Za-z0-9._/-')"
+log "INFO" "Fetching origin/main..."
+git fetch --quiet origin main || die "Cannot fetch origin/main."
+COMMIT="$(git rev-parse --verify --quiet "${REF}^{commit}")" || die "Unknown commit: ${REF}"
 if [ "$ENV" = "prod" ]; then
-  [ "$BRANCH" = "main" ] || die "Production deploys run from main (current branch: ${BRANCH})."
-  git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 \
-    || die "main has no upstream branch. Push it first."
-  AHEAD="$(git rev-list --count '@{u}..HEAD')"
-  [ "$AHEAD" = "0" ] || die "main has ${AHEAD} unpushed commit(s). Push first, so production matches the shared history."
+  git merge-base --is-ancestor "$COMMIT" origin/main \
+    || die "${REF} (${COMMIT:0:12}) is not part of origin/main. Production deploys only what was merged on GitHub: open a pull request, merge it, then deploy."
 fi
+SUBJECT="$(git log -1 --format=%s "$COMMIT")"
 
 # --- 2. Server checks --------------------------------------------------------
 log "INFO" "Checking ${SSH_HOST}:${REMOTE_DIR}..."
@@ -162,58 +183,84 @@ esac
 
 # A core dump in the web root holds the container's environment (database
 # passwords, API keys). Nginx refuses to serve one and compose.yml stops new
-# ones, but an old one is worth knowing about. The sync below never sends or
-# deletes it (the exclude in FILTER protects it), so a warning is all this can do.
+# ones, but an old one is worth knowing about. The sync never sends or deletes
+# it (the exclude in FILTER protects it), so a warning is all this can do.
 # find, not a glob: the remote login shell may be zsh, which aborts a command whose glob matches nothing.
 STRAY_CORE="$(remote "find '${REMOTE_DIR}/app' -maxdepth 1 \\( -name core -o -name 'core.*' \\) 2>/dev/null" || true)"
 if [ -n "$STRAY_CORE" ]; then
   log "WARNING" "The server has core dump file(s) in the web root: $(printf '%s' "$STRAY_CORE" | tr '\n' ' '). They hold the container's environment (passwords, API keys): delete them on the server, and rotate those secrets if the file was ever reachable from the internet."
 fi
 
-# The composer files on the server must be the ones from the last deployed
-# commit (REVISION). If they are, a difference from HEAD is a change made in
-# the repository, and deploying it is the point. If they match neither, they
-# were edited on the server, and the sync would remove what that edit added.
 DEPLOYED_COMMIT="$(remote "sed -n 's/^commit=//p' '${REMOTE_DIR}/REVISION' 2>/dev/null" || true)"
 [[ "$DEPLOYED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || DEPLOYED_COMMIT=""
+git cat-file -e "${DEPLOYED_COMMIT}^{commit}" 2>/dev/null || DEPLOYED_COMMIT=""
+
+# --- 3. Build the release ----------------------------------------------------
+# What git does not hold, copied in from the working copy.
+WP_VERSION="$(sed -n "s/^\$wp_version = '\([^']*\)';/\1/p" app/wp/wp-includes/version.php 2>/dev/null || true)"
+[ -n "$WP_VERSION" ] || die "No WordPress core in app/wp. Install it with ./bin/version <version> first."
+GEOIP_FILE="app/data/geoip/dbip-city-lite.mmdb"
+if [ ! -f "$GEOIP_FILE" ]; then
+  die "No ${GEOIP_FILE}: the sync would remove the server's copy and visitor locations would be Unknown. Run ./bin/geoip first."
+elif [ -n "$(find "$GEOIP_FILE" -mtime +45 2>/dev/null)" ]; then
+  log "WARNING" "${GEOIP_FILE} is more than 45 days old. Run ./bin/geoip for this month's file."
+fi
+
+[ -f .env ] || die "No .env: it names the app container whose image builds the release."
+CONTAINER_PREFIX="$(sed -n 's/^CONTAINER_PREFIX=//p' .env | tail -n 1 | tr -d "\"'")"
+APP_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${CONTAINER_PREFIX}app" 2>/dev/null)" \
+  || die "No ${CONTAINER_PREFIX}app container: start the local stack once (docker compose up -d), its image builds the release."
+
+log "INFO" "Preparing the release checkout ${RELEASE_DIR} at ${COMMIT:0:12}..."
+if [ "$(git -C "$RELEASE_DIR" rev-parse --show-toplevel 2>/dev/null || true)" = "$RELEASE_DIR" ]; then
+  git -C "$RELEASE_DIR" checkout --quiet --force --detach "$COMMIT"
+  git -C "$RELEASE_DIR" clean -ffdxq -e node_modules/
+else
+  [ ! -e "$RELEASE_DIR" ] || die "${RELEASE_DIR} exists and is not a release checkout. Remove it, then deploy again."
+  git worktree prune
+  git worktree add --quiet --detach "$RELEASE_DIR" "$COMMIT"
+fi
+
+rsync -a app/wp/ "${RELEASE_DIR}/app/wp/"
+mkdir -p "${RELEASE_DIR}/app/data/geoip"
+cp -p "$GEOIP_FILE" "${RELEASE_DIR}/${GEOIP_FILE}"
+[ ! -f app/auth.json ] || cp -p app/auth.json "${RELEASE_DIR}/app/auth.json"
+
+log "INFO" "Building JS and CSS (pnpm, frozen lockfile)..."
+(cd "$RELEASE_DIR" && pnpm install --frozen-lockfile && pnpm build)
+
+log "INFO" "Installing Composer dependencies without dev requirements (${APP_IMAGE})..."
+mkdir -p "${CACHE_DIR}/composer"
+docker run --rm \
+  -v "${RELEASE_DIR}/app:/var/www/html" \
+  -v "${CACHE_DIR}/composer:/tmp/composer-cache" \
+  -e COMPOSER_CACHE_DIR=/tmp/composer-cache \
+  -e COMPOSER_ALLOW_SUPERUSER=1 \
+  -w /var/www/html \
+  --entrypoint /usr/local/bin/composer \
+  "$APP_IMAGE" install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# --- 4. Check the release ----------------------------------------------------
+if [ -n "$(git -C "$RELEASE_DIR" status --porcelain --untracked-files=no)" ]; then
+  git -C "$RELEASE_DIR" status --short --untracked-files=no
+  die "The build changed tracked files (for example the lockfile). Fix it in a pull request, then deploy again."
+fi
+
+# The composer files on the server must be the ones from the last deployed
+# commit (REVISION). If they are, a difference from the release is a change
+# made in the repository, and deploying it is the point. If they match
+# neither, they were edited on the server, and the sync would remove what that
+# edit added.
 for FILE in app/composer.json app/composer.lock; do
   REMOTE_HASH="$(remote_file_hash "$FILE")"
   [ -n "$REMOTE_HASH" ] || continue
-  [ "$REMOTE_HASH" != "$(file_hash "$FILE")" ] || continue
+  [ "$REMOTE_HASH" != "$(file_hash "${RELEASE_DIR}/${FILE}")" ] || continue
   if [ -n "$DEPLOYED_COMMIT" ] && git cat-file -e "${DEPLOYED_COMMIT}:${FILE}" 2>/dev/null \
     && [ "$REMOTE_HASH" = "$(git show "${DEPLOYED_COMMIT}:${FILE}" | stdin_hash)" ]; then
     continue
   fi
   die "${FILE} on the server matches neither this commit nor the last deployed one (${DEPLOYED_COMMIT:0:12}${DEPLOYED_COMMIT:+, from REVISION}${DEPLOYED_COMMIT:-no REVISION}), so it was changed on the server. Deploying would replace it and remove the packages it added. Bring the change into the repository, or restore the deployed version on the server, then deploy again."
 done
-
-# --- 3. Build ----------------------------------------------------------------
-RESTORE_DEV=false
-restore_dev() {
-  if [ "$RESTORE_DEV" = true ]; then
-    log "INFO" "Restoring the local dev Composer requirements..."
-    ./bin/composer install --optimize-autoloader >/dev/null 2>&1 \
-      || log "WARNING" "Could not restore them. Run ./bin/composer install."
-  fi
-}
-trap restore_dev EXIT
-
-# Visitor locations (tickets/visitor-location.md): the DB-IP file travels with app/, and the sync deletes the
-# server's copy when this machine has none. Not a stop: without it, places are only "Unknown".
-GEOIP_FILE="app/data/geoip/dbip-city-lite.mmdb"
-if [ ! -f "$GEOIP_FILE" ]; then
-  log "WARNING" "No ${GEOIP_FILE}: visitor locations will be Unknown on the server (the sync removes its copy). Run ./bin/geoip first."
-elif [ -n "$(find "$GEOIP_FILE" -mtime +45 2>/dev/null)" ]; then
-  log "WARNING" "${GEOIP_FILE} is more than 45 days old. Run ./bin/geoip for this month's file."
-fi
-
-RESTORE_DEV=true
-./bin/build "$ENV"
-
-if [ -n "$(git status --porcelain)" ]; then
-  git status --short
-  die "The build changed files in the working tree (for example the lockfile). Commit the result and deploy again."
-fi
 
 # Code installed on the server outside Composer (for example from wp-admin)
 # is not in the build, so the sync would delete it. Refuse instead. A folder
@@ -228,7 +275,7 @@ for DIR in app/web/plugins app/web/mu-plugins app/web/themes; do
   EXTRA=""
   while IFS= read -r ENTRY; do
     case "$ENTRY" in '' | .*) continue ;; esac
-    [ -e "${DIR}/${ENTRY}" ] && continue
+    [ -e "${RELEASE_DIR}/${DIR}/${ENTRY}" ] && continue
     ENTRY_RE="$(printf '%s' "$ENTRY" | sed 's/[][\.*^$()+?{}|]/\\&/g')"
     if grep -Eq "\"name\": \"[^\"]+/${ENTRY_RE}\"" <<< "$REMOTE_LOCK"; then
       log "INFO" "${DIR}/${ENTRY} on the server was installed by Composer and is no longer in the build: the sync removes it."
@@ -245,7 +292,7 @@ for DIR in app/web/plugins app/web/mu-plugins app/web/themes; do
   fi
 done
 
-# --- 4. Preview --------------------------------------------------------------
+# --- 5. Preview --------------------------------------------------------------
 FILTER=(
   # Server-owned: never sent, and protected from --delete.
   --exclude='.env'
@@ -266,11 +313,11 @@ FILTER=(
   --exclude='.user.ini'
   --exclude='/config/ssl/'
   # Core dumps: a crashed process in the container writes one into the web root
-  # (they hold the container's environment). .gitignore keeps them out of git
-  # status, which is the check that used to stop them, so exclude them here.
+  # (they hold the container's environment). Never sent, never deleted.
   --exclude='/app/core'
   --exclude='/app/core.*'
   # Never shipped from anywhere in the tree.
+  --exclude='.git'
   --exclude='.git/'
   --exclude='.DS_Store'
   --exclude='node_modules/'
@@ -289,14 +336,16 @@ FILTER=(
   # Everything else at the top level stays local.
   --exclude='/*'
 )
-RSYNC_OPTS=(-az --delete --delete-after -e "ssh ${SSH_OPTS[*]}")
+# --checksum: the release is a fresh checkout, so every tracked file has a new
+# modification time; comparing contents keeps the preview to real changes.
+RSYNC_OPTS=(-az --checksum --delete --delete-after -e "ssh ${SSH_OPTS[*]}")
 DESTINATION="${SSH_HOST}:${REMOTE_DIR}/"
 
 log "INFO" "Computing changes..."
-PREVIEW="$(rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" --dry-run -v ./ "$DESTINATION")"
+PREVIEW="$(rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" --dry-run -v "${RELEASE_DIR}/" "$DESTINATION")"
 # GNU rsync and a local openrsync print "deleting <path>"; openrsync with a
-# remote receiver prints "<path>: deleting". Normalize to the first form.
-DELETIONS="$(printf '%s\n' "$PREVIEW" | sed -n -e 's/^deleting //p' -e 's/: deleting$//p')"
+# remote receiver prints "<path>: deleting". Normalize to the first form, once.
+DELETIONS="$(printf '%s\n' "$PREVIEW" | sed -n -e 's/^deleting //p' -e 's/: deleting$//p' | sed 's|^\./||' | sort -u)"
 UPDATES="$(printf '%s\n' "$PREVIEW" \
   | grep -v -E '^(deleting |Transfer starting|sending incremental|building file list|sent |total size|created directory|$)' \
   | grep -v -E '(: deleting|/)$' || true)"
@@ -304,7 +353,20 @@ N_DELETE="$(printf '%s' "$DELETIONS" | grep -c . || true)"
 N_UPDATE="$(printf '%s' "$UPDATES" | grep -c . || true)"
 
 echo ""
-log "INFO" "Target ${ENV}: ${DESTINATION} (HOST_NAME=${REMOTE_HOST_NAME}), commit ${COMMIT:0:12} on ${BRANCH}"
+log "INFO" "Target ${ENV}: ${DESTINATION} (HOST_NAME=${REMOTE_HOST_NAME})"
+echo "  Commit:     ${COMMIT:0:12} ${SUBJECT}"
+echo "  WordPress:  ${WP_VERSION}"
+if [ -n "$DEPLOYED_COMMIT" ]; then
+  echo "  Deployed:   ${DEPLOYED_COMMIT:0:12}"
+  if [ "$DEPLOYED_COMMIT" != "$COMMIT" ]; then
+    if git merge-base --is-ancestor "$DEPLOYED_COMMIT" "$COMMIT"; then
+      echo "  Merged since then:"
+      git log --first-parent --format='    %h %s' "${DEPLOYED_COMMIT}..${COMMIT}" | sed -n '1,30p'
+    else
+      log "WARNING" "${COMMIT:0:12} does not contain the deployed commit: this deploy goes back in history (a rollback)."
+    fi
+  fi
+fi
 echo "  Files to add or update: ${N_UPDATE}"
 echo "  Paths to delete:        ${N_DELETE}"
 if [ "$N_DELETE" -gt 0 ]; then
@@ -317,6 +379,10 @@ fi
 echo ""
 
 if [ "$DRY_RUN" = true ]; then
+  if [ "$N_DELETE" -gt 50 ]; then
+    echo "Paths to delete:"
+    printf '%s\n' "$DELETIONS" | sed 's/^/    /'
+  fi
   if [ "$N_UPDATE" -gt 0 ]; then
     echo "Files to add or update:"
     printf '%s\n' "$UPDATES" | sed 's/^/    /'
@@ -325,23 +391,23 @@ if [ "$DRY_RUN" = true ]; then
   exit 0
 fi
 
-# --- 5. Deploy ---------------------------------------------------------------
+# --- 6. Deploy ---------------------------------------------------------------
 if [ "$N_UPDATE" -gt 0 ] || [ "$N_DELETE" -gt 0 ]; then
   if [ "$ASSUME_YES" != true ]; then
     [ -t 0 ] || die "No terminal to confirm on. Re-run with --yes to deploy without a prompt."
-    printf 'Type "%s" to deploy to %s: ' "$ENV" "$SSH_HOST"
+    printf 'Type "%s" to deploy %s to %s: ' "$ENV" "${COMMIT:0:12}" "$SSH_HOST"
     read -r ANSWER
     [ "$ANSWER" = "$ENV" ] || die "Not confirmed. The server was not changed."
   fi
 
   log "INFO" "Syncing to ${DESTINATION}..."
-  rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" ./ "$DESTINATION"
+  rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" "${RELEASE_DIR}/" "$DESTINATION"
 else
   log "INFO" "No file changes: the server already matches this commit."
 fi
 
 DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-remote "printf 'commit=%s\nbranch=%s\ndeployed_at=%s\n' '${COMMIT}' '${BRANCH}' '${DEPLOYED_AT}' > '${REMOTE_DIR}/REVISION'"
+remote "printf 'commit=%s\nbranch=main\nwordpress=%s\ndeployed_at=%s\n' '${COMMIT}' '${WP_VERSION}' '${DEPLOYED_AT}' > '${REMOTE_DIR}/REVISION'"
 
 if printf '%s\n%s\n' "$UPDATES" "$DELETIONS" | grep -q -E '^(config/|compose\.)'; then
   log "WARNING" "config/ or a compose file changed. Apply it on the server (Nginx renders its templates only at start):"
