@@ -58,7 +58,7 @@ use Mody\Billing\Billing;
 use Mody\Billing\Lifecycle;
 use Mody\Billing\Mollie;
 use Mody\Billing\Payments;
-use Mody\Platform\Dashboard\DashboardPage;
+use Mody\Dashboard\DashboardPage;
 use Mody\Members\Invites;
 use Mody\Members\Members;
 use Mody\Members\Registration;

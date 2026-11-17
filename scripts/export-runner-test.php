@@ -412,13 +412,13 @@ $check( 'a refused link is never handed to Nginx', $refused( $p ) );
 echo "\nserve()\n";
 // PHP's built-in server, running WordPress's front controller on a free port, so serve() is
 // reached over real HTTP, without Nginx (PHP streams unless the router says Nginx has the
-// location). serve() is called from mody-platform.php, at MU plugin load, where the pluggable
+// location). serve() is called from mody-export.php, at MU plugin load, where the pluggable
 // functions (wp_salt(), wp_redirect()) are not loaded yet: this tests that wiring too.
 $wp_path = untrailingslashit( ABSPATH );
 $router  = $tmp . '/router.php';
 // The router can pretend to be what PHP-FPM behind Nginx would see: X-Test-Software sets SERVER_SOFTWARE and
 // X-Test-Accel sets MODY_EXPORT_ACCEL (what `fastcgi_param MODY_EXPORT_ACCEL 1;` in the Nginx template does). Both
-// are set before WordPress loads: serve() runs from mody-platform.php, at MU plugin load, which is the wiring tested here.
+// are set before WordPress loads: serve() runs from mody-export.php, at MU plugin load, which is the wiring tested here.
 file_put_contents(
 	$router,
 	str_replace(

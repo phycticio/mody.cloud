@@ -2,10 +2,10 @@
 /**
  * The site's look on the platform's own wp-admin pages.
  *
- * @package Mody\Platform
+ * @package Mody\Dashboard
  */
 
-namespace Mody\Platform;
+namespace Mody\Dashboard;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -31,7 +31,7 @@ final class Look {
 	 */
 	public static function enqueue_asset( string $handle, string $file, array $deps = array() ): void {
 		$root = dirname( __DIR__ );
-		wp_enqueue_style( $handle, plugins_url( 'assets/' . $file, $root . '/mody-platform.php' ), $deps, (string) filemtime( $root . '/assets/' . $file ) );
+		wp_enqueue_style( $handle, plugins_url( 'assets/' . $file, $root . '/mody-dashboard.php' ), $deps, (string) filemtime( $root . '/assets/' . $file ) );
 	}
 
 	/**

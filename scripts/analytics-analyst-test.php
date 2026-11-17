@@ -12,9 +12,9 @@
  */
 
 use Mody\Analytics\Store;
-use Mody\Platform\Dashboard\Analyst;
-use Mody\Platform\Dashboard\Board;
-use Mody\Platform\Dashboard\Usage;
+use Mody\Dashboard\Analyst;
+use Mody\Dashboard\Board;
+use Mody\Dashboard\Usage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

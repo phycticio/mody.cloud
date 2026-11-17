@@ -6,7 +6,7 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 
 | Item | Value |
 | --- | --- |
-| Integration | The **WordPress AI Client** that ships with core (WordPress 7.0+, `wp_ai_client_prompt()`), with an Infomaniak provider in the `mody-platform` MU plugin. This replaces the Python agent service the MVP spec first planned. No separate container, no internal secret, no relay. |
+| Integration | The **WordPress AI Client** that ships with core (WordPress 7.0+, `wp_ai_client_prompt()`), with an Infomaniak provider in the `mody-agent` MU plugin (`mody-platform` until 2026-11-17). This replaces the Python agent service the MVP spec first planned. No separate container, no internal secret, no relay. |
 | Provider | Infomaniak AI Services, OpenAI-compatible API. Execution in Switzerland. |
 | Model | `Qwen/Qwen3.8-27B-FP8` (default). Override with `INFOMANIAK_AI_MODEL`. |
 | Base URL | `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, from `INFOMANIAK_AI_BASE_URL`. |
@@ -63,7 +63,7 @@ Network Admin → Settings → Mody Agent   event retention (days)              
 - **JSON output.** Core sends the schema itself as `response_format.json_schema`. Infomaniak validates the OpenAI shape and rejects a request without `json_schema.name` (HTTP 400), so the model class wraps the schema as `{ "name": "response", "schema": … }`.
 - Everything else (messages, tools, parsing) is core's OpenAI-compatible implementation.
 
-**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". Mody's own calls need no approval: the experiment treats the plugin that provides a connector as infrastructure, and `mody-platform` provides `infomaniak` (checked in the plugin's `Caller_Identifier`, 2026-11-06). `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
+**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". Mody's own calls need no approval: the experiment treats the plugin that provides a connector as infrastructure, and `mody-platform` provides `infomaniak` (since 2026-11-17 `mody-agent` does, and Mody's other MU plugins are approved for it, `AI\ConnectorApprovals`) (checked in the plugin's `Caller_Identifier`, 2026-11-06). `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
 
 Local setup: put both variables in `.env`, then `docker compose up -d wordpress`. The container reads `env_file` only when it is created, and PHP-FPM passes the environment through (`clear_env = no`).
 
@@ -102,7 +102,7 @@ How a call runs:
 3. `SystemPrompt::for_page()` builds the system prompt: the output rules, the brand context and one few-shot example page. `SystemPrompt::brand_context()` is the shared brand part that every future prompt must reuse (the agent in M3, the `ai` plugin's features through `wpai_system_instruction`).
 4. The model is called on the `infomaniak` provider, with temperature 0.1, 4,000 output tokens at most, a 60-second timeout (the AI Client's default is 30) and thinking off.
 5. `BlockValidator::validate()` checks the trimmed answer. If it fails, the model gets the same request plus the reason it was rejected, up to **3 attempts in all** (the first plus 2 retries, mvp-spec §7). After the third failure the result is `mody_generation_failed`, with the last reason in the error data. Nothing is saved.
-6. An AI Client error (network, authentication, timeout) is returned at once, without a retry. Every failure is written to the PHP error log as `[mody-platform] generate_page site N attempt n/3: …`, without the prompt or the token. When the agent calls the ability, the call and its result are also recorded in `mody_agent_events` ([The agent](#the-agent)).
+6. An AI Client error (network, authentication, timeout) is returned at once, without a retry. Every failure is written to the PHP error log as `[mody-agent] generate_page site N attempt n/3: …`, without the prompt or the token. When the agent calls the ability, the call and its result are also recorded in `mody_agent_events` ([The agent](#the-agent)).
 
 The generated text follows the language of the member's prompt (mvp-spec decision 12): French and German prompts gave French and German pages.
 

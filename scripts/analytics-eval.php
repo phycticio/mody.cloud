@@ -17,8 +17,8 @@
  */
 
 use Mody\Analytics\Store;
-use Mody\Platform\Dashboard\Analyst;
-use Mody\Platform\Dashboard\Board;
+use Mody\Dashboard\Analyst;
+use Mody\Dashboard\Board;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";

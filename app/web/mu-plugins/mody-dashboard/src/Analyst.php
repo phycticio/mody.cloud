@@ -3,10 +3,10 @@
  * The analyst: Mody on the Visitors section, reading only the site's
  * analytics and changing only its board.
  *
- * @package Mody\Platform
+ * @package Mody\Dashboard
  */
 
-namespace Mody\Platform\Dashboard;
+namespace Mody\Dashboard;
 
 use Mody\Analytics\Query;
 use Mody\Agent\AgentEvents;
@@ -14,7 +14,6 @@ use Mody\Agent\Budget;
 use Mody\Agent\Slots;
 use Mody\Agent\TurnMetrics;
 use Mody\Brand\BrandSettings;
-use Mody\Platform\Look;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\DTO\ModelMessage;
@@ -411,7 +410,7 @@ final class Analyst {
 				->generate_text_result();
 			if ( is_wp_error( $result ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Never the prompt or the token.
-				error_log( sprintf( '[mody-platform] analyst site %d step %d: %s %s', get_current_blog_id(), $step, $result->get_error_code(), $result->get_error_message() ) );
+				error_log( sprintf( '[mody-dashboard] analyst site %d step %d: %s %s', get_current_blog_id(), $step, $result->get_error_code(), $result->get_error_message() ) );
 				return $this->fail( $result->get_error_code(), __( 'Mody is not available right now. Please try again in a moment.', 'mody_cloud' ) );
 			}
 			$answer = $result->toMessage();

@@ -43,7 +43,7 @@ final class Hardening {
 	private static array $running = array();
 
 	/**
-	 * Hooks everything this class does. Called once from mody-platform.php.
+	 * Hooks everything this class does. Called once from mody-agent.php.
 	 */
 	public static function register(): void {
 		add_filter( 'pre_http_request', array( self::class, 'guard_request' ), 1, 3 ); // First: a refused request is not faked or sent.

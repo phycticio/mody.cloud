@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
  * Part 4 of tickets/agent-knows-gutenberg-spectra-settings.md (2026-11-11).
  *
  * Every block family the writers may use has a card in
- * `mody-platform/reference/<family>.json`: its blocks, when to use it, a few
+ * `mody-agent/reference/<family>.json`: its blocks, when to use it, a few
  * rules, a checked example, and words (in the eight site languages) that
  * name it in a request. A writer's system prompt carries:
  *

@@ -62,21 +62,47 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 Decided by the maintainer on 2026-11-16 ([tickets/independent-mody-plugins.md](../tickets/independent-mody-plugins.md)). It replaces "platform logic lives in one MU plugin" (`mody-platform`) and the exceptions made to it one by one (`mody-mail`, `mody-languages`, `mody-analytics`, `mody-images`, `mody-seo`).
 
 - **One thing each.** A Mody plugin takes care of one single thing.
-- **Independent.** Each has its own folder (`app/web/mu-plugins/mody-<name>/`), loader (`mu-plugins/mody-<name>.php`), plugin header, namespace (`Mody\<Name>`), autoloader, assets and test. It runs with no other Mody plugin present. It reaches another only through hooks that one documents, or behind a `class_exists()` or `function_exists()` check with a fallback. A missing plugin means less is done, never a fatal error.
+- **Independent.** Each has its own folder (`app/web/mu-plugins/mody-<name>/`), loader (`mu-plugins/mody-<name>.php`), plugin header, namespace (`Mody\<Name>`), autoloader, assets and tests. It runs with no other Mody plugin present. It reaches another only through hooks that one documents, or behind a `class_exists()` or `function_exists()` check with a fallback. A missing plugin means less is done, never a fatal error.
 - **Every Mody plugin is a normal plugin; some are loaded as MU plugins** (decided 2026-11-17). Each is written as a normal plugin. Plugins for performance, for languages and global plugins (what must hold on every site, with no switch) are loaded as MU plugins (always on, nobody can switch them off). **Every Mody plugin that exists today is a MU plugin.** Where a future normal Mody plugin lives (`app/web/plugins/` is Composer-managed and not tracked) is an open question in the ticket.
 - **The plugin header** lets the same folder run as a normal plugin in a site downloaded with Take your site with you, as `mody-seo` does.
-- **Load order.** WordPress loads `mu-plugins/*.php` alphabetically. A plugin that needs another waits for `muplugins_loaded` instead of relying on the order. The Spectra guard must load before `spectra-blocks.php`.
+- **Load order.** WordPress loads `mu-plugins/*.php` alphabetically. A plugin that needs another checks for it from `plugins_loaded` (Mody Billing, the signup in Mody Members, the dashboard's board and analyst), never at load time. The Spectra guard must load before Spectra: `mody-spectra` sorts before `spectra-blocks`, as a MU plugin and as a normal one.
+- **How they talk.** Through hooks one plugin documents and another answers, such as `mody_dashboard_sections` and `mody_dashboard_section_<slug>` (Mody Dashboard), `mody_brand_context` (Mody Brand), `mody_agent_site_locked` (Mody Agent), `mody_site_limit`, `mody_can_create_site`, `mody_sites_payment_pending`, `mody_sites_on_launch_offer` and `mody_sites_plan_url` (Mody Sites), `mody_onboarding_no_site_url` and `mody_onboarding_free_until` (Mody Onboarding). Otherwise behind `class_exists()`. A plugin built on another (Mody Billing on Mody Members and Mody Sites, the analyst on Mody Agent) checks once, where it registers.
+- **REST routes** keep the namespace `mody-platform/v1` they always had, so no address changed.
+- **The `ai` plugin** names a MU plugin by its folder: Mody's own MU plugins (`mody-*`) are approved for the Infomaniak connector (Mody Agent's `ConnectorApprovals`; Mody Locks pins the same on member sites).
 
-| Plugin | One thing | State |
+Every Mody plugin, all loaded as MU plugins (since 2026-11-17 there is no `mody-platform`):
+
+| Plugin | One thing | A downloaded site carries it |
 | --- | --- | --- |
-| `mody-mail` | Outgoing mail | Independent |
-| `mody-languages` | Site languages | Independent |
-| `mody-analytics` | The visitor counter | Independent |
-| `mody-images` | Web-efficient uploads | Independent |
-| `mody-seo` | A page's search appearance | Independent |
-| `mody-platform` | Everything else: the agent, members, billing, the dashboard, sites, the brand, design, gating, security, login, domains, export | To be split into one plugin per thing (the ticket has the proposed list and order) |
+| `mody-admin-colors` | Ocean as every user's wp-admin scheme | Yes |
+| `mody-agent` | Mody: the model, the chat in the editors, its tools | No |
+| `mody-analytics` | The cookieless visitor counter | No |
+| `mody-antispam` | Antispam Bee without its outside checks | Yes |
+| `mody-billing` | Card payments through Mollie | No |
+| `mody-brand` | Mission, tone and Settings → Brand | No |
+| `mody-dashboard` | Every site's Dashboard, the analytics board and its analyst | No |
+| `mody-domains` | Custom domains | No |
+| `mody-export` | Take your site with you | No |
+| `mody-fonts` | The Font Library with the Mody fonts | No (Inter is baked into the theme) |
+| `mody-images` | Web-efficient uploads and how big a picture may be | Yes |
+| `mody-languages` | Site languages | Yes |
+| `mody-locks` | What members may not do | No |
+| `mody-login` | The login page in the site's brand | Yes |
+| `mody-mail` | Outgoing mail | No |
+| `mody-members` | Accounts, the signup chat, the launch offer, invites | No |
+| `mody-onboarding` | The first login and the editor tour | No |
+| `mody-palette` | Palette-only color pickers | Yes |
+| `mody-patterns` | The Mody pattern collection and placeholders | Yes |
+| `mody-profiles` | Profile pictures, initials, one network profile | Yes |
+| `mody-security` | ALTCHA, rate limits, secrets, hardening | No |
+| `mody-seo` | A page's search appearance | Yes |
+| `mody-sites` | The New site wizard, provisioning, the quota | No |
+| `mody-spectra` | Spectra without its outside connections | Yes |
+| `mody-storage` | 1 GB per site | No |
+| `mody-styles` | Writing a site's Global Styles | No |
+| `mody-updates` | No updates from wp-admin | No |
 
-New features go in a plugin of their own, never in `mody-platform`.
+A new feature gets a plugin of its own, or joins the plugin whose one thing it is.
 
 ## Target system
 

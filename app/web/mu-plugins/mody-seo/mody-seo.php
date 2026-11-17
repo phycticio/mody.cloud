@@ -27,7 +27,7 @@
  *
  * It names no other Mody plugin's class except, when present, Mody
  * Languages' Translations. Mody's agent changes the fields through
- * `mody/update-seo`, in mody-platform.
+ * `mody/update-seo`, in Mody Agent.
  *
  * @package Mody\Seo
  */

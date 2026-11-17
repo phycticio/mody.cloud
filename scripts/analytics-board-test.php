@@ -23,8 +23,8 @@
 use Mody\Analytics\Query;
 use Mody\Analytics\Stats;
 use Mody\Analytics\Store;
-use Mody\Platform\Dashboard\Board;
-use Mody\Platform\Dashboard\ChartSpec;
+use Mody\Dashboard\Board;
+use Mody\Dashboard\ChartSpec;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

@@ -2,13 +2,12 @@
 /**
  * The analytics board: the site's charts, their numbers, and changes to them.
  *
- * @package Mody\Platform
+ * @package Mody\Dashboard
  */
 
-namespace Mody\Platform\Dashboard;
+namespace Mody\Dashboard;
 
 use Mody\Analytics\Query;
-use Mody\Platform\Look;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;

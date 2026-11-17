@@ -36,7 +36,7 @@
  * empty folder of its own, and runs only when a check asks for it.
  */
 
-use Mody\Platform\Dashboard\DashboardPage;
+use Mody\Dashboard\DashboardPage;
 use Mody\Export\Panel;
 use Mody\Export\Downloads;
 use Mody\Export\Jobs;

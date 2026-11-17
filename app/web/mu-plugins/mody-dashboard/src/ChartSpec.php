@@ -2,13 +2,12 @@
 /**
  * A chart on the analytics board: what it shows and how, never its numbers.
  *
- * @package Mody\Platform
+ * @package Mody\Dashboard
  */
 
-namespace Mody\Platform\Dashboard;
+namespace Mody\Dashboard;
 
 use Mody\Analytics\Query;
-use Mody\Platform\Look;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;

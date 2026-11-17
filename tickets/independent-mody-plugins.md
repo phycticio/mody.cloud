@@ -1,6 +1,6 @@
 # Every Mody plugin is an independent plugin
 
-**Builds on:** the `mody-seo` split ([seo.md](seo.md), 2026-11-16) · **Status:** decided by the maintainer on 2026-11-16, documentation changed the same day. The three questions answered on 2026-11-17 ([Decisions](#decisions-2026-11-17)); the code split started the same night.
+**Builds on:** the `mody-seo` split ([seo.md](seo.md), 2026-11-16) · **Status:** decided by the maintainer on 2026-11-16, documentation changed the same day. The three questions answered on 2026-11-17 ([Decisions](#decisions-2026-11-17)). **Built on 2026-11-17 on `feature/independent-mody-plugins`, not merged or deployed: `mody-platform` is gone, 22 new plugins** ([Results](#results)).
 
 ## Goal (maintainer, 2026-11-16)
 > Every plugin should be an independent plugin. Some mody plugins should be MU and some not. For now all the things we have available are MU plugin.
@@ -96,6 +96,12 @@ Each line is one plugin, all MU plugins for now.
 
 **Changed while building (2026-11-17):** `mody-antibot` and `mody-security` became `mody-antispam` and `mody-security`. FormGuard ties ALTCHA to the login limits (a wrong password counts only when the puzzle was solved), so splitting it would put a cross-plugin interface into security code; and Antispam Bee's pins travel with a downloaded site, where the platform's hardening must not. So ALTCHA joins the hardening, and Antispam Bee's pins are their own plugin.
 
+**Also changed while building (2026-11-17):**
+- **The analyst and Mody's work stay with the dashboard** (`Dashboard/Analyst`, `Dashboard/Usage`), not in `mody-agent`: they are the Visitors board's chat and the dashboard's view of the agent's log. The analyst registers only when Mody Agent is there (its model limits and log); Mody's work shows only with the agent's log.
+- **Your sites and Plan & billing are still drawn by the dashboard**, reading Mody Members, Mody Billing and Mody Sites behind `class_exists()`, rather than as sections those plugins add. Moving them would split a 1,400-line class for little gain; they can move to the section hooks later.
+- **`SiteEditor` went to `mody-agent`**, and the few plugins that only built Site Editor links got a two-line helper of their own.
+- **`Look`** (the site's palette, fonts and logo on wp-admin pages) is copied into Mody Brand and Mody Dashboard; Mody Login keeps its own.
+
 `Media/ImageSize` (how big a picture may be before it is decoded) joins `mody-images` (**Inference**: it is about images and is carried by Mody Site today).
 
 `mody-platform` is gone at the end. Its namespace `Mody\Platform` is replaced by each plugin's own.
@@ -153,3 +159,24 @@ The maintainer answered the three questions of 2026-11-16:
 - **Hooks added:** `mody_dashboard_sections` (filter, slug => label in order) and `mody_dashboard_section_<slug>` (action, prints the panel), in `Dashboard\DashboardPage`.
 - **Mody Site is gone:** a download carries the independent plugins whole (`Export\Portable::PLUGINS`), and `Portable` refuses one that names a `Mody\Platform` class.
 - **Found on the way:** `scripts/export-archives-test.php` touched a path that no longer existed, which created an empty file; it now touches Mody Fonts. `scripts/wizard-test.php` fails one check locally ("the theme's header with the brand name") because the local main site's header part has no site title (edited by the home page script on 2026-11-10); not related to this work. One `export-archives-test` run failed on its rename race once, then passed twice.
+
+**Step 2, the tangled ones (2026-11-17, same branch):**
+
+| Plugin | From | Notes |
+| --- | --- | --- |
+| `mody-styles` | `Design/Presets`, `SiteDesign`, `SiteStyles` | A library with no hooks, plus `Screens` (the Styles screen a change shows on). The agent offers `mody/update-design` and `mody/update-styles` only with it. |
+| `mody-brand` | `Brand/`, its assets | The agent shows what it sends about the brand through the new `mody_brand_context` filter. Without it the prompt keeps WordPress's name and tagline. |
+| `mody-export` | `Export/`, `Dashboard/ExportPanel` (now `Panel`), `export-kit/` | Its own section through the dashboard hooks, with its own stylesheet. |
+| `mody-locks` | `Gating/` | The site count's hooks stay with the quota (Mody Sites). |
+| `mody-onboarding` | `Onboarding/`, the tour's assets | Asks through `mody_onboarding_no_site_url` and `mody_onboarding_free_until`. |
+| `mody-agent` | `Agent/`, `AI/`, `Site/`, `SiteEditor`, `Abilities`, `reference/`, the chat's assets | Billing locks it through `mody_agent_site_locked`. The chat's styles are registered by handle. Mody's own MU plugins are approved for the Infomaniak connector (see below). |
+| `mody-sites` | `Wizard/`, `Provisioning/` | Asks through `mody_sites_payment_pending`, `mody_sites_on_launch_offer`, `mody_sites_plan_url`. Without Mody Agent, a plain first page. |
+| `mody-members` | `Members/`, `blocks/register`, its assets | The signup runs only with Mody Sites, paid sign-ups only with Mody Billing (checked from `plugins_loaded`). Invite friends is a dashboard section through the hooks. |
+| `mody-billing` | `Billing/` | Runs only with Mody Members and Mody Sites, checked from `plugins_loaded`. |
+| `mody-dashboard` | `Dashboard/`, `Look` | The board and the analyst register from `plugins_loaded`. |
+
+- **The `ai` plugin's connector approvals:** it names a MU plugin by its folder and treats the plugin that registers a provider as infrastructure. While everything was in `mody-platform`, every call passed; now the wizard, provisioning and the analyst call the model through `mody-agent` from their own folders, and were refused ("pending approval"). Mody's own MU plugins (`mody-*`) are now approved for Infomaniak: `Mody\Agent\AI\ConnectorApprovals` on every site, and Mody Locks' pinned approvals on member sites.
+- **Load order:** `mody-billing` loads before `mody-members`, which loads before `mody-sites`, so the checks for another plugin run from `plugins_loaded`, never at load time.
+- **Tests fixed on the way:** `export-runner-test.php` skipped its end-to-end build without failing because it looked for the builder's files at their old path (it now runs, 164 checks); `ai-plugin-lockdown-test.php` opened `index.php`, which redirects to the Mody dashboard since 2026-11-11; `member-plugins-test.php` and `security-signup-test.php` named old paths.
+
+**Before the deploy:** `./bin/deploy --dry-run` should show `mody-platform/` and `mody-platform.php` deleted and the 22 new folders added. The REST routes keep `mody-platform/v1`, the options, tables and post meta keep their names, so nothing in the database changes.

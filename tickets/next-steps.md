@@ -2,10 +2,10 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-16, every Mody plugin an independent plugin (documentation changed; the code split starts tonight).
+**Last updated:** 2026-11-17, every Mody plugin an independent plugin (built, not merged).
 
 ## Now
-- **[Every Mody plugin is an independent plugin](independent-mody-plugins.md)** (decided by the maintainer on 2026-11-16): one plugin per thing, each running on its own, all MU plugins for now. The documentation says so since 2026-11-16; next, `mody-platform` is split, one plugin per step, leaves first (from the night of 2026-11-16).
+- **[Every Mody plugin is an independent plugin](independent-mody-plugins.md)** (decided by the maintainer on 2026-11-16 and 2026-11-17): **built on 2026-11-17** on `feature/independent-mody-plugins`, not merged or deployed. `mody-platform` is gone: 22 new plugins, one thing each, all MU plugins. Waiting on the maintainer's review, then the merge and a deploy (check `./bin/deploy --dry-run` first).
 
 ## Waiting on the maintainer
 - **Invite friends and the Offers page** ([invites-and-offers.md](invites-and-offers.md), built 2026-11-14, not deployed): every member's Dashboard has Invite friends (a personal link; a point when the friend first pays, worth nothing yet), and Network Admin → Mody → Offers sets the launch offer (everyone or invited people only, places, months, start) and invites. To give the first places to the maintainer's clients: deploy, set the offer to invited people only, and send them the link from his Dashboard.

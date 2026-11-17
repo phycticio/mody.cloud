@@ -23,7 +23,7 @@
  * environment with no live key).
  */
 
-use Mody\Platform\Dashboard\DashboardPage;
+use Mody\Dashboard\DashboardPage;
 use Mody\Members\Invites;
 use Mody\Members\Members;
 use Mody\Members\Offers;

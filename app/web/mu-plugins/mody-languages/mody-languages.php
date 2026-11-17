@@ -32,7 +32,7 @@
  *   menu (AdminLanguage).
  *
  * A site with one language behaves exactly as without this plugin. It stands
- * alone: mody-platform adds Mody's translation through the
+ * alone: Mody Agent adds Mody's translation through the
  * mody_languages_cell_actions filter.
  *
  * @package Mody\Languages

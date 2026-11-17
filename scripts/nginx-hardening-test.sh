@@ -120,7 +120,7 @@ echo "== PHP is run or refused, never served as text"
 # ---------------------------------------------------------------------------
 for URI in /index.PHP /Index.Php /wp-config.php /wp-config.PHP /Wp-Config.Php /wp-config-sample.php /wp/wp-config-sample.php \
   /wp-settings.PHP /wp-load.PHP /wp-login.PHP /wp-admin/admin.PHP /WP-ADMIN/admin.php \
-  /web/mu-plugins/mody-mail/src/Config.PHP /WEB/mu-plugins/mody-mail/src/Config.PHP /web/mu-plugins/mody-platform.PHP \
+  /web/mu-plugins/mody-mail/src/Config.PHP /WEB/mu-plugins/mody-mail/src/Config.PHP /web/mu-plugins/mody-dashboard.PHP \
   /web/db.php /web/db.PHP /web/index.php /assets/x.php /assets/x.PHP /dist/altcha.asset.php /dist/altcha.asset.PHP \
   /vendor/autoload.php /Vendor/Autoload.PHP /x/y/z.php /x.PHP; do
   CODE="$(status "$MAIN_HOST" "$URI")"

@@ -2,10 +2,10 @@
 /**
  * The Mody dashboard: every site's Dashboard.
  *
- * @package Mody\Platform
+ * @package Mody\Dashboard
  */
 
-namespace Mody\Platform\Dashboard;
+namespace Mody\Dashboard;
 
 use Mody\Analytics\Stats;
 use Mody\Agent\Budget;
@@ -15,11 +15,8 @@ use Mody\Billing\Mollie;
 use Mody\Billing\Payments;
 use Mody\Brand\BrandBook;
 use Mody\Brand\BrandPage;
-use Mody\Platform\Look;
-use Mody\Members\Invites;
 use Mody\Members\Members;
 use Mody\Sites\Quota;
-use Mody\Sites\WizardPage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -138,7 +135,7 @@ final class DashboardPage {
 	 * site's theme variables.
 	 */
 	public static function enqueue(): void {
-		Look::enqueue_asset( 'mody-admin-page', 'admin-page.css' ); // The layout Settings → Brand has too (Mody Brand keeps its own copy).
+		Look::enqueue_asset( 'mody-admin-page', 'admin-page.css' ); // The layout Settings → Brand has too (a copy of Mody Brand's).
 		Look::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-admin-page' ) );
 		wp_add_inline_style( 'mody-admin-page', Look::variables_css() );
 		if ( 'visitors' === self::current() && class_exists( Board::class ) && Board::can_manage() ) {
@@ -196,7 +193,7 @@ final class DashboardPage {
 		if ( current_user_can( self::SITE_CAPABILITY ) && class_exists( AgentEvents::class ) ) { // Mody Agent's log.
 			$sections['mody'] = __( 'Mody\'s work', 'mody_cloud' );
 		}
-		if ( Members::get( get_current_user_id() ) ) {
+		if ( class_exists( Members::class ) && class_exists( Quota::class ) && class_exists( Billing::class ) && Members::get( get_current_user_id() ) ) { // Mody Members' accounts, Mody Sites' sites, Mody Billing's plans.
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
 			$sections['plan']  = __( 'Plan & billing', 'mody_cloud' );
 		}
@@ -710,7 +707,7 @@ final class DashboardPage {
 				<span class="mody-brand__bar" aria-hidden="true"><span style="width:<?php echo esc_attr( (string) min( 100, round( 100 * $used / max( 1, $limit ) ) ) ); ?>%"></span></span>
 			</p>
 			<?php if ( $can ) : ?>
-				<a class="button button-primary" href="<?php echo esc_url( network_admin_url( 'admin.php?page=' . WizardPage::SLUG ) ); ?>"><?php esc_html_e( 'New site', 'mody_cloud' ); ?></a>
+				<a class="button button-primary" href="<?php echo esc_url( network_admin_url( 'admin.php?page=' . Members::MENU ) ); ?>"><?php esc_html_e( 'New site', 'mody_cloud' ); ?></a>
 			<?php else : ?>
 				<span class="mody-dashboard__note">
 					<?php
@@ -1285,6 +1282,9 @@ final class DashboardPage {
 	 */
 	public static function save_plan(): void {
 		check_admin_referer( self::PLAN_ACTION );
+		if ( ! class_exists( Members::class ) ) {
+			wp_die( esc_html__( 'Plans are not available on this site.', 'mody_cloud' ), 404 );
+		}
 		$period = isset( $_POST['period'] ) ? sanitize_key( wp_unslash( $_POST['period'] ) ) : '';
 		$result = Members::choose_period( get_current_user_id(), $period );
 		wp_safe_redirect( self::url( 'plan', array( 'plan-result' => true === $result ? 'chosen' : 'error' ) ) );

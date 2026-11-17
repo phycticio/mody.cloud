@@ -2,10 +2,10 @@
 /**
  * Mody's work on a site: messages and tokens, by kind of work.
  *
- * @package Mody\Platform
+ * @package Mody\Dashboard
  */
 
-namespace Mody\Platform\Dashboard;
+namespace Mody\Dashboard;
 
 use Mody\Agent\AgentEvents;
 use Mody\Agent\TurnMetrics;

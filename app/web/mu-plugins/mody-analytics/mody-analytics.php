@@ -12,11 +12,11 @@
  *   with a salt that changes every day; the hashes of earlier days are
  *   deleted. No cookie, nothing stored in the browser, no address kept.
  * - **Store:** two network tables: daily totals, and today's hashes.
- * - **Stats:** what the Mody dashboard reads (mody-platform's
+ * - **Stats:** what the Mody dashboard reads (mody-dashboard's
  *   Dashboard\DashboardPage).
  *
  * Rule 1: nothing leaves the network; no outside service, script or font.
- * It stands alone: mody-platform only reads Stats when it exists.
+ * It stands alone: Mody Dashboard only reads Stats when it exists.
  *
  * @package Mody\Analytics
  */

@@ -32,8 +32,8 @@ use Mody\Analytics\Stats;
 use Mody\Analytics\Store;
 use Mody\Agent\AgentEvents;
 use Mody\Agent\TurnMetrics;
-use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Dashboard\Usage;
+use Mody\Dashboard\DashboardPage;
+use Mody\Dashboard\Usage;
 use Mody\Members\Members;
 use Mody\Storage\Storage;
 
