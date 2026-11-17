@@ -3,10 +3,10 @@
  * The visitor's address, for rate limits (tickets/M5-01-hardening-launch.md,
  * the security pass of 2026-11-12).
  *
- * @package Mody\Platform
+ * @package Mody\Security
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Security;
 
 defined( 'ABSPATH' ) || exit;
 

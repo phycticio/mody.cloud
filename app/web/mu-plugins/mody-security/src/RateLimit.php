@@ -5,10 +5,10 @@
  * checks, log in, lost password, comments, ALTCHA challenges, and the
  * analytics beacon.
  *
- * @package Mody\Platform
+ * @package Mody\Security
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Security;
 
 use WP_Error;
 

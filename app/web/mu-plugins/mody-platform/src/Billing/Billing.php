@@ -12,7 +12,7 @@ use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Security\RateLimit;
+use Mody\Security\RateLimit;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -151,7 +151,7 @@ final class Billing {
 	 * @param WP_REST_Request $request `id`.
 	 */
 	public static function rest_webhook( WP_REST_Request $request ): WP_REST_Response {
-		if ( ! RateLimit::hit_address( 'mollie_webhook' ) ) {
+		if ( ! class_exists( RateLimit::class ) || ! RateLimit::hit_address( 'mollie_webhook' ) ) { // Mody Security's limit, when it is there.
 			self::process( (string) $request['id'], true ); // Fresh: a refund or a chargeback calls it for a payment already applied.
 		}
 		return new WP_REST_Response( null, 200 );
@@ -260,7 +260,7 @@ final class Billing {
 		if ( 'expired' === $row['status'] ) {
 			return new WP_Error( 'mody_billing_closed', __( 'This account is closed.', 'mody_cloud' ) );
 		}
-		if ( RateLimit::hit( 'card_check', (string) $user_id ) ) {
+		if ( class_exists( RateLimit::class ) && RateLimit::hit( 'card_check', (string) $user_id ) ) {
 			return new WP_Error( 'mody_rate_limited', __( 'Too many tries. Please wait an hour and try again.', 'mody_cloud' ) );
 		}
 		$customer = (string) ( $row['mollie_customer_id'] ?? '' );
@@ -373,7 +373,7 @@ final class Billing {
 		if ( ! Mollie::offered() || ! $row || ! $user || 'pending_payment' !== $row['status'] ) {
 			return new WP_Error( 'mody_signup_none', 'Nothing to pay.' );
 		}
-		if ( RateLimit::hit( 'card_check', (string) $user_id ) ) {
+		if ( class_exists( RateLimit::class ) && RateLimit::hit( 'card_check', (string) $user_id ) ) {
 			return new WP_Error( 'mody_rate_limited', __( 'Too many tries. Please wait an hour and try again.', 'mody_cloud' ) );
 		}
 		$customer = (string) ( $row['mollie_customer_id'] ?? '' );

@@ -3,10 +3,10 @@
  * Secrets that belong to this installation alone (the security pass of
  * 2026-11-12, tickets/M5-01-hardening-launch.md).
  *
- * @package Mody\Platform
+ * @package Mody\Security
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Security;
 
 defined( 'ABSPATH' ) || exit;
 

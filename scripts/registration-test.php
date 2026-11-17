@@ -46,8 +46,8 @@ use Mody\Platform\Members\Registration;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Security\Altcha;
-use Mody\Platform\Security\RateLimit;
+use Mody\Security\Altcha;
+use Mody\Security\RateLimit;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

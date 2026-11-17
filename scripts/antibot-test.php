@@ -30,7 +30,7 @@
  * Everything created is removed at the end.
  */
 
-use Mody\Platform\Security\Altcha;
+use Mody\Security\Altcha;
 use Mody\Antispam\AntispamBee;
 
 $failures = 0;

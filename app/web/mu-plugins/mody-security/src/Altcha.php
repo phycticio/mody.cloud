@@ -30,12 +30,11 @@
  * parallel requests with the same payload cannot all pass. Challenges are
  * handed out at a rate per address (RateLimit, `altcha_challenge`).
  *
- * @package Mody\Platform
+ * @package Mody\Security
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Security;
 
-use Mody\Platform\Agent\ChatController;
 use WP_Error;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -46,6 +45,9 @@ defined( 'ABSPATH' ) || exit;
  * Creates and checks ALTCHA challenges, and prints the widget.
  */
 final class Altcha {
+
+	/** The challenge's REST namespace: the address the widget has always used (`mody-platform/v1/altcha`). */
+	public const REST_NAMESPACE = 'mody-platform/v1';
 
 	/** The key derivation the browser repeats. */
 	public const ALGORITHM = 'PBKDF2/SHA-256';
@@ -132,7 +134,7 @@ final class Altcha {
 	 */
 	public static function is_own_challenge( $value ): bool {
 		$given = wp_parse_url( html_entity_decode( (string) $value, ENT_QUOTES ) );
-		$own   = wp_parse_url( rest_url( ChatController::REST_NAMESPACE . '/altcha' ) );
+		$own   = wp_parse_url( rest_url( self::REST_NAMESPACE . '/altcha' ) );
 		if ( ! is_array( $given ) || ! is_array( $own ) || isset( $given['user'] ) || isset( $given['port'] ) ) {
 			return false;
 		}
@@ -167,7 +169,7 @@ final class Altcha {
 	 */
 	public static function register_route(): void {
 		register_rest_route(
-			ChatController::REST_NAMESPACE,
+			self::REST_NAMESPACE,
 			'/altcha',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -271,7 +273,7 @@ final class Altcha {
 		return sprintf(
 			'<altcha-widget class="mody-altcha" name="%s" challenge="%s" auto="%s" configuration="%s"></altcha-widget>',
 			esc_attr( self::FIELD ),
-			esc_url( rest_url( ChatController::REST_NAMESPACE . '/altcha' ) ),
+			esc_url( rest_url( self::REST_NAMESPACE . '/altcha' ) ),
 			esc_attr( $auto ),
 			esc_attr(
 				(string) wp_json_encode(

@@ -28,12 +28,12 @@ use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Security\Altcha;
-use Mody\Platform\Security\ClientAddress;
-use Mody\Platform\Security\FormGuard;
-use Mody\Platform\Security\Hardening;
-use Mody\Platform\Security\RateLimit;
-use Mody\Platform\Security\Secrets;
+use Mody\Security\Altcha;
+use Mody\Security\ClientAddress;
+use Mody\Security\FormGuard;
+use Mody\Security\Hardening;
+use Mody\Security\RateLimit;
+use Mody\Security\Secrets;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/user.php';

@@ -15,8 +15,8 @@ use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Onboarding\Onboarding;
 use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Security\Altcha;
-use Mody\Platform\Security\RateLimit;
+use Mody\Security\Altcha;
+use Mody\Security\RateLimit;
 use Mody\Platform\Wizard\WizardPage;
 use WP_Error;
 use WP_REST_Request;
@@ -461,13 +461,13 @@ final class Registration {
 		$title = sanitize_text_field( $title );
 
 		// Per address and per mailbox, for every valid attempt: one that finds an account counts too, so it is no oracle.
-		$wait = max( RateLimit::hit_address( 'signup_address' ), RateLimit::hit( 'signup_email', self::normalize_email( $email ) ) );
+		$wait = max( self::rate_address( 'signup_address' ), self::rate( 'signup_email', self::normalize_email( $email ) ) );
 		if ( $wait ) {
 			return RateLimit::error( $wait, __( 'A few accounts have already been started from here. Please try again in %s.', 'mody_cloud' ) );
 		}
 		// Everyone together: when the hour's accounts are made, every attempt stops, an existing email's too
 		// (else the answer would tell whether an email has an account). Only accounts really made are counted below.
-		$wait = RateLimit::wait( 'signup_network' );
+		$wait = self::rate_wait( 'signup_network' );
 		if ( $wait ) {
 			return RateLimit::error( $wait, __( 'Many people are signing up right now. Please try again in %s.', 'mody_cloud' ) );
 		}
@@ -484,7 +484,7 @@ final class Registration {
 			$work = static fn() => self::send_existing_note( $existing );
 		} else {
 			// Counted here, before the response, so a burst of parallel requests cannot all pass the check above.
-			$wait = RateLimit::hit( 'signup_network' );
+			$wait = self::rate( 'signup_network' );
 			if ( $wait ) {
 				return RateLimit::error( $wait, __( 'Many people are signing up right now. Please try again in %s.', 'mody_cloud' ) );
 			}
@@ -937,7 +937,7 @@ final class Registration {
 	 * @param WP_User $user The member.
 	 */
 	private static function send_existing_note( WP_User $user ): bool {
-		if ( RateLimit::hit( 'signup_note', strtolower( $user->user_email ) ) ) {
+		if ( self::rate( 'signup_note', strtolower( $user->user_email ) ) ) {
 			return false;
 		}
 		// A paid sign-up not paid yet: a new link to pay, for the site it asked for.
@@ -1044,7 +1044,7 @@ final class Registration {
 	 *                          the address asks too often (RateLimit, `signup_check`).
 	 */
 	public static function rest_check( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-		$wait = RateLimit::hit_address( 'signup_check' );
+		$wait = self::rate_address( 'signup_check' );
 		if ( $wait ) {
 			return RateLimit::error( $wait );
 		}
@@ -1074,7 +1074,7 @@ final class Registration {
 	 * @return WP_REST_Response|WP_Error 201 with `email` and `address`; 400 with `fields`.
 	 */
 	public static function rest_register( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-		if ( ! Altcha::verify( $request['altcha'] ) ) {
+		if ( ! self::altcha_passed( $request['altcha'] ) ) {
 			return new WP_Error( 'mody_altcha_failed', Altcha::failed_message(), array( 'status' => 403 ) );
 		}
 		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'], true, (string) $request['ref'] );
@@ -1125,7 +1125,7 @@ final class Registration {
 			self::$errors = array( 'form' => Members::promo_closed_message( $invited ) );
 			return;
 		}
-		if ( ! Altcha::verify( Altcha::posted() ) ) {
+		if ( ! self::altcha_passed() ) {
 			self::$errors = array( 'form' => Altcha::failed_message() );
 			return;
 		}
@@ -1226,7 +1226,7 @@ final class Registration {
 			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? $closed ) . '</p></div>';
 		}
 
-		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), array( Altcha::SCRIPT ), self::asset_version( 'register.js' ), true );
+		wp_enqueue_script( self::SCRIPT, self::asset_url( 'register.js' ), class_exists( Altcha::class ) ? array( Altcha::SCRIPT ) : array(), self::asset_version( 'register.js' ), true );
 		wp_add_inline_script( self::SCRIPT, 'window.modyRegister = ' . wp_json_encode( self::chat_settings( $invited, $ref ) ) . ';', 'before' );
 
 		$value = static fn( string $key ): string => self::$values[ $key ] ?? '';
@@ -1266,7 +1266,7 @@ final class Registration {
 					<span class="mody-register__hint"><?php esc_html_e( 'Lowercase letters and numbers, at least 4.', 'mody_cloud' ); ?></span>
 					<?php echo $error( 'slug' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $error. ?>
 				</p>
-				<?php echo Altcha::widget(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in widget(). ?>
+				<?php echo class_exists( Altcha::class ) ? Altcha::widget() : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in widget(). ?>
 				<noscript><p class="mody-register__error"><?php esc_html_e( 'Signing up needs JavaScript: your browser solves a small puzzle that shows you are not a robot. Please turn JavaScript on and reload this page.', 'mody_cloud' ); ?></p></noscript>
 				<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::ACTION ); ?>">
 				<input type="hidden" name="_mody_nonce" value="<?php echo esc_attr( wp_create_nonce( self::ACTION ) ); ?>">
@@ -1487,5 +1487,49 @@ final class Registration {
 			'login'    => $login,
 			'nicename' => $base . '-' . bin2hex( random_bytes( 3 ) ),
 		);
+	}
+
+	/**
+	 * Counts one event against Mody Security's rate limit; 0 (allowed) when
+	 * that plugin is not there.
+	 *
+	 * @param string $name    The limit.
+	 * @param string $subject Who it counts for.
+	 * @return int Seconds to wait.
+	 */
+	private static function rate( string $name, string $subject = '' ): int {
+		return class_exists( RateLimit::class ) ? RateLimit::hit( $name, $subject ) : 0;
+	}
+
+	/**
+	 * Counts one event for the visitor's address (Mody Security); 0 without it.
+	 *
+	 * @param string $name The limit.
+	 * @return int Seconds to wait.
+	 */
+	private static function rate_address( string $name ): int {
+		return class_exists( RateLimit::class ) ? RateLimit::hit_address( $name ) : 0;
+	}
+
+	/**
+	 * How long a limit still holds, without counting (Mody Security); 0 without it.
+	 *
+	 * @param string $name The limit.
+	 * @return int Seconds to wait.
+	 */
+	private static function rate_wait( string $name ): int {
+		return class_exists( RateLimit::class ) ? RateLimit::wait( $name ) : 0;
+	}
+
+	/**
+	 * Whether ALTCHA's puzzle was solved (Mody Security); true without it.
+	 *
+	 * @param mixed $solution The solution sent, or null for the posted form's.
+	 */
+	private static function altcha_passed( $solution = null ): bool {
+		if ( ! class_exists( Altcha::class ) ) {
+			return true;
+		}
+		return Altcha::verify( null === $solution ? Altcha::posted() : $solution );
 	}
 }

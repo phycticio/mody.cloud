@@ -40,10 +40,10 @@
  * message only, never with core's "There is no account with that username or
  * email address", which told anyone whether an address has an account.
  *
- * @package Mody\Platform
+ * @package Mody\Security
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Security;
 
 use WP_Error;
 use WP_User;

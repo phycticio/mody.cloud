@@ -116,23 +116,13 @@ add_action( 'template_redirect', array( Members\Registration::class, 'handle_pay
 add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirect' ), 10, 3 );
 
 /*
- * Antibot (tickets/antibot-altcha.md): ALTCHA, a proof-of-work check served
- * from our own servers, on the signup chat (Members\Registration), log in,
- * lost password and visitors' comments, on every site. Antispam Bee (a MU
- * plugin, kept inside rule 1 by Mody Antispam) checks what people type.
- */
-add_action( 'init', array( Security\Altcha::class, 'register_script' ) );
-add_action( 'rest_api_init', array( Security\Altcha::class, 'register_route' ) );
-add_filter( 'wp_kses_allowed_html', array( Security\Altcha::class, 'allow_widget' ), 10, 2 ); // Spectra's container sanitizes its inner blocks.
-Security\FormGuard::register();
-
-/*
  * Onboarding (M1-03): the first password logs the member in on their site's
  * Identity screen, where the editor tour shows the agent, then the editor.
  */
 add_action( 'init', array( Onboarding\Onboarding::class, 'register_meta' ) );
 add_action( 'after_password_reset', array( Onboarding\Onboarding::class, 'after_password_reset' ) );
 add_action( 'enqueue_block_editor_assets', array( Onboarding\EditorTour::class, 'enqueue' ), 20 ); // After the chat bubble.
+add_filter( 'rest_prepare_user', array( Onboarding\Onboarding::class, 'hide_stage' ), 10, 3 ); // The tour's stage is nobody else's business (security pass).
 
 /*
  * Agent settings (Network Admin > Settings > Mody Agent): event retention.
@@ -254,6 +244,5 @@ if ( function_exists( 'wp_ai_client_prompt' ) ) {
  * Security pass (2026-11-12, tickets/M5-01-hardening-launch.md): one line per
  * group; each group's class registers its own hooks.
  */
-Security\Hardening::register(); // Own keys and salts, XML-RPC off, no public logins, passwords of ten characters, the beacon's rate limit (signup, login and comment limits: Security\FormGuard, Members\Registration).
 Agent\Hardening::register(); // Model work: one job per user and site, three on the network, a daily token allowance, the ai plugin's abilities, server details for super admins only.
 Gating\Isolation::register(); // Widgets, Application Passwords, deleting a site, owners, mail limits and picture sizes (SpectraGuard handles block script).

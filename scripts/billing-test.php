@@ -63,7 +63,7 @@ use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Registration;
 use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Security\RateLimit;
+use Mody\Security\RateLimit;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

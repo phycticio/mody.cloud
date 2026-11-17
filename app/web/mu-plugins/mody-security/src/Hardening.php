@@ -5,12 +5,11 @@
  * XML-RPC off, who can learn a member's login, passwords of at least ten
  * characters, and the rate limit on the analytics beacon.
  *
- * @package Mody\Platform
+ * @package Mody\Security
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Security;
 
-use Mody\Platform\Onboarding\Onboarding;
 use WP_Error;
 use WP_REST_Request;
 
@@ -26,7 +25,7 @@ final class Hardening {
 	public const MIN_PASSWORD = 10;
 
 	/**
-	 * Hooked from mody-platform.php.
+	 * Hooked from mody-security.php.
 	 */
 	public static function register(): void {
 		// Keys and salts: this installation's own where wp-config.php still has the committed ones.
@@ -45,7 +44,6 @@ final class Hardening {
 		add_action( 'template_redirect', array( self::class, 'redirect_author_id' ), 0 );
 		add_filter( 'wp_sitemaps_add_provider', array( self::class, 'drop_users_sitemap' ), 10, 2 );
 		add_filter( 'oembed_response_data', array( self::class, 'hide_oembed_author' ) );
-		add_filter( 'rest_prepare_user', array( Onboarding::class, 'hide_stage' ), 10, 3 );
 
 		// Passwords.
 		add_action( 'validate_password_reset', array( self::class, 'check_reset_password' ), 10, 2 );

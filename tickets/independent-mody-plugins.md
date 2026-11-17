@@ -79,8 +79,8 @@ Each line is one plugin, all MU plugins for now.
 | `mody-admin-colors` | Ocean as every user's wp-admin scheme | `Admin/` |
 | `mody-login` | The login page in the site's brand, Settings → Login | `Login/`, `assets/login*.css` |
 | `mody-profiles` | One network profile, local pictures, no Gravatar | `Users/` |
-| `mody-antibot` | ALTCHA on the forms, Antispam Bee's outside checks off | `Security/Altcha`, `FormGuard`, `AntispamBee` |
-| `mody-security` | Hardening: secrets, XML-RPC, rate limits, the client address | `Security/Hardening`, `RateLimit`, `Secrets`, `ClientAddress` |
+| `mody-antispam` | Antispam Bee's outside checks off | `Security/AntispamBee` (was `mody-antibot`, see below) |
+| `mody-security` | ALTCHA on the forms, rate limits, the client address, secrets, hardening | `Security/` but `AntispamBee` (with ALTCHA, see below) |
 | `mody-updates` | No updates from wp-admin | `Gating/Updates` |
 | `mody-locks` | What members may not do: plugins, screens, the `ai` plugin, isolation | the rest of `Gating/` |
 | `mody-domains` | Custom domains | `Domains/`, and the path in `sunrise.php` |
@@ -93,6 +93,8 @@ Each line is one plugin, all MU plugins for now.
 | `mody-storage` | 1 GB per site | `Site/Storage` |
 | `mody-dashboard` | Every site's Dashboard and the analytics board | `Dashboard/` (not `Analyst`, not `ExportPanel`) |
 | `mody-agent` | Mody: the model, the chat, the tools, the analyst | `Agent/`, `AI/`, `Abilities.php`, `SiteEditor.php`, the rest of `Site/`, `Dashboard/Analyst`, `reference/` |
+
+**Changed while building (2026-11-17):** `mody-antibot` and `mody-security` became `mody-antispam` and `mody-security`. FormGuard ties ALTCHA to the login limits (a wrong password counts only when the puzzle was solved), so splitting it would put a cross-plugin interface into security code; and Antispam Bee's pins travel with a downloaded site, where the platform's hardening must not. So ALTCHA joins the hardening, and Antispam Bee's pins are their own plugin.
 
 `Media/ImageSize` (how big a picture may be before it is decoded) joins `mody-images` (**Inference**: it is about images and is carried by Mody Site today).
 
