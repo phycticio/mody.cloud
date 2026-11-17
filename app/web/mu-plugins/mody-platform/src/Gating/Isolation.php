@@ -30,7 +30,7 @@ defined( 'ABSPATH' ) || exit;
  * - **Deleting the site.** `delete_site` is refused (MemberSite); the screen
  *   says so kindly (the refusal of the page carries the message).
  * - **The plan's site count.** Sites are counted by owner (Quota).
- * - **Mail and pictures.** MemberMail and ImageLimits.
+ * - **Mail.** MemberMail. (How big a picture may be is Mody Images'.)
  *
  * Super admins are not affected by any of it.
  */
@@ -64,11 +64,6 @@ final class Isolation {
 		add_filter( 'new_admin_email_content', array( MemberMail::class, 'admin_email_content' ) );
 		add_filter( 'invited_user_email', array( MemberMail::class, 'invitation_email' ) );
 		add_action( 'load-user-new.php', array( MemberMail::class, 'handle_invitation' ) );
-
-		// Pictures.
-		add_filter( 'wp_handle_upload_prefilter', array( ImageLimits::class, 'prefilter' ) );
-		add_filter( 'wp_handle_sideload_prefilter', array( ImageLimits::class, 'prefilter' ) );
-		add_filter( 'wp_image_editors', array( ImageLimits::class, 'limit_imagick' ) );
 	}
 
 	/**

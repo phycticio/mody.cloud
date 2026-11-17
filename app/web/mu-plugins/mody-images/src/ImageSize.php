@@ -1,19 +1,19 @@
 <?php
 /**
  * How big a picture may be before anything decodes it (security pass,
- * 2026-11-12). Carried by Mody Site, so a downloaded site keeps it.
+ * 2026-11-12; in Mody Images since 2026-11-17).
  *
- * @package Mody\Platform
+ * @package Mody\Images
  */
 
-namespace Mody\Platform\Media;
+namespace Mody\Images;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * A few kilobytes of PNG can say it is 40,000 pixels wide: the file is small,
  * but the image editor has to decode every pixel into memory before it can
- * resize it. Two guards, neither of which depends on the platform's gating:
+ * resize it. Two guards:
  *
  * - **The header** (too_big()): the size a file says it has, read without
  *   decoding. Only for the formats PHP sizes by itself. HEIC and the others
@@ -26,8 +26,19 @@ defined( 'ABSPATH' ) || exit;
  *   Imagick keep the pixels on disk instead of in memory, slowly, so the disk
  *   limit is what turns "too big" into a refusal.
  *
- * Gating\ImageLimits adds the platform's part (who is limited, the upload
- * filters); Users\Avatars calls this directly.
+ * Where they run:
+ *
+ * - **Every upload to a media library** (the Media Library, the block
+ *   editor, REST, sideloads; prefilter(), before Uploads makes the WebP): at
+ *   most MEDIA_MAX_PIXELS in total and MEDIA_MAX_SIDE on a side. 64
+ *   megapixels is above every phone and most cameras (a 48 MP phone photo is
+ *   8064 by 6048). Super admins are not limited.
+ * - **Logos and profile pictures** (the wizard, the profile screen): at most
+ *   PROFILE_MAX_SIDE on a side; the plugins that take them call too_big().
+ * - **Imagick** gets its limits before the image editors are chosen
+ *   (limit_editors()), because it reads the whole picture outside PHP's
+ *   memory limit and formats with no cheap header (HEIC) are not sized by the
+ *   header check.
  */
 final class ImageSize {
 
@@ -105,5 +116,39 @@ final class ImageSize {
 		foreach ( $limits as $type => $value ) {
 			\Imagick::setResourceLimit( $type, $value );
 		}
+	}
+
+	/**
+	 * `wp_handle_upload_prefilter` and `wp_handle_sideload_prefilter` (before
+	 * Uploads): refuses an oversized picture before anything decodes it.
+	 *
+	 * @param array<string, mixed> $file The upload, as in `$_FILES`.
+	 * @return array<string, mixed>
+	 */
+	public static function prefilter( $file ) {
+		if ( ! is_array( $file ) || ! empty( $file['error'] ) || empty( $file['tmp_name'] ) || is_super_admin() ) {
+			return $file;
+		}
+		if ( self::too_big( (string) $file['tmp_name'], self::MEDIA_MAX_SIDE, self::MEDIA_MAX_PIXELS ) ) {
+			$file['error'] = sprintf(
+				/* translators: 1: pixels on a side, 2: megapixels. */
+				__( 'That picture is too large to process: it can be up to %1$s pixels on a side and %2$s megapixels. Please make it smaller first.', 'mody_cloud' ),
+				number_format_i18n( self::MEDIA_MAX_SIDE ),
+				number_format_i18n( (int) ( self::MEDIA_MAX_PIXELS / 1000000 ) )
+			);
+		}
+		return $file;
+	}
+
+	/**
+	 * `wp_image_editors`: gives Imagick its limits before the editors are
+	 * chosen. The list of editors is returned unchanged.
+	 *
+	 * @param string[] $editors The editors.
+	 * @return string[]
+	 */
+	public static function limit_editors( $editors ) {
+		self::limit_imagick();
+		return $editors;
 	}
 }

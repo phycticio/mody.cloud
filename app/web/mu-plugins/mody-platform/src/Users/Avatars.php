@@ -8,7 +8,7 @@
 
 namespace Mody\Platform\Users;
 
-use Mody\Platform\Media\ImageSize;
+use Mody\Images\ImageSize;
 use WP_Comment;
 use WP_Post;
 use WP_User;
@@ -327,8 +327,8 @@ final class Avatars {
 		if ( '' === $tmp || ! $type['type'] ) {
 			return new \WP_Error( 'mody_avatar_type', __( 'The picture must be a JPEG, PNG, WebP or GIF image.', 'mody_cloud' ) );
 		}
-		// A few kilobytes can say they are tens of thousands of pixels wide: look at the header before anything decodes it. After the type check, so only the four formats PHP sizes without decoding get here (ImageSize).
-		if ( ImageSize::too_big( $tmp, ImageSize::PROFILE_MAX_SIDE ) ) {
+		// A few kilobytes can say they are tens of thousands of pixels wide: look at the header before anything decodes it. After the type check, so only the four formats PHP sizes without decoding get here (Mody Images' ImageSize, when it is there).
+		if ( class_exists( ImageSize::class ) && ImageSize::too_big( $tmp, ImageSize::PROFILE_MAX_SIDE ) ) {
 			return new \WP_Error(
 				'mody_avatar_dimensions',
 				/* translators: %s: pixels on a side. */

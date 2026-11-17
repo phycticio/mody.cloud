@@ -9,7 +9,7 @@ namespace Mody\Platform\Wizard;
 
 use Mody\Platform\Agent\ChatController;
 use Mody\Platform\Agent\EditorBubble;
-use Mody\Platform\Gating\ImageLimits;
+use Mody\Images\ImageSize;
 use Mody\Platform\Provisioning\Jobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\SiteEditor;
@@ -303,12 +303,12 @@ final class WizardController {
 		require_once ABSPATH . 'wp-admin/includes/media.php';
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 
-		// A few kilobytes can say they are tens of thousands of pixels wide: look at the header before anything decodes it.
-		if ( ImageLimits::too_big( (string) $file['tmp_name'], ImageLimits::PROFILE_MAX_SIDE ) ) {
+		// A few kilobytes can say they are tens of thousands of pixels wide: look at the header before anything decodes it (Mody Images).
+		if ( class_exists( ImageSize::class ) && ImageSize::too_big( (string) $file['tmp_name'], ImageSize::PROFILE_MAX_SIDE ) ) {
 			return new WP_Error(
 				'mody_invalid_logo',
 				/* translators: %s: pixels on a side. */
-				sprintf( __( 'The logo is too large: it can be up to %s pixels on a side.', 'mody_cloud' ), number_format_i18n( ImageLimits::PROFILE_MAX_SIDE ) )
+				sprintf( __( 'The logo is too large: it can be up to %s pixels on a side.', 'mody_cloud' ), number_format_i18n( ImageSize::PROFILE_MAX_SIDE ) )
 			);
 		}
 

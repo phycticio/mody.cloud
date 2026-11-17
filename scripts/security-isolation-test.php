@@ -37,12 +37,11 @@ use Mody\Platform\Dashboard\ExportPanel;
 use Mody\Platform\Export\DatabaseDump;
 use Mody\Platform\Export\Exporter;
 use Mody\Platform\Export\Jobs as ExportJobs;
-use Mody\Platform\Gating\ImageLimits;
 use Mody\Platform\Gating\Isolation;
 use Mody\Platform\Gating\MemberMail;
 use Mody\Platform\Gating\MemberSite;
 use Mody\Platform\Gating\Throttle;
-use Mody\Platform\Media\ImageSize;
+use Mody\Images\ImageSize;
 use Mody\Platform\Provisioning\Jobs as ProvisioningJobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Provisioning\Quota;
@@ -1043,9 +1042,9 @@ $bomb  = $file_of( 12000, 12000 );
 $wide  = $file_of( 30000, 100 );
 $phone = $file_of( 8064, 6048 );
 $logo  = $file_of( 1200, 1200 );
-$check( 'too_big(): 12000x12000 is over a profile picture\'s side', ImageLimits::too_big( $bomb, ImageLimits::PROFILE_MAX_SIDE ) );
-$check( '... 1200x1200 is not, and a file that is not a picture is not judged', ! ImageLimits::too_big( $logo, ImageLimits::PROFILE_MAX_SIDE ) && ! ImageLimits::too_big( __FILE__, ImageLimits::PROFILE_MAX_SIDE ) && ! ImageLimits::too_big( '/nonexistent', 10 ) );
-$check( '... 0 pixels is too small', ImageLimits::too_big( $file_of( 0, 5 ), 6000 ) );
+$check( 'too_big(): 12000x12000 is over a profile picture\'s side', ImageSize::too_big( $bomb, ImageSize::PROFILE_MAX_SIDE ) );
+$check( '... 1200x1200 is not, and a file that is not a picture is not judged', ! ImageSize::too_big( $logo, ImageSize::PROFILE_MAX_SIDE ) && ! ImageSize::too_big( __FILE__, ImageSize::PROFILE_MAX_SIDE ) && ! ImageSize::too_big( '/nonexistent', 10 ) );
+$check( '... 0 pixels is too small', ImageSize::too_big( $file_of( 0, 5 ), 6000 ) );
 $avatar = Avatars::store( $member, array( 'name' => 'me.png', 'tmp_name' => $bomb, 'size' => filesize( $bomb ), 'error' => 0 ) );
 $check( 'a 12000x12000 profile picture is refused before anything decodes it', is_wp_error( $avatar ) && 'mody_avatar_dimensions' === $avatar->get_error_code(), is_wp_error( $avatar ) ? $avatar->get_error_message() : 'attachment ' . $avatar );
 $store_logo = new ReflectionMethod( WizardController::class, 'store_logo' );
@@ -1053,14 +1052,14 @@ $logo_out   = $store_logo->invoke( null, array( 'name' => 'logo.png', 'tmp_name'
 $check( 'a 12000x12000 wizard logo is refused, with a kind message', is_wp_error( $logo_out ) && str_contains( $logo_out->get_error_message(), 'too large' ), is_wp_error( $logo_out ) ? $logo_out->get_error_message() : 'attachment' );
 
 wp_set_current_user( $member );
-$upload = static fn( string $path ): array => ImageLimits::prefilter( array( 'name' => basename( $path ), 'tmp_name' => $path, 'type' => 'image/png', 'size' => filesize( $path ), 'error' => 0 ) );
+$upload = static fn( string $path ): array => ImageSize::prefilter( array( 'name' => basename( $path ), 'tmp_name' => $path, 'type' => 'image/png', 'size' => filesize( $path ), 'error' => 0 ) );
 $check( 'the upload filter refuses 144 megapixels, for a member', ! empty( $upload( $bomb )['error'] ) && str_contains( (string) $upload( $bomb )['error'], 'too large' ), (string) $upload( $bomb )['error'] );
 $check( '... and a picture 30000 pixels wide', ! empty( $upload( $wide )['error'] ) );
 $check( '... but not a 48 megapixel phone photo, nor a logo', empty( $upload( $phone )['error'] ) && empty( $upload( $logo )['error'] ) );
 wp_set_current_user( $super );
 $check( '... a super admin is not limited', empty( $upload( $bomb )['error'] ) );
 wp_set_current_user( 0 );
-$check( 'the filters are hooked for uploads and sideloads, and Imagick gets limits', false !== has_filter( 'wp_handle_upload_prefilter', array( ImageLimits::class, 'prefilter' ) ) && false !== has_filter( 'wp_handle_sideload_prefilter', array( ImageLimits::class, 'prefilter' ) ) && false !== has_filter( 'wp_image_editors', array( ImageLimits::class, 'limit_imagick' ) ) );
+$check( 'the filters are hooked for uploads and sideloads, and Imagick gets limits', false !== has_filter( 'wp_handle_upload_prefilter', array( ImageSize::class, 'prefilter' ) ) && false !== has_filter( 'wp_handle_sideload_prefilter', array( ImageSize::class, 'prefilter' ) ) && false !== has_filter( 'wp_image_editors', array( ImageSize::class, 'limit_editors' ) ) );
 if ( class_exists( Imagick::class ) ) {
 	apply_filters( 'wp_image_editors', array( 'WP_Image_Editor_Imagick', 'WP_Image_Editor_GD' ) );
 	$limit = static fn( int $type ): int => (int) Imagick::getResourceLimit( $type );
@@ -1109,7 +1108,7 @@ if ( class_exists( Imagick::class ) ) {
 		return $list;
 	};
 	add_filter( 'wp_image_editors', $count_editors );
-	$judged = ImageLimits::too_big( $heic, 100, 1000 );
+	$judged = ImageSize::too_big( $heic, 100, 1000 );
 	$loaded = $editors;
 	@wp_getimagesize( $heic ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- The control: core sizes a HEIC by loading it in an editor.
 	remove_filter( 'wp_image_editors', $count_editors );

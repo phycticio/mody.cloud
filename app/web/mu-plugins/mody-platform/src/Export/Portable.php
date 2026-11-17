@@ -37,7 +37,6 @@ final class Portable {
 
 	/** Mody Site's classes, from this plugin's src/. */
 	public const SITE_FILES = array(
-		'Media/ImageSize.php',
 		'Security/AntispamBee.php',
 		'Users/Avatars.php',
 	);

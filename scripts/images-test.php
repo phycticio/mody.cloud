@@ -127,8 +127,8 @@ $sideload = static function ( string $source, string $name ) use ( &$attachments
 echo "The plugin\n";
 $check( 'a MU plugin (always on)', isset( get_mu_plugins()['mody-images.php'] ) && class_exists( Uploads::class ) );
 $check( '...replaces uploads and sideloads, after the platform checks (10)', Uploads::PRIORITY === has_filter( 'wp_handle_upload_prefilter', array( Uploads::class, 'prefilter' ) ) && Uploads::PRIORITY === has_filter( 'wp_handle_sideload_prefilter', array( Uploads::class, 'prefilter' ) ) );
-$platform = has_filter( 'wp_handle_upload_prefilter', array( 'Mody\Platform\Gating\ImageLimits', 'prefilter' ) );
-$check( '...the platform\'s size check runs first', false !== $platform && $platform < Uploads::PRIORITY, var_export( $platform, true ) );
+$platform = has_filter( 'wp_handle_upload_prefilter', array( 'Mody\Images\ImageSize', 'prefilter' ) );
+$check( '...the size check (ImageSize) runs first', false !== $platform && $platform < Uploads::PRIORITY, var_export( $platform, true ) );
 $check( 'client-side media processing off (one path for every upload)', ! wp_is_client_side_media_processing_enabled() && false === apply_filters( 'wp_client_side_media_processing_enabled', true ) );
 $check( 'WebP sizes at SIZE_QUALITY; other types unchanged', Optimizer::SIZE_QUALITY === apply_filters( 'wp_editor_set_quality', 86, 'image/webp' ) && 90 === apply_filters( 'wp_editor_set_quality', 90, 'image/jpeg' ) );
 $check( 'webp_name(): the name keeps its words, .webp', 'Holiday Photo.webp' === Uploads::webp_name( 'Holiday Photo.JPG' ) && 'image.webp' === Uploads::webp_name( '.jpg' ) );
