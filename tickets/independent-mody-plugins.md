@@ -132,4 +132,24 @@ The maintainer answered the three questions of 2026-11-16:
 1. **Where a normal Mody plugin lives** (none yet). `app/web/plugins/` is Composer-managed and not tracked. Options: a tracked folder installed through a Composer path repository, or tracked exceptions in `.gitignore`. Answered when the first one is needed.
 
 ## Results
-Not started.
+**Step 1, the leaves (2026-11-17, branch `feature/independent-mody-plugins`, not merged):** one commit per plugin, each with its tests run in the local stack.
+
+| Plugin | From | Notes |
+| --- | --- | --- |
+| `mody-admin-colors` | `Admin/` | The agent's bubble and the dashboard call it only when it is there; the chat's CSS has a fallback. |
+| `mody-spectra` | `Spectra/` | The loader runs only where Spectra is a MU plugin. |
+| `mody-palette` | `Design/PaletteOnly` | |
+| `mody-fonts` | `Design/Fonts`, `fonts/` | The download bakes Inter only when it is there. |
+| `mody-patterns` | `Design/Patterns`, `PatternImport`, `patterns/` | A downloaded site now keeps the whole collection, not only the placeholders. |
+| `mody-login` | `Login/`, its CSS | Settings → Brand and the dashboard used its helpers; they now use the platform's own `Look`. The agent offers `login_color_scheme` only with it. |
+| `mody-profiles` | `Users/` | The network profile's hooks run only on a multisite. |
+| `mody-images` (existing) | `Media/ImageSize`, `Gating/ImageLimits` | One class, `ImageSize`: the header check, the upload prefilter, Imagick's limits. |
+| `mody-updates` | `Gating/Updates` | |
+| `mody-domains` | `Domains/` | `sunrise.php` loads its `Mapping`. First user of the dashboard's section hooks. |
+| `mody-antispam` | `Security/AntispamBee` | Replaces the planned `mody-antibot` (see above). |
+| `mody-security` | the rest of `Security/` | ALTCHA keeps its route `mody-platform/v1/altcha`. The signup chat and billing use it only when it is there. |
+| `mody-storage` | `Site/Storage` | The dashboard reads the space with core's quota functions. |
+
+- **Hooks added:** `mody_dashboard_sections` (filter, slug => label in order) and `mody_dashboard_section_<slug>` (action, prints the panel), in `Dashboard\DashboardPage`.
+- **Mody Site is gone:** a download carries the independent plugins whole (`Export\Portable::PLUGINS`), and `Portable` refuses one that names a `Mody\Platform` class.
+- **Found on the way:** `scripts/export-archives-test.php` touched a path that no longer existed, which created an empty file; it now touches Mody Fonts. `scripts/wizard-test.php` fails one check locally ("the theme's header with the brand name") because the local main site's header part has no site title (edited by the home page script on 2026-11-10); not related to this work. One `export-archives-test` run failed on its rename race once, then passed twice.
