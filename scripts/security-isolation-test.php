@@ -46,7 +46,7 @@ use Mody\Platform\Provisioning\Jobs as ProvisioningJobs;
 use Mody\Platform\Provisioning\Pipeline;
 use Mody\Platform\Provisioning\Quota;
 use Mody\Spectra\SpectraGuard;
-use Mody\Platform\Users\Avatars;
+use Mody\Profiles\Avatars;
 use Mody\Platform\Wizard\WizardController;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';

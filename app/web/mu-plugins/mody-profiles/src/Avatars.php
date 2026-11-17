@@ -3,10 +3,10 @@
  * Profile pictures stored on the main site, and no Gravatar
  * (tickets/network-profile-local-avatars.md).
  *
- * @package Mody\Platform
+ * @package Mody\Profiles
  */
 
-namespace Mody\Platform\Users;
+namespace Mody\Profiles;
 
 use Mody\Images\ImageSize;
 use WP_Comment;

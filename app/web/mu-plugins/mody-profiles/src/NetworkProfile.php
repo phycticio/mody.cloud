@@ -3,10 +3,10 @@
  * One profile for the whole network, edited on the main site only
  * (tickets/network-profile-local-avatars.md).
  *
- * @package Mody\Platform
+ * @package Mody\Profiles
  */
 
-namespace Mody\Platform\Users;
+namespace Mody\Profiles;
 
 use WP_Error;
 use WP_REST_Request;

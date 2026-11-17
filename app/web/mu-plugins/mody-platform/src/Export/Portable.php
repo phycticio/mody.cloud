@@ -38,7 +38,6 @@ final class Portable {
 	/** Mody Site's classes, from this plugin's src/. */
 	public const SITE_FILES = array(
 		'Security/AntispamBee.php',
-		'Users/Avatars.php',
 	);
 
 	/** Mody Site's assets, from this plugin's assets/. */
@@ -53,6 +52,7 @@ final class Portable {
 		'mody-login'        => 'mody-login.php',
 		'mody-palette'      => 'mody-palette.php',
 		'mody-patterns'     => 'mody-patterns.php',
+		'mody-profiles'     => 'mody-profiles.php',
 		'mody-seo'          => 'mody-seo.php',
 		'mody-spectra'      => 'mody-spectra.php',
 		'spectra-blocks'    => 'spectra-blocks.php',

@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Mody Site
- * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: SEO titles and descriptions and initials avatars. Mody, the AI agent, is not part of it.
+ * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: Antispam Bee without its outside checks. Mody, the AI agent, is not part of it.
  * Version:           1.0.0
  * Author:            Mody Cloud
  * Author URI:        https://mody.cloud
@@ -38,24 +38,6 @@ spl_autoload_register(
 		}
 	}
 );
-
-/*
- * Initials avatars (/mody-avatar/...), drawn here, before the rest of
- * WordPress runs.
- */
-Users\Avatars::serve_initials();
-add_filter( 'pre_get_avatar_data', array( Users\Avatars::class, 'avatar_data' ), 10, 2 );
-add_filter( 'avatar_defaults', array( Users\Avatars::class, 'defaults' ) );
-add_action( 'user_edit_form_tag', array( Users\Avatars::class, 'form_tag' ) );
-add_filter( 'user_profile_picture_description', array( Users\Avatars::class, 'description' ), 10, 2 );
-add_action( 'show_user_profile', array( Users\Avatars::class, 'section' ) );
-add_action( 'edit_user_profile', array( Users\Avatars::class, 'section' ) );
-add_action( 'personal_options_update', array( Users\Avatars::class, 'save' ) );
-add_action( 'edit_user_profile_update', array( Users\Avatars::class, 'save' ) );
-add_filter( 'ajax_query_attachments_args', array( Users\Avatars::class, 'hide_from_media' ) );
-add_filter( 'rest_attachment_query', array( Users\Avatars::class, 'hide_from_media' ) );
-add_action( 'delete_attachment', array( Users\Avatars::class, 'forget_attachment' ) );
-add_action( 'delete_user', array( Users\Avatars::class, 'forget_user' ) );
 
 // Antispam Bee's checks that call outside services stay off.
 Security\AntispamBee::register();

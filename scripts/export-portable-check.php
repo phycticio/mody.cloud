@@ -20,9 +20,10 @@ foreach ( array( 'update_core', 'update_plugins', 'update_themes', 'install_plug
 $check( 'core\'s update checks are scheduled', false !== has_action( 'wp_version_check' ) && false !== has_action( 'admin_init', '_maybe_update_core' ) );
 
 // Nothing of the agent or the platform.
-foreach ( array( 'Mody\Platform\Agent\ChatController', 'Mody\Platform\Abilities', 'Mody\Platform\Gating\Updates', 'Mody\Platform\Gating\HiddenScreens', 'Mody\Platform\Security\Altcha', 'Mody\Platform\Users\NetworkProfile', 'Mody\Platform\Site\Storage', 'Mody\Mail\Mail' ) as $class ) {
+foreach ( array( 'Mody\Platform\Agent\ChatController', 'Mody\Platform\Abilities', 'Mody\Platform\Gating\Updates', 'Mody\Platform\Gating\HiddenScreens', 'Mody\Platform\Security\Altcha', 'Mody\Platform\Site\Storage', 'Mody\Mail\Mail' ) as $class ) {
 	$check( "no $class", ! class_exists( $class ) );
 }
+$check( 'one profile per network is off on a single site (Mody Profiles)', false === has_action( 'load-profile.php', array( 'Mody\Profiles\NetworkProfile', 'redirect' ) ) && false === has_filter( 'wp_is_application_passwords_available_for_user', array( 'Mody\Profiles\NetworkProfile', 'application_passwords' ) ) );
 $check( 'no Mody ability registered', ! function_exists( 'wp_get_abilities' ) || ! array_filter( array_keys( (array) wp_get_abilities() ), static fn( $name ) => str_starts_with( (string) $name, 'mody/' ) ) );
 $check( 'wp_mail is WordPress\'s own (no pre_wp_mail filter)', ! has_filter( 'pre_wp_mail' ) );
 

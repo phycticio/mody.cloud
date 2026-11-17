@@ -288,7 +288,7 @@ PROMPT;
 				'numberposts'    => self::MEDIA_ITEMS,
 				'orderby'        => 'date',
 				'order'          => 'DESC',
-				// Profile pictures are not the site's media (Users\Avatars).
+				// Profile pictures are not the site's media (Mody Profiles).
 				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- At most MEDIA_ITEMS rows.
 					array(
 						'key'     => '_mody_avatar_of',
