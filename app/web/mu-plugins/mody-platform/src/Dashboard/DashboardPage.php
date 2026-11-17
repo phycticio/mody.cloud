@@ -20,7 +20,6 @@ use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Provisioning\Quota;
 use Mody\Platform\Wizard\WizardPage;
-use Mody\Platform\Site\Storage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -1035,7 +1034,7 @@ final class DashboardPage {
 				sprintf(
 					/* translators: 1: space per site, such as 1 GB, 2: Mody's tokens a month, such as 5 million. */
 					__( 'Every site has the same: %1$s of space, every plugin in our market, the full Site Editor and its own Mody, with %2$s tokens a month. Prices in euros, VAT included.', 'mody_cloud' ),
-					size_format( Storage::SITE_MB * MB_IN_BYTES ),
+					size_format( (int) get_site_option( 'blog_upload_space', 1024 ) * MB_IN_BYTES ), // The network's space per site (Mody Storage sets it).
 					number_format_i18n( Budget::MONTH )
 				)
 			);
@@ -1418,7 +1417,11 @@ final class DashboardPage {
 	 * The site's space: a bar and "0.2 GB of 1 GB used".
 	 */
 	private static function render_storage(): void {
-		$usage = Storage::usage();
+		$usage = array( // WordPress's own quota (Mody Storage sets it).
+			'used'    => (int) round( get_space_used() * MB_IN_BYTES ),
+			'allowed' => (int) round( get_space_allowed() * MB_IN_BYTES ),
+			'limited' => ! is_main_site() && ! get_site_option( 'upload_space_check_disabled' ),
+		);
 		if ( ! $usage['limited'] ) {
 			/* translators: %s: space used, such as 1.2 GB. */
 			echo esc_html( sprintf( __( '%s used. This site has no limit.', 'mody_cloud' ), size_format( $usage['used'], 1 ) ) );

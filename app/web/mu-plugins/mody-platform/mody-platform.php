@@ -61,7 +61,7 @@ add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::cla
 /*
  * The Mody dashboard (2026-11-11, tickets/mody-dashboard.md): every site's
  * Dashboard menu item opens it, and core's dashboard redirects there. Each
- * site has 1 GB, with WordPress's own upload quota (Site\Storage).
+ * site has 1 GB, with WordPress's own upload quota (Mody Storage).
  */
 Dashboard\DashboardPage::register();
 if ( class_exists( \Mody\Analytics\Query::class ) ) {
@@ -70,7 +70,6 @@ if ( class_exists( \Mody\Analytics\Query::class ) ) {
 		Dashboard\Analyst::register(); // Mody on that board: reads only the analytics, changes only the board (phase 2).
 	}
 }
-Site\Storage::register();
 
 /*
  * Take your site with you (2026-11-12, tickets/take-your-site-with-you.md):

@@ -35,7 +35,7 @@ use Mody\Platform\Agent\TurnMetrics;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Dashboard\Usage;
 use Mody\Platform\Members\Members;
-use Mody\Platform\Site\Storage;
+use Mody\Storage\Storage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';

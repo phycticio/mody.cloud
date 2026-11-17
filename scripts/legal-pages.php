@@ -29,7 +29,7 @@ use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Lifecycle;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Members\Offers;
-use Mody\Platform\Site\Storage;
+use Mody\Storage\Storage;
 
 if ( ! is_main_site() ) {
 	WP_CLI::error( 'Run this on the main site.' );

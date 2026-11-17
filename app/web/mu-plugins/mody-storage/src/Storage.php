@@ -3,10 +3,10 @@
  * 1 GB of space per site (membership-tiers.md), with WordPress's own upload
  * quota.
  *
- * @package Mody\Platform
+ * @package Mody\Storage
  */
 
-namespace Mody\Platform\Site;
+namespace Mody\Storage;
 
 defined( 'ABSPATH' ) || exit;
 
