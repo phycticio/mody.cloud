@@ -9,7 +9,7 @@ namespace Mody\Platform\Brand;
 
 use Mody\Platform\AI\SystemPrompt;
 use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Login\LoginPage;
+use Mody\Platform\Look;
 use Mody\Platform\SiteEditor;
 
 defined( 'ABSPATH' ) || exit;
@@ -69,7 +69,7 @@ final class BrandPage {
 		);
 		if ( $hook ) {
 			add_action( 'load-' . $hook, array( self::class, 'enqueue' ) );
-			add_action( 'admin_head-' . $hook, array( LoginPage::class, 'print_fonts' ) );
+			add_action( 'admin_head-' . $hook, array( Look::class, 'print_fonts' ) );
 		}
 	}
 
@@ -79,8 +79,8 @@ final class BrandPage {
 	 */
 	public static function enqueue(): void {
 		$root = dirname( __DIR__, 2 );
-		LoginPage::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
-		wp_add_inline_style( 'mody-brand-page', LoginPage::variables_css() );
+		Look::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
+		wp_add_inline_style( 'mody-brand-page', Look::variables_css() );
 		wp_enqueue_script( 'mody-brand-page', plugins_url( 'assets/brand-page.js', $root . '/mody-platform.php' ), array(), (string) filemtime( $root . '/assets/brand-page.js' ), true );
 	}
 
@@ -180,7 +180,7 @@ final class BrandPage {
 		$count    = count( array_intersect( $filled, $editable ) );
 		?>
 		<section class="mody-brand__card" aria-label="<?php esc_attr_e( 'The brand', 'mody_cloud' ); ?>">
-			<?php $logo = LoginPage::logo_html( '200px' ); ?>
+			<?php $logo = Look::logo_html( '200px' ); ?>
 			<?php if ( ! str_contains( $logo, 'mody-login-name' ) ) : // No logo or icon: the name is already beside it. ?>
 				<div class="mody-brand__logo"><?php echo $logo; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in logo_html(). ?></div>
 			<?php endif; ?>
@@ -544,7 +544,7 @@ final class BrandPage {
 			__( 'Headings', 'mody_cloud' ) => array( 'elements', 'heading', 'typography', 'fontFamily' ),
 		) as $label => $path ) {
 			$value = wp_get_global_styles( $path );
-			$slug  = is_string( $value ) ? LoginPage::font_slug( $value ) : '';
+			$slug  = is_string( $value ) ? Look::font_slug( $value ) : '';
 			if ( '' !== $slug ) {
 				$fonts[ $label ] = $families[ $slug ] ?? $slug;
 			}

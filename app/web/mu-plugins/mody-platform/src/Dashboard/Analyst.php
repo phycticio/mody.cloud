@@ -14,7 +14,7 @@ use Mody\Platform\Agent\Budget;
 use Mody\Platform\Agent\Slots;
 use Mody\Platform\Agent\TurnMetrics;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Login\Schemes;
+use Mody\Platform\Look;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\DTO\ModelMessage;
@@ -590,9 +590,9 @@ final class Analyst {
 		$name    = $brand['name'];
 		$mission = trim( $brand['mission'] );
 		$palette = array();
-		foreach ( Schemes::palette() as $slug => $hex ) {
+		foreach ( Look::palette() as $slug => $hex ) {
 			// Only colors a chart can use: the light ones (often base) would be refused.
-			if ( \Mody\Platform\Login\Color::contrast( $hex, ChartSpec::SURFACE ) >= ChartSpec::MIN_CONTRAST ) {
+			if ( Look::contrast( $hex, ChartSpec::SURFACE ) >= ChartSpec::MIN_CONTRAST ) {
 				$palette[] = $slug . ' ' . $hex;
 			}
 		}

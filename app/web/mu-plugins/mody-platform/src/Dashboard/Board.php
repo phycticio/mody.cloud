@@ -8,7 +8,7 @@
 namespace Mody\Platform\Dashboard;
 
 use Mody\Analytics\Query;
-use Mody\Platform\Login\Schemes;
+use Mody\Platform\Look;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -516,7 +516,7 @@ final class Board {
 			'version'   => self::version(),
 			'canUndo'   => self::can_undo(),
 			'notes'     => self::notes(),
-			'palette'   => Schemes::palette(),
+			'palette'   => Look::palette(),
 		);
 	}
 

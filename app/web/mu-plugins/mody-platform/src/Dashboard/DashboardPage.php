@@ -15,7 +15,7 @@ use Mody\Platform\Billing\Payments;
 use Mody\Platform\Brand\BrandBook;
 use Mody\Platform\Brand\BrandPage;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Login\LoginPage;
+use Mody\Platform\Look;
 use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
 use Mody\Platform\Provisioning\Quota;
@@ -93,7 +93,7 @@ final class DashboardPage {
 		);
 		if ( $hook ) {
 			add_action( 'load-' . $hook, array( self::class, 'enqueue' ) );
-			add_action( 'admin_head-' . $hook, array( LoginPage::class, 'print_fonts' ) );
+			add_action( 'admin_head-' . $hook, array( Look::class, 'print_fonts' ) );
 		}
 	}
 
@@ -133,9 +133,9 @@ final class DashboardPage {
 	 * site's theme variables.
 	 */
 	public static function enqueue(): void {
-		LoginPage::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
-		LoginPage::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-brand-page' ) );
-		wp_add_inline_style( 'mody-brand-page', LoginPage::variables_css() );
+		Look::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
+		Look::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-brand-page' ) );
+		wp_add_inline_style( 'mody-brand-page', Look::variables_css() );
 		ExportPanel::enqueue();
 		if ( 'visitors' === self::current() && class_exists( Board::class ) && Board::can_manage() ) {
 			self::enqueue_board();
@@ -333,7 +333,7 @@ final class DashboardPage {
 		$brand = BrandSettings::brand();
 		?>
 		<section class="mody-brand__card" aria-label="<?php esc_attr_e( 'The site', 'mody_cloud' ); ?>">
-			<?php $logo = LoginPage::logo_html( '200px' ); ?>
+			<?php $logo = Look::logo_html( '200px' ); ?>
 			<?php if ( ! str_contains( $logo, 'mody-login-name' ) ) : // No logo or icon: the name is already beside it. ?>
 				<div class="mody-brand__logo"><?php echo $logo; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in logo_html(). ?></div>
 			<?php endif; ?>

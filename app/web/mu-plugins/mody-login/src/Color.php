@@ -2,10 +2,10 @@
 /**
  * Color math for the login page's schemes: parsing, mixing, contrast.
  *
- * @package Mody\Platform
+ * @package Mody\Login
  */
 
-namespace Mody\Platform\Login;
+namespace Mody\Login;
 
 defined( 'ABSPATH' ) || exit;
 

@@ -8,8 +8,7 @@
 namespace Mody\Platform\Dashboard;
 
 use Mody\Analytics\Query;
-use Mody\Platform\Login\Color;
-use Mody\Platform\Login\Schemes;
+use Mody\Platform\Look;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -181,10 +180,10 @@ final class ChartSpec {
 			$color = strtolower( trim( (string) $color ) );
 			$hex   = self::resolve( $color );
 			if ( null === $hex ) {
-				return self::error( sprintf( 'Unknown color "%s". Use a palette name (%s), "admin", or a six-digit hex such as #1f6feb.', $color, implode( ', ', array_keys( Schemes::palette() ) ) ) );
+				return self::error( sprintf( 'Unknown color "%s". Use a palette name (%s), "admin", or a six-digit hex such as #1f6feb.', $color, implode( ', ', array_keys( Look::palette() ) ) ) );
 			}
-			if ( 'admin' !== $hex && Color::contrast( $hex, self::SURFACE ) < self::MIN_CONTRAST ) {
-				return self::error( sprintf( 'The color "%s" (%s) is too light to see on the white card: its contrast is %.1f:1 and marks need %.0f:1. Choose a darker color.', $color, $hex, Color::contrast( $hex, self::SURFACE ), self::MIN_CONTRAST ) );
+			if ( 'admin' !== $hex && Look::contrast( $hex, self::SURFACE ) < self::MIN_CONTRAST ) {
+				return self::error( sprintf( 'The color "%s" (%s) is too light to see on the white card: its contrast is %.1f:1 and marks need %.0f:1. Choose a darker color.', $color, $hex, Look::contrast( $hex, self::SURFACE ), self::MIN_CONTRAST ) );
 			}
 			$clean[] = $color;
 		}
@@ -205,7 +204,7 @@ final class ChartSpec {
 		if ( 'admin' === $color ) {
 			return 'admin';
 		}
-		$palette = Schemes::palette();
+		$palette = Look::palette();
 		if ( isset( $palette[ $color ] ) ) {
 			return $palette[ $color ];
 		}

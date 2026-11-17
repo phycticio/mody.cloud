@@ -3,10 +3,10 @@
  * Settings → Login: tabs on the left, the tab's settings on the right. One
  * tab today: Login color scheme.
  *
- * @package Mody\Platform
+ * @package Mody\Login
  */
 
-namespace Mody\Platform\Login;
+namespace Mody\Login;
 
 defined( 'ABSPATH' ) || exit;
 

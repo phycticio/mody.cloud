@@ -141,7 +141,7 @@ check "a placeholder image is served" "$(get /mody-placeholder/1200x800.svg | gr
 check "an initials avatar is served" "$(get /mody-avatar/3/AB.svg | grep -q '^200 image/svg+xml' && echo 0 || echo 1)"
 LOGIN=$(body /wp-login.php)
 check "the login page answers 200" "$(get /wp-login.php | grep -q '^200' && echo 0 || echo 1)"
-check "  in the site's brand (login.css)" "$(grep -q 'mody-site/assets/login.css' <<<"$LOGIN" && echo 0 || echo 1)"
+check "  in the site's brand (login.css)" "$(grep -q 'mody-login/assets/login.css' <<<"$LOGIN" && echo 0 || echo 1)"
 check "  without the antibot widget" "$(grep -qi 'altcha' <<<"$LOGIN" && echo 1 || echo 0)"
 ES=$(wp_site post list --post_type=page --name=exit-test-es --field=url)
 ES_PATH=${ES#"$URL"}

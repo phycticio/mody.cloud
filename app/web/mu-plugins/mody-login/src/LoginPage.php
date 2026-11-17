@@ -3,10 +3,10 @@
  * wp-login.php in the site's own brand: its logo, its palette (through the
  * chosen scheme) and its fonts, all from the theme's variables.
  *
- * @package Mody\Platform
+ * @package Mody\Login
  */
 
-namespace Mody\Platform\Login;
+namespace Mody\Login;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -98,8 +98,8 @@ final class LoginPage {
 	 * @param string[] $deps   Handles it follows.
 	 */
 	public static function enqueue_asset( string $handle, string $file, array $deps = array() ): void {
-		$root = dirname( __DIR__, 2 );
-		wp_enqueue_style( $handle, plugins_url( 'assets/' . $file, $root . '/mody-platform.php' ), $deps, (string) filemtime( $root . '/assets/' . $file ) );
+		$root = dirname( __DIR__ );
+		wp_enqueue_style( $handle, plugins_url( 'assets/' . $file, $root . '/mody-login.php' ), $deps, (string) filemtime( $root . '/assets/' . $file ) );
 	}
 
 	/**

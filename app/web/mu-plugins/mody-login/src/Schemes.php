@@ -3,10 +3,10 @@
  * The login page's color schemes: up to six arrangements of a site's own
  * palette, and the one the site chose.
  *
- * @package Mody\Platform
+ * @package Mody\Login
  */
 
-namespace Mody\Platform\Login;
+namespace Mody\Login;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -44,8 +44,7 @@ final class Schemes {
 	 * @return array<string, string>
 	 */
 	public static function palette(): array {
-		// Read here, not through Design\SiteDesign: the login page also runs in
-		// Mody Site, the portable plugin a downloaded site takes with it.
+		// Read here: this plugin names no other plugin's class.
 		$palette = array();
 		foreach ( (array) wp_get_global_settings( array( 'color', 'palette', 'theme' ) ) as $entry ) {
 			$slug = is_array( $entry ) ? (string) ( $entry['slug'] ?? '' ) : '';

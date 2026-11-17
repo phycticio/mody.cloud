@@ -9,7 +9,7 @@ namespace Mody\Platform\Site;
 
 use Mody\Platform\Brand\BrandBook;
 use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Login\Schemes;
+use Mody\Login\Schemes;
 use Mody\Platform\SiteEditor;
 use WP_Error;
 
@@ -195,18 +195,20 @@ final class Settings {
 					self::CONFIRM
 				),
 				// Mody's own screens.
-				'login_color_scheme'           => array(
-					'option' => Schemes::OPTION,
-					'type'   => 'scheme',
-					'tier'   => self::DIRECT,
-				),
 				'other_languages'              => array(
 					'option' => 'mody_languages',
 					'type'   => 'locales',
 					'tier'   => self::CONFIRM,
 				),
 			),
-			$brand // Your brand (2026-11-11): brand_vision, brand_offer…
+			$brand, // Your brand (2026-11-11): brand_vision, brand_offer…
+			class_exists( Schemes::class ) ? array( // Settings → Login, when Mody Login is there.
+				'login_color_scheme' => array(
+					'option' => Schemes::OPTION,
+					'type'   => 'scheme',
+					'tier'   => self::DIRECT,
+				),
+			) : array()
 		);
 	}
 

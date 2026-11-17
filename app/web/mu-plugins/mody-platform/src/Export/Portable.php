@@ -37,17 +37,13 @@ final class Portable {
 
 	/** Mody Site's classes, from this plugin's src/. */
 	public const SITE_FILES = array(
-		'Login/Color.php',
-		'Login/LoginPage.php',
-		'Login/Schemes.php',
-		'Login/SettingsPage.php',
 		'Media/ImageSize.php',
 		'Security/AntispamBee.php',
 		'Users/Avatars.php',
 	);
 
 	/** Mody Site's assets, from this plugin's assets/. */
-	public const SITE_ASSETS = array( 'login.css', 'login-settings.css' );
+	public const SITE_ASSETS = array();
 
 	/** Plugins copied from mu-plugins/, by folder: their main file. */
 	public const PLUGINS = array(
@@ -55,6 +51,7 @@ final class Portable {
 		'mody-admin-colors' => 'mody-admin-colors.php',
 		'mody-images'       => 'mody-images.php',
 		'mody-languages'    => 'mody-languages.php',
+		'mody-login'        => 'mody-login.php',
 		'mody-palette'      => 'mody-palette.php',
 		'mody-patterns'     => 'mody-patterns.php',
 		'mody-seo'          => 'mody-seo.php',

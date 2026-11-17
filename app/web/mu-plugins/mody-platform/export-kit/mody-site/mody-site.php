@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Mody Site
- * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: its login page and Settings → Login, SEO titles and descriptions, initials avatars. Mody, the AI agent, is not part of it.
+ * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: SEO titles and descriptions and initials avatars. Mody, the AI agent, is not part of it.
  * Version:           1.0.0
  * Author:            Mody Cloud
  * Author URI:        https://mody.cloud
@@ -56,12 +56,6 @@ add_filter( 'ajax_query_attachments_args', array( Users\Avatars::class, 'hide_fr
 add_filter( 'rest_attachment_query', array( Users\Avatars::class, 'hide_from_media' ) );
 add_action( 'delete_attachment', array( Users\Avatars::class, 'forget_attachment' ) );
 add_action( 'delete_user', array( Users\Avatars::class, 'forget_user' ) );
-
-// The login page in the site's brand, and Settings → Login.
-Login\LoginPage::register();
-add_action( 'admin_init', array( Login\SettingsPage::class, 'register_setting' ) );
-add_action( 'rest_api_init', array( Login\SettingsPage::class, 'register_setting' ) );
-add_action( 'admin_menu', array( Login\SettingsPage::class, 'register_menu' ) );
 
 // Antispam Bee's checks that call outside services stay off.
 Security\AntispamBee::register();
