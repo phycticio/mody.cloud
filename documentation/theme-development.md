@@ -65,7 +65,7 @@ All pairs the theme actually uses pass WCAG AA for normal text (4.5:1).
   - **What they offer:** the theme's five colors plus the site's own. People still add their own colors under Styles → Colors → Palette → Custom; WordPress shows that editor whatever the settings say.
   - **How:** `settings.color.custom` and `customGradient` are `false` in `theme.json`.
   - **Existing content:** a block that already has a custom hex color keeps it, but nobody can pick a new one.
-  - **Spectra:** its color fields follow these settings. A few pickers Spectra draws itself do not; `Design\PaletteOnly` hides their free part in the editors and keeps their palette. These are the Advanced Gradient's two colors, and the custom color button of five color lists (shadows, border hover, text shadow).
+  - **Spectra:** its color fields follow these settings. A few pickers Spectra draws itself do not; `PaletteOnly` (the `mody-palette` plugin) hides their free part in the editors and keeps their palette. These are the Advanced Gradient's two colors, and the custom color button of five color lists (shadows, border hover, text shadow).
   - **Spectra quirk:** the content block's text shadow list shows only the site's own colors when it has any, not the theme's five.
 - **Gradients:** four presets built from the palette's CSS variables, so each one follows the site's colors and its style variation.
 

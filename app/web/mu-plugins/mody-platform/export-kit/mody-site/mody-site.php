@@ -64,8 +64,5 @@ add_action( 'admin_init', array( Login\SettingsPage::class, 'register_setting' )
 add_action( 'rest_api_init', array( Login\SettingsPage::class, 'register_setting' ) );
 add_action( 'admin_menu', array( Login\SettingsPage::class, 'register_menu' ) );
 
-// Color pickers offer the palette only, as on Mody Cloud.
-add_action( 'enqueue_block_editor_assets', array( Design\PaletteOnly::class, 'enqueue' ) );
-
 // Antispam Bee's checks that call outside services stay off.
 Security\AntispamBee::register();

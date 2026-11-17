@@ -36,7 +36,6 @@ final class Portable {
 
 	/** Mody Site's classes, from this plugin's src/. */
 	public const SITE_FILES = array(
-		'Design/PaletteOnly.php',
 		'Design/Patterns.php',
 		'Login/Color.php',
 		'Login/LoginPage.php',
@@ -56,6 +55,7 @@ final class Portable {
 		'mody-admin-colors' => 'mody-admin-colors.php',
 		'mody-images'       => 'mody-images.php',
 		'mody-languages'    => 'mody-languages.php',
+		'mody-palette'      => 'mody-palette.php',
 		'mody-seo'          => 'mody-seo.php',
 		'mody-spectra'      => 'mody-spectra.php',
 		'spectra-blocks'    => 'spectra-blocks.php',

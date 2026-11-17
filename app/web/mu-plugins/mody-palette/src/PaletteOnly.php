@@ -2,10 +2,10 @@
 /**
  * Color pickers offer only palette colors (M1-04 part A).
  *
- * @package Mody\Platform
+ * @package Mody\Palette
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Palette;
 
 defined( 'ABSPATH' ) || exit;
 

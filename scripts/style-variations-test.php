@@ -22,7 +22,7 @@
  * The member site's Global Styles and their revisions are restored. No model call.
  */
 
-use Mody\Platform\Design\PaletteOnly;
+use Mody\Palette\PaletteOnly;
 use Mody\Platform\Design\Presets;
 use Mody\Platform\Design\SiteDesign;
 

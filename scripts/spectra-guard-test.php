@@ -10,7 +10,7 @@
  *
  * Also, not rule 1: Spectra's color pickers offer only palette colors (M1-04
  * part A). Its color lists' custom color button is hidden whatever Spectra
- * passes (Design\PaletteOnly); this checks the rest of its markup.
+ * passes (Mody Palette); this checks the rest of its markup.
  */
 
 use Mody\Spectra\SpectraGuard;
@@ -107,7 +107,7 @@ $check( 'Infomaniak and WordPress.org not denied', ! SpectraGuard::is_denied_url
 // Not Spectra, also rule 1 (2026-11-07): the Font Library has no Google Fonts collection.
 $check( 'Font Library: no Google Fonts collection', ! isset( WP_Font_Library::get_instance()->get_font_collections()['google-fonts'] ), implode( ', ', array_keys( WP_Font_Library::get_instance()->get_font_collections() ) ) );
 
-// Not rule 1: color pickers offer only palette colors (M1-04 part A, Design\PaletteOnly).
+// Not rule 1: color pickers offer only palette colors (M1-04 part A, Mody Palette).
 // theme.json covers Spectra's color fields; the pickers Spectra draws itself are hidden
 // by PaletteOnly's style, which matches the markup below. A change here needs a browser check.
 $scripts = array();
