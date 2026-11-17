@@ -32,7 +32,7 @@ Page generation sits on top of that (2026-11-06, see [Generating a page](#genera
 ability mody/generate-page   (agent chat, MCP, REST)                  src/Abilities.php
   └─ PageGenerator::create_draft()     saves a draft page, returns its Site Editor URL
        └─ PageGenerator::generate_page( $site_id, $prompt )                 src/AI/PageGenerator.php
-            ├─ BrandSettings::brand()       the site's own settings (M2-08)        src/Brand/BrandSettings.php
+            ├─ BrandSettings::brand()       the site's own settings (M2-08)        mody-brand/src/BrandSettings.php
             ├─ SystemPrompt::for_page()     rules + brand context + few-shot example  src/AI/SystemPrompt.php
             ├─ wp_ai_client_prompt()        temperature 0.1, provider infomaniak, thinking off
             └─ BlockValidator::validate()   retry with the reason, 3 attempts in all  src/AI/BlockValidator.php
@@ -320,7 +320,7 @@ The maintainer asked for six recommendations on the same day. What was found and
 
 Asked for by the maintainer on 2026-11-11 ([your-brand-page.md](../tickets/your-brand-page.md)): Mody knew a business by its name, tagline, one-sentence mission and tone. Now the owner can tell it much more, on a page or in the chat, and every prompt reads it.
 
-- **Where it lives.** One site setting, `mody_brand` (`Brand\BrandBook`), an object with 16 fixed fields:
+- **Where it lives.** One site setting, `mody_brand` (`BrandBook` (`mody-brand`)), an object with 16 fixed fields:
   - **Identity:** vision.
   - **Voice:** how we sound, the form of "you" (formal, informal or none), words to use, words to avoid.
   - **Audience:** who the customers are, what they need.
@@ -329,7 +329,7 @@ Asked for by the maintainer on 2026-11-11 ([your-brand-page.md](../tickets/your-
   - **Facts:** address, phone, email, opening hours, area served.
 
   Every field has a limit (`BrandBook::FIELDS`). It is registered with a REST schema, so `/wp/v2/settings` refuses unknown fields and values over a limit, and it needs `manage_options`. The name, tagline, mission, tone and logo stay in their own settings: nothing is copied.
-- **The page:** Settings → Brand, titled Your brand (`Brand\BrandPage`, `assets/brand-page.css` and `brand-page.js`, plain, no build step).
+- **The page:** Settings → Brand, titled Your brand (`BrandPage` (`mody-brand`), `assets/brand-page.css` and `brand-page.js`, plain, no build step).
   - **Layout:** the sections on the left (a row above the panel on phones); a card with the logo, name, tagline and "N of 6 sections filled in"; a notice after saving; the section's panel with an **Overview** tab (label and value rows) and an **Edit** tab (the form).
   - **The Overview section** shows each section's state, and, under "What Mody receives", the exact brand block of the prompts.
   - **Visual style** shows the palette, fonts and gradients from Global Styles, with links to Styles and Identity.

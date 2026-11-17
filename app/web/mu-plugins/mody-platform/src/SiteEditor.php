@@ -172,7 +172,10 @@ final class SiteEditor {
 				return self::result( 'identity', self::url( '/identity' ), __( 'Open Identity', 'mody_cloud' ), __( 'the Identity screen', 'mody_cloud' ) );
 			case 'brand':
 				// Your brand (Settings → Brand, 2026-11-11): a wp-admin page, so the owner gets a button.
-				return self::result( 'brand', \Mody\Platform\Brand\BrandPage::url(), __( 'Open Your brand', 'mody_cloud' ), __( 'the Your brand page', 'mody_cloud' ) );
+				if ( ! class_exists( \Mody\Brand\BrandPage::class ) ) {
+					return new WP_Error( 'mody_no_brand_page', __( 'This site has no Your brand page.', 'mody_cloud' ) );
+				}
+				return self::result( 'brand', \Mody\Brand\BrandPage::url(), __( 'Open Your brand', 'mody_cloud' ), __( 'the Your brand page', 'mody_cloud' ) );
 			case 'home':
 				return self::result( 'home', self::url( '/' ), __( 'Open the Site Editor', 'mody_cloud' ), __( 'the Site Editor\'s start screen', 'mody_cloud' ) );
 		}

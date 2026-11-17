@@ -2,10 +2,10 @@
 /**
  * What the owner tells Mody about the business: the site setting `mody_brand`.
  *
- * @package Mody\Platform
+ * @package Mody\Brand
  */
 
-namespace Mody\Platform\Brand;
+namespace Mody\Brand;
 
 use WP_Error;
 

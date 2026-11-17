@@ -2,14 +2,11 @@
 /**
  * Settings → Brand ("Your brand"): what Mody knows about the business.
  *
- * @package Mody\Platform
+ * @package Mody\Brand
  */
 
-namespace Mody\Platform\Brand;
+namespace Mody\Brand;
 
-use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Look;
-use Mody\Platform\SiteEditor;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -77,10 +74,10 @@ final class BrandPage {
 	 * variables, so the visual style shows the site's own colors and fonts.
 	 */
 	public static function enqueue(): void {
-		$root = dirname( __DIR__, 2 );
+		$root = dirname( __DIR__ );
 		Look::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
 		wp_add_inline_style( 'mody-brand-page', Look::variables_css() );
-		wp_enqueue_script( 'mody-brand-page', plugins_url( 'assets/brand-page.js', $root . '/mody-platform.php' ), array(), (string) filemtime( $root . '/assets/brand-page.js' ), true );
+		wp_enqueue_script( 'mody-brand-page', plugins_url( 'assets/brand-page.js', $root . '/mody-brand.php' ), array(), (string) filemtime( $root . '/assets/brand-page.js' ), true );
 	}
 
 	/**
@@ -197,7 +194,7 @@ final class BrandPage {
 				</p>
 			</div>
 			<?php if ( current_user_can( 'edit_theme_options' ) ) : ?>
-				<a class="button" href="<?php echo esc_url( SiteEditor::url( '/identity' ) ); ?>"><?php esc_html_e( 'Change the logo and icon', 'mody_cloud' ); ?></a>
+				<a class="button" href="<?php echo esc_url( self::site_editor( '/identity' ) ); ?>"><?php esc_html_e( 'Change the logo and icon', 'mody_cloud' ); ?></a>
 			<?php endif; ?>
 		</section>
 		<?php
@@ -253,10 +250,21 @@ final class BrandPage {
 			</tbody>
 		</table>
 		<p class="description"><?php esc_html_e( 'You can also tell Mody about your business in the chat, for example "our services are…", and it saves it here.', 'mody_cloud' ); ?></p>
-		<details class="mody-brand__prompt">
-			<summary><?php esc_html_e( 'What Mody receives', 'mody_cloud' ); ?></summary>
-			<pre><?php echo esc_html( SystemPrompt::brand_context() ); ?></pre>
-		</details>
+		<?php
+		/**
+		 * Filters what the plugin that writes the site's prompts sends about the
+		 * brand, shown at the foot of the page; '' shows nothing.
+		 *
+		 * @param string $context The brand context, as sent.
+		 */
+		$context = apply_filters( 'mody_brand_context', '' );
+		?>
+		<?php if ( is_string( $context ) && '' !== $context ) : ?>
+			<details class="mody-brand__prompt">
+				<summary><?php esc_html_e( 'What Mody receives', 'mody_cloud' ); ?></summary>
+				<pre><?php echo esc_html( $context ); ?></pre>
+			</details>
+		<?php endif; ?>
 		<?php
 	}
 
@@ -603,9 +611,9 @@ final class BrandPage {
 		</table>
 		<?php if ( $can ) : ?>
 			<p class="mody-brand__links">
-				<a class="button" href="<?php echo esc_url( SiteEditor::styles_screen( 'colors' )['url'] ); ?>"><?php esc_html_e( 'Change the colors', 'mody_cloud' ); ?></a>
-				<a class="button" href="<?php echo esc_url( SiteEditor::styles_screen( 'typography' )['url'] ); ?>"><?php esc_html_e( 'Change the fonts', 'mody_cloud' ); ?></a>
-				<a class="button" href="<?php echo esc_url( SiteEditor::url( '/identity' ) ); ?>"><?php esc_html_e( 'Change the logo and icon', 'mody_cloud' ); ?></a>
+				<a class="button" href="<?php echo esc_url( self::site_editor( '/styles', array( 'section' => '/colors' ) ) ); ?>"><?php esc_html_e( 'Change the colors', 'mody_cloud' ); ?></a>
+				<a class="button" href="<?php echo esc_url( self::site_editor( '/styles', array( 'section' => '/typography' ) ) ); ?>"><?php esc_html_e( 'Change the fonts', 'mody_cloud' ); ?></a>
+				<a class="button" href="<?php echo esc_url( self::site_editor( '/identity' ) ); ?>"><?php esc_html_e( 'Change the logo and icon', 'mody_cloud' ); ?></a>
 			</p>
 			<?php
 		endif;
@@ -656,5 +664,16 @@ final class BrandPage {
 		}
 		BrandBook::update( $changes );
 		return $error;
+	}
+
+	/**
+	 * A Site Editor URL on the current site: WordPress 7.1 routes it with
+	 * `?p=<path>`, and `section=<screen>` picks a Styles screen.
+	 *
+	 * @param string                $path  Such as `/identity` or `/styles`.
+	 * @param array<string, string> $query More query arguments.
+	 */
+	private static function site_editor( string $path, array $query = array() ): string {
+		return add_query_arg( array( 'p' => rawurlencode( $path ) ) + array_map( 'rawurlencode', $query ), admin_url( 'site-editor.php' ) );
 	}
 }

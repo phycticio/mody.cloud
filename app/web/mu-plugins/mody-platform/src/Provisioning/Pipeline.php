@@ -10,7 +10,7 @@ namespace Mody\Platform\Provisioning;
 use Mody\Platform\Agent\EditorBubble;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SpectraLayout;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 use Mody\Styles\Presets;
 use Mody\Styles\SiteDesign;
 use Mody\Platform\SiteEditor;
@@ -194,7 +194,7 @@ final class Pipeline {
 		}
 
 		$tone = '' !== $text( 'tone' ) ? $text( 'tone' ) : 'friendly';
-		if ( ! in_array( $tone, BrandSettings::TONES, true ) ) {
+		if ( class_exists( BrandSettings::class ) && ! in_array( $tone, BrandSettings::TONES, true ) ) {
 			$errors['tone'] = __( 'Choose one of the three tones.', 'mody_cloud' );
 		}
 
@@ -528,7 +528,9 @@ final class Pipeline {
 	private static function step_profile( array $job ): array|WP_Error {
 		$result = empty( $job['input']['logo_id'] ) ? array() : self::copy_logo( $job );
 		switch_to_blog( (int) $job['site_id'] );
-		BrandSettings::save( (string) $job['input']['mission'], (string) $job['input']['tone'] );
+		if ( class_exists( BrandSettings::class ) ) { // Mody Brand keeps the mission and tone.
+			BrandSettings::save( (string) $job['input']['mission'], (string) $job['input']['tone'] );
+		}
 		restore_current_blog();
 		return array( 'result' => $result );
 	}

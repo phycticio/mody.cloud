@@ -27,7 +27,7 @@ use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 
 require_once ABSPATH . 'wp-admin/includes/user.php';
 

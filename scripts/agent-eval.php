@@ -29,8 +29,8 @@ use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\Agent\TurnMetrics;
 use Mody\Platform\AI\PageOutline;
 use Mody\Platform\AI\SpectraLayout;
-use Mody\Platform\Brand\BrandBook;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandBook;
+use Mody\Brand\BrandSettings;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";

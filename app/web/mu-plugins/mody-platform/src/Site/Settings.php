@@ -7,8 +7,8 @@
 
 namespace Mody\Platform\Site;
 
-use Mody\Platform\Brand\BrandBook;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandBook;
+use Mody\Brand\BrandSettings;
 use Mody\Login\Schemes;
 use Mody\Platform\SiteEditor;
 use WP_Error;
@@ -84,7 +84,7 @@ final class Settings {
 			$formats[ $format ] = $format;
 		}
 		$brand = array();
-		foreach ( array_keys( BrandBook::FIELDS ) as $field ) {
+		foreach ( class_exists( BrandBook::class ) ? array_keys( BrandBook::FIELDS ) : array() as $field ) { // Mody Brand's.
 			$brand[ 'brand_' . $field ] = array(
 				'option' => BrandBook::OPTION,
 				'type'   => 'brand',
@@ -97,8 +97,6 @@ final class Settings {
 				// General.
 				'title'                        => $text( 'blogname', 120 ),
 				'tagline'                      => $text( 'blogdescription', 200 ),
-				'mission'                      => $text( BrandSettings::MISSION, BrandSettings::MAX_MISSION ),
-				'tone'                         => $enum( BrandSettings::TONE, array_combine( BrandSettings::TONES, BrandSettings::TONES ) ),
 				'timezone'                     => array(
 					'option' => 'timezone_string',
 					'type'   => 'timezone',
@@ -201,6 +199,10 @@ final class Settings {
 					'tier'   => self::CONFIRM,
 				),
 			),
+			class_exists( BrandSettings::class ) ? array( // Mission and tone, Mody Brand's.
+				'mission' => $text( BrandSettings::MISSION, BrandSettings::MAX_MISSION ),
+				'tone'    => $enum( BrandSettings::TONE, array_combine( BrandSettings::TONES, BrandSettings::TONES ) ),
+			) : array(),
 			$brand, // Your brand (2026-11-11): brand_vision, brand_offer…
 			class_exists( Schemes::class ) ? array( // Settings → Login, when Mody Login is there.
 				'login_color_scheme' => array(

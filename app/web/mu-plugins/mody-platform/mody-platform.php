@@ -34,31 +34,6 @@ spl_autoload_register(
 Export\Downloads::serve(); // A site's download files, through signed links (tickets/take-your-site-with-you.md).
 
 /*
- * Network-wide tables (mvp-spec section 11). Creates or updates them only
- * when their version changed.
- */
-add_action( 'init', array( Brand\BrandSettings::class, 'migrate' ), 1 ); // Once per network: the old profile table into each site's settings, then dropped (M2-08).
-
-/*
- * The brand is each site's own WordPress data (M2-08): title, tagline, logo
- * and icon (Identity), its Global Styles, and two site settings WordPress
- * lacks, mission and tone, shown on the Identity screen and in Settings →
- * General.
- */
-add_action( 'init', array( Brand\BrandSettings::class, 'register' ) );
-add_action( 'admin_init', array( Brand\BrandSettings::class, 'general_fields' ) );
-add_action( 'admin_enqueue_scripts', array( Brand\BrandSettings::class, 'enqueue_identity_fields' ) );
-
-/*
- * Your brand (2026-11-11, tickets/your-brand-page.md): Settings → Brand, the
- * rest of what Mody knows about the business (voice, audience, offer, story,
- * values, facts) in one site setting, read by every prompt.
- */
-add_action( 'init', array( Brand\BrandBook::class, 'register' ) );
-add_action( 'admin_menu', array( Brand\BrandPage::class, 'register_menu' ) );
-add_action( 'admin_post_' . Brand\BrandPage::ACTION, array( Brand\BrandPage::class, 'save' ) );
-
-/*
  * The Mody dashboard (2026-11-11, tickets/mody-dashboard.md): every site's
  * Dashboard menu item opens it, and core's dashboard redirects there. Each
  * site has 1 GB, with WordPress's own upload quota (Mody Storage).
@@ -220,6 +195,7 @@ add_action(
  * instructions (rule 4, ticket M3-04). The plugin's source is not edited.
  */
 add_filter( 'wpai_system_instruction', array( AI\PluginBrandContext::class, 'filter' ), 10, 2 );
+add_filter( 'mody_brand_context', array( AI\SystemPrompt::class, 'brand_context' ) ); // Shown at the foot of Settings → Brand (Mody Brand).
 
 /*
  * Abilities: the agent's actions (mvp-spec section 8, "Option C").

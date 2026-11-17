@@ -27,7 +27,7 @@
  */
 
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 use Mody\Platform\SiteEditor;
 use Mody\Platform\Agent\Agent;
 

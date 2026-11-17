@@ -186,7 +186,7 @@ $check( '... without the agent, no agent steps', ! array_intersect( array( 'agen
 $tries = array_filter( EditorTour::steps( 'X', true ), static fn( array $step ): bool => 'reply' === ( $step['wait'] ?? '' ) );
 $check( '... the tries wait for a reply, offer starters, and end on Identity', 2 === count( $tries ) && ! array_filter( $tries, static fn( array $step ): bool => empty( $step['starters'] ) || 'chat' !== ( $step['open'] ?? '' ) ) && 'identity' === ( end( $tries )['leave'] ?? '' ) );
 $core    = (string) file_get_contents( ABSPATH . 'wp-includes/js/dist/edit-site.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local file.
-$ours    = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-bubble.js' ) . file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/identity-fields.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+$ours    = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/agent-bubble.js' ) . file_get_contents( WPMU_PLUGIN_DIR . '/mody-brand/assets/identity-fields.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 $missing = array();
 foreach ( EditorTour::steps( 'X', true ) as $step ) {
 	foreach ( $step['target'] ?? array() as $selector ) {

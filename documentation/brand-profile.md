@@ -17,10 +17,10 @@ When WordPress has a setting or a screen for something, that is the only place t
 | Logo, site icon | `site_logo`, `site_icon` | Identity screen | opens Identity (`mody/open-editor`, target `identity`) |
 | Mission: what the business does, one sentence | the site setting `mody_mission` | Identity screen (Mody's field), Settings → General | `mody/update-site-settings` (`mission`) |
 | Tone of voice: formal, friendly or technical | the site setting `mody_tone` | Identity screen (Mody's field), Settings → General | `mody/update-site-settings` (`tone`) |
-| Vision, voice, form of "you", words to use and avoid, audience, products and services, what makes it different, story, values, address, phone, email, opening hours, area served (2026-11-11) | the site setting `mody_brand`, one object (`Brand\BrandBook`) | Settings → Brand ("Your brand"), reached from the Identity screen's **Your brand** button and Settings → General | `mody/update-settings` (the `brand_` settings); opens the page (`mody/open-editor`, target `brand`) |
+| Vision, voice, form of "you", words to use and avoid, audience, products and services, what makes it different, story, values, address, phone, email, opening hours, area served (2026-11-11) | the site setting `mody_brand`, one object (`BrandBook` (`mody-brand`)) | Settings → Brand ("Your brand"), reached from the Identity screen's **Your brand** button and Settings → General | `mody/update-settings` (the `brand_` settings); opens the page (`mody/open-editor`, target `brand`) |
 | Colors, fonts, every other style | the site's Global Styles (Editor → Styles) | Styles | `mody/update-design` for presets and the three brand colors, with no brand question; [M3-10](../tickets/M3-10-agent-edits-global-styles.md) for the rest |
 
-**The two Mody settings** (`Brand\BrandSettings`) are registered with `register_setting()` and shown in REST:
+**The two Mody settings** (`BrandSettings` (the `mody-brand` plugin)) are registered with `register_setting()` and shown in REST:
 - `mody_mission`: plain text, one line, at most 200 characters;
 - `mody_tone`: one of the three tones, `friendly` by default.
 

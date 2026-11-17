@@ -12,7 +12,7 @@ use Mody\Styles\SiteDesign;
 use Mody\Styles\SiteStyles;
 use Mody\Platform\Agent\Hardening;
 use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 use Mody\Platform\Site\PagePublisher;
 use Mody\Platform\Site\Menu;
 use Mody\Platform\Site\SeoTool;
@@ -522,10 +522,10 @@ final class Abilities {
 							'type'      => 'string',
 							'maxLength' => SiteSettings::FIELDS['mission']['max'],
 						),
-						'tone'    => array(
+						'tone'    => class_exists( BrandSettings::class ) ? array(
 							'type' => 'string',
 							'enum' => BrandSettings::TONES,
-						),
+						) : array( 'type' => 'string' ),
 					),
 					'additionalProperties' => false,
 				),

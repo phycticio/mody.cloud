@@ -23,7 +23,7 @@
 use Mody\Platform\AI\BlockValidator;
 use Mody\Platform\AI\PageGenerator;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

@@ -2,10 +2,10 @@
 /**
  * A site's brand: its WordPress settings (ticket M2-08).
  *
- * @package Mody\Platform
+ * @package Mody\Brand
  */
 
-namespace Mody\Platform\Brand;
+namespace Mody\Brand;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -192,8 +192,8 @@ final class BrandSettings {
 		if ( 'site-editor.php' !== $hook || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$root = dirname( __DIR__, 2 );
-		wp_enqueue_script( 'mody-identity-fields', plugins_url( 'assets/identity-fields.js', $root . '/mody-platform.php' ), array( 'wp-element', 'wp-components', 'wp-data', 'wp-core-data' ), (string) filemtime( $root . '/assets/identity-fields.js' ), true );
+		$root = dirname( __DIR__ );
+		wp_enqueue_script( 'mody-identity-fields', plugins_url( 'assets/identity-fields.js', $root . '/mody-brand.php' ), array( 'wp-element', 'wp-components', 'wp-data', 'wp-core-data' ), (string) filemtime( $root . '/assets/identity-fields.js' ), true );
 		wp_add_inline_script(
 			'mody-identity-fields',
 			'window.modyIdentity = ' . wp_json_encode(

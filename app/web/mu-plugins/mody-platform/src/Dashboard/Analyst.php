@@ -13,7 +13,7 @@ use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\Budget;
 use Mody\Platform\Agent\Slots;
 use Mody\Platform\Agent\TurnMetrics;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 use Mody\Platform\Look;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
@@ -586,8 +586,8 @@ final class Analyst {
 	 */
 	public static function system_prompt( int $days ): string {
 		$tools   = self::tool_names();
-		$brand   = BrandSettings::brand();
-		$name    = $brand['name'];
+		$brand   = class_exists( BrandSettings::class ) ? BrandSettings::brand() : array( 'mission' => '' ); // Mody Brand's mission, when it is there.
+		$name    = wp_specialchars_decode( (string) get_option( 'blogname', '' ), ENT_QUOTES );
 		$mission = trim( $brand['mission'] );
 		$palette = array();
 		foreach ( Look::palette() as $slug => $hex ) {

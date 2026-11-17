@@ -12,9 +12,8 @@ use Mody\Platform\Agent\Budget;
 use Mody\Platform\Billing\Billing;
 use Mody\Platform\Billing\Mollie;
 use Mody\Platform\Billing\Payments;
-use Mody\Platform\Brand\BrandBook;
-use Mody\Platform\Brand\BrandPage;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandBook;
+use Mody\Brand\BrandPage;
 use Mody\Platform\Look;
 use Mody\Platform\Members\Invites;
 use Mody\Platform\Members\Members;
@@ -139,9 +138,9 @@ final class DashboardPage {
 	 * site's theme variables.
 	 */
 	public static function enqueue(): void {
-		Look::enqueue_asset( 'mody-brand-page', 'brand-page.css' );
-		Look::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-brand-page' ) );
-		wp_add_inline_style( 'mody-brand-page', Look::variables_css() );
+		Look::enqueue_asset( 'mody-admin-page', 'admin-page.css' ); // The layout Settings → Brand has too (Mody Brand keeps its own copy).
+		Look::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-admin-page' ) );
+		wp_add_inline_style( 'mody-admin-page', Look::variables_css() );
 		ExportPanel::enqueue();
 		if ( 'visitors' === self::current() && class_exists( Board::class ) && Board::can_manage() ) {
 			self::enqueue_board();
@@ -335,7 +334,10 @@ final class DashboardPage {
 	 * The site's card: logo, name, tagline, address, and the ways in.
 	 */
 	private static function render_card(): void {
-		$brand = BrandSettings::brand();
+		$brand = array(
+			'name'    => wp_specialchars_decode( (string) get_option( 'blogname', '' ), ENT_QUOTES ),
+			'tagline' => wp_specialchars_decode( (string) get_option( 'blogdescription', '' ), ENT_QUOTES ),
+		);
 		?>
 		<section class="mody-brand__card" aria-label="<?php esc_attr_e( 'The site', 'mody_cloud' ); ?>">
 			<?php $logo = Look::logo_html( '200px' ); ?>
@@ -419,7 +421,7 @@ final class DashboardPage {
 						<td><?php self::render_storage(); ?></td>
 					</tr>
 				<?php endif; ?>
-				<?php if ( current_user_can( BrandPage::CAPABILITY ) ) : ?>
+				<?php if ( class_exists( BrandPage::class ) && current_user_can( BrandPage::CAPABILITY ) ) : // Mody Brand's page. ?>
 					<?php
 					$editable = BrandBook::editable_sections();
 					$filled   = count( array_intersect( BrandBook::filled_sections(), $editable ) );

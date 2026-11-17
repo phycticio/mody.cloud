@@ -7,7 +7,7 @@
 
 namespace Mody\Platform\Site;
 
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Brand\BrandSettings;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -31,11 +31,11 @@ final class SiteSettings {
 			'max'    => 200,
 		),
 		'mission' => array(
-			'option' => BrandSettings::MISSION,
-			'max'    => BrandSettings::MAX_MISSION,
+			'option' => 'mody_mission', // Mody Brand's (BrandSettings::MISSION).
+			'max'    => 200,
 		),
 		'tone'    => array(
-			'option' => BrandSettings::TONE,
+			'option' => 'mody_tone', // Mody Brand's (BrandSettings::TONE).
 			'max'    => 20,
 		),
 	);
@@ -74,6 +74,9 @@ final class SiteSettings {
 		}
 		if ( ! $values ) {
 			return new WP_Error( 'mody_no_settings', __( 'Give a new site title, tagline, mission or tone.', 'mody_cloud' ) );
+		}
+		if ( ( isset( $values['mission'] ) || isset( $values['tone'] ) ) && ! class_exists( BrandSettings::class ) ) {
+			return new WP_Error( 'mody_no_brand', __( 'The mission and tone are not available on this site.', 'mody_cloud' ) );
 		}
 		if ( isset( $values['tone'] ) && ! in_array( $values['tone'], BrandSettings::TONES, true ) ) {
 			/* translators: %s: the tones. */

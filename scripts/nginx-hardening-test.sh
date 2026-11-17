@@ -175,7 +175,7 @@ for HOST in "$MAIN_HOST" "$SUB_HOST"; do
   expect_ok "$HOST" /wp-admin/load-scripts.php 'javascript'
   expect_ok "$HOST" /web/themes/theme/style.css 'text/css'
   expect_ok "$HOST" /dist/altcha.js 'javascript'
-  expect_ok "$HOST" /web/mu-plugins/mody-platform/assets/brand-page.css 'text/css'
+  expect_ok "$HOST" /web/mu-plugins/mody-brand/assets/brand-page.css 'text/css'
   expect_ok "$HOST" /wp-login.php 'text/html'
   expect_ok "$HOST" /wp-json/ 'application/json'
   expect_ok "$HOST" '/?rest_route=/' 'application/json'
