@@ -4,19 +4,17 @@
  * account, its free months and first site (mvp-spec section 4, "Signup flow";
  * tickets M1-01 part 2 and M1-03; the launch offer since 2026-11-13).
  *
- * @package Mody\Platform
+ * @package Mody\Members
  */
 
-namespace Mody\Platform\Members;
+namespace Mody\Members;
 
-use Mody\Platform\Billing\Billing;
-use Mody\Platform\Billing\Mollie;
-use Mody\Platform\Dashboard\DashboardPage;
+use Mody\Billing\Billing;
+use Mody\Billing\Mollie;
 use Mody\Onboarding\Onboarding;
 use Mody\Sites\Pipeline;
 use Mody\Security\Altcha;
 use Mody\Security\RateLimit;
-use Mody\Sites\WizardPage;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -183,7 +181,7 @@ final class Registration {
 	 * @param bool $invited Whether they came through an invite link.
 	 */
 	public static function takes_accounts( bool $invited = false ): bool {
-		return self::is_open() && ( Members::promo_open( $invited ) || Mollie::offered() );
+		return self::is_open() && ( Members::promo_open( $invited ) || self::paid_signups() );
 	}
 
 	/**
@@ -192,7 +190,7 @@ final class Registration {
 	 * @param bool $invited Whether they came through an invite link.
 	 */
 	public static function paying( bool $invited = false ): bool {
-		return ! Members::promo_open( $invited ) && Mollie::offered();
+		return ! Members::promo_open( $invited ) && self::paid_signups();
 	}
 
 	/**
@@ -212,7 +210,7 @@ final class Registration {
 	 * Where a member lands: the Mody dashboard in Network Admin.
 	 */
 	public static function dashboard_url(): string {
-		return network_admin_url( 'admin.php?page=' . WizardPage::SLUG );
+		return network_admin_url( 'admin.php?page=' . Members::MENU );
 	}
 
 	/**
@@ -232,7 +230,7 @@ final class Registration {
 	 * end and editor) and the editor's preview script.
 	 */
 	public static function register_block(): void {
-		$root = dirname( __DIR__, 2 );
+		$root = dirname( __DIR__ );
 		wp_register_style( self::STYLE, self::asset_url( 'register.css' ), array(), self::asset_version( 'register.css' ) );
 		wp_register_script( self::EDITOR, self::asset_url( 'register-block.js' ), array( 'wp-blocks', 'wp-block-editor', 'wp-components', 'wp-data', 'wp-element', 'wp-i18n' ), self::asset_version( 'register-block.js' ), true );
 		wp_add_inline_script( self::EDITOR, 'window.modyRegisterBlock = ' . wp_json_encode( self::preview_settings() ) . ';', 'before' );
@@ -583,7 +581,7 @@ final class Registration {
 
 		$inviter = Invites::inviter( $ref );
 		$free    = Members::start_free( $user_id, $inviter > 0 );
-		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && Mollie::offered() ) {
+		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && self::paid_signups() ) {
 			// The offer is over: a paid sign-up, no site until the first payment.
 			$pending = self::start_paid( $user_id, $title, $slug );
 			if ( is_wp_error( $pending ) ) {
@@ -919,14 +917,14 @@ final class Registration {
 			</p>
 			<?php echo $notice; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
 			<p><label class="mody-register__accept"><input type="checkbox" name="accept" value="1" required /> <?php echo esc_html( Billing::signup_terms() ); ?></label></p>
-			<?php if ( '' !== Billing::legal_links() ) : ?>
-				<p class="mody-register__note"><?php echo Billing::legal_links(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in legal_links(). ?></p>
+			<?php if ( '' !== self::legal_links() ) : ?>
+				<p class="mody-register__note"><?php echo self::legal_links(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in legal_links(). ?></p>
 			<?php endif; ?>
 			<input type="hidden" name="mody_action" value="<?php echo esc_attr( self::PAY_ACTION ); ?>">
 			<input type="hidden" name="mody_pay" value="<?php echo esc_attr( $token ); ?>">
 			<input type="hidden" name="u" value="<?php echo esc_attr( (string) $user ); ?>">
 			<p><button type="submit" class="wp-element-button"><?php esc_html_e( 'Pay with card', 'mody_cloud' ); ?></button>
-			<?php if ( Mollie::test_mode() ) : ?>
+			<?php if ( class_exists( Mollie::class ) && Mollie::test_mode() ) : ?>
 				<span class="mody-register__note"><?php esc_html_e( 'Test mode: no real money moves.', 'mody_cloud' ); ?></span>
 			<?php endif; ?></p>
 		</form>
@@ -1032,7 +1030,7 @@ final class Registration {
 			return new WP_Error( 'mody_registration_closed', __( 'Registration is not open yet.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
 		$invited = Invites::inviter( (string) $request['ref'] ) > 0;
-		if ( ! Members::promo_open( $invited ) && ! Mollie::offered() ) {
+		if ( ! Members::promo_open( $invited ) && ! self::paid_signups() ) {
 			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message( $invited ), array( 'status' => 403 ) );
 		}
 		if ( ! wp_verify_nonce( (string) $request['nonce'], self::ACTION ) ) {
@@ -1127,7 +1125,7 @@ final class Registration {
 		}
 		$ref     = self::invite_code();
 		$invited = Invites::inviter( $ref ) > 0;
-		if ( ! Members::promo_open( $invited ) && ! Mollie::offered() ) {
+		if ( ! Members::promo_open( $invited ) && ! self::paid_signups() ) {
 			self::$errors = array( 'form' => Members::promo_closed_message( $invited ) );
 			return;
 		}
@@ -1155,8 +1153,8 @@ final class Registration {
 	 * @param int $user_id The member.
 	 */
 	public static function member_home( int $user_id ): string {
-		$sites = DashboardPage::member_sites( $user_id );
-		return $sites ? get_admin_url( (int) $sites[0]['id'], 'admin.php?page=' . DashboardPage::SLUG ) : self::dashboard_url();
+		$site = Members::first_site( $user_id );
+		return $site ? get_admin_url( $site, 'admin.php?page=mody-dashboard' ) : self::dashboard_url(); // Their first site's Mody dashboard.
 	}
 
 	/**
@@ -1281,15 +1279,15 @@ final class Registration {
 				<?php endif; ?>
 				<p><button type="submit" class="wp-element-button"><?php echo esc_html( self::paying( $invited ) ? __( 'Continue', 'mody_cloud' ) : __( 'Create my free site', 'mody_cloud' ) ); ?></button></p>
 			</form>
-			<?php if ( '' !== Billing::legal_url( 'terms' ) ) : ?>
+			<?php if ( '' !== self::legal_url( 'terms' ) ) : ?>
 				<p class="mody-register__note mody-register__legal">
 					<?php
 					echo wp_kses(
 						sprintf(
 							/* translators: 1: a link to the terms of service, 2: a link to the privacy policy. */
 							__( 'By creating your site you accept the %1$s and the %2$s.', 'mody_cloud' ),
-							'<a href="' . esc_url( Billing::legal_url( 'terms' ) ) . '">' . esc_html__( 'terms of service', 'mody_cloud' ) . '</a>',
-							'<a href="' . esc_url( Billing::legal_url( 'privacy' ) ) . '">' . esc_html__( 'privacy policy', 'mody_cloud' ) . '</a>'
+							'<a href="' . esc_url( self::legal_url( 'terms' ) ) . '">' . esc_html__( 'terms of service', 'mody_cloud' ) . '</a>',
+							'<a href="' . esc_url( self::legal_url( 'privacy' ) ) . '">' . esc_html__( 'privacy policy', 'mody_cloud' ) . '</a>'
 						),
 						array( 'a' => array( 'href' => array() ) )
 					);
@@ -1362,7 +1360,7 @@ final class Registration {
 	 * @param string $file A file name.
 	 */
 	private static function asset_url( string $file ): string {
-		return plugins_url( 'assets/' . $file, dirname( __DIR__, 2 ) . '/mody-platform.php' );
+		return plugins_url( 'assets/' . $file, dirname( __DIR__ ) . '/mody-members.php' );
 	}
 
 	/**
@@ -1371,7 +1369,7 @@ final class Registration {
 	 * @param string $file A file name in assets/.
 	 */
 	private static function asset_version( string $file ): string {
-		return (string) filemtime( dirname( __DIR__, 2 ) . '/assets/' . $file );
+		return (string) filemtime( dirname( __DIR__ ) . '/assets/' . $file );
 	}
 
 	/**
@@ -1537,5 +1535,29 @@ final class Registration {
 			return true;
 		}
 		return Altcha::verify( null === $solution ? Altcha::posted() : $solution );
+	}
+
+	/**
+	 * Whether sign-ups can pay with a card: Mody Billing is there and offers
+	 * Mollie.
+	 */
+	private static function paid_signups(): bool {
+		return class_exists( Mollie::class ) && Mollie::offered();
+	}
+
+	/**
+	 * A legal page's address (Mody Billing's); '' without it.
+	 *
+	 * @param string $slug `terms` or `privacy`.
+	 */
+	private static function legal_url( string $slug ): string {
+		return class_exists( Billing::class ) ? Billing::legal_url( $slug ) : '';
+	}
+
+	/**
+	 * The links to the legal pages (Mody Billing's), escaped; '' without it.
+	 */
+	private static function legal_links(): string {
+		return class_exists( Billing::class ) ? Billing::legal_links() : '';
 	}
 }

@@ -25,10 +25,10 @@
 
 use Mody\Agent\AgentSettings;
 use Mody\Agent\Budget;
-use Mody\Platform\Billing\Billing;
-use Mody\Platform\Billing\Lifecycle;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Offers;
+use Mody\Billing\Billing;
+use Mody\Billing\Lifecycle;
+use Mody\Members\Members;
+use Mody\Members\Offers;
 use Mody\Storage\Storage;
 
 if ( ! is_main_site() ) {

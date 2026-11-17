@@ -39,7 +39,7 @@ use Mody\Agent\Slots;
 use Mody\Agent\TurnMetrics;
 use Mody\Agent\AI\BlockValidator;
 use Mody\Agent\AI\SystemPrompt;
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 use Mody\Agent\Site\Menu;
 
 $failures = 0;

@@ -24,8 +24,8 @@
  * Everything created is removed at the end. No model call.
  */
 
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Registration;
+use Mody\Members\Members;
+use Mody\Members\Registration;
 use Mody\Onboarding\EditorTour;
 use Mody\Onboarding\Onboarding;
 use Mody\Agent\SiteEditor;

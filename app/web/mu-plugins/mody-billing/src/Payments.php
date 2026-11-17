@@ -2,10 +2,10 @@
 /**
  * The platform's record of Mollie payments: `mody_payments`.
  *
- * @package Mody\Platform
+ * @package Mody\Billing
  */
 
-namespace Mody\Platform\Billing;
+namespace Mody\Billing;
 
 defined( 'ABSPATH' ) || exit;
 

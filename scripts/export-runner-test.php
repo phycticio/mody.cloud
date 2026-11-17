@@ -52,7 +52,7 @@ use Mody\Export\Downloads;
 use Mody\Export\Exporter;
 use Mody\Export\Jobs;
 use Mody\Export\Runner;
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';

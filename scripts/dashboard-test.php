@@ -34,7 +34,7 @@ use Mody\Agent\AgentEvents;
 use Mody\Agent\TurnMetrics;
 use Mody\Platform\Dashboard\DashboardPage;
 use Mody\Platform\Dashboard\Usage;
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 use Mody\Storage\Storage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';

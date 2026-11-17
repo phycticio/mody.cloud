@@ -103,7 +103,7 @@ Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin (sinc
 4. **Generation failure** never blocks the site. `Pipeline::retry_generation( $job_id )` generates the page again and replaces it.
 5. **The quota:** `Quota::can_create_site()` (`mody-sites`). With M1-01, the plan's limit (see [membership-tiers.md](membership-tiers.md#open-questions)).
 
-**The signup's site** (M1-03): `Members\Registration::register()` starts and runs a starter job in the signup request (a few seconds, no model call). The member then gives the brand to the agent: the editor tour on the Identity screen asks them to tell Mody what they do, which the agent saves as the mission or the tagline (`mody/update-site-settings`).
+**The signup's site** (M1-03): `Registration::register()` (`mody-members`) starts and runs a starter job in the signup request (a few seconds, no model call). The member then gives the brand to the agent: the editor tour on the Identity screen asks them to tell Mody what they do, which the agent saves as the mission or the tagline (`mody/update-site-settings`).
 
 **Test:** `scripts/provisioning-test.php`. It covers validation, the quota, a full run with a fake model answer (the brand in the site's settings and styles), a run killed after each step and resumed, generation failure, Retry generation, the logo, and one real run. `-e MODY_TEST_OFFLINE=1` skips the real run.
 

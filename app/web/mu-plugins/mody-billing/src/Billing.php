@@ -2,15 +2,14 @@
 /**
  * Paying for sites with a card through Mollie (M1-01 part 3).
  *
- * @package Mody\Platform
+ * @package Mody\Billing
  */
 
-namespace Mody\Platform\Billing;
+namespace Mody\Billing;
 
-use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Members\Invites;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Registration;
+use Mody\Members\Invites;
+use Mody\Members\Members;
+use Mody\Members\Registration;
 use Mody\Sites\Quota;
 use Mody\Security\RateLimit;
 use WP_Error;
@@ -173,16 +172,16 @@ final class Billing {
 	 * @param array<string, mixed> $extra   More query arguments.
 	 */
 	public static function plan_url( int $user_id, array $extra = array() ): string {
-		$sites = DashboardPage::member_sites( $user_id );
-		$args  = array_merge(
+		$site = Members::first_site( $user_id );
+		$args = array_merge(
 			array(
-				'page'    => DashboardPage::SLUG,
+				'page'    => 'mody-dashboard', // The Mody dashboard's Plan & billing section.
 				'section' => 'plan',
 			),
 			$extra
 		);
-		return $sites
-			? add_query_arg( $args, get_admin_url( (int) $sites[0]['id'], 'admin.php' ) )
+		return $site
+			? add_query_arg( $args, get_admin_url( $site, 'admin.php' ) )
 			: add_query_arg( $args, admin_url( 'admin.php' ) );
 	}
 

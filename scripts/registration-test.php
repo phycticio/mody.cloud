@@ -41,8 +41,8 @@
  * Everything created is removed at the end. No model call.
  */
 
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Registration;
+use Mody\Members\Members;
+use Mody\Members\Registration;
 use Mody\Onboarding\Onboarding;
 use Mody\Sites\Jobs;
 use Mody\Sites\Pipeline;
@@ -380,7 +380,7 @@ echo "\nThe places taken\n";
 update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES );
 $other = 'modyrege' . $suffix . '@mody.local';
 $out   = $http( 'GET', $url );
-if ( Mody\Platform\Billing\Mollie::configured() ) {
+if ( Mody\Billing\Mollie::configured() ) {
 	// With a Mollie key (the web server's environment), signing up means paying (billing-test.php covers it).
 	$check( 'with Mollie: the chat asks for the first month by card', str_contains( $out['body'], 'pay the first month by card' ) && str_contains( $out['body'], 'name="mody_email"' ) );
 } else {

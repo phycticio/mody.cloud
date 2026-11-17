@@ -3,12 +3,11 @@
  * The offers: the launch offer's numbers and who may take a place, and
  * invites on or off. Network Admin → Mody → Offers (tickets/invites-and-offers.md).
  *
- * @package Mody\Platform
+ * @package Mody\Members
  */
 
-namespace Mody\Platform\Members;
+namespace Mody\Members;
 
-use Mody\Sites\WizardPage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -108,7 +107,7 @@ final class Offers {
 	 */
 	public static function register_menu(): void {
 		add_submenu_page(
-			WizardPage::SLUG,
+			Members::MENU, // Under the network's Mody menu.
 			__( 'Offers', 'mody_cloud' ),
 			__( 'Offers', 'mody_cloud' ),
 			self::CAPABILITY,

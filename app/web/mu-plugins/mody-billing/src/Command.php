@@ -2,12 +2,12 @@
 /**
  * WP-CLI: `wp mody-billing`.
  *
- * @package Mody\Platform
+ * @package Mody\Billing
  */
 
-namespace Mody\Platform\Billing;
+namespace Mody\Billing;
 
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 use WP_CLI;
 
 defined( 'ABSPATH' ) || exit;

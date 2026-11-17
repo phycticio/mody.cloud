@@ -3,10 +3,10 @@
  * Invite friends: each member's invite link, who joined through it, and a
  * point when an invited friend first pays (tickets/invites-and-offers.md).
  *
- * @package Mody\Platform
+ * @package Mody\Members
  */
 
-namespace Mody\Platform\Members;
+namespace Mody\Members;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -116,6 +116,19 @@ final class Invites {
 	 */
 	public static function available(): bool {
 		return Offers::invites_on() && self::can_invite( get_current_user_id() );
+	}
+
+	/**
+	 * `mody_dashboard_sections`: Invite friends, last, for those who may invite.
+	 *
+	 * @param mixed $sections Slug => label.
+	 * @return mixed
+	 */
+	public static function add_section( $sections ) {
+		if ( is_array( $sections ) && self::available() ) {
+			$sections[ self::SECTION ] = __( 'Invite friends', 'mody_cloud' );
+		}
+		return $sections;
 	}
 
 	/**

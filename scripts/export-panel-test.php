@@ -42,7 +42,7 @@ use Mody\Export\Downloads;
 use Mody\Export\Jobs;
 use Mody\Export\Notices;
 use Mody\Export\Runner;
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

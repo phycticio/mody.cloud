@@ -2,10 +2,10 @@
 /**
  * Mollie's REST API, through WordPress's HTTP functions.
  *
- * @package Mody\Platform
+ * @package Mody\Billing
  */
 
-namespace Mody\Platform\Billing;
+namespace Mody\Billing;
 
 use WP_Error;
 

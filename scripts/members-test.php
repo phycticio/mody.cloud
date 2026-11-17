@@ -28,7 +28,7 @@
  * options are put back as they were. No model call.
  */
 
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 use Mody\Sites\Quota;
 use Mody\Sites\WizardPage;
 

@@ -2,12 +2,12 @@
 /**
  * Unpaid and canceled accounts: read-only sites, then deleted (M1-02).
  *
- * @package Mody\Platform
+ * @package Mody\Billing
  */
 
-namespace Mody\Platform\Billing;
+namespace Mody\Billing;
 
-use Mody\Platform\Members\Members;
+use Mody\Members\Members;
 use Mody\Sites\Quota;
 
 defined( 'ABSPATH' ) || exit;

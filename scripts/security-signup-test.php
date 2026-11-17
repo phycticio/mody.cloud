@@ -24,8 +24,8 @@
 
 use Mody\Analytics\Collector;
 use Mody\Analytics\Store;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Registration;
+use Mody\Members\Members;
+use Mody\Members\Registration;
 use Mody\Onboarding\Onboarding;
 use Mody\Sites\Pipeline;
 use Mody\Security\Altcha;

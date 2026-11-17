@@ -3,12 +3,11 @@
  * Member accounts: the `mody_members` table, plans and their site limits
  * (mvp-spec sections 3, 4 and 11; ticket M1-01, part 1).
  *
- * @package Mody\Platform
+ * @package Mody\Members
  */
 
-namespace Mody\Platform\Members;
+namespace Mody\Members;
 
-use Mody\Sites\WizardPage;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -50,6 +49,12 @@ defined( 'ABSPATH' ) || exit;
  * Provisioning\Quota::DEFAULT_LIMIT.
  */
 final class Members {
+
+	/** The network's Mody menu (Mody Sites' New site page): members open it. */
+	public const MENU = 'mody-new-site';
+
+	/** The capability that opens it, given to every member (Mody Sites' WizardPage::CAPABILITY). */
+	public const MENU_CAPABILITY = 'mody_access_dashboard';
 
 	/** The plans: the launch offer, and paying per site. */
 	public const PLANS = array( 'free', 'paid' );
@@ -500,9 +505,34 @@ final class Members {
 	 * @return array<string, bool>
 	 */
 	public static function grant_dashboard( array $allcaps, array $caps, array $args ): array {
-		if ( in_array( WizardPage::CAPABILITY, $caps, true ) && self::get( (int) ( $args[1] ?? 0 ) ) ) {
-			$allcaps[ WizardPage::CAPABILITY ] = true;
+		if ( in_array( self::MENU_CAPABILITY, $caps, true ) && self::get( (int) ( $args[1] ?? 0 ) ) ) {
+			$allcaps[ self::MENU_CAPABILITY ] = true;
 		}
 		return $allcaps;
+	}
+
+	/**
+	 * A member's first site: the oldest they administer, not the main site;
+	 * 0 when they have none.
+	 *
+	 * @param int $user_id The member.
+	 */
+	public static function first_site( int $user_id ): int {
+		global $wpdb;
+		$first = 0;
+		$when  = PHP_INT_MAX;
+		foreach ( get_blogs_of_user( $user_id ) as $blog ) {
+			$id   = (int) $blog->userblog_id;
+			$caps = get_user_meta( $user_id, $wpdb->get_blog_prefix( $id ) . 'capabilities', true );
+			if ( is_main_site( $id ) || ! is_array( $caps ) || empty( $caps['administrator'] ) ) {
+				continue;
+			}
+			$created = (int) strtotime( (string) get_site( $id )->registered . ' UTC' );
+			if ( $created < $when ) {
+				$first = $id;
+				$when  = $created;
+			}
+		}
+		return $first;
 	}
 }

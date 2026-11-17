@@ -10,14 +10,14 @@ namespace Mody\Platform\Dashboard;
 use Mody\Analytics\Stats;
 use Mody\Agent\Budget;
 use Mody\Agent\AgentEvents;
-use Mody\Platform\Billing\Billing;
-use Mody\Platform\Billing\Mollie;
-use Mody\Platform\Billing\Payments;
+use Mody\Billing\Billing;
+use Mody\Billing\Mollie;
+use Mody\Billing\Payments;
 use Mody\Brand\BrandBook;
 use Mody\Brand\BrandPage;
 use Mody\Platform\Look;
-use Mody\Platform\Members\Invites;
-use Mody\Platform\Members\Members;
+use Mody\Members\Invites;
+use Mody\Members\Members;
 use Mody\Sites\Quota;
 use Mody\Sites\WizardPage;
 
@@ -200,9 +200,6 @@ final class DashboardPage {
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
 			$sections['plan']  = __( 'Plan & billing', 'mody_cloud' );
 		}
-		if ( Invites::available() ) {
-			$sections[ Invites::SECTION ] = __( 'Invite friends', 'mody_cloud' );
-		}
 		$added = apply_filters( 'mody_dashboard_sections', $sections ); // Other plugins' sections.
 		return is_array( $added ) && isset( $added['overview'] ) ? array_map( 'strval', $added ) : $sections;
 	}
@@ -307,9 +304,6 @@ final class DashboardPage {
 				break;
 			case 'plan':
 				self::render_plan();
-				break;
-			case Invites::SECTION:
-				Invites::render();
 				break;
 			default:
 				if ( 'overview' !== $section && has_action( 'mody_dashboard_section_' . $section ) ) {
@@ -1177,7 +1171,7 @@ final class DashboardPage {
 							/* translators: 1: a date, 2: days. */
 							__( 'You cancelled, so nothing more is charged and your plan ends on %1$s. After that your site is read-only for %2$d days, then deleted.', 'mody_cloud' ),
 							wp_date( (string) get_option( 'date_format' ), (int) strtotime( $row['cancel_at'] . ' UTC' ) ),
-							\Mody\Platform\Billing\Lifecycle::DELETE_DAY
+							\Mody\Billing\Lifecycle::DELETE_DAY
 						)
 					);
 					?>
@@ -1203,7 +1197,7 @@ final class DashboardPage {
 							/* translators: 1: a date, 2: days. */
 							__( 'Nothing more is charged, and your plan ends on %1$s, the end of what is already paid for (or of your free months). After that your site is read-only for %2$d days, then deleted; you can download it at any time.', 'mody_cloud' ),
 							wp_date( (string) get_option( 'date_format' ), (int) strtotime( $row['billing_due_at'] . ' UTC' ) ),
-							\Mody\Platform\Billing\Lifecycle::DELETE_DAY
+							\Mody\Billing\Lifecycle::DELETE_DAY
 						)
 					);
 					?>

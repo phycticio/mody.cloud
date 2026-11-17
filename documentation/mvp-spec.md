@@ -50,7 +50,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 | **Platform admin** | Super admin of the network, plus the list of plugins hidden from members and exception handling. |
 | **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
 
-Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. Since 2026-11-06 (M2-03) the **Mody → New site** wizard checks it. Since 2026-11-08 (M1-01 part 1, `Members\Members::grant_dashboard()`) every user with a `mody_members` row has it, whatever the account's status. Nothing creates rows yet except tests; registration is part 2. Network Admin has no global super-admin check, so such a member opens the Mody pages and sees only the Mody menu (checked over HTTP). All data shown is scoped to `get_current_user_id()`.
+Network-admin access for members: the standard network admin stays super-admin-only. The MU plugin adds its own `network_admin_menu` items with a custom capability (`mody_access_dashboard`) that is granted to every user with a `mody_members` row. Since 2026-11-06 (M2-03) the **Mody → New site** wizard checks it. Since 2026-11-08 (M1-01 part 1, `Members::grant_dashboard()` (`mody-members`)) every user with a `mody_members` row has it, whatever the account's status. Nothing creates rows yet except tests; registration is part 2. Network Admin has no global super-admin check, so such a member opens the Mody pages and sees only the Mody menu (checked over HTTP). All data shown is scoped to `get_current_user_id()`.
 
 Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard: `mody.cloud/wp-admin/network/`.
 
@@ -68,7 +68,7 @@ Decided by the maintainer on 2026-11-13 ([membership-tiers.md](membership-tiers.
 
 Built 2026-11-08 ([M1-03](../tickets/M1-03-chat-signup-and-editor-tour.md), on top of [M1-01](../tickets/M1-01-registration-trial-billing.md) parts 1 and 2; tests `scripts/members-test.php`, `scripts/registration-test.php`, `scripts/onboarding-test.php`). It replaces the card-first flow agreed on 2026-11-01 (full name, email, password and a plan, then a 0.01 EUR Mollie check before the trial).
 
-1. **`mody.cloud/register/`**, a page on the main site holding the PHP-only block `mody/register` (`Members\Registration`). Mody asks, one question at a time: the visitor's name, their email, the name of their project or website, and its address, shown as `<slug>.mody.cloud` (suggested from the project's name, with **Keep it**). Each answer is checked on the server before the next question (`POST mody-platform/v1/register/check`). A summary, then **Create my site** (`POST mody-platform/v1/register`). Without JavaScript the block is a form with the same four fields.
+1. **`mody.cloud/register/`**, a page on the main site holding the PHP-only block `mody/register` (`Registration` (`mody-members`)). Mody asks, one question at a time: the visitor's name, their email, the name of their project or website, and its address, shown as `<slug>.mody.cloud` (suggested from the project's name, with **Keep it**). Each answer is checked on the server before the next question (`POST mody-platform/v1/register/check`). A summary, then **Create my site** (`POST mody-platform/v1/register`). Without JavaScript the block is a form with the same four fields.
 2. **The server** validates again and creates, in the same request:
    - the WP user, with a random password and no role on the main site (decided 2026-11-08: the `mody_members` row is the membership, not a `mody_member` role);
    - a place of the launch offer: `plan = free`, `status = active`, `free_until = billing_due_at = now + 6 months` (`Members::start_free()`; it was a 30-day trial with 3 sites until 2026-11-13). Once the offer has ended and Mollie is set up, a paid sign-up instead: `plan = paid`, `status = pending_payment`, no site, and an email with a link to pay the first month; the site and the welcome email follow the payment (M1-01 part 3b, 2026-11-13);
@@ -86,14 +86,14 @@ The statuses `pending_payment` and `expired_signup` stay in the table for the ca
 - **The end of the free months:** charge the price times the account's sites via the stored Mollie payment method. Success → recurring monthly or yearly (`billing_due_at` + 1 month or + 1 year).
 - **A new site on a paying account:** counted from the next billing date (the charge counts the sites then). **Monthly or yearly:** chosen in the dashboard; takes effect at the next billing date. **Cancel** (built 2026-11-13): the plan ends at the end of the paid period, nothing more is charged, then read-only and deletion as below.
 - **Failed charge:** account `past_due`. All member sites become **read-only** (capability filter denies content/style mutation; front end and reading still work) with a persistent banner in wp-admin and on the dashboard: "Update your payment to keep editing". Daily retry for 60 days.
-- **Day 60 past due (or canceled):** sites go to the network's trash (WordPress's `deleted` flag, restorable by a super admin) after a final warning email at day 53 with the download link; the account is `expired`. Built 2026-11-13 (`Billing\Lifecycle`, M1-02); the daily run is an Ofelia job on production.
+- **Day 60 past due (or canceled):** sites go to the network's trash (WordPress's `deleted` flag, restorable by a super admin) after a final warning email at day 53 with the download link; the account is `expired`. Built 2026-11-13 (`Lifecycle` (`mody-billing`), M1-02); the daily run is an Ofelia job on production.
 
 **Acceptance criteria**
 
 - A new visitor reaches their first site, free for six months, in under 2 minutes, with no card; a duplicate email or a taken address is rejected (M1-03, checked by `scripts/registration-test.php`).
 - Simulating a failed charge makes every site read-only (editor save, REST `wp/v2` update, and agent tools are all denied) and shows the banner.
 - The 51st signup of the launch offer is refused, and so is any signup after its three months (`scripts/members-test.php`, `scripts/registration-test.php`).
-- All Mollie webhook handling is idempotent (replayed webhook changes nothing). Mollie's webhook carries only a payment ID, so instead of a signature the platform asks Mollie for the payment with its key and acts only on payments it started (built 2026-11-13, `Billing\Billing`, `scripts/billing-test.php`).
+- All Mollie webhook handling is idempotent (replayed webhook changes nothing). Mollie's webhook carries only a payment ID, so instead of a signature the platform asks Mollie for the payment with its key and acts only on payments it started (built 2026-11-13, `Billing` (`mody-billing`), `scripts/billing-test.php`).
 
 ## 5. Member dashboard (Network Admin)
 
@@ -370,7 +370,7 @@ mody_agent_events (
 
 **Built so far:**
 
-- `mody_members` (2026-11-08, [M1-01](../tickets/M1-01-registration-trial-billing.md) part 1). `Members\Members::install()` creates it on `init` (`mody_members_db_version`). It matches the definition above, with three differences:
+- `mody_members` (2026-11-08, [M1-01](../tickets/M1-01-registration-trial-billing.md) part 1). `Members::install()` (`mody-members`) creates it on `init` (`mody_members_db_version`). It matches the definition above, with three differences:
   - an unsigned `bigint(20)` `user_id`;
   - an index on `status`;
   - a fifth status, `expired_signup`. Section 4's signup flow uses it for "no payment within 24 hours", while the enum above lists only `expired`, which is kept for "sites deleted after 60 days past due".
