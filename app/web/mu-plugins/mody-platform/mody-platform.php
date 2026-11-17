@@ -119,13 +119,12 @@ add_filter( 'login_redirect', array( Members\Registration::class, 'login_redirec
  * Antibot (tickets/antibot-altcha.md): ALTCHA, a proof-of-work check served
  * from our own servers, on the signup chat (Members\Registration), log in,
  * lost password and visitors' comments, on every site. Antispam Bee (a MU
- * plugin, mu-plugins/antispam-bee.php) checks what people type in comments.
+ * plugin, kept inside rule 1 by Mody Antispam) checks what people type.
  */
 add_action( 'init', array( Security\Altcha::class, 'register_script' ) );
 add_action( 'rest_api_init', array( Security\Altcha::class, 'register_route' ) );
 add_filter( 'wp_kses_allowed_html', array( Security\Altcha::class, 'allow_widget' ), 10, 2 ); // Spectra's container sanitizes its inner blocks.
 Security\FormGuard::register();
-Security\AntispamBee::register(); // Its checks that call outside services stay off (rule 1).
 
 /*
  * Onboarding (M1-03): the first password logs the member in on their site's

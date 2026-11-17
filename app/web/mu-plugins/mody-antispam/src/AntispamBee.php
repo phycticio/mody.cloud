@@ -19,10 +19,10 @@
  * `use_output_buffer` = 0 (the comment field is changed through a filter,
  * not by buffering the page), so that is the default here.
  *
- * @package Mody\Platform
+ * @package Mody\Antispam
  */
 
-namespace Mody\Platform\Security;
+namespace Mody\Antispam;
 
 defined( 'ABSPATH' ) || exit;
 

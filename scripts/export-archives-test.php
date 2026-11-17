@@ -413,10 +413,10 @@ try {
 	$names = $entries( $out1, $zip );
 	$check( 'every entry is inside mody-import/ (an installable plugin zip)', $names && ! array_filter( $names, static fn( string $name ): bool => ! str_starts_with( $name, 'mody-import/' ) ) );
 	$check( 'no unsafe entry names', ! preg_grep( '#^/|\.\.|\\\\#', $names ) );
-	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-site/mody-site.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/plugins/mody-images/mody-images.php', 'mody-import/payload/plugins/mody-seo/mody-seo.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
+	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-spectra/mody-spectra.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/plugins/mody-images/mody-images.php', 'mody-import/payload/plugins/mody-seo/mody-seo.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
 		$check( 'has ' . $name, in_array( $name, $names, true ) );
 	}
-	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|wordfence|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-site/src/(Agent|AI|Gating|Members|Provisioning|Wizard|Dashboard|Onboarding)/|mody-site/src/(Abilities|Spectra/SpectraLoader|Users/NetworkProfile|Security/Altcha|Security/FormGuard)\.php#', $names );
+	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|wordfence|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-(platform|site|agent|security|locks|members|billing|sites|dashboard|export|onboarding|storage|updates|domains|brand|styles|fonts)/#', $names );
 	$check( 'nothing of the agent, the platform\'s locks, billing, mail or the dev plugins', ! $bad, implode( ', ', array_slice( $bad, 0, 3 ) ) );
 
 	$unzipped = $work . '/unzipped';
@@ -446,7 +446,7 @@ try {
 		}
 	}
 	$check( 'the theme.json has Inter\'s fontFace, from the theme\'s own files', is_array( $inter ) && count( $inter['fontFace'] ?? array() ) >= 2 && str_starts_with( (string) $inter['fontFace'][0]['src'][0], 'file:./assets/fonts/inter/' ) );
-	$check( 'woff2 stored, php deflated', ZipArchive::CM_STORE === $zip->statName( 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' )['comp_method'] && ZipArchive::CM_DEFLATE === $zip->statName( 'mody-import/payload/plugins/mody-site/mody-site.php' )['comp_method'] );
+	$check( 'woff2 stored, php deflated', ZipArchive::CM_STORE === $zip->statName( 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' )['comp_method'] && ZipArchive::CM_DEFLATE === $zip->statName( 'mody-import/payload/plugins/mody-spectra/mody-spectra.php' )['comp_method'] );
 	$inner = json_decode( (string) $zip->getFromName( 'mody-import/mody-export.json' ), true );
 	$check( 'the manifest inside is the export\'s, and says file: code', $norm( $inner ) === $norm( $code_m ) && 'code' === $inner['file'] );
 
@@ -716,12 +716,12 @@ try {
 		touch( $kit_file, $original );
 	}
 
-	// The key also covers Design/Fonts.php (the faces Portable bakes into theme.json) and this class.
+	// The key also covers Mody Fonts (the faces Portable bakes into theme.json) and this class.
 	$key      = new ReflectionMethod( Archives::class, 'cache_key' );
 	$base_key = $key->invoke( null );
 	foreach ( array(
-		'Design/Fonts.php'    => WPMU_PLUGIN_DIR . '/mody-platform/src/Design/Fonts.php',
-		'Export/Archives.php' => WPMU_PLUGIN_DIR . '/mody-platform/src/Export/Archives.php',
+		'mody-fonts/src/Fonts.php' => WPMU_PLUGIN_DIR . '/mody-fonts/src/Fonts.php',
+		'Export/Archives.php'      => WPMU_PLUGIN_DIR . '/mody-platform/src/Export/Archives.php',
 	) as $label => $file ) {
 		$mtime = (int) filemtime( $file );
 		try {

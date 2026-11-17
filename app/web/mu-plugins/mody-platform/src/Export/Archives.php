@@ -660,7 +660,7 @@ final class Archives {
 
 	/**
 	 * A hash of what the payload is made of: the paths, sizes and times of
-	 * the theme, Mody Site's files, the importer kit, Mody Fonts (the fonts
+	 * the theme, the importer kit, Mody Fonts (the fonts
 	 * baked into the theme, and their faces), Portable, this class and the
 	 * plugins carried. It changes when a deploy changes any of them.
 	 */
@@ -673,12 +673,6 @@ final class Archives {
 			$root . '/src/Export/Portable.php',
 			__FILE__,
 		);
-		foreach ( Portable::SITE_FILES as $file ) {
-			$paths[] = $root . '/src/' . $file;
-		}
-		foreach ( Portable::SITE_ASSETS as $file ) {
-			$paths[] = $root . '/assets/' . $file;
-		}
 		foreach ( array_keys( Portable::PLUGINS ) as $folder ) {
 			$paths[] = WPMU_PLUGIN_DIR . '/' . $folder;
 		}

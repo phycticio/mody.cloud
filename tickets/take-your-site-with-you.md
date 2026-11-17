@@ -56,6 +56,8 @@ The owner stays logged in as themselves. Pages, design, languages, menus, media 
 6. **Files live in `app/dumps/exports/<blog>/<random>/`** (already denied by Nginx, git-ignored, skipped by the deploy) and are served through signed, expiring links with Nginx's `X-Accel-Redirect` (resumable, no PHP worker held), `Cache-Control: private, no-store`.
 
 ## Mody Site: the portable part of the platform
+
+> **Since 2026-11-17 there is no Mody Site.** Every Mody plugin became an independent, normal plugin ([independent-mody-plugins.md](independent-mody-plugins.md)), so a download carries the ones a site needs whole (`Export\Portable::PLUGINS`: Mody Admin Colors, Antispam, Images, Languages, Login, Palette, Patterns, Profiles, SEO and Spectra), and `Portable` refuses a carried plugin that names a class of `mody-platform`. The rest of this section is the history.
 Not a copy of `mody-platform`: shipped as it is, it would break the new site:
 - **Fatal on every request:** `Security\Altcha` reads the constant `WP_HOME`, which only our wp-config.php defines.
 - **Fatal on login redirects:** `Users\NetworkProfile::allow_main_host` calls `get_network()`, which exists only on multisite.

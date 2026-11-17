@@ -32,7 +32,7 @@ $active = (array) get_option( 'active_plugins' );
 $check( 'Mody Spectra loads before Spectra', array_search( 'mody-spectra/mody-spectra.php', $active, true ) < array_search( 'spectra-blocks/spectra-blocks.php', $active, true ) );
 $check( 'the Spectra guard is on, and its loader is not (Spectra is a normal plugin here)', false !== has_filter( 'pre_http_request', array( Mody\Spectra\SpectraGuard::class, 'refuse_denied_hosts' ) ) && false === has_filter( 'option_active_plugins', array( Mody\Spectra\SpectraLoader::class, 'not_site_active' ) ) );
 
-// What Mody Site and the plugins bring.
+// What the carried plugins bring.
 $registry = WP_Block_Type_Registry::get_instance();
 $check( 'Spectra\'s container block is registered', $registry->is_registered( 'spectra/container' ) );
 $check( 'the Google Map block is not (the guard)', ! $registry->is_registered( 'spectra/google-map' ) );

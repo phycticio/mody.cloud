@@ -20,14 +20,14 @@ defined( 'ABSPATH' ) || exit;
  * - `themes/theme`: the theme, with Inter baked into its theme.json (on the
  *   platform, Mody Fonts adds the faces from its fonts folder; without it,
  *   the theme falls back to the system font, as it would anyway).
- * - `plugins/mody-site`: Mody Site, the platform's classes a site needs to
- *   look and work the same (SITE_FILES), with its own bootstrap
- *   (export-kit/mody-site/mody-site.php). Same namespace, so options, post
- *   meta and addresses keep their names.
- * - the plugins in PLUGINS (the independent Mody plugins a site needs,
- *   Spectra and Antispam Bee): copies of what the platform runs as MU
- *   plugins; the downloaded site runs them as normal plugins, which its
- *   owner updates and switches off (tickets/independent-mody-plugins.md).
+ * - the plugins in PLUGINS (the independent Mody plugins a site needs to
+ *   look and work the same, Spectra and Antispam Bee): copies of what the
+ *   platform runs as MU plugins; the downloaded site runs them as normal
+ *   plugins, which its owner updates and switches off. Each Mody plugin is
+ *   its own normal plugin (tickets/independent-mody-plugins.md), so it is
+ *   copied whole; until 2026-11-17 a plugin called Mody Site carried copies
+ *   of the platform's classes instead. None of them may name a class of
+ *   mody-platform (unresolved()), which a downloaded site does not have.
  *
  * Never: the agent (Agent/, AI/, Abilities, the `ai` plugin and its
  * connectors), the platform's billing, signup, provisioning, quota and locks
@@ -35,18 +35,11 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Portable {
 
-	/** Mody Site's classes, from this plugin's src/. */
-	public const SITE_FILES = array(
-		'Security/AntispamBee.php',
-	);
-
-	/** Mody Site's assets, from this plugin's assets/. */
-	public const SITE_ASSETS = array();
-
 	/** Plugins copied from mu-plugins/, by folder: their main file. */
 	public const PLUGINS = array(
 		'antispam-bee'      => 'antispam_bee.php',
 		'mody-admin-colors' => 'mody-admin-colors.php',
+		'mody-antispam'     => 'mody-antispam.php',
 		'mody-images'       => 'mody-images.php',
 		'mody-languages'    => 'mody-languages.php',
 		'mody-login'        => 'mody-login.php',
@@ -57,9 +50,6 @@ final class Portable {
 		'mody-spectra'      => 'mody-spectra.php',
 		'spectra-blocks'    => 'spectra-blocks.php',
 	);
-
-	/** Mody Site's main file, in its folder. */
-	public const SITE_PLUGIN = 'mody-site/mody-site.php';
 
 	/** The theme's folder name: the database's template and stylesheet options point to it. */
 	public const THEME = 'theme';
@@ -75,13 +65,13 @@ final class Portable {
 	}
 
 	/**
-	 * The plugins the downloaded site activates, in load order: Mody Site
-	 * before Spectra, so the guard is in place first.
+	 * The plugins the downloaded site activates, in load order: Mody
+	 * Spectra before Spectra, so the guard is in place first.
 	 *
 	 * @return string[] Plugin files, relative to the plugins folder.
 	 */
 	public static function active_plugins(): array {
-		$plugins = array( self::SITE_PLUGIN );
+		$plugins = array();
 		foreach ( self::PLUGINS as $folder => $file ) {
 			$plugins[] = $folder . '/' . $file;
 		}
@@ -113,25 +103,7 @@ final class Portable {
 			return $done;
 		}
 
-		// Mody Site.
-		$site = $dir . '/plugins/' . dirname( self::SITE_PLUGIN );
-		$done = self::copy( self::root() . '/export-kit/mody-site', $site );
-		if ( is_wp_error( $done ) ) {
-			return $done;
-		}
-		foreach ( self::SITE_FILES as $file ) {
-			$done = self::copy( self::root() . '/src/' . $file, $site . '/src/' . $file );
-			if ( is_wp_error( $done ) ) {
-				return $done;
-			}
-		}
-		foreach ( self::SITE_ASSETS as $file ) {
-			$done = self::copy( self::root() . '/assets/' . $file, $site . '/assets/' . $file );
-			if ( is_wp_error( $done ) ) {
-				return $done;
-			}
-		}
-		$licenses = array( $site . '/LICENSE.txt', $theme . '/LICENSE.txt' );
+		$licenses = array( $theme . '/LICENSE.txt' );
 		foreach ( array_keys( self::PLUGINS ) as $folder ) {
 			if ( str_starts_with( $folder, 'mody-' ) ) {
 				$licenses[] = $dir . '/plugins/' . $folder . '/LICENSE.txt'; // Our own plugins carry no license file on the platform.
@@ -151,9 +123,11 @@ final class Portable {
 			}
 		}
 
-		$unresolved = self::unresolved( $site );
-		if ( $unresolved ) {
-			return new WP_Error( 'mody_export_unresolved', 'Mody Site uses classes it does not carry: ' . implode( ', ', $unresolved ) );
+		foreach ( array_keys( self::PLUGINS ) as $folder ) {
+			$unresolved = str_starts_with( $folder, 'mody-' ) ? self::unresolved( $dir . '/plugins/' . $folder ) : array();
+			if ( $unresolved ) {
+				return new WP_Error( 'mody_export_unresolved', $folder . ' names the platform\'s classes, which a downloaded site does not have: ' . implode( ', ', $unresolved ) );
+			}
 		}
 
 		$plugins = array();
@@ -231,11 +205,11 @@ final class Portable {
 	}
 
 	/**
-	 * The Mody\Platform classes Mody Site's files name but do not carry.
-	 * Every name is resolved the way PHP does: `use` imports, then the file's
-	 * own namespace.
+	 * The Mody\Platform classes a carried plugin's files name: there must be
+	 * none. Every name is resolved the way PHP does: `use` imports, then the
+	 * file's own namespace.
 	 *
-	 * @param string $plugin Mody Site's folder.
+	 * @param string $plugin The plugin's folder.
 	 * @return string[] Class names.
 	 */
 	public static function unresolved( string $plugin ): array {
@@ -246,11 +220,7 @@ final class Portable {
 				continue;
 			}
 			foreach ( self::class_names( (string) file_get_contents( $file->getPathname() ) ) as $name ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local file.
-				if ( ! str_starts_with( $name, 'Mody\\Platform\\' ) ) {
-					continue;
-				}
-				$path = $plugin . '/src/' . str_replace( '\\', '/', substr( $name, strlen( 'Mody\\Platform\\' ) ) ) . '.php';
-				if ( ! is_file( $path ) ) {
+				if ( str_starts_with( $name, 'Mody\\Platform\\' ) ) {
 					$missing[ $name ] = $name;
 				}
 			}
