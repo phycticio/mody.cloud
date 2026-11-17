@@ -6,7 +6,7 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 
 | Item | Value |
 | --- | --- |
-| Integration | The **WordPress AI Client** that ships with core (WordPress 7.0+, `wp_ai_client_prompt()`), with an Infomaniak provider in the `mody-platform` MU plugin. This replaces the Python agent service the MVP spec first planned. No separate container, no internal secret, no relay. |
+| Integration | The **WordPress AI Client** that ships with core (WordPress 7.0+, `wp_ai_client_prompt()`), with an Infomaniak provider in the `mody-agent` MU plugin (`mody-platform` until 2026-11-17). This replaces the Python agent service the MVP spec first planned. No separate container, no internal secret, no relay. |
 | Provider | Infomaniak AI Services, OpenAI-compatible API. Execution in Switzerland. |
 | Model | `Qwen/Qwen3.8-27B-FP8` (default). Override with `INFOMANIAK_AI_MODEL`. |
 | Base URL | `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1`, from `INFOMANIAK_AI_BASE_URL`. |
@@ -17,11 +17,13 @@ Decided 2026-11-04 by the maintainer, and verified the same day against Infomani
 
 ## How it is wired
 
+Since 2026-11-17 the agent is its own plugin, `app/web/mu-plugins/mody-agent/` ([independent Mody plugins](../tickets/independent-mody-plugins.md)): paths below such as `src/AI/…`, `src/Site/…` and `assets/agent-…` are in it, and the old `src/Agent/…` files are at the top of its `src/`. The REST routes keep the namespace `mody-platform/v1`.
+
 ```text
 WordPress (any site in the network)
   └─ wp_ai_client_prompt( … )                         core, wp-includes/ai-client.php
        └─ AiClient default registry
-            └─ Mody\Platform\AI\InfomaniakProvider     app/web/mu-plugins/mody-platform/src/AI/
+            └─ Mody\Agent\AI\InfomaniakProvider        app/web/mu-plugins/mody-agent/src/AI/
                  ├─ InfomaniakModelMetadataDirectory   GET https://api.infomaniak.com/1/ai/models (type = llm)
                  └─ InfomaniakTextGenerationModel      POST {INFOMANIAK_AI_BASE_URL}/chat/completions
 ```
@@ -32,7 +34,7 @@ Page generation sits on top of that (2026-11-06, see [Generating a page](#genera
 ability mody/generate-page   (agent chat, MCP, REST)                  src/Abilities.php
   └─ PageGenerator::create_draft()     saves a draft page, returns its Site Editor URL
        └─ PageGenerator::generate_page( $site_id, $prompt )                 src/AI/PageGenerator.php
-            ├─ BrandSettings::brand()       the site's own settings (M2-08)        src/Brand/BrandSettings.php
+            ├─ BrandSettings::brand()       the site's own settings (M2-08)        mody-brand/src/BrandSettings.php
             ├─ SystemPrompt::for_page()     rules + brand context + few-shot example  src/AI/SystemPrompt.php
             ├─ wp_ai_client_prompt()        temperature 0.1, provider infomaniak, thinking off
             └─ BlockValidator::validate()   retry with the reason, 3 attempts in all  src/AI/BlockValidator.php
@@ -41,16 +43,16 @@ ability mody/generate-page   (agent chat, MCP, REST)                  src/Abilit
 The agent chat calls these abilities (2026-11-06, see [The agent](#the-agent)):
 
 ```text
-wp-admin "Mody Agent" page          fetch + X-WP-Nonce, polls the checker           src/Agent/ChatPage.php, assets/agent-chat.js
-  └─ POST mody-platform/v1/chat     202 + job, then the turn runs after the response src/Agent/ChatController.php
-       └─ Agent::respond()          tool loop, limits, chat buttons                  src/Agent/Agent.php
+wp-admin "Mody Agent" page          fetch + X-WP-Nonce, polls the checker           src/ChatPage.php, assets/agent-chat.js
+  └─ POST mody-platform/v1/chat     202 + job, then the turn runs after the response src/ChatController.php
+       └─ Agent::respond()          tool loop, limits, chat buttons                  src/Agent.php
             ├─ SystemPrompt::for_agent()   agent rules + brand context
             ├─ wp_ai_client_prompt()       tools: mody/generate-page, mody/open-editor, mody/update-design,
             │                                     ask_user, refuse_request
             ├─ core's ability resolver     permission callback + input schema of each ability
-            └─ AgentEvents::log()          every request and tool call → mody_agent_events   src/Agent/AgentEvents.php
+            └─ AgentEvents::log()          every request and tool call → mody_agent_events   src/AgentEvents.php
 GET mody-platform/v1/chat/jobs/<id> the checker: running, done or failed
-Network Admin → Settings → Mody Agent   event retention (days)                       src/Agent/AgentSettings.php
+Network Admin → Settings → Mody Agent   event retention (days)                       src/AgentSettings.php
 ```
 
 - **Configuration is environment-only.** The MU plugin registers the provider on `init` (priority 5, before core reads the registry at 15) only when `INFOMANIAK_AI_BASE_URL` is set. Without it, nothing is registered and no connector card appears, so a server without the variables is unaffected.
@@ -61,7 +63,7 @@ Network Admin → Settings → Mody Agent   event retention (days)              
 - **JSON output.** Core sends the schema itself as `response_format.json_schema`. Infomaniak validates the OpenAI shape and rejects a request without `json_schema.name` (HTTP 400), so the model class wraps the schema as `{ "name": "response", "schema": … }`.
 - Everything else (messages, tools, parsing) is core's OpenAI-compatible implementation.
 
-**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". Mody's own calls need no approval: the experiment treats the plugin that provides a connector as infrastructure, and `mody-platform` provides `infomaniak` (checked in the plugin's `Caller_Identifier`, 2026-11-06). `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
+**Other AI plugins (production, 2026-11-04).** `ai` (WordPress's AI features plugin) uses the same AI Client, so it works with Infomaniak once the provider is configured. Its **Connector Approval** experiment, when enabled, blocks every plugin from using a connector until an administrator approves that plugin. Approve `ai/ai.php` for `infomaniak` in **Settings → Connector Approvals**, or the plugin's features fail with "unsupported model". Mody's own calls need no approval: the experiment treats the plugin that provides a connector as infrastructure, and `mody-platform` provides `infomaniak` (since 2026-11-17 `mody-agent` does, and Mody's other MU plugins are approved for it, `AI\ConnectorApprovals`) (checked in the plugin's `Caller_Identifier`, 2026-11-06). `ai-provider-for-ollama` registers an Ollama provider, which counts as unavailable while no Ollama server answers. `mcp-adapter` exposes WordPress abilities to MCP clients. Any AI client that connects through it sees site data, so rule 1 applies to the client too.
 
 Local setup: put both variables in `.env`, then `docker compose up -d wordpress`. The container reads `env_file` only when it is created, and PHP-FPM passes the environment through (`clear_env = no`).
 
@@ -100,7 +102,7 @@ How a call runs:
 3. `SystemPrompt::for_page()` builds the system prompt: the output rules, the brand context and one few-shot example page. `SystemPrompt::brand_context()` is the shared brand part that every future prompt must reuse (the agent in M3, the `ai` plugin's features through `wpai_system_instruction`).
 4. The model is called on the `infomaniak` provider, with temperature 0.1, 4,000 output tokens at most, a 60-second timeout (the AI Client's default is 30) and thinking off.
 5. `BlockValidator::validate()` checks the trimmed answer. If it fails, the model gets the same request plus the reason it was rejected, up to **3 attempts in all** (the first plus 2 retries, mvp-spec §7). After the third failure the result is `mody_generation_failed`, with the last reason in the error data. Nothing is saved.
-6. An AI Client error (network, authentication, timeout) is returned at once, without a retry. Every failure is written to the PHP error log as `[mody-platform] generate_page site N attempt n/3: …`, without the prompt or the token. When the agent calls the ability, the call and its result are also recorded in `mody_agent_events` ([The agent](#the-agent)).
+6. An AI Client error (network, authentication, timeout) is returned at once, without a retry. Every failure is written to the PHP error log as `[mody-agent] generate_page site N attempt n/3: …`, without the prompt or the token. When the agent calls the ability, the call and its result are also recorded in `mody_agent_events` ([The agent](#the-agent)).
 
 The generated text follows the language of the member's prompt (mvp-spec decision 12): French and German prompts gave French and German pages.
 
@@ -118,11 +120,11 @@ First slice of M3-01, built 2026-11-06 ([mvp-spec.md §8](mvp-spec.md#8-the-agen
 | `POST /wp-json/mody-platform/v1/chat` | Body `message` (1 to 2,000 characters). Logged-in users with `edit_pages`, cookie authentication with `X-WP-Nonce`: without the nonce the request counts as logged out (401), and with a wrong one it gets 403, both before any model call. Starts a [background job](#background-jobs) and answers at once: `202` with `job` and `status` `running`. While the user's previous message on this site is still running: `409` (`mody_agent_busy`). |
 | `GET /wp-json/mody-platform/v1/chat/jobs/<id>` | The checker. Returns `job`, `status` (`running`, `done` or `failed`) and, once finished, `turn`: `reply`, `actions` (buttons: `label`, `url`), `choices`, `refused` and `error`. Same permission as POST. 404 for an unknown or expired job, and for another user's. |
 | `DELETE /wp-json/mody-platform/v1/chat` | Starts a new conversation. |
-| Network Admin → Settings → **Mody Agent** (`settings.php?page=mody-agent-settings`, `src/Agent/AgentSettings.php`) | Super admins only (`manage_network_options`). How many days events are kept (1 to 3,650, default 90), stored in the network option `mody_agent_settings`. Shows how many events are stored and the oldest one. Saving purges at once. |
+| Network Admin → Settings → **Mody Agent** (`settings.php?page=mody-agent-settings`, `src/AgentSettings.php`) | Super admins only (`manage_network_options`). How many days events are kept (1 to 3,650, default 90), stored in the network option `mody_agent_settings`. Shows how many events are stored and the oldest one. Saving purges at once. |
 | `Mody\Platform\Agent\Agent::respond( $message, $history )` | The loop, for PHP callers. Runs on the current site, as the current user. |
 | Ability `mody/open-editor` (`src/SiteEditor.php`) | Opens a Site Editor screen (M3-09, 2026-11-08). Input `target` with: `page` (`page_id` or `page_title`; neither for the pages list); `template` (`template`, a slug; none for the list); `part` (`template`, a part's slug such as `header`; none for the parts list); `list` (`list`, a key of `SiteEditor::lists()`, opening the template that shows that list); `styles` (`section`: `overview`, `browse`, `colors`, `palette`, `typography`, `layout`, `blocks`, `revisions`, `stylebook`; or `block`, such as `core/button`); `navigation` (the only menu, or the menus); `patterns`; `home`; `identity` (the site's title, tagline, logo, icon, mission and tone, M2-08; needs `manage_options`); `brand` (Settings → Brand, [Your brand](#your-brand-2026-11-11); a wp-admin page, so the owner always gets a button; needs `manage_options`). Returns `url`, `label` (the button), `place` (what opens, such as "Styles → Colors") and `navigate`. Changes nothing. Pages need `edit_pages` and `edit_post`; everything else `edit_theme_options`. A page title that is not exact still opens the page when only one title partly matches (`SiteEditor::match_page()`: no accents, case or punctuation, without "the" in front or "page" at the end; "the harbour cafe page" opens "Harbour Café"). Several matches are `mody_page_ambiguous`. An unknown page, template, part, list or block is an error. Each error lists what exists, so the model can ask. Public, like `mody/generate-page`. See [Opening Site Editor screens](#opening-site-editor-screens). |
-| Ability `mody/update-design` (`src/Design/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `src/Design/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), Writes the colors to the site's Global Styles, the only place they live (M2-08: no brand question, no copy). Returns the old and new colors, and the screen that shows them: Styles → Colors, or Browse styles after a preset (M3-09), opened in place in the Site Editor. Needs `edit_theme_options`. Public. See [Changing the colors](#changing-the-colors). |
-| Ability `mody/update-styles` (`src/Design/SiteStyles.php`, M3-10 part A, 2026-11-08) | Input `changes`: a partial theme.json object (`styles`, `settings`), merged into the site's Global Styles behind a guard. Returns `changed` (path, old, new) and the Styles screen that shows it, opened in place. Needs `edit_theme_options`. Public. Offered to the agent since part B (2026-11-08). See [Changing the styles](#changing-the-styles). |
+| Ability `mody/update-design` (`mody-styles/src/SiteDesign.php`, M3-02) | Input `preset` (one of the six slugs of `mody-styles/src/Presets.php`) **or** `primary`, `secondary`, `accent` (six-digit hex), Writes the colors to the site's Global Styles, the only place they live (M2-08: no brand question, no copy). Returns the old and new colors, and the screen that shows them: Styles → Colors, or Browse styles after a preset (M3-09), opened in place in the Site Editor. Needs `edit_theme_options`. Public. See [Changing the colors](#changing-the-colors). |
+| Ability `mody/update-styles` (`mody-styles/src/SiteStyles.php`, M3-10 part A, 2026-11-08) | Input `changes`: a partial theme.json object (`styles`, `settings`), merged into the site's Global Styles behind a guard. Returns `changed` (path, old, new) and the Styles screen that shows it, opened in place. Needs `edit_theme_options`. Public. Offered to the agent since part B (2026-11-08). See [Changing the styles](#changing-the-styles). |
 | Ability `mody/publish-page` (`src/Site/PagePublisher.php`, M3-03) | Input `page_id` or `page_title` (exact, case-insensitive; a draft with that title first). Publishes a draft or pending page of this site **as it is now**, without the validator. Refuses posts and other types, pages that are published, private, scheduled or in the trash, and an unknown page, whose error lists the site's drafts. Returns `page_id`, `title`, `status` and two buttons: **View** (the page's URL) and the Site Editor. Needs `publish_pages`, and `edit_post` on that page. Public. See [Publishing and site settings](#publishing-and-site-settings). |
 | Ability `mody/update-menu` (`src/Site/Menu.php`, 2026-11-11) | Input `items`: the header's whole menu, in order: a published page's title, `{label, url}` for a link (https, /path, #anchor, mailto: or tel:), `{page or label and url, children}` for a submenu (one level), or `all pages` (core's page list). The menu is the header navigation block's `ref`, else WordPress's fallback (`WP_Navigation_Fallback`). The blocks are built in PHP; at most 40 items, labels of 60 characters. Returns `old`, `new` and the menu's Site Editor screen. A list that drops an item is held for the owner's confirmation (`Menu::to_confirm()`). The system prompt shows the current items (`Menu::context()`); on a site with several languages it is the default language's menu. The editor's bubble reloads it (`navigation`, the menu's ID in its settings). Needs `edit_theme_options`. Public. |
 | Ability `mody/update-seo` (`src/Site/SeoTool.php`, 2026-11-14, [tickets/seo.md](../tickets/seo.md)) | How a page or post shows in search results (the `mody-seo` MU plugin's two fields, 2026-11-16): input `page_id` or `page_title`, `title` (the SEO title, the whole `<title>`, post meta `mody_seo_title`, at most 120 characters), `description` (the SEO description, post meta `mody_seo_description`, at most 300; printed cut at 160) and/or `generate` (the `ai` plugin's `ai/meta-description` writes the description from the saved text; not with `description`). `""` goes back to automatic: the page's title (WordPress's `<title>`) and its excerpt. All or nothing. Returns `search_title` and `description` as old and new, an empty one as what is used instead. Needs `edit_pages`, then `edit_post` on the page. **Offered only while the editor is open** (`Agent::EDITOR_ABILITIES`), described in `SystemPrompt::for_editor()` (rule 13, the home page, the open page's search appearance). Held for Apply when the open page is someone else's words. The bubble reloads the open page afterwards (`seo`). Public. |
@@ -140,7 +142,7 @@ How a message runs:
 5. Abilities run in-process through core's `WP_AI_Client_Ability_Function_Resolver`, limited to those six. Each run checks the ability's permission callback and input schema as the current user. A tool name that is not offered, such as `delete_all_pages` or another plugin's ability, runs nothing: the model gets the error `mody_unknown_tool`, and the call is logged as refused.
 6. **Links:** a result can carry `url` (labelled by its `label`) and `edit_url` (a Site Editor link, labelled with the page title). Each becomes a chat button, shown below the reply, but only if it points to this site's wp-admin or front end (`home_url()`). `mody/publish-page` gives both, so the member gets **View** and **Edit** buttons. The URLs are removed from what the model sees, replaced by "Shown to the owner as a button below your reply", so the model cannot paste or change them. Buttons with the same URL are shown once.
 7. **Limits:** at most 4 model requests and 3 ability runs per message. Further tool calls are refused and logged. If the model has not answered by then, the reply says the request could not be finished.
-8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-platform] agent site N step n: …`, without the prompt or the token. If a tool had already run in that turn, the reply says that part of the request may already be done, and to check the site before asking again, so a retry does not create a second page. The buttons of the tools that ran are still shown. Seen once for real on 2026-11-06: "create a contact page and publish it" created and published the page, then the model's last request timed out while connecting to Infomaniak (cURL error 28, 10 s).
+8. A model error ends the turn with a generic reply (`error`). The code is logged, and the PHP error log gets `[mody-agent] agent site N step n: …`, without the prompt or the token. If a tool had already run in that turn, the reply says that part of the request may already be done, and to check the site before asking again, so a retry does not create a second page. The buttons of the tools that ran are still shown. Seen once for real on 2026-11-06: "create a contact page and publish it" created and published the page, then the model's last request timed out while connecting to Infomaniak (cURL error 28, 10 s).
 
 ### Limits (security pass, 2026-11-12)
 - **One job per person and site, three on the network** (`Agent\Slots`, MariaDB advisory locks): the editor's `ai/*` features take at most one of the three; chat and page jobs wait a few seconds before answering "Mody is busy right now". Chat jobs end after 10 minutes, REST and MCP ability runs after 4.
@@ -196,7 +198,7 @@ Built 2026-11-08 for [M3-09](../tickets/M3-09-agent-navigates-site-editor.md). T
 
 ### Changing the colors
 
-Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "use the Forest preset". Since 2026-11-07 (M2-06) a **preset** is one of the theme's style variations (`themes/theme/styles/*.json`), and `SiteDesign::apply_preset()` writes it whole: palette, typography, spacing and element styles. That is what the Site Editor does when a style is chosen in Styles → Browse styles, so it shows as the active style (`SiteDesign::active_preset()`), and earlier changes to the styles are replaced (they stay in the revisions). Single colors still patch the palette, as below:
+Built 2026-11-06 for M3-02 (`src/Design/`, since 2026-11-17 the `mody-styles` plugin). "Make the primary color coral" or "use the Forest preset". Since 2026-11-07 (M2-06) a **preset** is one of the theme's style variations (`themes/theme/styles/*.json`), and `SiteDesign::apply_preset()` writes it whole: palette, typography, spacing and element styles. That is what the Site Editor does when a style is chosen in Styles → Browse styles, so it shows as the active style (`SiteDesign::active_preset()`), and earlier changes to the styles are replaced (they stay in the revisions). Single colors still patch the palette, as below:
 
 1. **No brand question** (M2-08, replacing the 2026-11-06 rule). The site's palette is its brand, so the agent calls `mody/update-design` at once. Prompt rule 7 now says the brand is the site's settings and styles.
 2. The model converts color names to hex (coral → `#ff7f50`); the server accepts only six-digit hex, or a preset slug. A preset and single colors together, or neither, are refused.
@@ -204,11 +206,11 @@ Built 2026-11-06 for M3-02 (`src/Design/`). "Make the primary color coral" or "u
 4. Nothing else is written: no profile keeps a copy of the colors (M2-08). Prompts name palette slugs only (rule 2).
 5. The result carries the old and new colors (logged in `mody_agent_events`) and a **See the new colors** button to the Site Editor's styles.
 
-**The presets** are in `Mody\Platform\Design\Presets`: Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-03) offers it, and provisioning (M2-01) calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
+**The presets** are in `Mody\Styles\Presets` (the `mody-styles` plugin): Mody Teal (the default, equal to `theme.json` and to the profile table's defaults), Forest, Ocean, Plum, Graphite and Sand, with the colors of the candidate table in [mvp-spec.md §6](mvp-spec.md#6-brand-wizard). The brand wizard (M2-03) offers it, and provisioning (M2-01) calls `SiteDesign::apply()` for the chosen preset. The agent knows the names from the ability's description, so it can list them.
 
 ### Changing the styles
 
-Built 2026-11-08 for [M3-10](../tickets/M3-10-agent-edits-global-styles.md) part A (`Design\SiteStyles`, ability `mody/update-styles`). The rest of the site's styles, beside the presets and three brand colors of `mody/update-design`: font sizes, heading and link styles, button shapes, spacing, widths, element and block styles, the palette's five colors and the member's own presets. The ticket's Results have the details.
+Built 2026-11-08 for [M3-10](../tickets/M3-10-agent-edits-global-styles.md) part A (`SiteStyles` (`mody-styles`), ability `mody/update-styles`). The rest of the site's styles, beside the presets and three brand colors of `mody/update-design`: font sizes, heading and link styles, button shapes, spacing, widths, element and block styles, the palette's five colors and the member's own presets. The ticket's Results have the details.
 
 1. **A merge patch** of the site's user Global Styles: objects key by key, `null` removes a key, and preset lists merge by slug.
 2. **The guard** refuses the whole change when any part is refused, and says why:
@@ -320,7 +322,7 @@ The maintainer asked for six recommendations on the same day. What was found and
 
 Asked for by the maintainer on 2026-11-11 ([your-brand-page.md](../tickets/your-brand-page.md)): Mody knew a business by its name, tagline, one-sentence mission and tone. Now the owner can tell it much more, on a page or in the chat, and every prompt reads it.
 
-- **Where it lives.** One site setting, `mody_brand` (`Brand\BrandBook`), an object with 16 fixed fields:
+- **Where it lives.** One site setting, `mody_brand` (`BrandBook` (`mody-brand`)), an object with 16 fixed fields:
   - **Identity:** vision.
   - **Voice:** how we sound, the form of "you" (formal, informal or none), words to use, words to avoid.
   - **Audience:** who the customers are, what they need.
@@ -329,7 +331,7 @@ Asked for by the maintainer on 2026-11-11 ([your-brand-page.md](../tickets/your-
   - **Facts:** address, phone, email, opening hours, area served.
 
   Every field has a limit (`BrandBook::FIELDS`). It is registered with a REST schema, so `/wp/v2/settings` refuses unknown fields and values over a limit, and it needs `manage_options`. The name, tagline, mission, tone and logo stay in their own settings: nothing is copied.
-- **The page:** Settings → Brand, titled Your brand (`Brand\BrandPage`, `assets/brand-page.css` and `brand-page.js`, plain, no build step).
+- **The page:** Settings → Brand, titled Your brand (`BrandPage` (`mody-brand`), `assets/brand-page.css` and `brand-page.js`, plain, no build step).
   - **Layout:** the sections on the left (a row above the panel on phones); a card with the logo, name, tagline and "N of 6 sections filled in"; a notice after saving; the section's panel with an **Overview** tab (label and value rows) and an **Edit** tab (the form).
   - **The Overview section** shows each section's state, and, under "What Mody receives", the exact brand block of the prompts.
   - **Visual style** shows the palette, fonts and gradients from Global Styles, with links to Styles and Identity.
@@ -489,7 +491,7 @@ These times are for the agent turn itself, measured in-process. In the browser, 
 
 - **In the editors: a chat bubble.** A round button at the bottom right of the Site Editor and the post editor, for users with `edit_pages`, opens the same chat: same endpoint, jobs and stored conversation (`Agent\EditorBubble`, `assets/agent-bubble.*`). The bubble builds the chat page's elements in a panel, and `assets/agent-chat.js` runs in them unchanged, except that it focuses its input only when visible. Test: `scripts/agent-bubble-test.php`.
 - **The wp-admin page:** removed everywhere on 2026-11-11. Only super admins on the main site still had it, and the main site's Site Editor has the bubble. `admin.php?page=mody-agent` opens the Site Editor with the chat open. The chat's settings and chips moved to `EditorBubble`.
-- **Colors** (decided by the maintainer on 2026-11-08). The chat, in the bubble and on the page, follows the user's admin color scheme (Profile → Admin Color Scheme; Ocean by default). Buttons and borders use the scheme's accent (`--wp-admin-theme-color`, set by core). The user's own messages use the second color of the scheme's palette, the second swatch in the profile's picker (Ocean `#39535a`, Modern `#3858e9`). `Admin\AdminColors::add_agent_chat_css()` sets it as `--mody-agent-user-message` on the `mody-agent-chat` style. White text on it passes 4.5:1 for every core scheme (`scripts/admin-colors-test.php`).
+- **Colors** (decided by the maintainer on 2026-11-08). The chat, in the bubble and on the page, follows the user's admin color scheme (Profile → Admin Color Scheme; Ocean by default). Buttons and borders use the scheme's accent (`--wp-admin-theme-color`, set by core). The user's own messages use the second color of the scheme's palette, the second swatch in the profile's picker (Ocean `#39535a`, Modern `#3858e9`). Mody Admin Colors' `AdminColors::add_agent_chat_css()` (when that plugin is there) sets it as `--mody-agent-user-message` on the `mody-agent-chat` style. White text on it passes 4.5:1 for every core scheme (`scripts/admin-colors-test.php`).
 - **The agent's buttons** (decided by the maintainer on 2026-11-07). Buttons to this site's admin ("Open … in the Site Editor", the styles) open in the **same tab**, with `?mody-chat=open` (`EditorBubble::open_url()`): the bubble opens there, with the same stored conversation. Each action carries `editor: true`. Buttons to the site itself ("View …") still open in a new tab. The bubble also reopens after a reload if it was open (`sessionStorage`).
 - **Screens opened in place** (M3-09, decided 2026-11-08). In the Site Editor, the screen that `mody/open-editor` or `mody/update-design` returns opens at once, without a page load, and so does a page the agent just created (`mody/generate-page`, decided by the maintainer on 2026-11-08). The button gives way to a note ("Opened Styles → Colors.") and **Go back**. Elsewhere, for example in the post editor, it stays a button. See [Opening Site Editor screens](#opening-site-editor-screens).
 - **Changes shown at once** (2026-11-09, [tickets/editor-shows-agent-changes.md](../tickets/editor-shows-agent-changes.md)). The Site Editor and the post editor keep their own copy of the site's Global Styles and settings in core-data's store (`root/globalStyles`, `root/site`), from when they opened. A turn that changed them lists them in `refresh`: `styles` after `mody/update-design` or `mody/update-styles`, `site` after `mody/update-site-settings`, only when the ability succeeded (`Agent::REFRESH`). The bubble then loads those records again (`refresh()` in `assets/agent-bubble.js`: `invalidateResolution`, then `getEntityRecord`; `root/__unstableBase` too, for the title in the Site Editor's sidebar; only records the editor has loaded). The Styles screens, Identity and the canvas show the change without a reload. Before this they showed the old values until a reload. Unsaved changes of the owner's to the same record stay on top of the refreshed record.
@@ -560,7 +562,7 @@ an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/include
 
 ### On member sites
 
-Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer the same day).
+Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, since 2026-11-17 `mody-locks/src/AiPlugin.php`, decided by the maintainer the same day).
 
 - **Members get every text feature.**
   - On-demand writing: titles, excerpts, meta descriptions, resizing, editorial updates, summaries, translation, slugs, alt text.
@@ -760,7 +762,7 @@ Decided by the maintainer on 2026-11-08: the agent uses every Spectra block but 
 
 ### The block reference, picked per request (2026-11-11)
 
-Part 4 of [agent-knows-gutenberg-spectra-settings.md](../tickets/agent-knows-gutenberg-spectra-settings.md). The families are cards, not prompt text: `mody-platform/reference/<family>.json` (its blocks, when to use it, a few rules, a checked example, and the words that name it in a request in the eight site languages), read by `Mody\Platform\AI\BlockReference`.
+Part 4 of [agent-knows-gutenberg-spectra-settings.md](../tickets/agent-knows-gutenberg-spectra-settings.md). The families are cards, not prompt text: `mody-agent/reference/<family>.json` (its blocks, when to use it, a few rules, a checked example, and the words that name it in a request in the eight site languages), read by `Mody\Platform\AI\BlockReference`.
 
 - **Every writer prompt** (page, edit, template) carries the index, one line per family, so the writer knows what exists, and the **cards of the families the request names** (its words, any of the eight languages, accents ignored) **or whose blocks are in the markup being edited**. An ordinary page ("an about page") gets the index and no card.
 - **The retry carries what was missing:** a rejected answer's feedback adds the cards of the families it used without one (`BlockReference::cards_for_markup()`, in `PageGenerator::ask()`).

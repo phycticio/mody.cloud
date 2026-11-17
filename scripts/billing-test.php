@@ -53,17 +53,17 @@
  * Users and rows made here are removed. No real payment.
  */
 
-use Mody\Platform\Agent\Budget;
-use Mody\Platform\Billing\Billing;
-use Mody\Platform\Billing\Lifecycle;
-use Mody\Platform\Billing\Mollie;
-use Mody\Platform\Billing\Payments;
-use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Members\Invites;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Registration;
-use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Security\RateLimit;
+use Mody\Agent\Budget;
+use Mody\Billing\Billing;
+use Mody\Billing\Lifecycle;
+use Mody\Billing\Mollie;
+use Mody\Billing\Payments;
+use Mody\Dashboard\DashboardPage;
+use Mody\Members\Invites;
+use Mody\Members\Members;
+use Mody\Members\Registration;
+use Mody\Sites\Quota;
+use Mody\Security\RateLimit;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

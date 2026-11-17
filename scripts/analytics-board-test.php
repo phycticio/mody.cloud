@@ -23,8 +23,8 @@
 use Mody\Analytics\Query;
 use Mody\Analytics\Stats;
 use Mody\Analytics\Store;
-use Mody\Platform\Dashboard\Board;
-use Mody\Platform\Dashboard\ChartSpec;
+use Mody\Dashboard\Board;
+use Mody\Dashboard\ChartSpec;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -276,8 +276,8 @@ $check( 'a donut needs parts of one whole (not visits by page)', str_contains( $
 $mixed = array( 'query' => array( 'metrics' => array( 'visits', 'single_page_rate' ), 'dimension' => 'entry' ) );
 $check( 'counts and ratios never share an axis, but may share a table', str_contains( $why( $mixed + $base ), 'cannot share an axis' ) && '' === $why( array( 'type' => 'table' ) + $mixed + $base ) );
 $check( 'a stacked chart needs a breakdown', str_contains( $why( array( 'type' => 'stacked' ) + $base ), 'needs a breakdown' ) );
-$palette = \Mody\Platform\Login\Schemes::palette();
-$dark    = array_keys( array_filter( $palette, static fn( string $hex ): bool => \Mody\Platform\Login\Color::contrast( $hex, '#ffffff' ) >= 3 ) );
+$palette = \Mody\Login\Schemes::palette();
+$dark    = array_keys( array_filter( $palette, static fn( string $hex ): bool => \Mody\Login\Color::contrast( $hex, '#ffffff' ) >= 3 ) );
 $check( 'colors: a palette name, "admin" and hex pass', '' !== ( $dark[0] ?? '' ) && '' === $why( array( 'style' => array( 'colors' => array( $dark[0], 'admin', '#1f6feb' ) ) ) + $base ), implode( ',', $dark ) );
 $check( '... a light color is refused with its contrast', str_contains( $why( array( 'style' => array( 'colors' => array( '#ffff00' ) ) ) + $base ), 'too light' ) && str_contains( $why( array( 'style' => array( 'colors' => array( 'base' ) ) ) + $base ), 'too light' ) );
 $check( '... an unknown color or a CSS expression is refused', str_contains( $why( array( 'style' => array( 'colors' => array( 'url(x)' ) ) ) + $base ), 'Unknown color' ) && str_contains( $why( array( 'style' => array( 'colors' => array( 'red' ) ) ) + $base ), 'Unknown color' ) );

@@ -22,15 +22,15 @@
  * at the end. Emails are captured, not sent. Never prints the token.
  */
 
-use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Provisioning\Jobs;
-use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Wizard\WizardController;
-use Mody\Platform\Wizard\WizardPage;
-use Mody\Platform\Wizard\WizardPreview;
+use Mody\Agent\AI\SystemPrompt;
+use Mody\Brand\BrandSettings;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
+use Mody\Sites\Jobs;
+use Mody\Sites\Pipeline;
+use Mody\Sites\WizardController;
+use Mody\Sites\WizardPage;
+use Mody\Sites\WizardPreview;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

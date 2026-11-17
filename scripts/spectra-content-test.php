@@ -23,11 +23,11 @@
  * Nothing is saved.
  */
 
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SpectraBlocks;
-use Mody\Platform\AI\SpectraLayout;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SpectraBlocks;
+use Mody\Agent\AI\SpectraLayout;
+use Mody\Agent\AI\SystemPrompt;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
@@ -100,10 +100,10 @@ $prompts   = array(
 	'block edit'      => SystemPrompt::for_edit( true ),
 	'template edit'   => SystemPrompt::for_edit( false, true ),
 );
-// Since 2026-11-11 the families are cards (Mody\Platform\AI\BlockReference): every prompt lists them all,
+// Since 2026-11-11 the families are cards (Mody\Agent\AI\BlockReference): every prompt lists them all,
 // and carries the cards of the families its request names or its markup uses.
 foreach ( $prompts as $label => $prompt ) {
-	$check( $label . ': every family listed, accordion and tabs among them', str_contains( $prompt, Mody\Platform\AI\BlockReference::index() ) && str_contains( $prompt, '- Accordion (spectra/accordion)' ) && str_contains( $prompt, '- Tabs (spectra/tabs)' ) && str_contains( $prompt, 'and the block families listed below' ) );
+	$check( $label . ': every family listed, accordion and tabs among them', str_contains( $prompt, Mody\Agent\AI\BlockReference::index() ) && str_contains( $prompt, '- Accordion (spectra/accordion)' ) && str_contains( $prompt, '- Tabs (spectra/tabs)' ) && str_contains( $prompt, 'and the block families listed below' ) );
 }
 $check( 'an FAQ request gets the accordion card, not the tabs one', str_contains( SystemPrompt::for_page( 'An FAQ page about our repairs' ), SpectraBlocks::ACCORDION ) && ! str_contains( SystemPrompt::for_page( 'An FAQ page about our repairs' ), SpectraBlocks::TABS ) );
 $check( '... in Spanish too', str_contains( SystemPrompt::for_page( 'Una página de preguntas frecuentes' ), SpectraBlocks::ACCORDION ) );

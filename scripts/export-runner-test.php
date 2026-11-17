@@ -47,12 +47,12 @@
  * Nginx container), not here.
  */
 
-use Mody\Platform\Export\Command;
-use Mody\Platform\Export\Downloads;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs;
-use Mody\Platform\Export\Runner;
-use Mody\Platform\Members\Members;
+use Mody\Export\Command;
+use Mody\Export\Downloads;
+use Mody\Export\Exporter;
+use Mody\Export\Jobs;
+use Mody\Export\Runner;
+use Mody\Members\Members;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -412,13 +412,13 @@ $check( 'a refused link is never handed to Nginx', $refused( $p ) );
 echo "\nserve()\n";
 // PHP's built-in server, running WordPress's front controller on a free port, so serve() is
 // reached over real HTTP, without Nginx (PHP streams unless the router says Nginx has the
-// location). serve() is called from mody-platform.php, at MU plugin load, where the pluggable
+// location). serve() is called from mody-export.php, at MU plugin load, where the pluggable
 // functions (wp_salt(), wp_redirect()) are not loaded yet: this tests that wiring too.
 $wp_path = untrailingslashit( ABSPATH );
 $router  = $tmp . '/router.php';
 // The router can pretend to be what PHP-FPM behind Nginx would see: X-Test-Software sets SERVER_SOFTWARE and
 // X-Test-Accel sets MODY_EXPORT_ACCEL (what `fastcgi_param MODY_EXPORT_ACCEL 1;` in the Nginx template does). Both
-// are set before WordPress loads: serve() runs from mody-platform.php, at MU plugin load, which is the wiring tested here.
+// are set before WordPress loads: serve() runs from mody-export.php, at MU plugin load, which is the wiring tested here.
 file_put_contents(
 	$router,
 	str_replace(
@@ -815,7 +815,7 @@ $settle();
 
 echo "\nwp mody-export\n";
 $reg = $tmp . '/register.php';
-file_put_contents( $reg, "<?php\nWP_CLI::add_hook( 'after_wp_load', static function () { Mody\\Platform\\Export\\Command::register(); } );\n" );
+file_put_contents( $reg, "<?php\nWP_CLI::add_hook( 'after_wp_load', static function () { Mody\\Export\\Command::register(); } );\n" );
 $wp = static function ( string $args, string $url ) use ( $reg, $wp_path ): array {
 	exec( 'wp --require=' . escapeshellarg( $reg ) . ' --path=' . escapeshellarg( $wp_path ) . ' --url=' . escapeshellarg( $url ) . ' ' . $args . ' 2>&1', $lines, $code );
 	return array(
@@ -869,7 +869,7 @@ file_put_contents(
 	str_replace(
 		'__LOG__',
 		$tmp . '/watch-spawned.txt',
-		"<?php\nWP_CLI::add_hook( 'after_wp_load', static function () {\n\tMody\\Platform\\Export\\Command::register();\n\tadd_filter( 'mody_export_spawn', static function ( \$r, \$job ) {\n\t\tfile_put_contents( '__LOG__', \$job['id'] . \"\\n\", FILE_APPEND );\n\t\treturn true;\n\t}, 10, 2 );\n} );\n"
+		"<?php\nWP_CLI::add_hook( 'after_wp_load', static function () {\n\tMody\\Export\\Command::register();\n\tadd_filter( 'mody_export_spawn', static function ( \$r, \$job ) {\n\t\tfile_put_contents( '__LOG__', \$job['id'] . \"\\n\", FILE_APPEND );\n\t\treturn true;\n\t}, 10, 2 );\n} );\n"
 	)
 );
 $wp_stub = static function ( string $args, string $url ) use ( $reg_stub, $wp_path ): array {
@@ -917,7 +917,7 @@ $parts = array( 'DatabaseDump', 'Archives', 'Notices' );
 $have  = array_filter(
 	$parts,
 	static function ( string $part ): bool {
-		return is_readable( dirname( __DIR__ ) . '/app/web/mu-plugins/mody-platform/src/Export/' . $part . '.php' ) || is_readable( WPMU_PLUGIN_DIR . '/mody-platform/src/Export/' . $part . '.php' );
+		return is_readable( dirname( __DIR__ ) . '/app/web/mu-plugins/mody-export/src/' . $part . '.php' ) || is_readable( WPMU_PLUGIN_DIR . '/mody-export/src/' . $part . '.php' );
 	}
 );
 if ( getenv( 'EXPORT_TEST_SKIP_BUILD' ) ) {

@@ -30,8 +30,8 @@
  * Everything created is removed at the end.
  */
 
-use Mody\Platform\Security\Altcha;
-use Mody\Platform\Security\AntispamBee;
+use Mody\Security\Altcha;
+use Mody\Antispam\AntispamBee;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

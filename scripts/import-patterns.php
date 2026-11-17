@@ -13,15 +13,15 @@
  *    Pattern Directory's "core" keyword (11) and "featured" category (26),
  *    through core's proxy, and core's bundled patterns (wp-includes/block-patterns).
  *    All are GPL (the Directory requires GPLv2 or later).
- * 2. Rewrites each with Design\PatternImport: palette colors, the theme's
+ * 2. Rewrites each with PatternImport (Mody Patterns): palette colors, the theme's
  *    fonts, the platform's placeholder images, no links to other sites.
  *    Patterns it cannot make fit (gradients) are left out, with the reason.
- * 3. Writes app/web/mu-plugins/mody-platform/patterns/collection.json and
+ * 3. Writes app/web/mu-plugins/mody-patterns/patterns/collection.json and
  *    prints a report.
  */
 
-use Mody\Platform\Design\PatternImport;
-use Mody\Platform\Design\Patterns;
+use Mody\Patterns\PatternImport;
+use Mody\Patterns\Patterns;
 
 if ( ! is_main_site() ) {
 	echo "Run this on the main site.\n";
@@ -116,7 +116,7 @@ foreach ( $sources as $key => $pattern ) {
 }
 usort( $collection, static fn( $a, $b ) => strcmp( $a['title'], $b['title'] ) );
 
-$file = WPMU_PLUGIN_DIR . '/mody-platform/' . Patterns::FILE;
+$file = WPMU_PLUGIN_DIR . '/mody-patterns/' . Patterns::FILE;
 wp_mkdir_p( dirname( $file ) );
 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writes the collection into the plugin.
 file_put_contents(

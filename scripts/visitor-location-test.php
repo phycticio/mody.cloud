@@ -17,8 +17,8 @@ use Mody\Analytics\Geo\Locator;
 use Mody\Analytics\Geo\Reader;
 use Mody\Analytics\Query;
 use Mody\Analytics\Store;
-use Mody\Platform\Dashboard\Analyst;
-use Mody\Platform\Dashboard\Board;
+use Mody\Dashboard\Analyst;
+use Mody\Dashboard\Board;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

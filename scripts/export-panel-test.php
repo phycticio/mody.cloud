@@ -36,13 +36,13 @@
  * empty folder of its own, and runs only when a check asks for it.
  */
 
-use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Dashboard\ExportPanel;
-use Mody\Platform\Export\Downloads;
-use Mody\Platform\Export\Jobs;
-use Mody\Platform\Export\Notices;
-use Mody\Platform\Export\Runner;
-use Mody\Platform\Members\Members;
+use Mody\Dashboard\DashboardPage;
+use Mody\Export\Panel;
+use Mody\Export\Downloads;
+use Mody\Export\Jobs;
+use Mody\Export\Notices;
+use Mody\Export\Runner;
+use Mody\Members\Members;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -68,16 +68,16 @@ if ( ! class_exists( 'Mody_Export_Test_Stop' ) ) {
 // The builder and the links are other parts: stubs when they are not there yet, and the builder never really started.
 $stubbed = ! class_exists( Runner::class, false );
 if ( $stubbed ) {
-	eval( 'namespace Mody\Platform\Export; final class Runner { public static array $started = array(); public static array $log = array(); public static int $watched = 0; public static function start( int $job_id ): void { self::$started[] = $job_id; self::$log[] = "start"; } public static function watch(): void { ++self::$watched; self::$log[] = "watch"; } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub.
+	eval( 'namespace Mody\Export; final class Runner { public static array $started = array(); public static array $log = array(); public static int $watched = 0; public static function start( int $job_id ): void { self::$started[] = $job_id; self::$log[] = "start"; } public static function watch(): void { ++self::$watched; self::$log[] = "watch"; } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub.
 }
 if ( ! class_exists( Downloads::class ) ) {
-	eval( 'namespace Mody\Platform\Export; final class Downloads { public static function url( array $job, string $which ): string { return home_url( "/stub-download/" . $job["id"] . "/" . $which ); } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub.
+	eval( 'namespace Mody\Export; final class Downloads { public static function url( array $job, string $which ): string { return home_url( "/stub-download/" . $job["id"] . "/" . $which ); } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub.
 }
 
 global $wpdb;
 $entry_blog = get_current_blog_id();
 Jobs::install();
-// The pause between two copies (ExportPanel::COOLDOWN, security pass 2026-11-12) is checked in scripts/security-isolation-test.php; here the presses follow each other.
+// The pause between two copies (Panel::COOLDOWN, security pass 2026-11-12) is checked in scripts/security-isolation-test.php; here the presses follow each other.
 add_filter( 'mody_export_cooldown', '__return_zero' );
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $new    = static function ( string $login, string $name ) use ( $suffix ): int {
@@ -175,7 +175,7 @@ $panel = static function ( int $user_id ) use ( $site ): string {
 	switch_to_blog( $site );
 	wp_set_current_user( $user_id );
 	ob_start();
-	ExportPanel::render();
+	Panel::render();
 	$html = (string) ob_get_clean();
 	restore_current_blog();
 	return $html;
@@ -190,19 +190,19 @@ $sections = DashboardPage::sections();
 $check( 'an administrator of the member site has the section', isset( $sections['export'] ) && 'Download your site' === $sections['export'] );
 $keys = array_keys( $sections );
 $check( '... after Mody\'s work, before the account sections', array_search( 'export', $keys, true ) === array_search( 'mody', $keys, true ) + 1, implode( ',', $keys ) );
-$check( 'available() says the same', ExportPanel::available() );
+$check( 'available() says the same', Panel::available() );
 wp_set_current_user( $second );
-$check( 'a second administrator too', ExportPanel::available() );
+$check( 'a second administrator too', Panel::available() );
 wp_set_current_user( $editor );
-$check( 'an editor does not', ! ExportPanel::available() && ! isset( DashboardPage::sections()['export'] ) );
+$check( 'an editor does not', ! Panel::available() && ! isset( DashboardPage::sections()['export'] ) );
 wp_set_current_user( 0 );
-$check( 'nobody logged in does not', ! ExportPanel::available() );
+$check( 'nobody logged in does not', ! Panel::available() );
 restore_current_blog();
 switch_to_blog( $main );
 wp_set_current_user( $owner );
-$check( 'the main site has no export, even for its administrator', current_user_can( 'manage_options' ) && ! ExportPanel::available() && ! isset( DashboardPage::sections()['export'] ) );
+$check( 'the main site has no export, even for its administrator', current_user_can( 'manage_options' ) && ! Panel::available() && ! isset( DashboardPage::sections()['export'] ) );
 ob_start();
-ExportPanel::render();
+Panel::render();
 $main_html = (string) ob_get_clean();
 restore_current_blog();
 $check( '... the panel prints nothing there', '' === trim( $main_html ) );
@@ -214,7 +214,7 @@ $check( 'a non-administrator\'s panel prints nothing', '' === trim( $panel( $edi
 echo "\nThe panel\n";
 $job( 'expired' ); // Nothing current.
 $html = $panel( $owner );
-$check( 'no job: Prepare my download, a form with a nonce to admin-post', str_contains( $html, 'Prepare my download' ) && str_contains( $html, 'admin-post.php' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'value="' . ExportPanel::ACTION . '"' ) );
+$check( 'no job: Prepare my download, a form with a nonce to admin-post', str_contains( $html, 'Prepare my download' ) && str_contains( $html, 'admin-post.php' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'value="' . Panel::ACTION . '"' ) );
 $check( '... no question, no checkbox, no confirmation', ! preg_match( '/<input[^>]+type="(checkbox|text|radio)"/', $html ) && ! preg_match( '/confirm|are you sure|why are you leaving/i', $html ) );
 $check( '... three files, and Mody does not come along', str_contains( $html, 'three files' ) && str_contains( $html, 'Mody, the AI agent, stays here' ) );
 $check( '... what comes with it and what stays', str_contains( $html, 'What comes with it' ) && str_contains( $html, 'What stays with Mody Cloud' ) && str_contains( $html, 'without their passwords' ) && str_contains( $html, 'The visitor counter' ) && str_contains( $html, 'API keys' ) );
@@ -287,7 +287,7 @@ $job( 'done', 'done', array( 'files' => wp_json_encode( $files ), 'finished_at' 
 $html = $panel( $owner );
 $check( 'done, but past its three days: no downloads, no "ready"', 0 === preg_match_all( '/>Download</', $html ) && ! str_contains( $html, 'Your download is ready' ) && ! str_contains( $html, 'kept until' ) );
 $check( '... the button to start again', str_contains( $html, 'Prepare my download' ) && ! str_contains( $html, 'data-ajax-url' ) );
-$check( '... view() says there is no job, and no files', 'none' === ExportPanel::view( Jobs::current( $site ) )['status'] && array() === ExportPanel::view( Jobs::current( $site ) )['files'] );
+$check( '... view() says there is no job, and no files', 'none' === Panel::view( Jobs::current( $site ) )['status'] && array() === Panel::view( Jobs::current( $site ) )['files'] );
 $job( 'done', 'done', array( 'files' => wp_json_encode( $files ), 'finished_at' => gmdate( 'Y-m-d H:i:s', time() - Jobs::KEEP_FOR + HOUR_IN_SECONDS ) ) );
 $check( 'done with an hour left: still ready', str_contains( $panel( $owner ), 'Your download is ready' ) && 3 === preg_match_all( '/>Download</', $panel( $owner ) ) );
 $job( 'done', 'done', array( 'files' => wp_json_encode( $files ), 'finished_at' => null ) );
@@ -387,7 +387,7 @@ $poll = static function ( int $user_id, array $request ) use ( $site ): array {
 	ob_start();
 	$output = '';
 	try {
-		ExportPanel::handle_status();
+		Panel::handle_status();
 		$output = (string) ob_get_contents();
 	} catch ( Mody_Export_Test_Stop $stop ) {
 		$output = $stop->output;
@@ -408,7 +408,7 @@ $poll = static function ( int $user_id, array $request ) use ( $site ): array {
 $good = static function ( int $user_id ) use ( $site ): string {
 	switch_to_blog( $site );
 	wp_set_current_user( $user_id );
-	$nonce = wp_create_nonce( ExportPanel::STATUS_ACTION );
+	$nonce = wp_create_nonce( Panel::STATUS_ACTION );
 	restore_current_blog();
 	return $nonce;
 };
@@ -469,7 +469,7 @@ if ( $stubbed ) {
 	ob_start();
 	switch_to_blog( $main );
 	wp_set_current_user( $owner );
-	ExportPanel::render();
+	Panel::render();
 	restore_current_blog();
 	ob_end_clean();
 	$check( '... not for an editor, nor on the main site (the panel does not render there)', 1 === Runner::$watched, (string) Runner::$watched );
@@ -509,7 +509,7 @@ add_filter(
 $post = static function ( int $user_id, int $blog, ?string $nonce_for = null, bool $with_nonce = true ) use ( $site ): array {
 	switch_to_blog( $blog );
 	wp_set_current_user( $user_id );
-	$_REQUEST = $with_nonce ? array( '_wpnonce' => wp_create_nonce( null === $nonce_for ? ExportPanel::ACTION : $nonce_for ) ) : array();
+	$_REQUEST = $with_nonce ? array( '_wpnonce' => wp_create_nonce( null === $nonce_for ? Panel::ACTION : $nonce_for ) ) : array();
 	$_POST    = $_REQUEST;
 	$stop     = static function ( $location ) {
 		$stop         = new Mody_Export_Test_Stop( 'redirect' );
@@ -525,7 +525,7 @@ $post = static function ( int $user_id, int $blog, ?string $nonce_for = null, bo
 	add_filter( 'wp_die_handler', $die, PHP_INT_MAX );
 	$result = array( 'kind' => 'returned', 'output' => '' );
 	try {
-		ExportPanel::handle_request();
+		Panel::handle_request();
 	} catch ( Mody_Export_Test_Stop $e ) {
 		$result = array( 'kind' => $e->getMessage(), 'output' => $e->output );
 	} finally {
@@ -582,14 +582,14 @@ if ( $stubbed ) {
 	$check( '... the press itself still calls the watchdog (it may be stalled) and sweeps', Runner::$watched > $watched && (int) get_site_option( 'mody_export_swept', 0 ) >= $before, Runner::$watched . ' ' . $watched );
 	update_site_option( 'mody_export_swept', time() );
 	$mail = array();
-	$check( 'start() on a live job says busy and announces nothing', 'busy' === ExportPanel::start( $site, $owner ) && array() === $mail && 1 === $count() );
+	$check( 'start() on a live job says busy and announces nothing', 'busy' === Panel::start( $site, $owner ) && array() === $mail && 1 === $count() );
 
 	// Another request holds the site's lock (a double click, in the middle of creating the job): this one does not pile on.
 	$other = new mysqli( DB_HOST, DB_USER, DB_PASSWORD, DB_NAME );
 	$other->query( "SELECT GET_LOCK( 'mody_export_panel_" . (int) $site . "', 0 )" );
 	$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . Jobs::table() . ' WHERE site_id = %d', $site ) ); // phpcs:ignore WordPress.DB -- Test rows.
 	$mail   = array();
-	$result = ExportPanel::start( $site, $owner );
+	$result = Panel::start( $site, $owner );
 	$other->close();
 	$check( 'while another request holds the lock: busy, no job, no email (after its 5 seconds)', 'busy' === $result && 0 === $count() && array() === $mail, $result );
 	$check( '... and the lock is free again once that request ends', 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT IS_FREE_LOCK( %s )', 'mody_export_panel_' . $site ) ) );
@@ -752,7 +752,7 @@ remove_all_filters( 'pre_wp_mail', 1 );
 // 7. The script and the strings --------------------------------------------------------
 
 echo "\nScript and strings\n";
-$root = WPMU_PLUGIN_DIR . '/mody-platform';
+$root = WPMU_PLUGIN_DIR . '/mody-export';
 $js   = (string) file_get_contents( $root . '/assets/export-panel.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions -- Test.
 $job( 'running', 'database', array( 'progress' => '{"done":1,"total":2}' ) );
 $html = $panel( $owner );
@@ -762,17 +762,18 @@ $check( 'the script finds every element it updates in the rendered panel', array
 $check( 'the script asks the poll\'s action, reads the page\'s data, and has no text of its own', str_contains( $js, 'root.dataset.action' ) && str_contains( $js, 'root.dataset.nonce' ) && ! preg_match( '/textContent = [\'"]/', $js ) );
 switch_to_blog( $site );
 wp_set_current_user( $owner );
+$_GET['page']    = 'mody-dashboard';
 $_GET['section'] = 'overview';
-ExportPanel::enqueue();
+Panel::enqueue();
 $on_overview = wp_script_is( 'mody-export-panel', 'enqueued' );
 $_GET['section'] = 'export';
-ExportPanel::enqueue();
+Panel::enqueue();
 $on_export = wp_script_is( 'mody-export-panel', 'enqueued' );
 wp_dequeue_script( 'mody-export-panel' );
-unset( $_GET['section'] );
+unset( $_GET['section'], $_GET['page'] );
 restore_current_blog();
 $check( '... not on Overview, on the export section', ! $on_overview && $on_export );
-foreach ( array( 'src/Dashboard/ExportPanel.php', 'src/Export/Notices.php' ) as $file ) {
+foreach ( array( 'src/Panel.php', 'src/Notices.php' ) as $file ) {
 	$source = (string) file_get_contents( $root . '/' . $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions -- Test.
 	$calls  = preg_match_all( '/\b(?:esc_html__|esc_attr__|esc_html_e|esc_attr_e|__|_e|_n|_x)\(/', $source );
 	$domain = preg_match_all( "/'mody_cloud'/", $source );

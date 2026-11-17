@@ -56,6 +56,15 @@ spl_autoload_register(
 
 Uploads::register();
 
+/*
+ * How big a picture may be before anything decodes it (security pass,
+ * 2026-11-12): checked at 10, before Uploads (Uploads::PRIORITY) makes the
+ * WebP, and Imagick's own limits.
+ */
+add_filter( 'wp_handle_upload_prefilter', array( ImageSize::class, 'prefilter' ) );
+add_filter( 'wp_handle_sideload_prefilter', array( ImageSize::class, 'prefilter' ) );
+add_filter( 'wp_image_editors', array( ImageSize::class, 'limit_editors' ) );
+
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	\WP_CLI::add_command( 'mody-images', Command::class );
 }

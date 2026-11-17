@@ -30,12 +30,12 @@
 use Mody\Analytics\Collector;
 use Mody\Analytics\Stats;
 use Mody\Analytics\Store;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\TurnMetrics;
-use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Dashboard\Usage;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Site\Storage;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\TurnMetrics;
+use Mody\Dashboard\DashboardPage;
+use Mody\Dashboard\Usage;
+use Mody\Members\Members;
+use Mody\Storage\Storage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';

@@ -12,11 +12,11 @@ The infrastructure is the Docker stack already in this repository. The briefing'
 | Cache | Redis (alpine) container. No object-cache plugin is installed yet. | `compose.yml` |
 | Mail | The `mody-mail` MU plugin (`app/web/mu-plugins/mody-mail/`, decided by the maintainer on 2026-11-10; it replaced WP Mail SMTP, used from 2026-11-09) sends all of the platform's mail. It has no settings screen: it reads `MAIL_SENDER_EMAIL`, `MAIL_SENDER_NAME` and `BREVO_API_KEY` from the environment (`.env`, through `env_file`). Every message leaves from that one sender; the name replaces only WordPress's default "WordPress". With `BREVO_API_KEY` set, `wp_mail()` is handed a `BrevoMailer` that posts each message to Brevo's transactional API (production, see [Temporary exceptions to rule 1](#temporary-exceptions-to-rule-1)). Without it, WordPress sends as usual: PHP's `mail()` through msmtp to Mailpit, which captures everything locally, served at `MAIL_HOST` through Nginx. Production without the key fails every message with a clear error instead. Every failure's reason (never the key, never the message) goes to PHP's error log as `[mody-mail] Email not sent: …`. Stage and production disable Mailpit (profile `never-start`) and do not load its Nginx template. No library: Brevo's API is one HTTPS request (`wp_remote_post()`); any dependency it ever needs goes in `app/composer.json`. Test: `scripts/mail-test.php`. | `app/web/mu-plugins/mody-mail/`, `compose.yml`, `config/nginx/mailpit.conf.template`, `config/php/` |
 | Images | The `mody-images` MU plugin (`app/web/mu-plugins/mody-images/`, decided by the maintainer on 2026-11-14): every uploaded JPEG, PNG or HEIC is stored as a WebP, upright, at most 2560 pixels on a side, without camera data; the sizes are WebP. Imagick in the app image does the work (ImageMagick with WebP, AVIF and HEIC; GD otherwise). No outside service, no settings. [tickets/image-optimization.md](../tickets/image-optimization.md) | `app/web/mu-plugins/mody-images/` |
-| SEO | The `mody-seo` MU plugin (`app/web/mu-plugins/mody-seo/`, decided by the maintainer on 2026-11-16: Mody's plugins do one thing each): a page's SEO title and SEO description, post meta on every public post type, edited in the editor's sidebar and printed in the head; the page's title and excerpt when empty. No outside service, no settings. [tickets/seo.md](../tickets/seo.md) | `app/web/mu-plugins/mody-seo/` |
+| SEO | The `mody-seo` MU plugin (`app/web/mu-plugins/mody-seo/`, decided by the maintainer on 2026-11-16: Mody's plugins do one thing each, see [Mody plugins](#mody-plugins)): a page's SEO title and SEO description, post meta on every public post type, edited in the editor's sidebar and printed in the head; the page's title and excerpt when empty. No outside service, no settings. [tickets/seo.md](../tickets/seo.md) | `app/web/mu-plugins/mody-seo/` |
 | Site languages | The `mody-languages` MU plugin (`app/web/mu-plugins/mody-languages/`, decided by the maintainer on 2026-11-10): translations as pages, language prefixes in addresses, the switcher and the translation matrix, on every site. No third-party multilingual plugin and no outbound calls. | [tickets/site-languages.md](../tickets/site-languages.md) |
 | Backups | The `backup` service (production only, `compose.prod.yml.sample`; decided by the maintainer on 2026-11-14): restic, run by the host's Ofelia, sends the database every 6 hours, and the uploads, the server's `.env` and `compose.prod.yml` and Nginx Proxy Manager's data every night, to an encrypted repository at Infomaniak Swiss Backup (Switzerland). The dumps also stay on the laptop's internal disk. `bin/restore-drill` restores the newest snapshot into scratch containers and checks it. [tickets/backups.md](../tickets/backups.md) | `config/backup/`, `bin/restore-drill` |
 | Dependencies | Composer. WordPress plugins and themes install into `app/web/`. | `app/composer.json` |
-| Plugins | Pinned to the versions first installed by hand in production, and brought into Composer on 2026-11-04: Wordfence 9.0.2 (security), `ai` 1.5.0 (WordPress AI features), `ai-provider-for-ollama` 1.4.0 and `mcp-adapter` 0.7.1 (exposes WordPress abilities to MCP clients). The OpenAI and Mistral providers installed with them were removed. Spectra (`spectra-blocks` 1.0.13) added on 2026-11-06, network-activated, then a MU plugin since 2026-11-08 (Composer installs it into `web/mu-plugins/spectra-blocks/`, M3-11), guarded by `SpectraGuard` ([mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). Antispam Bee 2.11.13 added on 2026-11-10, a MU plugin the same way (`web/mu-plugins/antispam-bee/`), with its outside checks pinned off by `Security\AntispamBee` ([tickets/antibot-altcha.md](../tickets/antibot-altcha.md)). Members switch installed plugins on their own site's Plugins screen; platform plugins are hidden from them (M4-02, same section). | `app/composer.json` |
+| Plugins | Pinned to the versions first installed by hand in production, and brought into Composer on 2026-11-04: Wordfence 9.0.2 (security), `ai` 1.5.0 (WordPress AI features), `ai-provider-for-ollama` 1.4.0 and `mcp-adapter` 0.7.1 (exposes WordPress abilities to MCP clients). The OpenAI and Mistral providers installed with them were removed. Spectra (`spectra-blocks` 1.0.13) added on 2026-11-06, network-activated, then a MU plugin since 2026-11-08 (Composer installs it into `web/mu-plugins/spectra-blocks/`, M3-11), guarded by `SpectraGuard` ([mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). Antispam Bee 2.11.13 added on 2026-11-10, a MU plugin the same way (`web/mu-plugins/antispam-bee/`), with its outside checks pinned off by the `mody-antispam` plugin ([tickets/antibot-altcha.md](../tickets/antibot-altcha.md)). Members switch installed plugins on their own site's Plugins screen; platform plugins are hidden from them (M4-02, same section). | `app/composer.json` |
 | Dev tooling | Query Monitor and its `db.php` drop-in symlink; User Switching 1.12.2 (added 2026-11-08 at the maintainer's request, to act as another user locally, for example a member; checked: no outbound calls). The only dev requirements. `bin/deploy` builds with `--no-dev`, so neither reaches production. | `app/composer.json`, `app/web/db.php` |
 | JS and CSS build | `@wordpress/scripts` through pnpm: `src/` compiles into `app/dist`. Only the libraries a feature needs ([theme-development.md](theme-development.md#rules)). | `package.json`, `config/webpack/config.js` |
 | Environments | `compose.yml` plus `compose.local.yml` (local, mkcert TLS). Stage and production are compose overrides where TLS ends at an upstream proxy. Production is described in [Production](#production). | `compose.local.yml`, `compose.stage.yml.sample`, `compose.prod.yml.sample` |
@@ -36,6 +36,7 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 │   ├── web/                     # WP_CONTENT_DIR
 │   │   ├── themes/theme/       # the FSE theme (the only tracked theme)
 │   │   ├── plugins/             # Composer-managed, not tracked
+│   │   ├── mu-plugins/          # Mody's plugins (mody-<name>/ and its loader mody-<name>.php), Spectra and Antispam Bee
 │   │   ├── uploads/             # media, not tracked
 │   │   └── db.php               # symlink to the Query Monitor drop-in
 │   ├── dist/                    # pnpm build output (not tracked)
@@ -55,6 +56,53 @@ WordPress core and content are split Bedrock-style. Core lives in `app/wp`, cont
 ```
 
 `wp-config.php` sets `WP_CONTENT_DIR` to `app/web` and `ABSPATH` to `app/wp/`. **No address carries `/wp`** (decided by the maintainer on 2026-11-10): every site's `home` and `siteurl` are its bare domain (`https://mody.cloud`), and `WP_SITEURL` matches (multisite reads the options, not the constant). Nginx serves core from the root by rewriting `/wp-admin`, `/wp-includes` and root `wp-*.php` into `/wp/` internally (not `xmlrpc.php`: it is refused, see [Security hardening](#security-hardening)), and sends any old `/wp/…` address to the same address without `/wp` (a 308, which keeps a posted login form's method; it names `https://$host`, so `/wp//evil.example` cannot leave the site). Other redirects are relative (`absolute_redirect off`), so they stay `https` behind the proxies.
+
+## Mody plugins
+
+Decided by the maintainer on 2026-11-16 ([tickets/independent-mody-plugins.md](../tickets/independent-mody-plugins.md)). It replaces "platform logic lives in one MU plugin" (`mody-platform`) and the exceptions made to it one by one (`mody-mail`, `mody-languages`, `mody-analytics`, `mody-images`, `mody-seo`).
+
+- **One thing each.** A Mody plugin takes care of one single thing.
+- **Independent.** Each has its own folder (`app/web/mu-plugins/mody-<name>/`), loader (`mu-plugins/mody-<name>.php`), plugin header, namespace (`Mody\<Name>`), autoloader, assets and tests. It runs with no other Mody plugin present. It reaches another only through hooks that one documents, or behind a `class_exists()` or `function_exists()` check with a fallback. A missing plugin means less is done, never a fatal error.
+- **Every Mody plugin is a normal plugin; some are loaded as MU plugins** (decided 2026-11-17). Each is written as a normal plugin. Plugins for performance, for languages and global plugins (what must hold on every site, with no switch) are loaded as MU plugins (always on, nobody can switch them off). **Every Mody plugin that exists today is a MU plugin.** Where a future normal Mody plugin lives (`app/web/plugins/` is Composer-managed and not tracked) is an open question in the ticket.
+- **The plugin header** lets the same folder run as a normal plugin in a site downloaded with Take your site with you, as `mody-seo` does.
+- **Load order.** WordPress loads `mu-plugins/*.php` alphabetically. A plugin that needs another checks for it from `plugins_loaded` (Mody Billing, the signup in Mody Members, the dashboard's board and analyst), never at load time. The Spectra guard must load before Spectra: `mody-spectra` sorts before `spectra-blocks`, as a MU plugin and as a normal one.
+- **How they talk.** Through hooks one plugin documents and another answers, such as `mody_dashboard_sections` and `mody_dashboard_section_<slug>` (Mody Dashboard), `mody_brand_context` (Mody Brand), `mody_agent_site_locked` (Mody Agent), `mody_site_limit`, `mody_can_create_site`, `mody_sites_payment_pending`, `mody_sites_on_launch_offer` and `mody_sites_plan_url` (Mody Sites), `mody_onboarding_no_site_url` and `mody_onboarding_free_until` (Mody Onboarding). Otherwise behind `class_exists()`. A plugin built on another (Mody Billing on Mody Members and Mody Sites, the analyst on Mody Agent) checks once, where it registers.
+- **REST routes** keep the namespace `mody-platform/v1` they always had, so no address changed.
+- **The `ai` plugin** names a MU plugin by its folder: Mody's own MU plugins (`mody-*`) are approved for the Infomaniak connector (Mody Agent's `ConnectorApprovals`; Mody Locks pins the same on member sites).
+
+Every Mody plugin, all loaded as MU plugins (since 2026-11-17 there is no `mody-platform`):
+
+| Plugin | One thing | A downloaded site carries it |
+| --- | --- | --- |
+| `mody-admin-colors` | Ocean as every user's wp-admin scheme | Yes |
+| `mody-agent` | Mody: the model, the chat in the editors, its tools | No |
+| `mody-analytics` | The cookieless visitor counter | No |
+| `mody-antispam` | Antispam Bee without its outside checks | Yes |
+| `mody-billing` | Card payments through Mollie | No |
+| `mody-brand` | Mission, tone and Settings → Brand | No |
+| `mody-dashboard` | Every site's Dashboard, the analytics board and its analyst | No |
+| `mody-domains` | Custom domains | No |
+| `mody-export` | Take your site with you | No |
+| `mody-fonts` | The Font Library with the Mody fonts | No (Inter is baked into the theme) |
+| `mody-images` | Web-efficient uploads and how big a picture may be | Yes |
+| `mody-languages` | Site languages | Yes |
+| `mody-locks` | What members may not do | No |
+| `mody-login` | The login page in the site's brand | Yes |
+| `mody-mail` | Outgoing mail | No |
+| `mody-members` | Accounts, the signup chat, the launch offer, invites | No |
+| `mody-onboarding` | The first login and the editor tour | No |
+| `mody-palette` | Palette-only color pickers | Yes |
+| `mody-patterns` | The Mody pattern collection and placeholders | Yes |
+| `mody-profiles` | Profile pictures, initials, one network profile | Yes |
+| `mody-security` | ALTCHA, rate limits, secrets, hardening | No |
+| `mody-seo` | A page's search appearance | Yes |
+| `mody-sites` | The New site wizard, provisioning, the quota | No |
+| `mody-spectra` | Spectra without its outside connections | Yes |
+| `mody-storage` | 1 GB per site | No |
+| `mody-styles` | Writing a site's Global Styles | No |
+| `mody-updates` | No updates from wp-admin | No |
+
+A new feature gets a plugin of its own, or joins the plugin whose one thing it is.
 
 ## Target system
 
@@ -82,7 +130,7 @@ Member ──▶ WordPress (accounts, wizard, site panel)
 | --- | --- | --- |
 | WordPress | Subdomain Multisite, one site per generated website (enabled in M0-01). Site 1 is the main site (the home page and the signup). | 0 |
 | FSE block theme | Header, footer, templates and global styles are blocks and JSON editable with Gutenberg. | 0 |
-| Spectra | Extra block library alongside native Gutenberg. `spectra-blocks` (Brainstorm Force's current Spectra; `ultimate-addons-for-gutenberg` is now "Spectra Legacy") is in Composer since 2026-11-06, and a MU plugin since 2026-11-08 ([M3-11](../tickets/M3-11-spectra-mu-plugin-all-blocks.md)). `SpectraGuard` in the MU plugin switches off every part of it that connects outside Europe ([mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). It is the platform's block library; the fork into our own `mody/*` blocks is set aside ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)). | 0 |
+| Spectra | Extra block library alongside native Gutenberg. `spectra-blocks` (Brainstorm Force's current Spectra; `ultimate-addons-for-gutenberg` is now "Spectra Legacy") is in Composer since 2026-11-06, and a MU plugin since 2026-11-08 ([M3-11](../tickets/M3-11-spectra-mu-plugin-all-blocks.md)). `SpectraGuard` (the `mody-spectra` plugin) switches off every part of it that connects outside Europe ([mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). It is the platform's block library; the fork into our own `mody/*` blocks is set aside ([tickets/mody-blocks-from-spectra.md](../tickets/mody-blocks-from-spectra.md)). | 0 |
 | Agent | Tool loop and block validator in the MU plugin, calling models through the WordPress AI Client with the Infomaniak provider. Its actions are WordPress abilities (category `mody`), which MCP clients can also call. The first, `mody/generate-page`, and the validator exist (2026-11-06). See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak AI Services | Model inference in Switzerland. See [ai-engine.md](ai-engine.md). | 1 |
 | Infomaniak Newsletter | Per-domain sending with monthly caps. See [newsletter.md](newsletter.md). | 3 |
@@ -219,7 +267,7 @@ These are differences between production and the conventions above. None of them
 
 ## Open questions
 
-- **WordPress.org update checks and rule 1** (raised 2026-11-08, M4-02). Core asks `api.wordpress.org` for core, plugin and theme updates: on a WP-Cron timer, on admin page loads (twice a day at most), and on every load of the Plugins screen (at most hourly). This is not new and happens for every admin today, but since M4-02 members open the Plugins screen too. **Decided and built 2026-11-08** ([tickets/updates-through-composer-only.md](../tickets/updates-through-composer-only.md), [mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). Nobody updates WordPress or a plugin from wp-admin: `Gating\Updates` refuses the update capabilities to everyone. Core no longer checks on its own, so page loads never call WordPress.org for updates.
+- **WordPress.org update checks and rule 1** (raised 2026-11-08, M4-02). Core asks `api.wordpress.org` for core, plugin and theme updates: on a WP-Cron timer, on admin page loads (twice a day at most), and on every load of the Plugins screen (at most hourly). This is not new and happens for every admin today, but since M4-02 members open the Plugins screen too. **Decided and built 2026-11-08** ([tickets/updates-through-composer-only.md](../tickets/updates-through-composer-only.md), [mvp-spec.md §10](mvp-spec.md#10-plugin-market-and-capability-gating)). Nobody updates WordPress or a plugin from wp-admin: `Updates` (the `mody-updates` plugin) refuses the update capabilities to everyone. Core no longer checks on its own, so page loads never call WordPress.org for updates.
   - **Still calling it directly:** Wordfence's scans and activity report (they report outdated and vulnerable plugins), Site Health → Info, and WP-CLI run by hand.
   - **Still open:**
     - whether those direct calls stay, given rule 1;

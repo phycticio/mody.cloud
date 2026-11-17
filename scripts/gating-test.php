@@ -30,9 +30,9 @@
  * The user, the page and the post made here are removed at the end. No model call.
  */
 
-use Mody\Platform\Gating\MemberPlugins;
-use Mody\Platform\Gating\MemberSite;
-use Mody\Platform\SiteEditor;
+use Mody\Locks\MemberPlugins;
+use Mody\Locks\MemberSite;
+use Mody\Agent\SiteEditor;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

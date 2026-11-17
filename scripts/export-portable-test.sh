@@ -14,7 +14,7 @@
 #   1. builds the payload with Portable::assemble() on the platform;
 #   2. makes a single-site WordPress in the container's /tmp/mody-exit-test/site
 #      with its own database, mody_exit_test;
-#   3. installs it, activates the theme and the six plugins, adds a page;
+#   3. installs it, activates the theme and the payload's plugins, adds a page;
 #   4. checks it from PHP (scripts/export-portable-check.php) and over HTTP
 #      with PHP's built-in server on 127.0.0.1:8099.
 
@@ -51,13 +51,16 @@ trap cleanup EXIT
 echo "1. The payload"
 in_app_root "mkdir -p $T && chown www-data $T"
 in_app "pkill -f '[p]hp -S 127.0.0.1:8099' 2>/dev/null; rm -rf $T/payload $SITE $T/debug.log"
-OUT=$(docker exec -i -u www-data "$CONTAINER" wp --path=/var/www/html/wp --url=https://alpha.mody.local eval '$r = Mody\Platform\Export\Portable::assemble( "'"$T"'/payload" ); echo is_wp_error( $r ) ? "ERROR " . $r->get_error_message() : "OK " . wp_json_encode( Mody\Platform\Export\Portable::active_plugins() );')
+OUT=$(docker exec -i -u www-data "$CONTAINER" wp --path=/var/www/html/wp --url=https://alpha.mody.local eval '$r = Mody\Export\Portable::assemble( "'"$T"'/payload" ); echo is_wp_error( $r ) ? "ERROR " . $r->get_error_message() : "OK " . wp_json_encode( Mody\Export\Portable::active_plugins() );')
 echo "     $OUT"
-case "$OUT" in OK*) check "assembled, every class Mody Site names is in it" 0 ;; *) check "assembled" 1; exit 1 ;; esac
-check "no agent, platform or gating code in Mody Site" "$(in_app "ls -R $T/payload/plugins/mody-site | grep -qE 'Agent|AI|Abilities|Gating|Members|Provisioning|Wizard|Onboarding|Dashboard|Altcha|FormGuard|NetworkProfile|Storage|SpectraLoader|SiteDesign|SiteEditor' && echo 1 || echo 0")"
+case "$OUT" in OK*) check "assembled, no carried Mody plugin names a class of mody-platform" 0 ;; *) check "assembled" 1; exit 1 ;; esac
+check "no mody-platform and no Mody Site in the payload" "$(in_app "ls $T/payload/plugins | grep -qE '^mody-(platform|site)$' && echo 1 || echo 0")"
+check "no agent, platform or gating plugin in it" "$(in_app "ls $T/payload/plugins | grep -qE 'mody-(agent|security|locks|members|billing|sites|dashboard|export|onboarding|storage|updates|domains|brand|styles|fonts)$' && echo 1 || echo 0")"
 check "no mody-mail, mody-analytics, ai, mcp-adapter or wordfence" "$(in_app "ls $T/payload/plugins | grep -qE 'mody-mail|mody-analytics|^ai$|mcp-adapter|ollama|wordfence|query-monitor|user-switching' && echo 1 || echo 0")"
 check "Inter is in the theme" "$(in_app "test -f $T/payload/themes/theme/assets/fonts/inter/InterVariable.woff2 && grep -q 'file:./assets/fonts/inter/InterVariable.woff2' $T/payload/themes/theme/theme.json && echo 0 || echo 1")"
-check "GPL text with each Mody plugin and the theme" "$(in_app "test -f $T/payload/plugins/mody-site/LICENSE.txt -a -f $T/payload/plugins/mody-languages/LICENSE.txt -a -f $T/payload/plugins/mody-images/LICENSE.txt -a -f $T/payload/plugins/mody-seo/LICENSE.txt -a -f $T/payload/themes/theme/LICENSE.txt && echo 0 || echo 1")"
+check "GPL text with each Mody plugin and the theme" "$(in_app "for d in $T/payload/plugins/mody-*; do test -f \$d/LICENSE.txt || { echo 1; exit; }; done; test -f $T/payload/themes/theme/LICENSE.txt && echo 0 || echo 1")"
+# The plugins the payload activates (Portable::active_plugins()), by folder.
+PLUGINS=$(echo "${OUT#OK }" | tr -d '[]"\\' | tr ',' '\n' | cut -d/ -f1 | tr '\n' ' ')
 
 echo "2. A plain WordPress"
 in_app "cp -R /var/www/html/wp $SITE && mkdir -p $SITE/wp-content/uploads && cp -R $T/payload/themes $T/payload/plugins $SITE/wp-content/"
@@ -104,8 +107,9 @@ check "installed" $?
 check "single site" "$(wp_site eval 'echo is_multisite() ? 1 : 0;')"
 wp_site theme activate theme >/dev/null
 check "the theme is active" $?
-wp_site plugin activate mody-site mody-languages mody-images mody-seo spectra-blocks antispam-bee >/dev/null 2>&1
-check "the six plugins activate" $?
+# shellcheck disable=SC2086 # One folder per word.
+wp_site plugin activate $PLUGINS >/dev/null 2>&1
+check "the plugins activate: $PLUGINS" $?
 check "an upload becomes a WebP (Mody Images)" "$(wp_site eval 'require_once ABSPATH . "wp-admin/includes/media.php"; require_once ABSPATH . "wp-admin/includes/file.php"; require_once ABSPATH . "wp-admin/includes/image.php"; $t = wp_tempnam( "p.jpg" ); $i = imagecreatetruecolor( 800, 600 ); imagejpeg( $i, $t, 95 ); $id = media_handle_sideload( array( "name" => "p.jpg", "tmp_name" => $t ), 0 ); echo ! is_wp_error( $id ) && "image/webp" === get_post_mime_type( $id ) ? 0 : 1; if ( ! is_wp_error( $id ) ) { wp_delete_attachment( $id, true ); }')"
 wp_site rewrite structure '/%postname%/' >/dev/null
 
@@ -138,7 +142,7 @@ check "a placeholder image is served" "$(get /mody-placeholder/1200x800.svg | gr
 check "an initials avatar is served" "$(get /mody-avatar/3/AB.svg | grep -q '^200 image/svg+xml' && echo 0 || echo 1)"
 LOGIN=$(body /wp-login.php)
 check "the login page answers 200" "$(get /wp-login.php | grep -q '^200' && echo 0 || echo 1)"
-check "  in the site's brand (login.css)" "$(grep -q 'mody-site/assets/login.css' <<<"$LOGIN" && echo 0 || echo 1)"
+check "  in the site's brand (login.css)" "$(grep -q 'mody-login/assets/login.css' <<<"$LOGIN" && echo 0 || echo 1)"
 check "  without the antibot widget" "$(grep -qi 'altcha' <<<"$LOGIN" && echo 1 || echo 0)"
 ES=$(wp_site post list --post_type=page --name=exit-test-es --field=url)
 ES_PATH=${ES#"$URL"}

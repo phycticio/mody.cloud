@@ -19,8 +19,8 @@
  * Everything changed is put back. No model call.
  */
 
-use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Brand\BrandSettings;
+use Mody\Agent\AI\SystemPrompt;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -130,7 +130,7 @@ $elsewhere = wp_script_is( 'mody-identity-fields', 'enqueued' );
 BrandSettings::enqueue_identity_fields( 'site-editor.php' );
 $inline = (string) implode( '', (array) wp_scripts()->get_data( 'mody-identity-fields', 'before' ) );
 $check( 'the Identity screen\'s script: on the Site Editor only, with its settings', ! $elsewhere && wp_script_is( 'mody-identity-fields', 'enqueued' ) && str_contains( $inline, '"mission":"mody_mission"' ) && str_contains( $inline, '"tones"' ) );
-$script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/identity-fields.js' );
+$script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-brand/assets/identity-fields.js' );
 $check( '...it edits the root/site entity, so the Site Editor\'s Save saves it', str_contains( $script, "editEntityRecord( 'root', 'site'" ) && str_contains( $script, "'/identity'" ) );
 
 // 3. The brand for prompts -----------------------------------------------------------

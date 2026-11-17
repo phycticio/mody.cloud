@@ -23,11 +23,11 @@
  * an editor user are removed at the end, with the agent events made here.
  */
 
-use Mody\Platform\Agent\Agent;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\EditorContext;
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Agent\Agent;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\EditorContext;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Brand\BrandSettings;
 
 require_once ABSPATH . 'wp-admin/includes/user.php';
 

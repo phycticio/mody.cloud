@@ -35,8 +35,8 @@
  * folder gets a small fixture folder that is removed too. No model call.
  */
 
-use Mody\Platform\Export\Archives;
-use Mody\Platform\Export\Exporter;
+use Mody\Export\Archives;
+use Mody\Export\Exporter;
 
 $failures = 0;
 $total    = 0;
@@ -413,10 +413,10 @@ try {
 	$names = $entries( $out1, $zip );
 	$check( 'every entry is inside mody-import/ (an installable plugin zip)', $names && ! array_filter( $names, static fn( string $name ): bool => ! str_starts_with( $name, 'mody-import/' ) ) );
 	$check( 'no unsafe entry names', ! preg_grep( '#^/|\.\.|\\\\#', $names ) );
-	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-site/mody-site.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/plugins/mody-images/mody-images.php', 'mody-import/payload/plugins/mody-seo/mody-seo.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
+	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-spectra/mody-spectra.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/plugins/mody-images/mody-images.php', 'mody-import/payload/plugins/mody-seo/mody-seo.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
 		$check( 'has ' . $name, in_array( $name, $names, true ) );
 	}
-	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|wordfence|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-site/src/(Agent|AI|Gating|Members|Provisioning|Wizard|Dashboard|Onboarding)/|mody-site/src/(Abilities|Spectra/SpectraLoader|Users/NetworkProfile|Security/Altcha|Security/FormGuard)\.php#', $names );
+	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|wordfence|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-(platform|site|agent|security|locks|members|billing|sites|dashboard|export|onboarding|storage|updates|domains|brand|styles|fonts)/#', $names );
 	$check( 'nothing of the agent, the platform\'s locks, billing, mail or the dev plugins', ! $bad, implode( ', ', array_slice( $bad, 0, 3 ) ) );
 
 	$unzipped = $work . '/unzipped';
@@ -446,7 +446,7 @@ try {
 		}
 	}
 	$check( 'the theme.json has Inter\'s fontFace, from the theme\'s own files', is_array( $inter ) && count( $inter['fontFace'] ?? array() ) >= 2 && str_starts_with( (string) $inter['fontFace'][0]['src'][0], 'file:./assets/fonts/inter/' ) );
-	$check( 'woff2 stored, php deflated', ZipArchive::CM_STORE === $zip->statName( 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' )['comp_method'] && ZipArchive::CM_DEFLATE === $zip->statName( 'mody-import/payload/plugins/mody-site/mody-site.php' )['comp_method'] );
+	$check( 'woff2 stored, php deflated', ZipArchive::CM_STORE === $zip->statName( 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' )['comp_method'] && ZipArchive::CM_DEFLATE === $zip->statName( 'mody-import/payload/plugins/mody-spectra/mody-spectra.php' )['comp_method'] );
 	$inner = json_decode( (string) $zip->getFromName( 'mody-import/mody-export.json' ), true );
 	$check( 'the manifest inside is the export\'s, and says file: code', $norm( $inner ) === $norm( $code_m ) && 'code' === $inner['file'] );
 
@@ -464,13 +464,10 @@ try {
 	$check( 'the stub shows the README itself: its .txt is not served', ! str_contains( $stub, 'plugins_url' ) && str_contains( $stub, "'/README-restore.txt'" ) );
 
 	// "Update URI: false": core would match these folder names to wordpress.org, where anyone can register a plugin by that name.
-	$no_update = array(
-		'the importer'    => 'mody-import/mody-import.php',
-		'Mody Site'       => 'mody-import/payload/plugins/mody-site/mody-site.php',
-		'Mody Languages'  => 'mody-import/payload/plugins/mody-languages/mody-languages.php',
-		'Mody Images'     => 'mody-import/payload/plugins/mody-images/mody-images.php',
-		'Mody SEO'        => 'mody-import/payload/plugins/mody-seo/mody-seo.php',
-	);
+	$no_update = array( 'the importer' => 'mody-import/mody-import.php' );
+	foreach ( glob( $unzipped . '/mody-import/payload/plugins/mody-*', GLOB_ONLYDIR ) as $folder ) { // Every Mody plugin carried.
+		$no_update[ basename( $folder ) ] = 'mody-import/payload/plugins/' . basename( $folder ) . '/' . basename( $folder ) . '.php';
+	}
 	foreach ( $no_update as $label => $name ) {
 		$data = get_file_data( $unzipped . '/' . $name, array( 'uri' => 'Update URI' ) );
 		$check( 'the header of ' . $label . ' says Update URI: false', 'false' === $data['uri'], $data['uri'] );
@@ -702,7 +699,7 @@ try {
 	$rrmdir_cache();
 
 	// A changed source file: a new payload, and after the hour the old one is pruned.
-	$kit_file = WPMU_PLUGIN_DIR . '/mody-platform/export-kit/mody-import/mody-import.php';
+	$kit_file = WPMU_PLUGIN_DIR . '/mody-export/export-kit/mody-import/mody-import.php';
 	$original = (int) filemtime( $kit_file );
 	try {
 		touch( $kit_file, $original + 7 );
@@ -719,12 +716,12 @@ try {
 		touch( $kit_file, $original );
 	}
 
-	// The key also covers Design/Fonts.php (the faces Portable bakes into theme.json) and this class.
+	// The key also covers Mody Fonts (the faces Portable bakes into theme.json) and this class.
 	$key      = new ReflectionMethod( Archives::class, 'cache_key' );
 	$base_key = $key->invoke( null );
 	foreach ( array(
-		'Design/Fonts.php'    => WPMU_PLUGIN_DIR . '/mody-platform/src/Design/Fonts.php',
-		'Export/Archives.php' => WPMU_PLUGIN_DIR . '/mody-platform/src/Export/Archives.php',
+		'mody-fonts/src/Fonts.php'     => WPMU_PLUGIN_DIR . '/mody-fonts/src/Fonts.php',
+		'mody-export/src/Archives.php' => WPMU_PLUGIN_DIR . '/mody-export/src/Archives.php',
 	) as $label => $file ) {
 		$mtime = (int) filemtime( $file );
 		try {
@@ -749,7 +746,7 @@ try {
 			array(
 				'<?php',
 				'add_filter( "mody_export_root", static fn() => getenv( "RACE_ROOT" ) );',
-				'$result = Mody\\Platform\\Export\\Archives::code( getenv( "RACE_OUT" ), json_decode( (string) file_get_contents( getenv( "RACE_MANIFEST" ) ), true ), static function (): void {} );',
+				'$result = Mody\\Export\\Archives::code( getenv( "RACE_OUT" ), json_decode( (string) file_get_contents( getenv( "RACE_MANIFEST" ) ), true ), static function (): void {} );',
 				'echo is_wp_error( $result ) ? "ERROR " . $result->get_error_message() : "OK";',
 			)
 		)

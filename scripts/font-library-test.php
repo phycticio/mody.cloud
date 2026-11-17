@@ -21,9 +21,9 @@
  * No model call.
  */
 
-use Mody\Platform\Design\Fonts;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
+use Mody\Fonts\Fonts;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

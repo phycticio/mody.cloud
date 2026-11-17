@@ -20,10 +20,10 @@
  * Never prints the token.
  */
 
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandSettings;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SystemPrompt;
+use Mody\Brand\BrandSettings;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

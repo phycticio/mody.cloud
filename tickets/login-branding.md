@@ -29,7 +29,7 @@ Then, the same day, replacing the first version (every login page in the main si
 "Reads" means text and links at 4.5:1 (WCAG AA) on what they sit on, the button at 3:1 against the form, and its label at 4.5:1 on it and on its hover shade. Two schemes that come out the same are offered once. A scheme chosen earlier that the palette no longer allows is shown as Light, and Settings → Login says so. Without `base`, `contrast` and `primary`, no scheme is offered and the page keeps WordPress's colors.
 
 ## Built
-`app/web/mu-plugins/mody-platform/src/Login/`, registered in `mody-platform.php`:
+`app/web/mu-plugins/mody-platform/src/Login/`, registered in `mody-platform.php` (since 2026-11-17 its own plugin, `mody-login`, [independent-mody-plugins.md](independent-mody-plugins.md)):
 - **`Schemes`:** the six recipes, as palette slugs. The site option `mody_login_scheme` stores the choice and accepts only a known scheme.
 - **`LoginPage`** (wp-login.php):
   - **Theme variables:** the site's own preset variables (`wp_get_global_stylesheet( array( 'variables' ) )`) and its fonts' `@font-face` rules (`wp_print_font_faces()`, served from this server).

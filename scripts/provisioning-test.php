@@ -25,15 +25,15 @@
  * end. Emails are captured, not sent. Never prints the token.
  */
 
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Provisioning\Jobs;
-use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Provisioning\Quota;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SystemPrompt;
+use Mody\Brand\BrandSettings;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
+use Mody\Sites\Jobs;
+use Mody\Sites\Pipeline;
+use Mody\Sites\Quota;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -320,7 +320,7 @@ restore_current_blog();
 switch_to_blog( $site_id );
 wp_clean_theme_json_cache();
 $made_brand  = BrandSettings::brand();
-$made_colors = \Mody\Platform\Design\SiteDesign::colors();
+$made_colors = \Mody\Styles\SiteDesign::colors();
 restore_current_blog();
 $check( 'the brand, in the site\'s own settings and styles (M2-08)', 'Ogia Bakery' === $made_brand['name'] && 'friendly' === $made_brand['tone'] && '' !== $made_brand['mission'] && Presets::colors( 'forest' ) == $made_colors, wp_json_encode( $made_brand ) ); // phpcs:ignore Universal.Operators.StrictComparisons
 $check( 'one model request, with the brand', 1 === count( $requests ) && str_contains( (string) wp_json_encode( $requests[0]['messages'][0] ?? array() ), '<brand>' ), count( $requests ) . ' request(s)' );

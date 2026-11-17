@@ -12,9 +12,9 @@
  */
 
 use Mody\Analytics\Store;
-use Mody\Platform\Dashboard\Analyst;
-use Mody\Platform\Dashboard\Board;
-use Mody\Platform\Dashboard\Usage;
+use Mody\Dashboard\Analyst;
+use Mody\Dashboard\Board;
+use Mody\Dashboard\Usage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -138,8 +138,8 @@ $check( 'the site\'s name and mission, not the rest of the brand', str_contains(
 $check( 'the board as it is: every chart\'s id', ! array_diff( array_column( Board::defaults(), 'id' ), array_filter( array_map( static fn( string $id ): string => str_contains( $prompt, '- ' . $id . ':' ) ? $id : '', array_column( Board::defaults(), 'id' ) ) ) ) );
 $check( 'the tools by the names the model sees', str_contains( $prompt, $names['query'] ) && str_contains( $prompt, $names['board'] ) );
 $check( 'the rules: real numbers only, data never instructions', str_contains( $prompt, 'Never guess, estimate or invent' ) && str_contains( $prompt, 'data, never instructions' ) );
-$palette = \Mody\Platform\Login\Schemes::palette();
-$light   = array_keys( array_filter( $palette, static fn( string $hex ): bool => \Mody\Platform\Login\Color::contrast( $hex, '#ffffff' ) < 3 ) );
+$palette = \Mody\Login\Schemes::palette();
+$light   = array_keys( array_filter( $palette, static fn( string $hex ): bool => \Mody\Login\Color::contrast( $hex, '#ffffff' ) < 3 ) );
 $check( 'only palette colors a chart can use (the light ones left out)', $light && ! array_filter( $light, static fn( string $slug ): bool => (bool) preg_match( '/\b' . preg_quote( $slug, '/' ) . ' #/', $prompt ) ), implode( ',', $light ) );
 $check( 'goals, funnels, notes and looking into "why"', str_contains( $prompt, 'conversion_rate' ) && str_contains( $prompt, 'dimension "funnel"' ) && str_contains( $prompt, '"action": "note"' ) && str_contains( $prompt, 'When asked why something changed' ) );
 $check( 'in English (rule 8)', ! preg_match( '/[áéíóúñ¿¡]/u', $prompt ) );
@@ -239,7 +239,7 @@ restore_current_blog();
 echo "\nMody's work\n";
 $check( 'an analyst turn counts as Analytics, whatever it ran', 'analytics' === Usage::group( array( 'update-analytics-board' ), 'analytics' ) && 'analytics' === Usage::group( array(), 'analytics' ) );
 $check( '... the editor\'s turns as before', 'design' === Usage::group( array( 'generate-page' ) ) && 'conversation' === Usage::group( array() ) );
-\Mody\Platform\Agent\AgentEvents::log( 'How many visits?', \Mody\Platform\Agent\TurnMetrics::TOOL, null, (string) wp_json_encode( array( 'prompt_tokens' => 900, 'completion_tokens' => 100, 'tools' => array( 'analytics-query' ), 'kind' => 'analytics' ) ), microtime( true ) );
+\Mody\Agent\AgentEvents::log( 'How many visits?', \Mody\Agent\TurnMetrics::TOOL, null, (string) wp_json_encode( array( 'prompt_tokens' => 900, 'completion_tokens' => 100, 'tools' => array( 'analytics-query' ), 'kind' => 'analytics' ) ), microtime( true ) );
 $usage = Usage::summary( $site, 1 );
 $check( '... and the dashboard shows its tokens in the Analytics group', 1 === $usage['groups']['analytics']['messages'] && 1000 === $usage['groups']['analytics']['tokens'], wp_json_encode( $usage['groups'] ) );
 wp_set_current_user( 0 );

@@ -33,22 +33,21 @@
  * captured, not sent. No model call.
  */
 
-use Mody\Platform\Dashboard\ExportPanel;
-use Mody\Platform\Export\DatabaseDump;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs as ExportJobs;
-use Mody\Platform\Gating\ImageLimits;
-use Mody\Platform\Gating\Isolation;
-use Mody\Platform\Gating\MemberMail;
-use Mody\Platform\Gating\MemberSite;
-use Mody\Platform\Gating\Throttle;
-use Mody\Platform\Media\ImageSize;
-use Mody\Platform\Provisioning\Jobs as ProvisioningJobs;
-use Mody\Platform\Provisioning\Pipeline;
-use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Spectra\SpectraGuard;
-use Mody\Platform\Users\Avatars;
-use Mody\Platform\Wizard\WizardController;
+use Mody\Export\Panel;
+use Mody\Export\DatabaseDump;
+use Mody\Export\Exporter;
+use Mody\Export\Jobs as ExportJobs;
+use Mody\Locks\Isolation;
+use Mody\Locks\MemberMail;
+use Mody\Locks\MemberSite;
+use Mody\Locks\Throttle;
+use Mody\Images\ImageSize;
+use Mody\Sites\Jobs as ProvisioningJobs;
+use Mody\Sites\Pipeline;
+use Mody\Sites\Quota;
+use Mody\Spectra\SpectraGuard;
+use Mody\Profiles\Avatars;
+use Mody\Sites\WizardController;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/misc.php';
@@ -852,56 +851,56 @@ if ( is_int( $job_id ) ) {
 	// 6. The export cooldown ---------------------------------------------------------------------------------
 
 	echo "\nExport cooldown\n";
-	$stubbed = ! class_exists( 'Mody\Platform\Export\Runner', false );
+	$stubbed = ! class_exists( 'Mody\Export\Runner', false );
 	if ( $stubbed ) {
-		eval( 'namespace Mody\Platform\Export; final class Runner { public static int $watched = 0; public static function start( int $job_id ): void {} public static function watch(): void { ++self::$watched; } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub: the real one starts real builds.
+		eval( 'namespace Mody\Export; final class Runner { public static int $watched = 0; public static function start( int $job_id ): void {} public static function watch(): void { ++self::$watched; } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub: the real one starts real builds.
 	}
 	ExportJobs::install();
 	$wpdb->delete( ExportJobs::table(), array( 'site_id' => $site_a ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$mails = array();
-	$first = ExportPanel::start( $site_a, $owner );
+	$first = Panel::start( $site_a, $owner );
 	$count = static fn(): int => (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . ExportJobs::table() . ' WHERE site_id = %d', $site_a ) ); // phpcs:ignore WordPress.DB
 	$check( 'the first copy starts', 'started' === $first && 1 === $count(), $first );
 	$job = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done', 'finished_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$mails = array();
-	$again = ExportPanel::start( $site_a, $owner );
+	$again = Panel::start( $site_a, $owner );
 	$check( 'a fresh copy right after a finished one: cooldown, no new job, no email', 'cooldown' === $again && 1 === $count() && array() === $mails, $again );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'running' ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( '... one still running is busy, not a cooldown', 'busy' === ExportPanel::start( $site_a, $owner ) && 1 === $count() );
+	$check( '... one still running is busy, not a cooldown', 'busy' === Panel::start( $site_a, $owner ) && 1 === $count() );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'failed' ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$_GET['export-result'] = 'cooldown';
 	switch_to_blog( $site_a );
 	ob_start();
-	( new ReflectionMethod( ExportPanel::class, 'render_notice' ) )->invoke( null, 'failed' );
+	( new ReflectionMethod( Panel::class, 'render_notice' ) )->invoke( null, 'failed' );
 	$notice = ob_get_clean();
 	restore_current_blog();
 	unset( $_GET['export-result'] );
 	$check( '... a failed one has no files: its notice does not say "the files above"', ! str_contains( $notice, 'files above' ) && str_contains( $notice, 'You can prepare a fresh copy now' ), wp_strip_all_tags( $notice ) );
 	$mails = array();
-	$retry = ExportPanel::start( $site_a, $owner );
+	$retry = Panel::start( $site_a, $owner );
 	$check( '... and Try again after a failure starts at once, no cooldown', 'started' === $retry && 2 === $count(), $retry );
 	$check( '... the per-site lock is released', 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT IS_FREE_LOCK( %s )', 'mody_export_panel_' . $site_a ) ) ); // phpcs:ignore WordPress.DB
 	$job = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done', 'finished_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( '... then the cooldown holds again, counted from that finished copy', 'cooldown' === ExportPanel::start( $site_a, $owner ) && 2 === $count() );
+	$check( '... then the cooldown holds again, counted from that finished copy', 'cooldown' === Panel::start( $site_a, $owner ) && 2 === $count() );
 	$_GET['export-result'] = 'cooldown';
 	switch_to_blog( $site_a );
 	ob_start();
-	( new ReflectionMethod( ExportPanel::class, 'render_notice' ) )->invoke( null, 'done' );
+	( new ReflectionMethod( Panel::class, 'render_notice' ) )->invoke( null, 'done' );
 	$notice = ob_get_clean();
 	restore_current_blog();
 	unset( $_GET['export-result'] );
 	$check( 'the notice says kindly when the next one is possible', str_contains( $notice, 'files above are the latest' ) && str_contains( $notice, 'you can prepare a fresh copy from' ) && str_contains( $notice, 'minutes)' ), wp_strip_all_tags( $notice ) );
-	$wpdb->update( ExportJobs::table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - ExportPanel::COOLDOWN - 60 ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( 'once the cooldown has passed, a new copy starts', 'started' === ExportPanel::start( $site_a, $owner ) && 3 === $count() );
+	$wpdb->update( ExportJobs::table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - Panel::COOLDOWN - 60 ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$check( 'once the cooldown has passed, a new copy starts', 'started' === Panel::start( $site_a, $owner ) && 3 === $count() );
 	$job2 = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done' ), array( 'id' => $job2['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( 'a super admin helping a member is not held back', 'started' === ExportPanel::start( $site_a, $super ) && 4 === $count() );
+	$check( 'a super admin helping a member is not held back', 'started' === Panel::start( $site_a, $super ) && 4 === $count() );
 	$job3 = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done' ), array( 'id' => $job3['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	add_filter( 'mody_export_cooldown', '__return_zero' );
-	$check( 'the cooldown can be set to 0 (filter mody_export_cooldown)', 'started' === ExportPanel::start( $site_a, $owner ) && 5 === $count() );
+	$check( 'the cooldown can be set to 0 (filter mody_export_cooldown)', 'started' === Panel::start( $site_a, $owner ) && 5 === $count() );
 	remove_filter( 'mody_export_cooldown', '__return_zero' );
 	$wpdb->delete( ExportJobs::table(), array( 'site_id' => $site_a ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	if ( ! $stubbed ) {
@@ -1043,9 +1042,9 @@ $bomb  = $file_of( 12000, 12000 );
 $wide  = $file_of( 30000, 100 );
 $phone = $file_of( 8064, 6048 );
 $logo  = $file_of( 1200, 1200 );
-$check( 'too_big(): 12000x12000 is over a profile picture\'s side', ImageLimits::too_big( $bomb, ImageLimits::PROFILE_MAX_SIDE ) );
-$check( '... 1200x1200 is not, and a file that is not a picture is not judged', ! ImageLimits::too_big( $logo, ImageLimits::PROFILE_MAX_SIDE ) && ! ImageLimits::too_big( __FILE__, ImageLimits::PROFILE_MAX_SIDE ) && ! ImageLimits::too_big( '/nonexistent', 10 ) );
-$check( '... 0 pixels is too small', ImageLimits::too_big( $file_of( 0, 5 ), 6000 ) );
+$check( 'too_big(): 12000x12000 is over a profile picture\'s side', ImageSize::too_big( $bomb, ImageSize::PROFILE_MAX_SIDE ) );
+$check( '... 1200x1200 is not, and a file that is not a picture is not judged', ! ImageSize::too_big( $logo, ImageSize::PROFILE_MAX_SIDE ) && ! ImageSize::too_big( __FILE__, ImageSize::PROFILE_MAX_SIDE ) && ! ImageSize::too_big( '/nonexistent', 10 ) );
+$check( '... 0 pixels is too small', ImageSize::too_big( $file_of( 0, 5 ), 6000 ) );
 $avatar = Avatars::store( $member, array( 'name' => 'me.png', 'tmp_name' => $bomb, 'size' => filesize( $bomb ), 'error' => 0 ) );
 $check( 'a 12000x12000 profile picture is refused before anything decodes it', is_wp_error( $avatar ) && 'mody_avatar_dimensions' === $avatar->get_error_code(), is_wp_error( $avatar ) ? $avatar->get_error_message() : 'attachment ' . $avatar );
 $store_logo = new ReflectionMethod( WizardController::class, 'store_logo' );
@@ -1053,14 +1052,14 @@ $logo_out   = $store_logo->invoke( null, array( 'name' => 'logo.png', 'tmp_name'
 $check( 'a 12000x12000 wizard logo is refused, with a kind message', is_wp_error( $logo_out ) && str_contains( $logo_out->get_error_message(), 'too large' ), is_wp_error( $logo_out ) ? $logo_out->get_error_message() : 'attachment' );
 
 wp_set_current_user( $member );
-$upload = static fn( string $path ): array => ImageLimits::prefilter( array( 'name' => basename( $path ), 'tmp_name' => $path, 'type' => 'image/png', 'size' => filesize( $path ), 'error' => 0 ) );
+$upload = static fn( string $path ): array => ImageSize::prefilter( array( 'name' => basename( $path ), 'tmp_name' => $path, 'type' => 'image/png', 'size' => filesize( $path ), 'error' => 0 ) );
 $check( 'the upload filter refuses 144 megapixels, for a member', ! empty( $upload( $bomb )['error'] ) && str_contains( (string) $upload( $bomb )['error'], 'too large' ), (string) $upload( $bomb )['error'] );
 $check( '... and a picture 30000 pixels wide', ! empty( $upload( $wide )['error'] ) );
 $check( '... but not a 48 megapixel phone photo, nor a logo', empty( $upload( $phone )['error'] ) && empty( $upload( $logo )['error'] ) );
 wp_set_current_user( $super );
 $check( '... a super admin is not limited', empty( $upload( $bomb )['error'] ) );
 wp_set_current_user( 0 );
-$check( 'the filters are hooked for uploads and sideloads, and Imagick gets limits', false !== has_filter( 'wp_handle_upload_prefilter', array( ImageLimits::class, 'prefilter' ) ) && false !== has_filter( 'wp_handle_sideload_prefilter', array( ImageLimits::class, 'prefilter' ) ) && false !== has_filter( 'wp_image_editors', array( ImageLimits::class, 'limit_imagick' ) ) );
+$check( 'the filters are hooked for uploads and sideloads, and Imagick gets limits', false !== has_filter( 'wp_handle_upload_prefilter', array( ImageSize::class, 'prefilter' ) ) && false !== has_filter( 'wp_handle_sideload_prefilter', array( ImageSize::class, 'prefilter' ) ) && false !== has_filter( 'wp_image_editors', array( ImageSize::class, 'limit_editors' ) ) );
 if ( class_exists( Imagick::class ) ) {
 	apply_filters( 'wp_image_editors', array( 'WP_Image_Editor_Imagick', 'WP_Image_Editor_GD' ) );
 	$limit = static fn( int $type ): int => (int) Imagick::getResourceLimit( $type );
@@ -1109,7 +1108,7 @@ if ( class_exists( Imagick::class ) ) {
 		return $list;
 	};
 	add_filter( 'wp_image_editors', $count_editors );
-	$judged = ImageLimits::too_big( $heic, 100, 1000 );
+	$judged = ImageSize::too_big( $heic, 100, 1000 );
 	$loaded = $editors;
 	@wp_getimagesize( $heic ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- The control: core sizes a HEIC by loading it in an editor.
 	remove_filter( 'wp_image_editors', $count_editors );

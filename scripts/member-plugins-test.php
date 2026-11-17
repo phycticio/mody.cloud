@@ -30,7 +30,7 @@
  * users. No model call.
  */
 
-use Mody\Platform\Gating\MemberPlugins;
+use Mody\Locks\MemberPlugins;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -133,7 +133,7 @@ $platform_files = array_filter( $installed, static fn( $file ): bool => in_array
 $check( 'every installed platform plugin is hidden', ! array_diff( $platform_files, $hidden ), implode( ', ', array_map( array( MemberPlugins::class, 'slug' ), $hidden ) ) );
 $check( 'network-active plugins are hidden', ! array_diff( array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) ), $hidden ) );
 $check( 'mcp-adapter is installed and not network-active', in_array( $platform, $installed, true ) && ! is_plugin_active_for_network( $platform ) );
-$check( 'Spectra is a MU plugin: never on a Plugins screen (M3-11)', Mody\Platform\Spectra\SpectraLoader::is_must_use() && ! is_plugin_active_for_network( 'spectra-blocks/spectra-blocks.php' ) );
+$check( 'Spectra is a MU plugin: never on a Plugins screen (M3-11)', Mody\Spectra\SpectraLoader::is_must_use() && ! is_plugin_active_for_network( 'spectra-blocks/spectra-blocks.php' ) );
 $can = static fn( int $user_id, int $site_id, string $cap, string $file = '' ): bool => '' === $file ? user_can_for_site( $user_id, $site_id, $cap ) : user_can_for_site( $user_id, $site_id, $cap, $file );
 $check( 'member: the Plugins screen and bulk actions', $can( $member, $site, 'activate_plugins' ) && $can( $member, $site, 'deactivate_plugins' ) );
 $check( 'member: switch the fixture on and off', $can( $member, $site, 'activate_plugin', $fixture ) && $can( $member, $site, 'deactivate_plugin', $fixture ) );

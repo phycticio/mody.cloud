@@ -22,9 +22,9 @@
  * The member site's Global Styles and their revisions are restored. No model call.
  */
 
-use Mody\Platform\Design\PaletteOnly;
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
+use Mody\Palette\PaletteOnly;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

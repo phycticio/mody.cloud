@@ -21,11 +21,11 @@
  *    and the next request carries that card.
  */
 
-use Mody\Platform\AI\BlockReference;
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SpectraLayout;
-use Mody\Platform\AI\SystemPrompt;
+use Mody\Agent\AI\BlockReference;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SpectraLayout;
+use Mody\Agent\AI\SystemPrompt;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

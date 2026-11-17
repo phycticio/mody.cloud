@@ -20,8 +20,8 @@
  *    Remove deletes it.
  */
 
-use Mody\Platform\Users\Avatars;
-use Mody\Platform\Users\NetworkProfile;
+use Mody\Profiles\Avatars;
+use Mody\Profiles\NetworkProfile;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";

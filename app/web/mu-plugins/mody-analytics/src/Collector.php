@@ -236,14 +236,14 @@ final class Collector {
 	 * the visitor wrote. A connection from a public address is direct and
 	 * no header is believed.
 	 *
-	 * On the platform this is Mody\Platform\Security\ClientAddress::get(),
+	 * On the platform this is Mody\Security\ClientAddress::get(),
 	 * which also checks that CF-Connecting-IP came from Cloudflare's own
 	 * addresses (the rate limits use it too, so both agree). The rule below
 	 * is the fallback when this plugin runs alone.
 	 */
 	public static function address(): string {
-		if ( class_exists( '\\Mody\\Platform\\Security\\ClientAddress' ) ) {
-			return \Mody\Platform\Security\ClientAddress::get();
+		if ( class_exists( '\\Mody\\Security\\ClientAddress' ) ) {
+			return \Mody\Security\ClientAddress::get();
 		}
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput -- Validated as IP addresses below.
 		$remote = (string) ( $_SERVER['REMOTE_ADDR'] ?? '' );

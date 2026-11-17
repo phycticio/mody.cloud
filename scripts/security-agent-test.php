@@ -30,17 +30,17 @@
  *    schemes (sms, whatsapp...) pass; a link the original already has is kept.
  */
 
-use Mody\Platform\Agent\Agent;
-use Mody\Platform\Agent\AgentEvents;
-use Mody\Platform\Agent\Budget;
-use Mody\Platform\Agent\ChatController;
-use Mody\Platform\Agent\Hardening;
-use Mody\Platform\Agent\Slots;
-use Mody\Platform\Agent\TurnMetrics;
-use Mody\Platform\AI\BlockValidator;
-use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Site\Menu;
+use Mody\Agent\Agent;
+use Mody\Agent\AgentEvents;
+use Mody\Agent\Budget;
+use Mody\Agent\ChatController;
+use Mody\Agent\Hardening;
+use Mody\Agent\Slots;
+use Mody\Agent\TurnMetrics;
+use Mody\Agent\AI\BlockValidator;
+use Mody\Agent\AI\SystemPrompt;
+use Mody\Members\Members;
+use Mody\Agent\Site\Menu;
 
 $failures = 0;
 $count    = 0;

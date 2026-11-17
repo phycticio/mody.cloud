@@ -23,12 +23,12 @@
  * environment with no live key).
  */
 
-use Mody\Platform\Dashboard\DashboardPage;
-use Mody\Platform\Members\Invites;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Offers;
-use Mody\Platform\Members\Registration;
-use Mody\Platform\Security\RateLimit;
+use Mody\Dashboard\DashboardPage;
+use Mody\Members\Invites;
+use Mody\Members\Members;
+use Mody\Members\Offers;
+use Mody\Members\Registration;
+use Mody\Security\RateLimit;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

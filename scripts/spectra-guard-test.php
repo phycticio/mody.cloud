@@ -10,10 +10,10 @@
  *
  * Also, not rule 1: Spectra's color pickers offer only palette colors (M1-04
  * part A). Its color lists' custom color button is hidden whatever Spectra
- * passes (Design\PaletteOnly); this checks the rest of its markup.
+ * passes (Mody Palette); this checks the rest of its markup.
  */
 
-use Mody\Platform\Spectra\SpectraGuard;
+use Mody\Spectra\SpectraGuard;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {
@@ -29,10 +29,10 @@ $check( 'Spectra is active', $active, $active ? SPECTRA_BLOCKS_VER . ( '1.0.13' 
 if ( ! $active ) {
 	exit( 1 );
 }
-// A MU plugin since M3-11 (2026-11-08), loaded after mody-platform.php, so the guard is in place first.
-$check( 'Spectra is a MU plugin', Mody\Platform\Spectra\SpectraLoader::is_must_use() && ! is_plugin_active_for_network( 'spectra-blocks/spectra-blocks.php' ), SPECTRA_BLOCKS_FILE );
+// A MU plugin since M3-11 (2026-11-08), loaded after mody-spectra.php (2026-11-17; mody-platform.php before), so the guard is in place first.
+$check( 'Spectra is a MU plugin', Mody\Spectra\SpectraLoader::is_must_use() && ! is_plugin_active_for_network( 'spectra-blocks/spectra-blocks.php' ), SPECTRA_BLOCKS_FILE );
 $mu = array_keys( get_mu_plugins() );
-$check( '...loaded after mody-platform (the guard)', array_search( 'mody-platform.php', $mu, true ) < array_search( 'spectra-blocks.php', $mu, true ), implode( ', ', $mu ) );
+$check( '...loaded after Mody Spectra (the guard)', false !== array_search( 'mody-spectra.php', $mu, true ) && array_search( 'mody-spectra.php', $mu, true ) < array_search( 'spectra-blocks.php', $mu, true ), implode( ', ', $mu ) );
 
 // Blocks.
 $registry = WP_Block_Type_Registry::get_instance();
@@ -107,7 +107,7 @@ $check( 'Infomaniak and WordPress.org not denied', ! SpectraGuard::is_denied_url
 // Not Spectra, also rule 1 (2026-11-07): the Font Library has no Google Fonts collection.
 $check( 'Font Library: no Google Fonts collection', ! isset( WP_Font_Library::get_instance()->get_font_collections()['google-fonts'] ), implode( ', ', array_keys( WP_Font_Library::get_instance()->get_font_collections() ) ) );
 
-// Not rule 1: color pickers offer only palette colors (M1-04 part A, Design\PaletteOnly).
+// Not rule 1: color pickers offer only palette colors (M1-04 part A, Mody Palette).
 // theme.json covers Spectra's color fields; the pickers Spectra draws itself are hidden
 // by PaletteOnly's style, which matches the markup below. A change here needs a browser check.
 $scripts = array();

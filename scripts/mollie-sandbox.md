@@ -21,7 +21,7 @@ Locally Mollie cannot call the webhook (`mody.local` is not on the internet), so
 ## Charge it
 
 1. Make the account due now:
-   `./bin/wp eval 'Mody\Platform\Members\Members::update( <user ID>, array( "billing_due_at" => gmdate( "Y-m-d H:i:s", time() - 60 ) ) );'`
+   `./bin/wp eval 'Mody\Members\Members::update( <user ID>, array( "billing_due_at" => gmdate( "Y-m-d H:i:s", time() - 60 ) ) );'`
 2. `./bin/wp mody-billing run`: one charge, `charged: 1`.
 3. A few minutes later, `./bin/wp mody-billing run` again (it asks Mollie about payments waiting more than 5 minutes), then `./bin/wp mody-billing status <user ID or email>`: the plan is `paid`, `billing_due_at` is a month on, and the charge is in Mollie's dashboard under the customer.
 

@@ -20,17 +20,19 @@ foreach ( array( 'update_core', 'update_plugins', 'update_themes', 'install_plug
 $check( 'core\'s update checks are scheduled', false !== has_action( 'wp_version_check' ) && false !== has_action( 'admin_init', '_maybe_update_core' ) );
 
 // Nothing of the agent or the platform.
-foreach ( array( 'Mody\Platform\Agent\ChatController', 'Mody\Platform\Abilities', 'Mody\Platform\Gating\Updates', 'Mody\Platform\Gating\HiddenScreens', 'Mody\Platform\Security\Altcha', 'Mody\Platform\Users\NetworkProfile', 'Mody\Platform\Site\Storage', 'Mody\Mail\Mail' ) as $class ) {
+foreach ( array( 'Mody\Agent\ChatController', 'Mody\Agent\Abilities', 'Mody\Updates\Updates', 'Mody\Locks\HiddenScreens', 'Mody\Security\Altcha', 'Mody\Storage\Storage', 'Mody\Mail\Mail' ) as $class ) {
 	$check( "no $class", ! class_exists( $class ) );
 }
+$check( 'one profile per network is off on a single site (Mody Profiles)', false === has_action( 'load-profile.php', array( 'Mody\Profiles\NetworkProfile', 'redirect' ) ) && false === has_filter( 'wp_is_application_passwords_available_for_user', array( 'Mody\Profiles\NetworkProfile', 'application_passwords' ) ) );
 $check( 'no Mody ability registered', ! function_exists( 'wp_get_abilities' ) || ! array_filter( array_keys( (array) wp_get_abilities() ), static fn( $name ) => str_starts_with( (string) $name, 'mody/' ) ) );
 $check( 'wp_mail is WordPress\'s own (no pre_wp_mail filter)', ! has_filter( 'pre_wp_mail' ) );
 
-// Plugins load in order: Mody Site before Spectra, so the guard is first.
+// Plugins load in order: Mody Spectra before Spectra, so the guard is first.
 $active = (array) get_option( 'active_plugins' );
-$check( 'Mody Site loads before Spectra', array_search( 'mody-site/mody-site.php', $active, true ) < array_search( 'spectra-blocks/spectra-blocks.php', $active, true ) );
+$check( 'Mody Spectra loads before Spectra', array_search( 'mody-spectra/mody-spectra.php', $active, true ) < array_search( 'spectra-blocks/spectra-blocks.php', $active, true ) );
+$check( 'the Spectra guard is on, and its loader is not (Spectra is a normal plugin here)', false !== has_filter( 'pre_http_request', array( Mody\Spectra\SpectraGuard::class, 'refuse_denied_hosts' ) ) && false === has_filter( 'option_active_plugins', array( Mody\Spectra\SpectraLoader::class, 'not_site_active' ) ) );
 
-// What Mody Site and the plugins bring.
+// What the carried plugins bring.
 $registry = WP_Block_Type_Registry::get_instance();
 $check( 'Spectra\'s container block is registered', $registry->is_registered( 'spectra/container' ) );
 $check( 'the Google Map block is not (the guard)', ! $registry->is_registered( 'spectra/google-map' ) );

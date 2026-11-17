@@ -1,0 +1,405 @@
+<?php
+/**
+ * ALTCHA: a proof-of-work check that a person, not a script, sends a form
+ * (tickets/antibot-altcha.md). Self-hosted: no outside service is called
+ * (rule 1), no cookie is set, nothing about the visitor is stored.
+ *
+ * How it works (ALTCHA v3's protocol, `altcha` 3.5.0's `createChallenge()`
+ * and `verifySolution()`):
+ * 1. The widget fetches a challenge from GET `mody-platform/v1/altcha`. The
+ *    server picks a secret counter, derives a key from it
+ *    (PBKDF2/SHA-256 over nonce + counter, with the salt) and sends the
+ *    key's first half (`keyPrefix`), with an HMAC of the whole key
+ *    (`keySignature`) and an HMAC of all the parameters (`signature`).
+ * 2. The browser tries counters from 0 until a derived key starts with the
+ *    prefix: that is the work. It sends the challenge back with the key it
+ *    found, base64-encoded JSON, in the form field `altcha`.
+ * 3. verify() checks the signature, the expiry, and the key against
+ *    `keySignature`: one HMAC, no key derivation on the server. Each
+ *    challenge is accepted once.
+ *
+ * The two HMAC secrets are random and belong to this installation alone
+ * (Security\Secrets, a network option made the first time it is needed), so
+ * there is nothing to configure and they are the same on every site of the
+ * network. They are not derived from WordPress's salts: app/wp-config.php has
+ * committed fallbacks for those, and anyone holding both secrets signs
+ * solutions that need no work.
+ *
+ * A solution is accepted once, atomically: the first request to use it
+ * inserts its mark with one SQL statement (Security\RateLimit::counter()), so
+ * parallel requests with the same payload cannot all pass. Challenges are
+ * handed out at a rate per address (RateLimit, `altcha_challenge`).
+ *
+ * @package Mody\Security
+ */
+
+namespace Mody\Security;
+
+use WP_Error;
+use WP_REST_Response;
+use WP_REST_Server;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Creates and checks ALTCHA challenges, and prints the widget.
+ */
+final class Altcha {
+
+	/** The challenge's REST namespace: the address the widget has always used (`mody-platform/v1/altcha`). */
+	public const REST_NAMESPACE = 'mody-platform/v1';
+
+	/** The key derivation the browser repeats. */
+	public const ALGORITHM = 'PBKDF2/SHA-256';
+
+	/** PBKDF2 iterations per attempt. */
+	public const COST = 1000;
+
+	/**
+	 * The secret counter's range: the browser tries about the middle of it on
+	 * average, 4,500 attempts of PBKDF2 (it was 1,000 to 6,000 until the
+	 * security pass of 2026-11-12: about 30% more work). A phone does it while
+	 * the visitor types the first fields.
+	 */
+	public const MIN_COUNTER = 2000;
+	public const MAX_COUNTER = 7000;
+
+	/** How long a challenge can be solved and used. */
+	public const LIFETIME = 30 * MINUTE_IN_SECONDS;
+
+	/** The form field (and REST parameter) that carries the solution. */
+	public const FIELD = 'altcha';
+
+	/** The widget's script handle: app/dist/altcha.js, built from src/altcha.js. */
+	public const SCRIPT = 'mody-altcha';
+
+	/** The cache group of used challenges: the fallback when the counters' table cannot be written. */
+	private const USED = 'mody_altcha_used';
+
+	/**
+	 * `init`: the widget's script.
+	 */
+	public static function register_script(): void {
+		$asset = WP_CONTENT_DIR . '/../dist/altcha.asset.php';
+		$info  = is_readable( $asset ) ? (array) require $asset : array();
+		wp_register_script(
+			self::SCRIPT,
+			WP_HOME . '/dist/altcha.js',
+			array(),
+			(string) ( $info['version'] ?? '3.5.0' ),
+			array(
+				'in_footer' => true,
+				'strategy'  => 'defer',
+			)
+		);
+		wp_cache_add_global_groups( array( self::USED ) );
+	}
+
+	/**
+	 * `wp_kses_allowed_html`: the widget survives sanitizing with the "post"
+	 * tags, with the attributes widget() prints. Spectra's container runs its
+	 * inner blocks through wp_kses() with that list, which removed the widget
+	 * from the signup chat placed in a container (the home page), so the chat
+	 * could never pass.
+	 *
+	 * Only on the main site, where the signup chat is, and only with what
+	 * widget() prints: the challenge from this site's own route and the two
+	 * display settings. A member's site never needs the tag (the login,
+	 * lost-password and comment forms print the widget without kses), and a
+	 * widget pointing at another address would make every visitor's browser
+	 * work for, and talk to, that address.
+	 *
+	 * @param array<string, mixed> $tags    Allowed tags and their attributes.
+	 * @param string|array         $context The kses context.
+	 * @return array<string, mixed>
+	 */
+	public static function allow_widget( $tags, $context ) {
+		if ( is_array( $tags ) && 'post' === $context && is_main_site() ) {
+			$tags['altcha-widget'] = array(
+				'class'         => true,
+				'name'          => array( 'values' => array( self::FIELD ) ),
+				'challenge'     => array( 'value_callback' => array( self::class, 'is_own_challenge' ) ),
+				'auto'          => array( 'values' => array( 'off', 'onfocus', 'onload', 'onsubmit' ) ),
+				'configuration' => array( 'value_callback' => array( self::class, 'is_plain_configuration' ) ),
+			);
+		}
+		return $tags;
+	}
+
+	/**
+	 * Whether a `challenge` attribute is this site's challenge route (the
+	 * scheme and a leading `www.` do not matter).
+	 *
+	 * @param mixed $value The attribute's value.
+	 */
+	public static function is_own_challenge( $value ): bool {
+		$given = wp_parse_url( html_entity_decode( (string) $value, ENT_QUOTES ) );
+		$own   = wp_parse_url( rest_url( self::REST_NAMESPACE . '/altcha' ) );
+		if ( ! is_array( $given ) || ! is_array( $own ) || isset( $given['user'] ) || isset( $given['port'] ) ) {
+			return false;
+		}
+		$host = static fn( array $url ): string => (string) preg_replace( '/^www\./', '', strtolower( (string) ( $url['host'] ?? '' ) ) );
+		return '' !== $host( $given ) && $host( $given ) === $host( $own )
+			&& ( $given['path'] ?? '' ) === ( $own['path'] ?? '' )
+			&& ( $given['query'] ?? '' ) === ( $own['query'] ?? '' );
+	}
+
+	/**
+	 * Whether a `configuration` attribute only hides the widget's logo and
+	 * footer (what widget() prints), nothing that could point it elsewhere.
+	 *
+	 * @param mixed $value The attribute's value: JSON.
+	 */
+	public static function is_plain_configuration( $value ): bool {
+		$config = json_decode( html_entity_decode( (string) $value, ENT_QUOTES ), true );
+		if ( ! is_array( $config ) ) {
+			return false;
+		}
+		foreach ( $config as $key => $setting ) {
+			if ( ! in_array( $key, array( 'hideLogo', 'hideFooter' ), true ) || ! is_bool( $setting ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * `rest_api_init`: GET `mody-platform/v1/altcha`, a new challenge, on
+	 * every site.
+	 */
+	public static function register_route(): void {
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/altcha',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'rest_challenge' ),
+				'permission_callback' => '__return_true', // For visitors: it hands out work, nothing else.
+			)
+		);
+	}
+
+	/**
+	 * GET `altcha`: a challenge, never cached; a few at a time per address.
+	 *
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function rest_challenge(): WP_REST_Response|WP_Error {
+		$wait = RateLimit::hit_address( 'altcha_challenge' );
+		if ( $wait ) {
+			return RateLimit::error( $wait );
+		}
+		$response = new WP_REST_Response( self::challenge() );
+		$response->header( 'Cache-Control', 'no-store, max-age=0' );
+		return $response;
+	}
+
+	/**
+	 * A new signed challenge.
+	 *
+	 * @param int|null $counter The secret counter; random when null (tests pass a small one).
+	 * @return array{parameters: array<string, int|string>, signature: string}
+	 */
+	public static function challenge( ?int $counter = null ): array {
+		$counter    = $counter ?? random_int( self::MIN_COUNTER, self::MAX_COUNTER );
+		$nonce      = random_bytes( 16 );
+		$salt       = random_bytes( 16 );
+		$key        = self::derive( $nonce, $salt, $counter, self::COST );
+		$parameters = array(
+			'algorithm'    => self::ALGORITHM,
+			'cost'         => self::COST,
+			'expiresAt'    => time() + self::LIFETIME,
+			'keyLength'    => 32,
+			'keyPrefix'    => bin2hex( substr( $key, 0, 16 ) ),
+			'keySignature' => hash_hmac( 'sha256', $key, self::secret( 'key' ) ),
+			'nonce'        => bin2hex( $nonce ),
+			'salt'         => bin2hex( $salt ),
+		);
+		ksort( $parameters );
+		return array(
+			'parameters' => $parameters,
+			'signature'  => hash_hmac( 'sha256', self::json( $parameters ), self::secret( 'signature' ) ),
+		);
+	}
+
+	/**
+	 * Whether a solution is valid, unexpired and not used before. A valid
+	 * one is used up: the same payload fails the second time.
+	 *
+	 * @param mixed $payload The `altcha` field: base64-encoded JSON.
+	 */
+	public static function verify( mixed $payload ): bool {
+		if ( ! is_string( $payload ) || '' === $payload || strlen( $payload ) > 4096 ) {
+			return false;
+		}
+		$decoded = base64_decode( $payload, true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- The widget's payload format.
+		$data    = is_string( $decoded ) ? json_decode( $decoded, true ) : null;
+		$params  = $data['challenge']['parameters'] ?? null;
+		$sign    = $data['challenge']['signature'] ?? null;
+		$key     = $data['solution']['derivedKey'] ?? null;
+		if ( ! is_array( $params ) || ! is_string( $sign ) || ! is_string( $key ) || ! preg_match( '/^(?:[0-9a-f]{2})+$/', $key ) ) {
+			return false;
+		}
+		self::sort( $params );
+		if ( ! hash_equals( hash_hmac( 'sha256', self::json( $params ), self::secret( 'signature' ) ), $sign ) ) {
+			return false; // Not ours, or changed.
+		}
+		if ( ! is_int( $params['expiresAt'] ?? null ) || $params['expiresAt'] < time() || ! is_string( $params['keySignature'] ?? null ) ) {
+			return false;
+		}
+		if ( ! hash_equals( $params['keySignature'], hash_hmac( 'sha256', (string) hex2bin( $key ), self::secret( 'key' ) ) ) ) {
+			return false; // The work was not done.
+		}
+		return self::use_up( $sign, $params['expiresAt'] );
+	}
+
+	/**
+	 * The `altcha` field of the current POST request.
+	 */
+	public static function posted(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Checked by verify(), never output or stored.
+		return isset( $_POST[ self::FIELD ] ) && is_string( $_POST[ self::FIELD ] ) ? wp_unslash( $_POST[ self::FIELD ] ) : '';
+	}
+
+	/**
+	 * The widget, for a form: it fetches a challenge when the visitor starts
+	 * filling the form in, and puts the solution in a hidden `altcha` field.
+	 * Enqueues its script.
+	 *
+	 * @param string $auto When it starts: 'onfocus' (a field gets focus) or 'off' (a script calls verify()).
+	 */
+	public static function widget( string $auto = 'onfocus' ): string {
+		wp_enqueue_script( self::SCRIPT );
+		return sprintf(
+			'<altcha-widget class="mody-altcha" name="%s" challenge="%s" auto="%s" configuration="%s"></altcha-widget>',
+			esc_attr( self::FIELD ),
+			esc_url( rest_url( self::REST_NAMESPACE . '/altcha' ) ),
+			esc_attr( $auto ),
+			esc_attr(
+				(string) wp_json_encode(
+					array(
+						'hideLogo'   => true,
+						'hideFooter' => true,
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * The message when the check fails.
+	 */
+	public static function failed_message(): string {
+		return __( 'We could not confirm that a person sent this. Please try again.', 'mody_cloud' );
+	}
+
+	/**
+	 * Solves a challenge the way the widget does (tests only: create the
+	 * challenge with a small counter).
+	 *
+	 * @param array{parameters: array<string, int|string>, signature: string} $challenge A challenge.
+	 * @param int                                                              $limit     The last counter to try.
+	 * @return string The payload, or '' when no counter up to $limit matches.
+	 */
+	public static function solve( array $challenge, int $limit = 100000 ): string {
+		$params = $challenge['parameters'];
+		$nonce  = (string) hex2bin( (string) $params['nonce'] );
+		$salt   = (string) hex2bin( (string) $params['salt'] );
+		for ( $counter = 0; $counter <= $limit; $counter++ ) {
+			$key = self::derive( $nonce, $salt, $counter, (int) $params['cost'] );
+			if ( str_starts_with( bin2hex( $key ), (string) $params['keyPrefix'] ) ) {
+				return base64_encode( // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- The widget's payload format.
+					(string) wp_json_encode(
+						array(
+							'challenge' => $challenge,
+							'solution'  => array(
+								'counter'    => $counter,
+								'derivedKey' => bin2hex( $key ),
+							),
+						),
+						JSON_UNESCAPED_SLASHES
+					)
+				);
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * PBKDF2/SHA-256 over nonce + counter (big-endian uint32, the widget's
+	 * `uint32` counter mode), 32 bytes.
+	 *
+	 * @param string $nonce   Raw nonce.
+	 * @param string $salt    Raw salt.
+	 * @param int    $counter The counter.
+	 * @param int    $cost    Iterations.
+	 */
+	private static function derive( string $nonce, string $salt, int $counter, int $cost ): string {
+		return hash_pbkdf2( 'sha256', $nonce . pack( 'N', $counter ), $salt, $cost, 32, true );
+	}
+
+	/**
+	 * Marks a challenge used; false when it already was. The mark is one
+	 * atomic insert (RateLimit::counter()): of any number of requests that
+	 * carry the same solution at once, exactly one gets true. Without the
+	 * table (the database cannot be written) it falls back to the object
+	 * cache or a site transient, which are not atomic.
+	 *
+	 * @param string $signature  The challenge's signature.
+	 * @param int    $expires_at When it expires.
+	 */
+	private static function use_up( string $signature, int $expires_at ): bool {
+		$id  = substr( $signature, 0, 40 );
+		$ttl = max( 60, $expires_at - time() + 60 );
+		$row = RateLimit::counter( 'altcha:' . $id, $ttl );
+		if ( $row ) {
+			return $row['new'];
+		}
+		if ( wp_using_ext_object_cache() ) {
+			return wp_cache_add( $id, 1, self::USED, $ttl );
+		}
+		if ( get_site_transient( 'mody_altcha_' . $id ) ) {
+			return false;
+		}
+		set_site_transient( 'mody_altcha_' . $id, 1, $ttl );
+		return true;
+	}
+
+	/**
+	 * A secret for one purpose: this installation's own random secret
+	 * (Security\Secrets), never WordPress's salts.
+	 *
+	 * @param string $purpose 'signature' or 'key'.
+	 */
+	private static function secret( string $purpose ): string {
+		$secret = Secrets::get( 'altcha-' . $purpose );
+		if ( '' === $secret ) {
+			$secret = bin2hex( random_bytes( 32 ) ); // The secrets cannot be stored: nothing verifies, which is safe.
+		}
+		return hash_hmac( 'sha256', 'mody-altcha-' . $purpose, $secret );
+	}
+
+	/**
+	 * JSON as the widget's JavaScript writes it (JSON.stringify): no escaped
+	 * slashes or Unicode.
+	 *
+	 * @param array<string, mixed> $data Data.
+	 */
+	private static function json( array $data ): string {
+		return (string) wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+	}
+
+	/**
+	 * Sorts keys recursively, like the widget's canonicalJSON().
+	 *
+	 * @param array<string, mixed> $data Data, sorted in place.
+	 */
+	private static function sort( array &$data ): void {
+		ksort( $data, SORT_STRING );
+		foreach ( $data as &$value ) {
+			if ( is_array( $value ) && ! array_is_list( $value ) ) {
+				self::sort( $value );
+			}
+		}
+	}
+}

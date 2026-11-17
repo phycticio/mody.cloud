@@ -31,13 +31,13 @@
  *    "show me my brand" opens the page.
  */
 
-use Mody\Platform\AI\PageGenerator;
-use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Brand\BrandBook;
-use Mody\Platform\Brand\BrandPage;
-use Mody\Platform\Brand\BrandSettings;
-use Mody\Platform\Site\Settings;
-use Mody\Platform\SiteEditor;
+use Mody\Agent\AI\PageGenerator;
+use Mody\Agent\AI\SystemPrompt;
+use Mody\Brand\BrandBook;
+use Mody\Brand\BrandPage;
+use Mody\Brand\BrandSettings;
+use Mody\Agent\Site\Settings;
+use Mody\Agent\SiteEditor;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";
@@ -91,7 +91,7 @@ register_shutdown_function(
 		foreach ( $page_ids as $page_id ) {
 			wp_delete_post( $page_id, true );
 		}
-		Mody\Platform\Agent\Agent::forget_held();
+		Mody\Agent\Agent::forget_held();
 		restore_current_blog();
 		wpmu_delete_user( $admin );
 		wpmu_delete_user( $editor );
@@ -264,7 +264,7 @@ $wp_scripts = null; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibi
 BrandSettings::enqueue_identity_fields( 'site-editor.php' );
 $inline = implode( '', (array) wp_scripts()->get_data( 'mody-identity-fields', 'before' ) );
 $check( 'the Identity screen\'s script gets the Your brand button', str_contains( $inline, '"brandUrl"' ) && str_contains( $inline, 'mody-brand' ) );
-$script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-platform/assets/identity-fields.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local file.
+$script = (string) file_get_contents( WPMU_PLUGIN_DIR . '/mody-brand/assets/identity-fields.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local file.
 $check( '... and draws it', str_contains( $script, 'config.brandUrl' ) && str_contains( $script, 'config.strings.brand' ) );
 global $wp_settings_fields;
 BrandSettings::general_fields();
@@ -411,9 +411,9 @@ if ( getenv( 'MODY_TEST_OFFLINE' ) ) {
 	$GLOBALS['mody_test_open'] = static fn( array $t ): array => $called( $t, 'open-editor' );
 	foreach ( $cases as $message => $ok ) {
 		BrandBook::update( array_merge( $full, array( 'offer' => array(), 'audience' => '', 'opening_hours' => '' ), $presets[ $message ] ?? array() ) );
-		Mody\Platform\Agent\Agent::forget_held();
+		Mody\Agent\Agent::forget_held();
 		$started = microtime( true );
-		$turn    = Mody\Platform\Agent\Agent::respond( $message );
+		$turn    = Mody\Agent\Agent::respond( $message );
 		$good    = $ok( $turn );
 		$check( mb_strimwidth( $message, 0, 60, '…' ), $good, wp_json_encode( array_map( static fn( $c ) => array( $c['name'], $c['args'] ?? null ), $turn['calls'] ?? array() ) ) . ' "' . mb_strimwidth( (string) ( $turn['reply'] ?? '' ), 0, 90, '…' ) . '" ' . round( microtime( true ) - $started, 1 ) . ' s' );
 		sleep( 3 ); // Infomaniak's rate limit is shared with production.

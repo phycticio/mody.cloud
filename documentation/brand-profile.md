@@ -17,10 +17,10 @@ When WordPress has a setting or a screen for something, that is the only place t
 | Logo, site icon | `site_logo`, `site_icon` | Identity screen | opens Identity (`mody/open-editor`, target `identity`) |
 | Mission: what the business does, one sentence | the site setting `mody_mission` | Identity screen (Mody's field), Settings → General | `mody/update-site-settings` (`mission`) |
 | Tone of voice: formal, friendly or technical | the site setting `mody_tone` | Identity screen (Mody's field), Settings → General | `mody/update-site-settings` (`tone`) |
-| Vision, voice, form of "you", words to use and avoid, audience, products and services, what makes it different, story, values, address, phone, email, opening hours, area served (2026-11-11) | the site setting `mody_brand`, one object (`Brand\BrandBook`) | Settings → Brand ("Your brand"), reached from the Identity screen's **Your brand** button and Settings → General | `mody/update-settings` (the `brand_` settings); opens the page (`mody/open-editor`, target `brand`) |
+| Vision, voice, form of "you", words to use and avoid, audience, products and services, what makes it different, story, values, address, phone, email, opening hours, area served (2026-11-11) | the site setting `mody_brand`, one object (`BrandBook` (`mody-brand`)) | Settings → Brand ("Your brand"), reached from the Identity screen's **Your brand** button and Settings → General | `mody/update-settings` (the `brand_` settings); opens the page (`mody/open-editor`, target `brand`) |
 | Colors, fonts, every other style | the site's Global Styles (Editor → Styles) | Styles | `mody/update-design` for presets and the three brand colors, with no brand question; [M3-10](../tickets/M3-10-agent-edits-global-styles.md) for the rest |
 
-**The two Mody settings** (`Brand\BrandSettings`) are registered with `register_setting()` and shown in REST:
+**The two Mody settings** (`BrandSettings` (the `mody-brand` plugin)) are registered with `register_setting()` and shown in REST:
 - `mody_mission`: plain text, one line, at most 200 characters;
 - `mody_tone`: one of the three tones, `friendly` by default.
 
@@ -77,14 +77,14 @@ The master prompt rules, whitelist and validation are in [ai-engine.md](ai-engin
 
 ## Site creation flow
 
-Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin ([M2-01](../tickets/M2-01-site-provisioning.md), [mvp-spec.md §7](mvp-spec.md#7-site-provisioning-pipeline)). It runs in-process: no REST, no Application Passwords, and no credentials in the welcome email.
+Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin (since 2026-11-17 `Mody\Sites\Pipeline`, the `mody-sites` plugin) ([M2-01](../tickets/M2-01-site-provisioning.md), [mvp-spec.md §7](mvp-spec.md#7-site-provisioning-pipeline)). It runs in-process: no REST, no Application Passwords, and no credentials in the welcome email.
 
 1. **`Pipeline::start( $user_id, $input )`** validates the wizard's answers (`Pipeline::validate()`), checks the quota and queues a job in `mody_provisioning_jobs`.
    - `slug`: the subdomain, checked with WordPress's own site-name rules.
    - `title`: the site title and the brand name, at most 120 characters.
    - `mission`: the "what do you do?" sentence, required, at most 200 characters. It becomes the tagline and the mission setting.
    - `tone`: formal, friendly (default) or technical.
-   - `preset`: one of the six design presets (`Design\Presets`), Mody Teal by default.
+   - `preset`: one of the six design presets (`Presets` (`mody-styles`)), Mody Teal by default.
    - `prompt`: the description of the first page, required, at most 2,000 characters.
    - `logo_id`: optional, an image the user uploaded to the main site (M2-05).
 
@@ -101,9 +101,9 @@ Built 2026-11-06 as `Mody\Platform\Provisioning\Pipeline` in the MU plugin ([M2-
    A logo that cannot be copied does not stop the site (`result.logo_error`).
 3. **Resuming.** Each step's outcome and the next step are written in one update, after the step's side effects. A run killed in the middle of a step starts that step again without repeating its work. A running job not updated for 5 minutes counts as killed.
 4. **Generation failure** never blocks the site. `Pipeline::retry_generation( $job_id )` generates the page again and replaces it.
-5. **The quota:** `Provisioning\Quota::can_create_site()`. With M1-01, the plan's limit (see [membership-tiers.md](membership-tiers.md#open-questions)).
+5. **The quota:** `Quota::can_create_site()` (`mody-sites`). With M1-01, the plan's limit (see [membership-tiers.md](membership-tiers.md#open-questions)).
 
-**The signup's site** (M1-03): `Members\Registration::register()` starts and runs a starter job in the signup request (a few seconds, no model call). The member then gives the brand to the agent: the editor tour on the Identity screen asks them to tell Mody what they do, which the agent saves as the mission or the tagline (`mody/update-site-settings`).
+**The signup's site** (M1-03): `Registration::register()` (`mody-members`) starts and runs a starter job in the signup request (a few seconds, no model call). The member then gives the brand to the agent: the editor tour on the Identity screen asks them to tell Mody what they do, which the agent saves as the mission or the tagline (`mody/update-site-settings`).
 
 **Test:** `scripts/provisioning-test.php`. It covers validation, the quota, a full run with a fake model answer (the brand in the site's settings and styles), a run killed after each step and resumed, generation failure, Retry generation, the logo, and one real run. `-e MODY_TEST_OFFLINE=1` skips the real run.
 

@@ -23,13 +23,13 @@
  * taking real money.
  */
 
-use Mody\Platform\Agent\AgentSettings;
-use Mody\Platform\Agent\Budget;
-use Mody\Platform\Billing\Billing;
-use Mody\Platform\Billing\Lifecycle;
-use Mody\Platform\Members\Members;
-use Mody\Platform\Members\Offers;
-use Mody\Platform\Site\Storage;
+use Mody\Agent\AgentSettings;
+use Mody\Agent\Budget;
+use Mody\Billing\Billing;
+use Mody\Billing\Lifecycle;
+use Mody\Members\Members;
+use Mody\Members\Offers;
+use Mody\Storage\Storage;
 
 if ( ! is_main_site() ) {
 	WP_CLI::error( 'Run this on the main site.' );

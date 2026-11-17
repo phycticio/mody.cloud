@@ -28,7 +28,7 @@ By the maintainer on 2026-11-14:
 Imagick does the work when it writes WebP, which it does on our stack (ImageMagick 7.1 with WebP, AVIF and HEIC). Otherwise GD does it through WordPress's image editor (GD cannot read HEIC). Nothing calls an outside service (rule 1). There is no setting, and nothing is stored.
 
 ## How it works
-- **Uploads** (`Uploads`): on `wp_handle_upload_prefilter` and `wp_handle_sideload_prefilter` at priority 20, after the platform's checks at 10. `Gating\ImageLimits` refuses a picture too big to decode before this decodes it. These hooks see every upload: the Media Library, the block editor's REST uploads, and `media_handle_sideload()` (the wizard's logo, profile pictures).
+- **Uploads** (`Uploads`): on `wp_handle_upload_prefilter` and `wp_handle_sideload_prefilter` at priority 20, after the platform's checks at 10. `Gating\ImageLimits` refuses a picture too big to decode before this decodes it (since 2026-11-17 that check is this plugin's own `ImageSize`, [independent-mody-plugins.md](independent-mody-plugins.md)). These hooks see every upload: the Media Library, the block editor's REST uploads, and `media_handle_sideload()` (the wizard's logo, profile pictures).
   - The temporary file is replaced in place by its WebP, and its name and type follow, so `Holiday Photo.JPG` is stored as `Holiday-Photo.webp`.
   - The quota check in the Media Library runs at priority 10, before this, so it counts the uploaded size. The REST upload counts it before any filter. Both are conservative.
 - **The sizes:** WordPress makes them from the WebP (`wp_editor_set_quality` 82 for WebP).

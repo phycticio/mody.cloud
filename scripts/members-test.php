@@ -28,9 +28,9 @@
  * options are put back as they were. No model call.
  */
 
-use Mody\Platform\Members\Members;
-use Mody\Platform\Provisioning\Quota;
-use Mody\Platform\Wizard\WizardPage;
+use Mody\Members\Members;
+use Mody\Sites\Quota;
+use Mody\Sites\WizardPage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

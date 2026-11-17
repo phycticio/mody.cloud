@@ -24,11 +24,11 @@
  * put back. No model call.
  */
 
-use Mody\Platform\Agent\Agent;
-use Mody\Platform\Design\Fonts;
-use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Design\SiteStyles;
-use Mody\Platform\SiteEditor;
+use Mody\Agent\Agent;
+use Mody\Fonts\Fonts;
+use Mody\Styles\SiteDesign;
+use Mody\Styles\SiteStyles;
+use Mody\Agent\SiteEditor;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

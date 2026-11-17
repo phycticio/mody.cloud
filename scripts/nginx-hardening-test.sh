@@ -120,7 +120,7 @@ echo "== PHP is run or refused, never served as text"
 # ---------------------------------------------------------------------------
 for URI in /index.PHP /Index.Php /wp-config.php /wp-config.PHP /Wp-Config.Php /wp-config-sample.php /wp/wp-config-sample.php \
   /wp-settings.PHP /wp-load.PHP /wp-login.PHP /wp-admin/admin.PHP /WP-ADMIN/admin.php \
-  /web/mu-plugins/mody-mail/src/Config.PHP /WEB/mu-plugins/mody-mail/src/Config.PHP /web/mu-plugins/mody-platform.PHP \
+  /web/mu-plugins/mody-mail/src/Config.PHP /WEB/mu-plugins/mody-mail/src/Config.PHP /web/mu-plugins/mody-dashboard.PHP \
   /web/db.php /web/db.PHP /web/index.php /assets/x.php /assets/x.PHP /dist/altcha.asset.php /dist/altcha.asset.PHP \
   /vendor/autoload.php /Vendor/Autoload.PHP /x/y/z.php /x.PHP; do
   CODE="$(status "$MAIN_HOST" "$URI")"
@@ -175,7 +175,7 @@ for HOST in "$MAIN_HOST" "$SUB_HOST"; do
   expect_ok "$HOST" /wp-admin/load-scripts.php 'javascript'
   expect_ok "$HOST" /web/themes/theme/style.css 'text/css'
   expect_ok "$HOST" /dist/altcha.js 'javascript'
-  expect_ok "$HOST" /web/mu-plugins/mody-platform/assets/brand-page.css 'text/css'
+  expect_ok "$HOST" /web/mu-plugins/mody-brand/assets/brand-page.css 'text/css'
   expect_ok "$HOST" /wp-login.php 'text/html'
   expect_ok "$HOST" /wp-json/ 'application/json'
   expect_ok "$HOST" '/?rest_route=/' 'application/json'
@@ -309,9 +309,9 @@ if docker inspect "$APP" >/dev/null 2>&1; then
 <?php
 // Runs in the app container. Reaches Nginx as the browser would (the network alias
 // of the main host), as the first super admin with a minted login session.
-use Mody\Platform\Export\Downloads;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs;
+use Mody\Export\Downloads;
+use Mody\Export\Exporter;
+use Mody\Export\Jobs;
 
 $out   = array();
 $admin = get_user_by( 'login', get_super_admins()[0] );

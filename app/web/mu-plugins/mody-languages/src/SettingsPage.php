@@ -9,7 +9,7 @@
  *   (with Create: a draft copy, then the editor), draft, translated or
  *   outdated (the original was saved after the translation).
  * - **More actions:** the filter mody_languages_cell_actions adds links to a
- *   missing page cell (mody-platform's "Translate with Mody").
+ *   missing page cell (Mody Agent's "Translate with Mody").
  *
  * Changes go through admin-post.php with a nonce, then back to this screen.
  *

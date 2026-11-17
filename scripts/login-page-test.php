@@ -23,12 +23,12 @@
  * Everything created is removed at the end. No model call.
  */
 
-use Mody\Platform\Design\Presets;
-use Mody\Platform\Design\SiteDesign;
-use Mody\Platform\Login\Color;
-use Mody\Platform\Login\LoginPage;
-use Mody\Platform\Login\Schemes;
-use Mody\Platform\Login\SettingsPage;
+use Mody\Styles\Presets;
+use Mody\Styles\SiteDesign;
+use Mody\Login\Color;
+use Mody\Login\LoginPage;
+use Mody\Login\Schemes;
+use Mody\Login\SettingsPage;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

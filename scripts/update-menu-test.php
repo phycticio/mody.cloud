@@ -20,8 +20,8 @@
  *    `-e MODY_TEST_RUNS=3` repeats, `-e MODY_TEST_OFFLINE=1` skips.
  */
 
-use Mody\Platform\Agent\Agent;
-use Mody\Platform\Site\Menu;
+use Mody\Agent\Agent;
+use Mody\Agent\Site\Menu;
 
 if ( 'production' === wp_get_environment_type() ) {
 	echo "Refusing to run in production.\n";
