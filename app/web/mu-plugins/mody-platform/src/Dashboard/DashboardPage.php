@@ -100,7 +100,7 @@ final class DashboardPage {
 	/**
 	 * `admin_menu`, last: what plugins added under core's Dashboard moves
 	 * under this one. Core's Home and Updates do not (Updates is gone for
-	 * everyone, Gating\Updates).
+	 * everyone, Mody Updates).
 	 */
 	public static function adopt_submenu(): void {
 		global $submenu;

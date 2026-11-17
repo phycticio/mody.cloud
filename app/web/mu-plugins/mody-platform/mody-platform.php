@@ -187,16 +187,6 @@ add_filter( 'register_setting_args', array( Gating\HiddenScreens::class, 'hide_s
 add_filter( 'rest_pre_dispatch', array( Gating\HiddenScreens::class, 'refuse_routes' ), 10, 3 );
 
 /*
- * Updates only through the repository (decided 2026-11-08): nobody updates
- * WordPress, a plugin, a theme or a translation from wp-admin, and core never
- * checks WordPress.org for updates on its own. Code that calls the checks
- * directly (Wordfence's scans, WP-CLI) is left alone.
- */
-Gating\Updates::remove_triggers();
-add_filter( 'map_meta_cap', array( Gating\Updates::class, 'map_meta_cap' ), 100, 2 ); // After the usual filters.
-add_action( 'init', array( Gating\Updates::class, 'unschedule' ) );
-
-/*
  * The `ai` plugin on member sites (ticket M4-03): the curated features and the
  * connector approval pinned, its screens and configuration routes refused to
  * members, MCP locked, and its request log table created for new sites.

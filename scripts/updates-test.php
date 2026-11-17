@@ -33,7 +33,7 @@
  * No model call, and no request to WordPress.org (one would mean a failure).
  */
 
-use Mody\Platform\Gating\Updates;
+use Mody\Updates\Updates;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 

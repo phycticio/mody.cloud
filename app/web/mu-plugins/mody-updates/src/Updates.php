@@ -3,10 +3,10 @@
  * WordPress and plugin updates only through the repository
  * (tickets/updates-through-composer-only.md).
  *
- * @package Mody\Platform
+ * @package Mody\Updates
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Updates;
 
 defined( 'ABSPATH' ) || exit;
 

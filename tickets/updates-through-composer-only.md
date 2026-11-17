@@ -19,7 +19,7 @@ WordPress core and plugin versions change only in the repository: core with `./b
 4. **Docs:** turn the architecture.md open question into a decision, and add this rule to mvp-spec §10.
 
 ## Results (2026-11-08)
-**Built** in `app/web/mu-plugins/mody-platform/src/Gating/Updates.php`, wired in `mody-platform.php`:
+**Built** in `app/web/mu-plugins/mody-platform/src/Gating/Updates.php`, wired in `mody-platform.php` (since 2026-11-17 its own plugin, `mody-updates`, [independent-mody-plugins.md](independent-mody-plugins.md)):
 - **The capabilities:** `map_meta_cap` at priority 100 refuses `update_core`, `update_plugins`, `update_themes` and `update_languages` to every user on every site and environment. `do_not_allow` denies super admins too. Themes and translations are included because they are part of the same updates. For our theme, a WordPress.org theme named `theme` could otherwise be offered as its update. Nothing installed checks these capabilities except core.
   - **What this hides and refuses:** the Updates screen (core's menu check refuses it before its own check runs), update notices, rows and counts, and the auto-update controls. It also refuses the AJAX and upgrader update requests.
   - **The update check of its own that the Updates screen runs** (`wp_version_check()` in `update-core.php`) is never reached.
