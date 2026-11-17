@@ -27,7 +27,7 @@
 use Mody\Images\Library;
 use Mody\Images\Optimizer;
 use Mody\Images\Uploads;
-use Mody\Platform\Export\Portable;
+use Mody\Export\Portable;
 
 require_once ABSPATH . 'wp-admin/includes/file.php';
 require_once ABSPATH . 'wp-admin/includes/media.php';

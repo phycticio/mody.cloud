@@ -2,10 +2,10 @@
 /**
  * Signed, expiring links to a site's download files, and serving them.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 use WP_Error;
 

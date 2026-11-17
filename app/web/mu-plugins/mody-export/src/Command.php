@@ -2,10 +2,10 @@
 /**
  * WP-CLI: `wp mody-export`.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 use WP_CLI;
 use WP_Site;

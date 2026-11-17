@@ -33,10 +33,10 @@
  * captured, not sent. No model call.
  */
 
-use Mody\Platform\Dashboard\ExportPanel;
-use Mody\Platform\Export\DatabaseDump;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs as ExportJobs;
+use Mody\Export\Panel;
+use Mody\Export\DatabaseDump;
+use Mody\Export\Exporter;
+use Mody\Export\Jobs as ExportJobs;
 use Mody\Platform\Gating\Isolation;
 use Mody\Platform\Gating\MemberMail;
 use Mody\Platform\Gating\MemberSite;
@@ -851,56 +851,56 @@ if ( is_int( $job_id ) ) {
 	// 6. The export cooldown ---------------------------------------------------------------------------------
 
 	echo "\nExport cooldown\n";
-	$stubbed = ! class_exists( 'Mody\Platform\Export\Runner', false );
+	$stubbed = ! class_exists( 'Mody\Export\Runner', false );
 	if ( $stubbed ) {
-		eval( 'namespace Mody\Platform\Export; final class Runner { public static int $watched = 0; public static function start( int $job_id ): void {} public static function watch(): void { ++self::$watched; } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub: the real one starts real builds.
+		eval( 'namespace Mody\Export; final class Runner { public static int $watched = 0; public static function start( int $job_id ): void {} public static function watch(): void { ++self::$watched; } }' ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test stub: the real one starts real builds.
 	}
 	ExportJobs::install();
 	$wpdb->delete( ExportJobs::table(), array( 'site_id' => $site_a ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$mails = array();
-	$first = ExportPanel::start( $site_a, $owner );
+	$first = Panel::start( $site_a, $owner );
 	$count = static fn(): int => (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . ExportJobs::table() . ' WHERE site_id = %d', $site_a ) ); // phpcs:ignore WordPress.DB
 	$check( 'the first copy starts', 'started' === $first && 1 === $count(), $first );
 	$job = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done', 'finished_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$mails = array();
-	$again = ExportPanel::start( $site_a, $owner );
+	$again = Panel::start( $site_a, $owner );
 	$check( 'a fresh copy right after a finished one: cooldown, no new job, no email', 'cooldown' === $again && 1 === $count() && array() === $mails, $again );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'running' ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( '... one still running is busy, not a cooldown', 'busy' === ExportPanel::start( $site_a, $owner ) && 1 === $count() );
+	$check( '... one still running is busy, not a cooldown', 'busy' === Panel::start( $site_a, $owner ) && 1 === $count() );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'failed' ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$_GET['export-result'] = 'cooldown';
 	switch_to_blog( $site_a );
 	ob_start();
-	( new ReflectionMethod( ExportPanel::class, 'render_notice' ) )->invoke( null, 'failed' );
+	( new ReflectionMethod( Panel::class, 'render_notice' ) )->invoke( null, 'failed' );
 	$notice = ob_get_clean();
 	restore_current_blog();
 	unset( $_GET['export-result'] );
 	$check( '... a failed one has no files: its notice does not say "the files above"', ! str_contains( $notice, 'files above' ) && str_contains( $notice, 'You can prepare a fresh copy now' ), wp_strip_all_tags( $notice ) );
 	$mails = array();
-	$retry = ExportPanel::start( $site_a, $owner );
+	$retry = Panel::start( $site_a, $owner );
 	$check( '... and Try again after a failure starts at once, no cooldown', 'started' === $retry && 2 === $count(), $retry );
 	$check( '... the per-site lock is released', 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT IS_FREE_LOCK( %s )', 'mody_export_panel_' . $site_a ) ) ); // phpcs:ignore WordPress.DB
 	$job = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done', 'finished_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( '... then the cooldown holds again, counted from that finished copy', 'cooldown' === ExportPanel::start( $site_a, $owner ) && 2 === $count() );
+	$check( '... then the cooldown holds again, counted from that finished copy', 'cooldown' === Panel::start( $site_a, $owner ) && 2 === $count() );
 	$_GET['export-result'] = 'cooldown';
 	switch_to_blog( $site_a );
 	ob_start();
-	( new ReflectionMethod( ExportPanel::class, 'render_notice' ) )->invoke( null, 'done' );
+	( new ReflectionMethod( Panel::class, 'render_notice' ) )->invoke( null, 'done' );
 	$notice = ob_get_clean();
 	restore_current_blog();
 	unset( $_GET['export-result'] );
 	$check( 'the notice says kindly when the next one is possible', str_contains( $notice, 'files above are the latest' ) && str_contains( $notice, 'you can prepare a fresh copy from' ) && str_contains( $notice, 'minutes)' ), wp_strip_all_tags( $notice ) );
-	$wpdb->update( ExportJobs::table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - ExportPanel::COOLDOWN - 60 ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( 'once the cooldown has passed, a new copy starts', 'started' === ExportPanel::start( $site_a, $owner ) && 3 === $count() );
+	$wpdb->update( ExportJobs::table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - Panel::COOLDOWN - 60 ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$check( 'once the cooldown has passed, a new copy starts', 'started' === Panel::start( $site_a, $owner ) && 3 === $count() );
 	$job2 = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done' ), array( 'id' => $job2['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$check( 'a super admin helping a member is not held back', 'started' === ExportPanel::start( $site_a, $super ) && 4 === $count() );
+	$check( 'a super admin helping a member is not held back', 'started' === Panel::start( $site_a, $super ) && 4 === $count() );
 	$job3 = (array) ExportJobs::current( $site_a );
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done' ), array( 'id' => $job3['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	add_filter( 'mody_export_cooldown', '__return_zero' );
-	$check( 'the cooldown can be set to 0 (filter mody_export_cooldown)', 'started' === ExportPanel::start( $site_a, $owner ) && 5 === $count() );
+	$check( 'the cooldown can be set to 0 (filter mody_export_cooldown)', 'started' === Panel::start( $site_a, $owner ) && 5 === $count() );
 	remove_filter( 'mody_export_cooldown', '__return_zero' );
 	$wpdb->delete( ExportJobs::table(), array( 'site_id' => $site_a ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	if ( ! $stubbed ) {

@@ -2,10 +2,10 @@
 /**
  * Builds a site's three download files.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 use WP_Error;
 

@@ -2,10 +2,10 @@
 /**
  * Download jobs: the network table `mody_export_jobs`.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 defined( 'ABSPATH' ) || exit;
 

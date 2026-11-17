@@ -2,10 +2,10 @@
 /**
  * Starts the builder: a detached WP-CLI process per download job.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -29,7 +29,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * Who calls watch(), the source of truth for "jobs keep moving":
  *
- * - the dashboard's status poll (Dashboard\ExportPanel::handle_status), every
+ * - the dashboard's status poll (Panel::handle_status), every
  *   few seconds while a member waits for a build;
  * - the Mody dashboard's render, so an administrator opening the page restarts
  *   a stuck job even when nobody is polling;

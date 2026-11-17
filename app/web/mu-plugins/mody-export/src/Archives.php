@@ -2,10 +2,10 @@
 /**
  * The media and code files a downloaded site takes with it.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 use WP_Error;
 use ZipArchive;
@@ -174,7 +174,7 @@ final class Archives {
 				$files[] = array( 'name' => self::PLUGIN_FOLDER . '/' . $file['name'] ) + $file;
 			}
 		}
-		$licence = dirname( __DIR__, 2 ) . '/export-kit/LICENSE-GPL-2.0.txt';
+		$licence = dirname( __DIR__ ) . '/export-kit/LICENSE-GPL-2.0.txt';
 		if ( ! is_file( $kit . '/LICENSE.txt' ) && is_readable( $licence ) ) {
 			$files[] = array(
 				'abs'  => $licence,
@@ -203,7 +203,7 @@ final class Archives {
 	 * The importer plugin's source: export-kit/mody-import/.
 	 */
 	private static function kit(): string {
-		return dirname( __DIR__, 2 ) . '/export-kit/' . self::PLUGIN_FOLDER;
+		return dirname( __DIR__ ) . '/export-kit/' . self::PLUGIN_FOLDER;
 	}
 
 	/**
@@ -665,12 +665,12 @@ final class Archives {
 	 * plugins carried. It changes when a deploy changes any of them.
 	 */
 	private static function cache_key(): string {
-		$root  = dirname( __DIR__, 2 );
+		$root  = dirname( __DIR__ );
 		$paths = array(
 			get_theme_root( Portable::THEME ) . '/' . Portable::THEME,
 			$root . '/export-kit',
 			WPMU_PLUGIN_DIR . '/mody-fonts',
-			$root . '/src/Export/Portable.php',
+			$root . '/src/Portable.php',
 			__FILE__,
 		);
 		foreach ( array_keys( Portable::PLUGINS ) as $folder ) {

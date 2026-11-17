@@ -47,11 +47,11 @@
  * Nginx container), not here.
  */
 
-use Mody\Platform\Export\Command;
-use Mody\Platform\Export\Downloads;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs;
-use Mody\Platform\Export\Runner;
+use Mody\Export\Command;
+use Mody\Export\Downloads;
+use Mody\Export\Exporter;
+use Mody\Export\Jobs;
+use Mody\Export\Runner;
 use Mody\Platform\Members\Members;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
@@ -815,7 +815,7 @@ $settle();
 
 echo "\nwp mody-export\n";
 $reg = $tmp . '/register.php';
-file_put_contents( $reg, "<?php\nWP_CLI::add_hook( 'after_wp_load', static function () { Mody\\Platform\\Export\\Command::register(); } );\n" );
+file_put_contents( $reg, "<?php\nWP_CLI::add_hook( 'after_wp_load', static function () { Mody\\Export\\Command::register(); } );\n" );
 $wp = static function ( string $args, string $url ) use ( $reg, $wp_path ): array {
 	exec( 'wp --require=' . escapeshellarg( $reg ) . ' --path=' . escapeshellarg( $wp_path ) . ' --url=' . escapeshellarg( $url ) . ' ' . $args . ' 2>&1', $lines, $code );
 	return array(
@@ -869,7 +869,7 @@ file_put_contents(
 	str_replace(
 		'__LOG__',
 		$tmp . '/watch-spawned.txt',
-		"<?php\nWP_CLI::add_hook( 'after_wp_load', static function () {\n\tMody\\Platform\\Export\\Command::register();\n\tadd_filter( 'mody_export_spawn', static function ( \$r, \$job ) {\n\t\tfile_put_contents( '__LOG__', \$job['id'] . \"\\n\", FILE_APPEND );\n\t\treturn true;\n\t}, 10, 2 );\n} );\n"
+		"<?php\nWP_CLI::add_hook( 'after_wp_load', static function () {\n\tMody\\Export\\Command::register();\n\tadd_filter( 'mody_export_spawn', static function ( \$r, \$job ) {\n\t\tfile_put_contents( '__LOG__', \$job['id'] . \"\\n\", FILE_APPEND );\n\t\treturn true;\n\t}, 10, 2 );\n} );\n"
 	)
 );
 $wp_stub = static function ( string $args, string $url ) use ( $reg_stub, $wp_path ): array {

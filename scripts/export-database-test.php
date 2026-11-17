@@ -31,8 +31,8 @@
  * The scratch database and the site are removed at the end. No model call.
  */
 
-use Mody\Platform\Export\DatabaseDump;
-use Mody\Platform\Export\Exporter;
+use Mody\Export\DatabaseDump;
+use Mody\Export\Exporter;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';

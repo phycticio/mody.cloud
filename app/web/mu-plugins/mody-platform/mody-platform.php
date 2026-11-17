@@ -29,11 +29,6 @@ spl_autoload_register(
 );
 
 /*
- * Served before the rest of WordPress runs.
- */
-Export\Downloads::serve(); // A site's download files, through signed links (tickets/take-your-site-with-you.md).
-
-/*
  * The Mody dashboard (2026-11-11, tickets/mody-dashboard.md): every site's
  * Dashboard menu item opens it, and core's dashboard redirects there. Each
  * site has 1 GB, with WordPress's own upload quota (Mody Storage).
@@ -46,14 +41,6 @@ if ( class_exists( \Mody\Analytics\Query::class ) ) {
 	}
 }
 
-/*
- * Take your site with you (2026-11-12, tickets/take-your-site-with-you.md):
- * the dashboard's Download your site section (Dashboard\ExportPanel, wired by
- * DashboardPage) builds three files in a detached `wp mody-export run`
- * process: the database, the media and the code with the Mody Import plugin.
- */
-add_action( 'init', array( Export\Jobs::class, 'install' ), 1 );
-Export\Command::register();
 add_action( 'init', array( Agent\AgentEvents::class, 'install' ), 1 );
 add_filter( 'http_response', array( Agent\TurnMetrics::class, 'observe' ), 10, 3 ); // Each agent turn's tokens and cache (2026-11-11).
 add_action( 'init', array( Provisioning\Jobs::class, 'install' ), 1 );

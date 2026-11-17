@@ -1,5 +1,5 @@
 /**
- * Dashboard → Download your site (Dashboard\ExportPanel): while a download is
+ * Dashboard → Download your site (Panel): while a download is
  * queued or running, asks the server for its state every few seconds and
  * updates the steps, the bar and the sentence in place. When the job is done
  * (or has failed) the page loads again once, and the server renders the

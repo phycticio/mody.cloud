@@ -38,7 +38,7 @@ use Mody\Platform\Agent\Agent;
 use Mody\Platform\Agent\AgentEvents;
 use Mody\Platform\Agent\EditorContext;
 use Mody\Platform\AI\SystemPrompt;
-use Mody\Platform\Export\Portable;
+use Mody\Export\Portable;
 use Mody\Platform\Site\SeoTool;
 use Mody\Seo\Fields;
 use Mody\Seo\Head;

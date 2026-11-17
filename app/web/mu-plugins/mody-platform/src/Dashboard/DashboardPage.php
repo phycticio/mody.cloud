@@ -64,7 +64,6 @@ final class DashboardPage {
 		add_action( 'admin_menu', array( self::class, 'adopt_submenu' ), PHP_INT_MAX );
 		add_action( 'load-index.php', array( self::class, 'redirect' ) );
 		add_action( 'admin_post_' . self::PLAN_ACTION, array( self::class, 'save_plan' ) );
-		ExportPanel::register(); // Download your site (tickets/take-your-site-with-you.md).
 	}
 
 	/**
@@ -141,7 +140,6 @@ final class DashboardPage {
 		Look::enqueue_asset( 'mody-admin-page', 'admin-page.css' ); // The layout Settings → Brand has too (Mody Brand keeps its own copy).
 		Look::enqueue_asset( 'mody-dashboard', 'dashboard-page.css', array( 'mody-admin-page' ) );
 		wp_add_inline_style( 'mody-admin-page', Look::variables_css() );
-		ExportPanel::enqueue();
 		if ( 'visitors' === self::current() && class_exists( Board::class ) && Board::can_manage() ) {
 			self::enqueue_board();
 		}
@@ -199,9 +197,6 @@ final class DashboardPage {
 		}
 		if ( current_user_can( self::SITE_CAPABILITY ) ) {
 			$sections['mody'] = __( 'Mody\'s work', 'mody_cloud' );
-		}
-		if ( ExportPanel::available() ) {
-			$sections[ ExportPanel::SECTION ] = __( 'Download your site', 'mody_cloud' );
 		}
 		if ( Members::get( get_current_user_id() ) ) {
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
@@ -309,9 +304,6 @@ final class DashboardPage {
 			case 'mody':
 				self::render_usage();
 				break;
-			case ExportPanel::SECTION:
-				ExportPanel::render();
-				break;
 			case 'sites':
 				self::render_sites();
 				break;
@@ -356,8 +348,8 @@ final class DashboardPage {
 				<?php if ( current_user_can( 'edit_theme_options' ) ) : ?>
 					<a class="button button-primary" href="<?php echo esc_url( admin_url( 'site-editor.php' ) ); ?>"><?php esc_html_e( 'Edit site', 'mody_cloud' ); ?></a>
 				<?php endif; ?>
-				<?php if ( ExportPanel::available() ) : ?>
-					<a class="button" href="<?php echo esc_url( ExportPanel::url() ); ?>"><?php esc_html_e( 'Download your site', 'mody_cloud' ); ?></a>
+				<?php if ( isset( self::sections()['export'] ) ) : // Mody Export's section. ?>
+					<a class="button" href="<?php echo esc_url( self::url( 'export' ) ); ?>"><?php esc_html_e( 'Download your site', 'mody_cloud' ); ?></a>
 				<?php endif; ?>
 			</p>
 		</section>
@@ -794,7 +786,9 @@ final class DashboardPage {
 							<a class="button" href="<?php echo esc_url( $site['home'] ); ?>"><?php esc_html_e( 'Visit', 'mody_cloud' ); ?></a>
 							<a class="button" href="<?php echo esc_url( $site['admin'] ); ?>"><?php esc_html_e( 'Dashboard' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own word. ?></a>
 							<a class="button" href="<?php echo esc_url( $site['editor'] ); ?>"><?php esc_html_e( 'Edit site', 'mody_cloud' ); ?></a>
-							<a class="button" href="<?php echo esc_url( $site['export'] ); ?>"><?php esc_html_e( 'Download', 'mody_cloud' ); ?></a>
+							<?php if ( '' !== $site['export'] ) : ?>
+								<a class="button" href="<?php echo esc_url( $site['export'] ); ?>"><?php esc_html_e( 'Download', 'mody_cloud' ); ?></a>
+							<?php endif; ?>
 						</p>
 					</li>
 				<?php endforeach; ?>
@@ -883,7 +877,7 @@ final class DashboardPage {
 				'home'    => home_url( '/' ),
 				'admin'    => self::url(),
 				'visitors' => self::url( 'visitors' ),
-				'export'   => ExportPanel::url(), // That site's own Download your site section.
+				'export'   => has_action( 'mody_dashboard_section_export' ) ? self::url( 'export' ) : '', // That site's own Download your site section (Mody Export).
 				'editor'  => admin_url( 'site-editor.php' ),
 				'created' => (int) strtotime( (string) get_site( $id )->registered . ' UTC' ),
 				'used'    => (int) round( get_space_used() * MB_IN_BYTES ),

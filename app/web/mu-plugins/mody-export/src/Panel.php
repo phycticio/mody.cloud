@@ -2,16 +2,11 @@
 /**
  * The dashboard's Download your site section.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Dashboard;
+namespace Mody\Export;
 
-use Mody\Platform\Export\Downloads;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs;
-use Mody\Platform\Export\Notices;
-use Mody\Platform\Export\Runner;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -27,10 +22,13 @@ defined( 'ABSPATH' ) || exit;
  * Export\Exporter) runs apart from the request; this class asks for a job,
  * shows it, and answers the page's status poll.
  */
-final class ExportPanel {
+final class Panel {
 
 	/** The dashboard section's slug: admin.php?page=mody-dashboard&section=export. */
 	public const SECTION = 'export';
+
+	/** The Mody dashboard's page. */
+	private const DASHBOARD = 'mody-dashboard';
 
 	/** The admin-post action behind Prepare my download. */
 	public const ACTION = 'mody_export_request';
@@ -62,6 +60,28 @@ final class ExportPanel {
 	public static function register(): void {
 		add_action( 'admin_post_' . self::ACTION, array( self::class, 'handle_request' ) );
 		add_action( 'wp_ajax_' . self::STATUS_ACTION, array( self::class, 'handle_status' ) );
+		add_filter( 'mody_dashboard_sections', array( self::class, 'add_section' ) );
+		add_action( 'mody_dashboard_section_' . self::SECTION, array( self::class, 'render' ) );
+		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue' ) );
+	}
+
+	/**
+	 * `mody_dashboard_sections`: Download your site, after Mody's work (or the
+	 * first sections), for those who may download the site.
+	 *
+	 * @param mixed $sections Slug => label.
+	 * @return mixed
+	 */
+	public static function add_section( $sections ) {
+		if ( ! is_array( $sections ) || ! self::available() ) {
+			return $sections;
+		}
+		$at = 0;
+		foreach ( array( 'overview', 'visitors', 'mody' ) as $before ) {
+			$found = array_search( $before, array_keys( $sections ), true );
+			$at    = false !== $found ? $found + 1 : $at;
+		}
+		return array_slice( $sections, 0, $at, true ) + array( self::SECTION => __( 'Download your site', 'mody_cloud' ) ) + array_slice( $sections, $at, null, true );
 	}
 
 	/**
@@ -69,27 +89,36 @@ final class ExportPanel {
 	 * member site. Super administrators pass as on every site.
 	 */
 	public static function available(): bool {
-		return ! is_main_site() && current_user_can( DashboardPage::SITE_CAPABILITY );
+		return ! is_main_site() && current_user_can( 'manage_options' );
 	}
 
 	/**
 	 * The section's address on this site, for the links to it.
 	 */
 	public static function url(): string {
-		return DashboardPage::url( self::SECTION );
+		return add_query_arg(
+			array(
+				'page'    => self::DASHBOARD,
+				'section' => self::SECTION,
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	/**
-	 * `load-<dashboard page>`: the status script, on this section only.
+	 * `admin_enqueue_scripts`: the panel's stylesheet and status script, on
+	 * the dashboard's Download your site section only.
 	 */
 	public static function enqueue(): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: which section is open.
-		$section = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
-		if ( self::SECTION !== $section || ! self::available() ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: which page and section are open.
+		$page    = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+		$section = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( self::DASHBOARD !== $page || self::SECTION !== $section || ! self::available() ) {
 			return;
 		}
-		$root = dirname( __DIR__, 2 );
-		wp_enqueue_script( 'mody-export-panel', plugins_url( 'assets/export-panel.js', $root . '/mody-platform.php' ), array(), (string) filemtime( $root . '/assets/export-panel.js' ), true );
+		$root = dirname( __DIR__ );
+		wp_enqueue_style( 'mody-export-panel', plugins_url( 'assets/panel.css', $root . '/mody-export.php' ), array(), (string) filemtime( $root . '/assets/panel.css' ) );
+		wp_enqueue_script( 'mody-export-panel', plugins_url( 'assets/export-panel.js', $root . '/mody-export.php' ), array(), (string) filemtime( $root . '/assets/export-panel.js' ), true );
 	}
 
 	/**

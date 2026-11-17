@@ -51,7 +51,7 @@ trap cleanup EXIT
 echo "1. The payload"
 in_app_root "mkdir -p $T && chown www-data $T"
 in_app "pkill -f '[p]hp -S 127.0.0.1:8099' 2>/dev/null; rm -rf $T/payload $SITE $T/debug.log"
-OUT=$(docker exec -i -u www-data "$CONTAINER" wp --path=/var/www/html/wp --url=https://alpha.mody.local eval '$r = Mody\Platform\Export\Portable::assemble( "'"$T"'/payload" ); echo is_wp_error( $r ) ? "ERROR " . $r->get_error_message() : "OK " . wp_json_encode( Mody\Platform\Export\Portable::active_plugins() );')
+OUT=$(docker exec -i -u www-data "$CONTAINER" wp --path=/var/www/html/wp --url=https://alpha.mody.local eval '$r = Mody\Export\Portable::assemble( "'"$T"'/payload" ); echo is_wp_error( $r ) ? "ERROR " . $r->get_error_message() : "OK " . wp_json_encode( Mody\Export\Portable::active_plugins() );')
 echo "     $OUT"
 case "$OUT" in OK*) check "assembled, no carried Mody plugin names a class of mody-platform" 0 ;; *) check "assembled" 1; exit 1 ;; esac
 check "no mody-platform and no Mody Site in the payload" "$(in_app "ls $T/payload/plugins | grep -qE '^mody-(platform|site)$' && echo 1 || echo 0")"

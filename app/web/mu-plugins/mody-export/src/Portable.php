@@ -3,10 +3,10 @@
  * The code a downloaded site takes with it: the theme and its plugins,
  * without Mody.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 use Mody\Fonts\Fonts;
 use WP_Error;
@@ -61,7 +61,7 @@ final class Portable {
 	 * This plugin's folder.
 	 */
 	private static function root(): string {
-		return dirname( __DIR__, 2 );
+		return dirname( __DIR__ );
 	}
 
 	/**

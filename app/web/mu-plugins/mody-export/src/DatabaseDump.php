@@ -2,10 +2,10 @@
 /**
  * The database file of a site's download.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
 use mysqli;
 use mysqli_result;

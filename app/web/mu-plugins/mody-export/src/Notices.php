@@ -2,12 +2,11 @@
 /**
  * The two emails of a site download.
  *
- * @package Mody\Platform
+ * @package Mody\Export
  */
 
-namespace Mody\Platform\Export;
+namespace Mody\Export;
 
-use Mody\Platform\Dashboard\DashboardPage;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,7 +34,7 @@ final class Notices {
 	 *                      differs from the job's user when a super
 	 *                      administrator who is not an administrator of the
 	 *                      site asked: the job is then recorded for the site's
-	 *                      first administrator (Dashboard\ExportPanel::start())
+	 *                      first administrator (Panel::start())
 	 *                      and the email says Mody Cloud asked.
 	 * @return int Emails sent.
 	 */
@@ -177,7 +176,7 @@ final class Notices {
 							),
 							$user->display_name,
 							$title,
-							DashboardPage::url( 'export' ),
+							Panel::url(),
 							$days
 						),
 					);

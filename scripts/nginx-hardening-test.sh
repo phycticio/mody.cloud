@@ -309,9 +309,9 @@ if docker inspect "$APP" >/dev/null 2>&1; then
 <?php
 // Runs in the app container. Reaches Nginx as the browser would (the network alias
 // of the main host), as the first super admin with a minted login session.
-use Mody\Platform\Export\Downloads;
-use Mody\Platform\Export\Exporter;
-use Mody\Platform\Export\Jobs;
+use Mody\Export\Downloads;
+use Mody\Export\Exporter;
+use Mody\Export\Jobs;
 
 $out   = array();
 $admin = get_user_by( 'login', get_super_admins()[0] );

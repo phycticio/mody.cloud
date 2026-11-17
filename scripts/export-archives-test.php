@@ -35,8 +35,8 @@
  * folder gets a small fixture folder that is removed too. No model call.
  */
 
-use Mody\Platform\Export\Archives;
-use Mody\Platform\Export\Exporter;
+use Mody\Export\Archives;
+use Mody\Export\Exporter;
 
 $failures = 0;
 $total    = 0;
@@ -699,7 +699,7 @@ try {
 	$rrmdir_cache();
 
 	// A changed source file: a new payload, and after the hour the old one is pruned.
-	$kit_file = WPMU_PLUGIN_DIR . '/mody-platform/export-kit/mody-import/mody-import.php';
+	$kit_file = WPMU_PLUGIN_DIR . '/mody-export/export-kit/mody-import/mody-import.php';
 	$original = (int) filemtime( $kit_file );
 	try {
 		touch( $kit_file, $original + 7 );
@@ -720,8 +720,8 @@ try {
 	$key      = new ReflectionMethod( Archives::class, 'cache_key' );
 	$base_key = $key->invoke( null );
 	foreach ( array(
-		'mody-fonts/src/Fonts.php' => WPMU_PLUGIN_DIR . '/mody-fonts/src/Fonts.php',
-		'Export/Archives.php'      => WPMU_PLUGIN_DIR . '/mody-platform/src/Export/Archives.php',
+		'mody-fonts/src/Fonts.php'     => WPMU_PLUGIN_DIR . '/mody-fonts/src/Fonts.php',
+		'mody-export/src/Archives.php' => WPMU_PLUGIN_DIR . '/mody-export/src/Archives.php',
 	) as $label => $file ) {
 		$mtime = (int) filemtime( $file );
 		try {
@@ -746,7 +746,7 @@ try {
 			array(
 				'<?php',
 				'add_filter( "mody_export_root", static fn() => getenv( "RACE_ROOT" ) );',
-				'$result = Mody\\Platform\\Export\\Archives::code( getenv( "RACE_OUT" ), json_decode( (string) file_get_contents( getenv( "RACE_MANIFEST" ) ), true ), static function (): void {} );',
+				'$result = Mody\\Export\\Archives::code( getenv( "RACE_OUT" ), json_decode( (string) file_get_contents( getenv( "RACE_MANIFEST" ) ), true ), static function (): void {} );',
 				'echo is_wp_error( $result ) ? "ERROR " . $result->get_error_message() : "OK";',
 			)
 		)
