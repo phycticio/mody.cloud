@@ -2,10 +2,10 @@
 /**
  * Which installed plugins members see on their own sites (ticket M4-02).
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
 use WP_Error;
 use WP_HTTP_Response;

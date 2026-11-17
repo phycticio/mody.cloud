@@ -20,7 +20,7 @@ foreach ( array( 'update_core', 'update_plugins', 'update_themes', 'install_plug
 $check( 'core\'s update checks are scheduled', false !== has_action( 'wp_version_check' ) && false !== has_action( 'admin_init', '_maybe_update_core' ) );
 
 // Nothing of the agent or the platform.
-foreach ( array( 'Mody\Platform\Agent\ChatController', 'Mody\Platform\Abilities', 'Mody\Updates\Updates', 'Mody\Platform\Gating\HiddenScreens', 'Mody\Security\Altcha', 'Mody\Storage\Storage', 'Mody\Mail\Mail' ) as $class ) {
+foreach ( array( 'Mody\Platform\Agent\ChatController', 'Mody\Platform\Abilities', 'Mody\Updates\Updates', 'Mody\Locks\HiddenScreens', 'Mody\Security\Altcha', 'Mody\Storage\Storage', 'Mody\Mail\Mail' ) as $class ) {
 	$check( "no $class", ! class_exists( $class ) );
 }
 $check( 'one profile per network is off on a single site (Mody Profiles)', false === has_action( 'load-profile.php', array( 'Mody\Profiles\NetworkProfile', 'redirect' ) ) && false === has_filter( 'wp_is_application_passwords_available_for_user', array( 'Mody\Profiles\NetworkProfile', 'application_passwords' ) ) );

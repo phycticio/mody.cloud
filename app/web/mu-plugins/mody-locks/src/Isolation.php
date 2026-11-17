@@ -2,12 +2,11 @@
 /**
  * Keeps member sites apart from each other and from the network (security pass, 2026-11-12).
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
-use Mody\Platform\Provisioning\Quota;
 use WP_Error;
 use WP_REST_Request;
 
@@ -29,7 +28,6 @@ defined( 'ABSPATH' ) || exit;
  *   member's site could otherwise create one for a super admin who visits.
  * - **Deleting the site.** `delete_site` is refused (MemberSite); the screen
  *   says so kindly (the refusal of the page carries the message).
- * - **The plan's site count.** Sites are counted by owner (Quota).
  * - **Mail.** MemberMail. (How big a picture may be is Mody Images'.)
  *
  * Super admins are not affected by any of it.
@@ -53,10 +51,6 @@ final class Isolation {
 
 		// Deleting the site: the screen is refused before its own hook runs (the capability is gone), so the message goes in the refusal.
 		add_action( 'admin_page_access_denied', array( self::class, 'refuse_delete_site' ) );
-
-		// The plan's sites are the ones a member owns.
-		add_action( 'wp_initialize_site', array( Quota::class, 'on_initialize_site' ), 10, 2 );
-		add_action( 'admin_init', array( Quota::class, 'backfill' ) );
 
 		// Mail the platform sends for a site.
 		add_filter( 'pre_update_option_new_admin_email', array( MemberMail::class, 'limit_admin_email_changes' ), 10, 2 );

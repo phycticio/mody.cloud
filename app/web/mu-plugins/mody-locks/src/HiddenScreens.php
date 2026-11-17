@@ -2,10 +2,10 @@
 /**
  * No Plugins or Connectors screens for anyone (tickets/hide-plugins-and-connectors.md).
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
 use WP_Admin_Bar;
 use WP_Error;

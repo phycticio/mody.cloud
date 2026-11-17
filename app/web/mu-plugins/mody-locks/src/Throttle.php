@@ -2,10 +2,10 @@
 /**
  * A small per-site counter for things a member may do only so often.
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
 defined( 'ABSPATH' ) || exit;
 

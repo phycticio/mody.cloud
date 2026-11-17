@@ -2,12 +2,11 @@
 /**
  * Member sites: capability gating and editor-first redirects (ticket M4-01).
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
-use Mody\Platform\SiteEditor;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -134,12 +133,12 @@ final class MemberSite {
 			if ( 'edit' !== ( $query['action'] ?? '' ) || ! isset( self::ROUTES[ $type ] ) ) {
 				return '';
 			}
-			return SiteEditor::url( self::ROUTES[ $type ][0] . $post_id, true );
+			return self::site_editor( self::ROUTES[ $type ][0] . $post_id, true );
 		}
 
 		if ( 'post-new.php' === $screen ) {
 			$type = sanitize_key( (string) ( $query['post_type'] ?? 'post' ) );
-			return isset( self::ROUTES[ $type ] ) ? SiteEditor::url( self::ROUTES[ $type ][1] ) : '';
+			return isset( self::ROUTES[ $type ] ) ? self::site_editor( self::ROUTES[ $type ][1] ) : '';
 		}
 		return '';
 	}
@@ -159,5 +158,20 @@ final class MemberSite {
 			wp_safe_redirect( $target );
 			exit;
 		}
+	}
+
+	/**
+	 * A Site Editor URL on the current site: WordPress 7.1 routes it with
+	 * `?p=<path>`, and `canvas=edit` opens the editing canvas.
+	 *
+	 * @param string $path   Such as `/page/12` or `/page`.
+	 * @param bool   $canvas Open the canvas instead of the list.
+	 */
+	private static function site_editor( string $path, bool $canvas = false ): string {
+		$args = array( 'p' => rawurlencode( $path ) );
+		if ( $canvas ) {
+			$args['canvas'] = 'edit';
+		}
+		return add_query_arg( $args, admin_url( 'site-editor.php' ) );
 	}
 }

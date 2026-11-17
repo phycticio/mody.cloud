@@ -2,10 +2,10 @@
 /**
  * The `ai` plugin on member sites (ticket M4-03).
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
 use WP_Error;
 use WP_REST_Request;

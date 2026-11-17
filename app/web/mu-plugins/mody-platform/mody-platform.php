@@ -100,48 +100,6 @@ add_action( 'network_admin_edit_' . Members\Offers::SLUG, array( Members\Offers:
 add_action( 'network_admin_edit_' . Agent\AgentSettings::SLUG, array( Agent\AgentSettings::class, 'save' ) );
 
 /*
- * Member sites (every site but the main one, ticket M4-01): no plugin
- * installs or theme changes for members, and pages, patterns and menus open
- * in the Site Editor. Super admins are not affected. The hidden plugins stay
- * out of every list and switch (M4-02), although nobody has a Plugins screen
- * since 2026-11-11 (below).
- */
-add_filter( 'map_meta_cap', array( Gating\MemberSite::class, 'map_meta_cap' ), 10, 4 );
-add_filter( 'all_plugins', array( Gating\MemberPlugins::class, 'filter_screen' ) );
-add_filter( 'pre_update_option_active_plugins', array( Gating\MemberPlugins::class, 'keep_hidden' ), 10, 2 ); // Any code path, e.g. Spectra's onboarding API.
-add_filter( 'rest_pre_dispatch', array( Gating\MemberPlugins::class, 'refuse_rest_item' ), 10, 3 );
-add_filter( 'rest_request_after_callbacks', array( Gating\MemberPlugins::class, 'filter_rest_list' ), 10, 3 );
-add_action( 'load-post.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
-add_action( 'load-post-new.php', array( Gating\MemberSite::class, 'redirect_editor' ) );
-
-/*
- * No Plugins or Connectors screens for anyone, super admins included
- * (decided 2026-11-11, tickets/hide-plugins-and-connectors.md): plugins
- * change only through Composer, ./bin/deploy and WP-CLI, and connector keys
- * only through the environment.
- */
-add_action( 'admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
-add_action( 'network_admin_menu', array( Gating\HiddenScreens::class, 'hide_menus' ), 999 );
-add_action( 'admin_bar_menu', array( Gating\HiddenScreens::class, 'hide_toolbar' ), 999 );
-add_action( 'wp_dashboard_setup', array( Gating\HiddenScreens::class, 'hide_widgets' ), 999 );
-add_action( 'admin_notices', array( Gating\HiddenScreens::class, 'hide_notices' ), 0 ); // The ai plugin's notice that links to the hidden approvals screen.
-add_action( 'admin_init', array( Gating\HiddenScreens::class, 'refuse_screens' ) );
-add_filter( 'register_setting_args', array( Gating\HiddenScreens::class, 'hide_settings' ), 10, 4 );
-add_filter( 'rest_pre_dispatch', array( Gating\HiddenScreens::class, 'refuse_routes' ), 10, 3 );
-
-/*
- * The `ai` plugin on member sites (ticket M4-03): the curated features and the
- * connector approval pinned, its screens and configuration routes refused to
- * members, MCP locked, and its request log table created for new sites.
- */
-add_filter( 'pre_option', array( Gating\AiPlugin::class, 'pin_option' ), 10, 2 );
-add_action( 'admin_menu', array( Gating\AiPlugin::class, 'hide_screens' ), 999 );
-add_action( 'wp_dashboard_setup', array( Gating\AiPlugin::class, 'hide_widgets' ), 999 );
-add_action( 'admin_init', array( Gating\AiPlugin::class, 'refuse_screens' ) );
-add_filter( 'rest_pre_dispatch', array( Gating\AiPlugin::class, 'lock_routes' ), 10, 3 );
-add_action( 'wp_initialize_site', array( Gating\AiPlugin::class, 'create_log_table' ), 200 );
-
-/*
  * Brand wizard (Network Admin → Mody → New site, ticket M2-03): its page and
  * its REST endpoint, which runs the provisioning pipeline after the response.
  */
@@ -207,4 +165,9 @@ if ( function_exists( 'wp_ai_client_prompt' ) ) {
  * group; each group's class registers its own hooks.
  */
 Agent\Hardening::register(); // Model work: one job per user and site, three on the network, a daily token allowance, the ai plugin's abilities, server details for super admins only.
-Gating\Isolation::register(); // Widgets, Application Passwords, deleting a site, owners, mail limits and picture sizes (SpectraGuard handles block script).
+
+/*
+ * The plan's sites are the ones a member owns (security pass, 2026-11-12).
+ */
+add_action( 'wp_initialize_site', array( Provisioning\Quota::class, 'on_initialize_site' ), 10, 2 );
+add_action( 'admin_init', array( Provisioning\Quota::class, 'backfill' ) );

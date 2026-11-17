@@ -2,10 +2,10 @@
 /**
  * The mail a member's site can make the platform send for them (security pass, 2026-11-12).
  *
- * @package Mody\Platform
+ * @package Mody\Locks
  */
 
-namespace Mody\Platform\Gating;
+namespace Mody\Locks;
 
 defined( 'ABSPATH' ) || exit;
 

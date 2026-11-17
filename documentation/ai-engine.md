@@ -560,7 +560,7 @@ an `ai` feature (title, excerpt, …)                 app/web/plugins/ai/include
 
 ### On member sites
 
-Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, decided by the maintainer the same day).
+Built 2026-11-07 for M4-03 (`src/Gating/AiPlugin.php`, since 2026-11-17 `mody-locks/src/AiPlugin.php`, decided by the maintainer the same day).
 
 - **Members get every text feature.**
   - On-demand writing: titles, excerpts, meta descriptions, resizing, editorial updates, summaries, translation, slugs, alt text.

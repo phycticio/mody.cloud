@@ -20,7 +20,7 @@
  * The test user and site are removed, and the saved option restored. No model call.
  */
 
-use Mody\Platform\Gating\AiPlugin;
+use Mody\Locks\AiPlugin;
 
 require_once ABSPATH . 'wp-admin/includes/ms.php';
 
@@ -154,7 +154,7 @@ foreach ( array( 'options-general.php?page=ai-wp-admin', 'tools.php?page=ai-conn
 	}
 }
 $check( 'the plugin\'s screens are refused', ! $refused, implode( ', ', $refused ) );
-$dashboard = $get( $admin_path . 'index.php', $member, $as_member );
+$dashboard = $get( $admin_path . 'admin.php?page=mody-dashboard', $member, $as_member );
 $check( '...and not in the menus', 200 === $dashboard['code'] && ! preg_match( '/page=(ai-wp-admin|ai-connector-approval|ai-mcp-access|ai-request-logs)\b/', $dashboard['body'] ), (string) $dashboard['code'] );
 $routes = array();
 foreach ( array( 'ai/v1/connector-approvals', 'ai/v1/settings/export', 'mcp/mcp-adapter-default-server' ) as $route ) {
