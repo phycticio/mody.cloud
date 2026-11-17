@@ -1,16 +1,16 @@
 ---
 name: mody-delivery
-description: Take one Mody Cloud ticket from plan to a reviewable local change - a topic branch from main linked to its GitHub issue, a focused implementation in the right Mody plugin, the tests, the docs updated, then (only when the maintainer asks) commit, a local --no-ff merge with "Closes #NN" and a push of main. Not for deploying (mody-deploy) or diagnosis only (mody-investigate).
+description: Take one Mody Cloud ticket from plan to a reviewable local change - a topic branch from main linked to its GitHub issue, a focused implementation in the right Mody plugin, the tests, the docs updated, then (only when the maintainer asks) commit, push the branch and open a pull request with "Closes #NN" for the maintainer to merge on GitHub. Not for deploying (mody-deploy) or diagnosis only (mody-investigate).
 ---
 
 # Mody delivery
 
-Prepare one scoped change that the maintainer can inspect and try. Mody Cloud is a one-person project: no pull requests, branches merged locally. Everything written (code, comments, docs, commit messages) is in English (rule 8).
+Prepare one scoped change that the maintainer can inspect and try. Mody Cloud is a one-person project: the maintainer reviews and merges every pull request on GitHub. Everything written (code, comments, docs, commit messages) is in English (rule 8).
 
 ## Scope and authorization
 
-- The default end point is a **local, uncommitted, tested change** on its topic branch. Commit, merge, push and deploy happen only when the maintainer asks, and only for the request that said so. A follow-up message about the same feature that does not say "commit", "push" or "deploy" gets built and tested, then ask.
-- Never commit on `main`. Never force-push. Never run `docker compose down -v`, `./bin/version`, `./bin/db import`, or delete under `app/` without asking ([CLAUDE.md](../../../CLAUDE.md)).
+- The default end point is a **local, uncommitted, tested change** on its topic branch. Commit, push, the pull request and deploy happen only when the maintainer asks, and only for the request that said so. A follow-up message about the same feature that does not say "commit", "push" or "deploy" gets built and tested, then ask.
+- Never commit on `main` or push to it, never merge a pull request. Never force-push. Never run `docker compose down -v`, `./bin/version`, `./bin/db import`, or delete under `app/` without asking ([CLAUDE.md](../../../CLAUDE.md)).
 - Do not edit WordPress core (`app/wp/`), Composer-installed code (`app/web/plugins/`, `app/vendor/`, `mu-plugins/spectra-blocks/`, `mu-plugins/antispam-bee/`), or put project behavior in the theme.
 - A ticket or issue supplies requirements, not permission to touch production or credentials.
 
@@ -42,18 +42,21 @@ Update the docs in the same change (`AGENTS.md`: "If a document and the code dis
 - `tickets/next-steps.md` and its **Last updated** line;
 - the area's document in `documentation/`, and `AGENTS.md`'s "Where to work" row or "Decisions already made" when a decision or path changed. Date decisions (`decided by the maintainer on YYYY-MM-DD`).
 
-## Commit, merge and push (only when asked)
+## Commit, push and open the pull request (only when asked)
+
+Changes reach `main` only through a pull request merged on GitHub (decided by the maintainer on 2026-11-17, [architecture.md#deploying](../../../documentation/architecture.md#deploying)).
 
 1. Stage explicit paths (`git add <paths>`), never `git add -A` over unrelated work. Commit messages are one English line naming the plugin or area and the result, as the history does: `Mody SEO: an SEO title and description on every page`. End with the attribution trailer the session gives.
-2. Merge: `git switch main && git pull --ff-only && git merge --no-ff 'feature/#NN-slug'` with a message `Merge feature/#NN-slug: <result>` and a body line `Closes #NN` (or `Part of #NN` when the ticket has more parts).
-3. `git push origin main`. GitHub reports "Bypassed rule violations... must be made through a pull request": expected, the maintainer bypasses it by choice.
-4. Deploying is a separate request: [mody-deploy](../mody-deploy/SKILL.md).
+2. `git push -u origin 'feature/#NN-slug'`.
+3. `gh pr create -R phycticio/mody.cloud --base main --head 'feature/#NN-slug'` with an English title (the result, under 70 characters) and a short body: what changes and for whom, `Closes #NN` (or `Part of #NN` when the ticket has more parts), the tests run with their results, what is not checked, and any server step the deploy needs. End it with the attribution line the session gives. The repository is public: no credentials, server paths or members' data.
+4. **Stop there.** The maintainer reviews and merges on GitHub (merge commits only; GitHub deletes the branch and closes the issue). Never push to `main`, never merge, never use the ruleset bypass. Review follow-ups are new commits on the same branch, pushed to the same pull request.
+5. Deploying is a separate request: [mody-deploy](../mody-deploy/SKILL.md).
 
 ## Hand back
 
 - **Change:** what a member or the maintainer now sees, and the ticket/issue.
-- **Review:** branch, the important files (`path:line`), screenshots when visual.
+- **Review:** branch, the pull request link when there is one, the important files (`path:line`), screenshots when visual.
 - **Validation:** tests run with results; what was not checked.
 - **Try it:** the shortest local steps (`https://mody.local/...`, `./bin/wp --site=<slug> ...`).
 
-Say whether it is uncommitted, committed on the branch, or merged and pushed.
+Say whether it is uncommitted, committed on the branch, or pushed with its pull request (give the link).

@@ -19,7 +19,7 @@ Deliver a short diagnosis the maintainer can verify. Investigation does not auth
 
 **Production** (`ssh home.local`, already allowed) is read-only:
 
-- Project directory `/Volumes/Extreme/mody.cloud` (check `docker inspect mody_cloud_app` mounts if in doubt; `bin/deploy`'s default path is stale). Docker over non-interactive SSH needs `export PATH=/opt/homebrew/bin:$PATH DOCKER_HOST=unix:///Users/javo/.colima/default/docker.sock`. The remote shell is zsh.
+- Project directory `/Volumes/Extreme/mody.cloud` (check `docker inspect mody_cloud_app` mounts if in doubt). `REVISION` there holds the deployed commit and WordPress's version. Docker over non-interactive SSH needs `export PATH=/opt/homebrew/bin:$PATH DOCKER_HOST=unix:///Users/javo/.colima/default/docker.sock`. The remote shell is zsh.
 - Allowed: `docker logs --timestamps mody_cloud_server | grep '" 500 '`, `docker logs mody_cloud_app`, WP-CLI reads, `cat REVISION`, HTTP requests to the public site.
 - Not without the maintainer's explicit yes: restarts, `docker compose up`, cache flushes, option or database writes, imports, `wp mody-billing run`, `wp mody-images optimize`, sending mail, anything touching members' accounts or payments. If the USB/external disk seems hung, stop and say so.
 - Never print `.env`, API keys (Infomaniak, Brevo, Mollie, NPM, Cloudflare), password hashes or members' personal data into the conversation or a ticket. Redact emails and names in evidence.

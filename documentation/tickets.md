@@ -18,7 +18,7 @@ The tickets are part of the codebase so that **every agent can see what everyone
 
 - New tickets go in `tickets/`, with `**Issue:** #NN` in their header line.
 - The issue is a pointer; the ticket file holds the goal, decisions, open questions and results.
-- Branches carry the issue number (`feature/#NN-slug`), and the `--no-ff` merge commit says `Closes #NN` (or `Part of #NN`), so pushing `main` closes the issue ([architecture.md](architecture.md#deploying)).
+- Branches carry the issue number (`feature/#NN-slug`), and the pull request's body says `Closes #NN` (or `Part of #NN`), so merging it on GitHub closes the issue ([architecture.md](architecture.md#deploying)).
 - Close an issue by hand only to decline it, with a comment.
 - The early milestone issues (#2 to #10, 2026-11-02) copied their ticket's body; newer issues only link to it.
 - The Claude Code skills `mody-ticket` and `mody-delivery` (`.claude/skills/`) follow these conventions.

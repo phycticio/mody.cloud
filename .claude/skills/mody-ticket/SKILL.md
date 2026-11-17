@@ -41,7 +41,7 @@ Use `gh` against `phycticio/mody.cloud` explicitly (`-R phycticio/mody.cloud`).
 
 ## Keep the link derivable
 
-- Branch `feature/#NN-slug` (or `fix/`, `docs/`), and the `--no-ff` merge commit's body says `Closes #NN`, or `Part of #NN` when more work remains. Pushing `main` then closes the issue. [mody-delivery](../mody-delivery/SKILL.md) owns this.
+- Branch `feature/#NN-slug` (or `fix/`, `docs/`), and the pull request's body says `Closes #NN`, or `Part of #NN` when more work remains. Merging it on GitHub then closes the issue. [mody-delivery](../mody-delivery/SKILL.md) owns this.
 - Close an issue by hand only to decline it (`wontfix`, `duplicate`) with a one-line comment, and say so in the ticket.
 
 ## Hand back
