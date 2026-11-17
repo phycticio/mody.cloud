@@ -3,10 +3,10 @@
  * Makes WordPress.org patterns fit a Mody site (the design market, ticket
  * design-market-themes-patterns.md). Used by scripts/import-patterns.php.
  *
- * @package Mody\Platform
+ * @package Mody\Patterns
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Patterns;
 
 use WP_HTML_Tag_Processor;
 use WP_Theme_JSON_Resolver;

@@ -29,19 +29,10 @@ spl_autoload_register(
 );
 
 /*
- * The design market (built 2026-11-08): every site's patterns are the Mody
- * collection (patterns/collection.json), rewritten from WordPress.org's
- * Pattern Directory and core's patterns; nothing is fetched from
- * WordPress.org. Placeholder images are served here, before the rest of
- * WordPress runs.
+ * Served before the rest of WordPress runs.
  */
-Design\Patterns::serve_placeholder();
 Users\Avatars::serve_initials(); // Initials in place of Gravatar (tickets/network-profile-local-avatars.md).
 Export\Downloads::serve(); // A site's download files, through signed links (tickets/take-your-site-with-you.md).
-add_filter( 'should_load_remote_block_patterns', '__return_false' );
-add_action( 'after_setup_theme', array( Design\Patterns::class, 'remove_core_patterns' ), 20 );
-add_action( 'rest_api_init', array( Design\Patterns::class, 'register' ), 5 );
-add_filter( 'rest_pre_dispatch', array( Design\Patterns::class, 'refuse_directory' ), 10, 3 );
 
 /*
  * Network-wide tables (mvp-spec section 11). Creates or updates them only

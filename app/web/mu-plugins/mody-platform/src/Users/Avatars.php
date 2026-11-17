@@ -186,7 +186,7 @@ final class Avatars {
 	/**
 	 * Serves an initials image, when this request is for one, and stops.
 	 * Called when the MU plugin loads, before the rest of WordPress runs
-	 * (like Design\Patterns::serve_placeholder()).
+	 * (like Mody Patterns' Patterns::serve_placeholder()).
 	 */
 	public static function serve_initials(): void {
 		$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '';

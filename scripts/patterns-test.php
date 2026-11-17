@@ -23,8 +23,8 @@
  * (ticket, Results).
  */
 
-use Mody\Platform\Design\PatternImport;
-use Mody\Platform\Design\Patterns;
+use Mody\Patterns\PatternImport;
+use Mody\Patterns\Patterns;
 
 $failures = 0;
 $check    = static function ( string $label, bool $ok, string $detail = '' ) use ( &$failures ): void {

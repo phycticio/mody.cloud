@@ -53,7 +53,7 @@ The maintainer said "implement this ticket now" without choosing among the three
 - **Colors:** mapped to the palette.
 
 **Built:**
-- **`src/Design/PatternImport.php`: the rewrite.** It changes attributes and the saved HTML together, so blocks stay valid.
+- **`src/Design/PatternImport.php`: the rewrite** (since 2026-11-17 in the `mody-patterns` plugin, `src/PatternImport.php` and `src/Patterns.php`). It changes attributes and the saved HTML together, so blocks stay valid.
   - **Images:** `<img src>`, cover `url`, CSS `url(...)` backgrounds → `/mody-placeholder/<w>x<h>.svg` at the block's size. `srcset`, `sizes`, attachment IDs, `wp-image-N` and the Media & Text `size-*` class are removed.
   - **Colors:** core's slugs (`black`, `white`…) and custom hex values (text, background, cover overlays, borders, links, separators, inline text colors) → the nearest palette slug (weighted RGB distance to the theme's palette). Social icons get `var(--wp--preset--color--<slug>)`, so they follow each site's preset. Duotone goes, and stray color classes typed by authors go.
   - **Fonts:** families the theme lacks are dropped; sizes are mapped to the theme's (`extra-small` → `small`, `normal` → `medium`).

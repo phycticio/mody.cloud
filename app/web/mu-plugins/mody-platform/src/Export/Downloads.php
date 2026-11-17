@@ -27,7 +27,7 @@ defined( 'ABSPATH' ) || exit;
  * link in an old email or tab is just a 302 back to the export section.
  *
  * serve() runs when the MU plugin loads, before the rest of WordPress, like
- * Design\Patterns::serve_placeholder(). Behind Nginx it checks the link and
+ * Mody Patterns' Patterns::serve_placeholder(). Behind Nginx it checks the link and
  * answers with `X-Accel-Redirect` to the internal location in
  * config/nginx/app.conf.template: Nginx streams the file itself, with Range
  * (resumable) and no PHP worker held. Nginx says it has that location with

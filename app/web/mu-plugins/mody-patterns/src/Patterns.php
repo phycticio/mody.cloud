@@ -3,10 +3,10 @@
  * The Mody patterns collection: the design market (ticket
  * design-market-themes-patterns.md).
  *
- * @package Mody\Platform
+ * @package Mody\Patterns
  */
 
-namespace Mody\Platform\Design;
+namespace Mody\Patterns;
 
 use WP_Error;
 use WP_REST_Request;
@@ -58,7 +58,7 @@ final class Patterns {
 	 * @return array<string, mixed>
 	 */
 	public static function collection(): array {
-		$file = dirname( __DIR__, 2 ) . '/' . self::FILE;
+		$file = dirname( __DIR__ ) . '/' . self::FILE;
 		if ( ! is_readable( $file ) ) {
 			return array( 'patterns' => array() );
 		}

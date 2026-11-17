@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Mody Site
- * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: its login page and Settings → Login, SEO titles and descriptions, placeholder images and initials avatars. Mody, the AI agent, is not part of it.
+ * Description:       What a site made on Mody Cloud needs to look and work the same on any WordPress: its login page and Settings → Login, SEO titles and descriptions, initials avatars. Mody, the AI agent, is not part of it.
  * Version:           1.0.0
  * Author:            Mody Cloud
  * Author URI:        https://mody.cloud
@@ -40,10 +40,9 @@ spl_autoload_register(
 );
 
 /*
- * Placeholder images (/mody-placeholder/<w>x<h>.svg) and initials avatars
- * (/mody-avatar/...), drawn here, before the rest of WordPress runs.
+ * Initials avatars (/mody-avatar/...), drawn here, before the rest of
+ * WordPress runs.
  */
-Design\Patterns::serve_placeholder();
 Users\Avatars::serve_initials();
 add_filter( 'pre_get_avatar_data', array( Users\Avatars::class, 'avatar_data' ), 10, 2 );
 add_filter( 'avatar_defaults', array( Users\Avatars::class, 'defaults' ) );
