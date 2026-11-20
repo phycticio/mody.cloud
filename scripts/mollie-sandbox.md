@@ -33,11 +33,13 @@ On Plan & billing, **Withdraw from the contract** (tick, then the button): the c
 
 With the test key as `MOLLIE_API_KEY` in production's `.env`, members are offered nothing (a sandbox key on production is for this check only). To see Mollie's real webhook:
 
-1. On the server, make a throwaway member (a user with a `mody_members` row), then `wp mody-billing card-check <their email>`: it prints Mollie's test checkout link and says Mollie will call `https://mody.cloud/wp-json/mody-platform/v1/mollie/webhook`.
-2. Pay at the link with a test card, outcome **Paid**. Do not come back to the site from the checkout.
+1. On the server, make a throwaway member: a user with a `mody_members` row made with `Members::create( $id, 'free', 'active' )`, not `start_free()`, so it takes no launch-offer place. Use an email you can read: the terms email goes out through Brevo. Then `wp mody-billing card_check <their email>` (an underscore): it prints Mollie's test checkout link and says Mollie will call `https://mody.cloud/wp-json/mody-platform/v1/mollie/webhook`.
+2. Pay at the link **within about 15 minutes** (an unpaid card payment expires then; the webhook marks it `expired`, and the old link sends the browser back to the site) with a test card, outcome **Paid**. Coming back to the site logged in as someone else is harmless: the return page applies a payment only for its own member (`Billing::returned()`).
 3. `wp mody-billing status <their email>`: the card check is `paid, applied`, applied by the webhook alone. Nginx's log shows Mollie's `POST /wp-json/mody-platform/v1/mollie/webhook`.
-4. In Mollie's dashboard, refund the 0.01 EUR: the webhook comes again, and `status` shows it refunded.
-5. Remove the throwaway member, then put the live key in `.env` (`docker compose up -d wordpress`, then `docker compose restart nginx`).
+4. In Mollie's dashboard, refund the 0.01 EUR. The refund stays `pending` for a while (about 11 minutes on 2026-11-18); when Mollie processes it, the webhook comes again, and `status` shows `refunded_at`.
+5. Remove the throwaway member (its `mody_payments` rows, `Members::delete()`, `wpmu_delete_user()`), then put the live key in `.env` (`docker compose up -d wordpress`, then `docker compose restart nginx`).
+
+**Done on 2026-11-18:** a paid card check applied by the webhook alone (11:49:15 UTC, a second after the browser came back as another user), an expired one the day before, and a refund made in Mollie's dashboard applied by the webhook at 12:05:24, 11 minutes after it was made. The throwaway member was removed; production had 0 payments after.
 
 ## A paid sign-up (after the launch offer)
 
