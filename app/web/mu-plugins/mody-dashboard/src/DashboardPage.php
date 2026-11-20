@@ -195,7 +195,7 @@ final class DashboardPage {
 		}
 		if ( class_exists( Members::class ) && class_exists( Quota::class ) && class_exists( Billing::class ) && Members::get( get_current_user_id() ) ) { // Mody Members' accounts, Mody Sites' sites, Mody Billing's plans.
 			$sections['sites'] = __( 'Your sites', 'mody_cloud' );
-			$sections['plan']  = __( 'Plan & billing', 'mody_cloud' );
+			$sections['plan']  = self::payments_on() ? __( 'Plan & billing', 'mody_cloud' ) : __( 'Your plan', 'mody_cloud' );
 		}
 		$added = apply_filters( 'mody_dashboard_sections', $sections ); // Other plugins' sections.
 		return is_array( $added ) && isset( $added['overview'] ) ? array_map( 'strval', $added ) : $sections;
@@ -714,12 +714,12 @@ final class DashboardPage {
 					$free = 'free' === (string) ( Members::get( $user )['plan'] ?? '' );
 					echo esc_html(
 						$free
-							? __( 'The launch offer includes one site.', 'mody_cloud' )
+							? __( 'The free plan includes one site.', 'mody_cloud' )
 							/* translators: %d: the most sites an account can have. */
 							: sprintf( __( 'An account can have %d sites.', 'mody_cloud' ), $limit )
 					);
 					?>
-					<a href="<?php echo esc_url( self::url( 'plan' ) ); ?>"><?php esc_html_e( 'Plan & billing', 'mody_cloud' ); ?></a>
+					<a href="<?php echo esc_url( self::url( 'plan' ) ); ?>"><?php echo esc_html( self::payments_on() ? __( 'Plan & billing', 'mody_cloud' ) : __( 'Your plan', 'mody_cloud' ) ); ?></a>
 				</span>
 			<?php endif; ?>
 		</div>
@@ -897,12 +897,61 @@ final class DashboardPage {
 	}
 
 	/**
-	 * Plan & billing (decided 2026-11-13): the launch offer's free months or
-	 * what the account pays (its sites times the price), the next payment,
-	 * the card, and the choice between paying monthly and yearly.
+	 * Whether payments are on (Mody Billing offers cards). Off while Mody
+	 * Cloud is a free service (decided by the maintainer on 2026-11-20,
+	 * tickets/free-mvp.md).
+	 */
+	private static function payments_on(): bool {
+		return class_exists( Mollie::class ) && Mollie::offered();
+	}
+
+	/**
+	 * Your plan, while payments are off: the free plan and what it gives.
+	 * No price, card or payment (tickets/free-mvp.md).
+	 */
+	private static function render_free_plan(): void {
+		$space  = size_format( (int) get_site_option( 'blog_upload_space', 500 ) * MB_IN_BYTES ); // The network's space per site (Mody Storage sets it).
+		$tokens = number_format_i18n( class_exists( Budget::class ) ? Budget::MONTH : 5000000 ); // Mody Agent's monthly tokens; the plan's number without it.
+		?>
+		<table class="mody-brand__rows">
+			<tbody>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Your plan', 'mody_cloud' ); ?></th>
+					<td><?php esc_html_e( 'Free: one site, no card needed.', 'mody_cloud' ); ?></td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Included', 'mody_cloud' ); ?></th>
+					<td>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: 1: space per site, such as 500 MB, 2: Mody's tokens a month, such as 5,000,000. */
+								__( '%1$s of space, the full Site Editor, everything built in, and your own Mody with %2$s tokens a month.', 'mody_cloud' ),
+								$space,
+								$tokens
+							)
+						);
+						?>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<p class="mody-dashboard__note"><?php esc_html_e( 'Paid plans with more will come later. You can download your whole site at any time, under Download your site.', 'mody_cloud' ); ?></p>
+		<?php
+	}
+
+	/**
+	 * Plan & billing (decided 2026-11-13): what the account pays (its sites
+	 * times the price), the next payment, the card, and the choice between
+	 * paying monthly and yearly. A free account while payments are off:
+	 * render_free_plan().
 	 */
 	private static function render_plan(): void {
 		$user = get_current_user_id();
+		if ( ! self::payments_on() && 'free' === (string) ( Members::get( $user )['plan'] ?? 'free' ) ) {
+			self::render_free_plan();
+			return;
+		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: the payment Mollie's checkout returned from; it is checked with Mollie.
 		$back = isset( $_GET['payment'] ) ? Billing::returned( $user, absint( $_GET['payment'] ) ) : '';
 		self::render_billing_notice( $back );

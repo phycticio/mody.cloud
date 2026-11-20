@@ -1,8 +1,8 @@
 <?php
 /**
  * The registration page on the main site: a chat that creates a member's
- * account, its free months and first site (mvp-spec section 4, "Signup flow";
- * tickets M1-01 part 2 and M1-03; the launch offer since 2026-11-13).
+ * free account and first site (mvp-spec section 4, "Signup flow"; tickets
+ * M1-01 part 2 and M1-03; a free service since 2026-11-20, free-mvp.md).
  *
  * @package Mody\Members
  */
@@ -24,8 +24,8 @@ use WP_User;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * `mody.cloud/register/`: four questions, then the account, its free months
- * and the site exist, and an email holds the link to choose a password.
+ * `mody.cloud/register/`: four questions, then the free account and the site
+ * exist, and an email holds the link to choose a password.
  *
  * Decided by the maintainer on 2026-11-08:
  * - **The page** holds the dynamic block `mody/register`, rendered by PHP.
@@ -44,8 +44,8 @@ defined( 'ABSPATH' ) || exit;
  *   project's name and its address, one at a time (`assets/register.js`,
  *   no build step). Each answer is checked on the server (check(), through
  *   `mody-platform/v1/register/check`) before the next question. Then
- *   register() creates the user with a random password, gives it a place
- *   of the launch offer (Members::start_free(): six months free, one site),
+ *   register() creates the user with a random password, makes it free
+ *   (Members::start_free(): one site, no card, no end date),
  *   creates the site (Pipeline, a `starter` site: no model call) and
  *   sends the welcome email with the set-password link. Choosing the
  *   password logs the member in on the site's Identity screen (Onboarding).
@@ -85,11 +85,18 @@ defined( 'ABSPATH' ) || exit;
  * opens soon, and both REST routes refuse. Open it with
  * `wp site option update mody_registration_open 1`.
  *
- * **The launch offer, then paying** (decided 2026-11-13): signing up gives
- * one of the offer's 50 places. Once they are taken, or its three months
- * have passed, signing up means paying (M1-01 part 3b, built 2026-11-13),
- * when Mollie is set up (`MOLLIE_API_KEY`); without it the block says paid
- * sign-ups open soon, and both routes refuse (takes_accounts()).
+ * **Free, from Spain** (decided by the maintainer on 2026-11-20,
+ * tickets/free-mvp.md; it replaces the launch offer of 2026-11-13): every
+ * sign-up is a free account. Sign-ups are open to everyone, or to invited
+ * people only (Offers). Only people who live in Spain may sign up: the
+ * visitor confirms it before the account is made (`spain` in the chat, the
+ * `mody_spain` box in the form), and an address our own location data
+ * (Mody Analytics' DB-IP file, on our server) places outside Spain is
+ * refused (outside_spain()). An address it cannot place is let through.
+ *
+ * **Paid sign-ups** (M1-01 part 3b, built 2026-11-13) only when Mody
+ * Billing offers payments (Billing\Mollie::offered(), off while the
+ * service is free) and sign-ups do not take the visitor for free.
  *
  * **A paid sign-up:** the same chat and the same answer for every email
  * (so it tells nothing about who has an account). For a new email the user
@@ -175,22 +182,57 @@ final class Registration {
 	}
 
 	/**
-	 * Whether a visitor can sign up now: registration is open and the launch
-	 * offer takes them, or card payments are offered.
+	 * Whether a visitor can sign up now: registration is open and a free
+	 * account takes them, or card payments are offered.
 	 *
 	 * @param bool $invited Whether they came through an invite link.
 	 */
 	public static function takes_accounts( bool $invited = false ): bool {
-		return self::is_open() && ( Members::promo_open( $invited ) || self::paid_signups() );
+		return self::is_open() && ( Members::free_open( $invited ) || self::paid_signups() );
 	}
 
 	/**
-	 * Whether signing up now means paying: the offer does not take them and Mollie is set up.
+	 * Whether signing up now means paying: no free account takes them and payments are offered.
 	 *
 	 * @param bool $invited Whether they came through an invite link.
 	 */
 	public static function paying( bool $invited = false ): bool {
-		return ! Members::promo_open( $invited ) && self::paid_signups();
+		return ! Members::free_open( $invited ) && self::paid_signups();
+	}
+
+	/**
+	 * Whether the visitor's address is placed outside Spain by our own
+	 * location data (Mody Analytics' Geo\Locator, DB-IP on our server; rule 1).
+	 * False when it cannot tell: no Mody Analytics, no file, a private or
+	 * unknown address. The filter `mody_registration_country` lets tests set
+	 * the country.
+	 */
+	public static function outside_spain(): bool {
+		$country = '';
+		if ( class_exists( \Mody\Analytics\Geo\Locator::class ) && class_exists( \Mody\Security\ClientAddress::class ) ) {
+			$country = (string) \Mody\Analytics\Geo\Locator::locate( \Mody\Security\ClientAddress::get() )['country'];
+		}
+		/**
+		 * Filters the visitor's country (ISO code, '' when unknown).
+		 *
+		 * @param string $country The country from the location data.
+		 */
+		$country = strtoupper( (string) apply_filters( 'mody_registration_country', $country ) );
+		return '' !== $country && 'ES' !== $country;
+	}
+
+	/**
+	 * What a visitor outside Spain reads.
+	 */
+	public static function spain_only_message(): string {
+		return __( 'Mody Cloud is open to people who live in Spain for now. Thank you for your interest!', 'mody_cloud' );
+	}
+
+	/**
+	 * What the visitor confirms before the account is made.
+	 */
+	public static function spain_confirmation(): string {
+		return __( 'I live in Spain.', 'mody_cloud' );
 	}
 
 	/**
@@ -581,8 +623,8 @@ final class Registration {
 
 		$inviter = Invites::inviter( $ref );
 		$free    = Members::start_free( $user_id, $inviter > 0 );
-		if ( is_wp_error( $free ) && 'mody_promo_closed' === $free->get_error_code() && self::paid_signups() ) {
-			// The offer is over: a paid sign-up, no site until the first payment.
+		if ( is_wp_error( $free ) && 'mody_signups_invited_only' === $free->get_error_code() && self::paid_signups() ) {
+			// Not free for them: a paid sign-up, no site until the first payment.
 			$pending = self::start_paid( $user_id, $title, $slug );
 			if ( is_wp_error( $pending ) ) {
 				$undo();
@@ -599,7 +641,7 @@ final class Registration {
 		}
 		if ( is_wp_error( $free ) ) {
 			$undo();
-			return 'mody_promo_closed' === $free->get_error_code() ? $free : $failed;
+			return 'mody_signups_invited_only' === $free->get_error_code() ? $free : $failed;
 		}
 		Invites::record( $user_id, $inviter );
 		$job_id = Pipeline::start(
@@ -637,7 +679,7 @@ final class Registration {
 	}
 
 	/**
-	 * The welcome email: the site, its free months, and the link to choose a
+	 * The welcome email: the site, its plan, and the link to choose a
 	 * password (WordPress's own reset screen, valid for a day).
 	 *
 	 * @param WP_User|false $user  The new member.
@@ -669,16 +711,14 @@ final class Registration {
 			);
 			return wp_mail( $user->user_email, __( 'Welcome to Mody Cloud: choose your password', 'mody_cloud' ), $body );
 		}
-		$body  = sprintf(
-			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page, 6: the last free day, 7: a site's monthly price. */
-			__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour site is free until %6\$s, and no card is needed until then. After that, it costs %7\$s a month, VAT included.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
+		$body = sprintf(
+			/* translators: 1: the member's name, 2: the site's name, 3: the site's address, 4: the set-password link, 5: the login page. */
+			__( "Hello %1\$s,\n\nWelcome to Mody Cloud! Your site %2\$s is ready at:\n%3\$s\n\nChoose your password to step in:\n%4\$s\n\nThe link works for 24 hours. After that, use \"Lost your password?\" on the login page:\n%5\$s\n\nYour site is free, and no card is needed. What your plan includes is on your site's Dashboard, under Your plan.\n\nOnce your password is set, you land in your site's editor, where Mody, your AI agent, shows you around.\n\nMody Cloud", 'mody_cloud' ),
 			mb_substr( $user->display_name, 0, self::MAX_NAME ),
 			$title,
 			$url,
 			$link,
-			wp_login_url(),
-			$ends ? wp_date( (string) get_option( 'date_format' ), $ends ) : '',
-			Members::price( Members::PRICE['monthly'] )
+			wp_login_url()
 		);
 		return wp_mail( $user->user_email, __( 'Welcome to Mody Cloud: choose your password', 'mody_cloud' ), $body );
 	}
@@ -1013,6 +1053,10 @@ final class Registration {
 						'maxLength' => 4096,
 					),
 					'ref'    => $ref,
+					'spain'  => array( // The visitor confirmed they live in Spain (free-mvp.md).
+						'type'    => 'boolean',
+						'default' => false,
+					),
 				),
 			)
 		);
@@ -1030,8 +1074,11 @@ final class Registration {
 			return new WP_Error( 'mody_registration_closed', __( 'Registration is not open yet.', 'mody_cloud' ), array( 'status' => 403 ) );
 		}
 		$invited = Invites::inviter( (string) $request['ref'] ) > 0;
-		if ( ! Members::promo_open( $invited ) && ! self::paid_signups() ) {
-			return new WP_Error( 'mody_promo_closed', Members::promo_closed_message( $invited ), array( 'status' => 403 ) );
+		if ( ! Members::free_open( $invited ) && ! self::paid_signups() ) {
+			return new WP_Error( 'mody_signups_invited_only', Members::free_closed_message(), array( 'status' => 403 ) );
+		}
+		if ( self::outside_spain() ) {
+			return new WP_Error( 'mody_outside_spain', self::spain_only_message(), array( 'status' => 403 ) );
 		}
 		if ( ! wp_verify_nonce( (string) $request['nonce'], self::ACTION ) ) {
 			return new WP_Error( 'mody_registration_expired', __( 'This page expired. Please reload it and try again.', 'mody_cloud' ), array( 'status' => 403 ) );
@@ -1081,6 +1128,9 @@ final class Registration {
 		if ( ! self::altcha_passed( $request['altcha'] ) ) {
 			return new WP_Error( 'mody_altcha_failed', Altcha::failed_message(), array( 'status' => 403 ) );
 		}
+		if ( true !== $request['spain'] ) {
+			return new WP_Error( 'mody_spain_unconfirmed', __( 'Please confirm that you live in Spain.', 'mody_cloud' ), array( 'status' => 400 ) );
+		}
 		$account = self::register( (string) $request['name'], (string) $request['email'], (string) $request['title'], (string) $request['slug'], true, (string) $request['ref'] );
 		if ( is_wp_error( $account ) ) {
 			$status = (int) ( ( (array) $account->get_error_data() )['status'] ?? 0 );
@@ -1111,6 +1161,7 @@ final class Registration {
 		foreach ( self::FIELDS as $key ) {
 			self::$values[ $key ] = sanitize_text_field( $field( 'mody_' . $key ) );
 		}
+		self::$values['spain'] = '' !== $field( 'mody_spain' ) ? '1' : '';
 		if ( ! wp_verify_nonce( sanitize_key( $field( '_mody_nonce' ) ), self::ACTION ) ) {
 			self::$errors = array( 'form' => __( 'The form expired. Please try again.', 'mody_cloud' ) );
 			return;
@@ -1125,8 +1176,16 @@ final class Registration {
 		}
 		$ref     = self::invite_code();
 		$invited = Invites::inviter( $ref ) > 0;
-		if ( ! Members::promo_open( $invited ) && ! self::paid_signups() ) {
-			self::$errors = array( 'form' => Members::promo_closed_message( $invited ) );
+		if ( ! Members::free_open( $invited ) && ! self::paid_signups() ) {
+			self::$errors = array( 'form' => Members::free_closed_message() );
+			return;
+		}
+		if ( self::outside_spain() ) {
+			self::$errors = array( 'form' => self::spain_only_message() );
+			return;
+		}
+		if ( '' === $field( 'mody_spain' ) ) {
+			self::$errors = array( 'spain' => __( 'Please confirm that you live in Spain.', 'mody_cloud' ) );
 			return;
 		}
 		if ( ! self::altcha_passed() ) {
@@ -1225,8 +1284,8 @@ final class Registration {
 			$ref = ''; // An unknown code is ignored.
 		}
 		if ( ! self::takes_accounts( $invited ) ) {
-			// A form posted while closed says so; otherwise, when it opens, or that the launch offer's places are taken.
-			$closed = self::is_open() ? Members::promo_closed_message( $invited ) : __( 'Registration opens soon.', 'mody_cloud' );
+			// A form posted while closed says so; otherwise, when it opens, or that sign-ups are by invitation.
+			$closed = self::is_open() ? Members::free_closed_message() : __( 'Registration opens soon.', 'mody_cloud' );
 			return '<div ' . $wrapper . '><p role="status">' . esc_html( self::$errors['form'] ?? $closed ) . '</p></div>';
 		}
 
@@ -1269,6 +1328,10 @@ final class Registration {
 					</span>
 					<span class="mody-register__hint"><?php esc_html_e( 'Lowercase letters and numbers, at least 4.', 'mody_cloud' ); ?></span>
 					<?php echo $error( 'slug' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $error. ?>
+				</p>
+				<p class="mody-register__field mody-register__spain">
+					<label class="mody-register__accept"><input id="mody-register-spain" name="mody_spain" type="checkbox" value="1" required<?php checked( '' !== $value( 'spain' ) ); ?><?php echo $aria( 'spain' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $aria. ?>> <?php echo esc_html( self::spain_confirmation() ); ?></label>
+					<?php echo $error( 'spain' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in $error. ?>
 				</p>
 				<?php echo class_exists( Altcha::class ) ? Altcha::widget() : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in widget(). ?>
 				<noscript><p class="mody-register__error"><?php esc_html_e( 'Signing up needs JavaScript: your browser solves a small puzzle that shows you are not a robot. Please turn JavaScript on and reload this page.', 'mody_cloud' ); ?></p></noscript>
@@ -1406,8 +1469,7 @@ final class Registration {
 			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
 			return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions, then pay the first month by card: %s a month per site, VAT included. Your site is ready right after.', 'mody_cloud' ), Members::price( Members::PRICE['monthly'] ) );
 		}
-		/* translators: 1: free months, 2: a site's monthly price, such as 7.99 EUR. */
-		return sprintf( __( 'Hi! I\'m Mody. Answer four quick questions and your website is ready. It is free for %1$d months, no card needed; after that, %2$s a month, VAT included.', 'mody_cloud' ), Offers::free_months(), Members::price( Members::PRICE['monthly'] ) );
+		return __( 'Hi! I\'m Mody. Answer four quick questions and your free website is ready, no card needed. Mody Cloud is open to people who live in Spain for now.', 'mody_cloud' );
 	}
 
 	/**
@@ -1438,14 +1500,14 @@ final class Registration {
 				'askSlugNew' => __( 'Now choose your site\'s address: type the part before %s. Lowercase letters and numbers, at least 4.', 'mody_cloud' ),
 				/* translators: %s: an address, such as bakery.mody.cloud. */
 				'keep'       => __( 'Keep %s', 'mody_cloud' ),
-				'summary'    => __( 'Here is what I have. Shall I create your account and your site?', 'mody_cloud' ),
+				'summary'    => __( 'Here is what I have. Mody Cloud is open to people who live in Spain for now: if you do, shall I create your account and your site?', 'mody_cloud' ),
 				'labels'     => array(
 					'name'  => __( 'Name', 'mody_cloud' ),
 					'email' => __( 'Email', 'mody_cloud' ),
 					'title' => __( 'Project', 'mody_cloud' ),
 					'slug'  => __( 'Address', 'mody_cloud' ),
 				),
-				'create'     => __( 'Create my site', 'mody_cloud' ),
+				'create'     => __( 'I live in Spain: create my site', 'mody_cloud' ),
 				'change'     => __( 'Change something', 'mody_cloud' ),
 				'which'      => __( 'What would you like to change?', 'mody_cloud' ),
 				'creating'   => __( 'Creating your account and your site… This takes a few seconds.', 'mody_cloud' ),

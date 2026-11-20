@@ -15,27 +15,21 @@ defined( 'ABSPATH' ) || exit;
 /**
  * One row per member account, network-wide.
  *
- * - **Plans** (membership-tiers.md, decided by the maintainer on
- *   2026-11-13; they replace the 1, 3 and 10-site plans of 2026-11-10 and
- *   the 30-day trial): every site costs the same, PRICE, VAT included,
- *   monthly or yearly (`billing_period`), with the same features. `plan`
- *   is `free` (the launch offer, below) or `paid`. A plan is a column, not
- *   a WordPress role (decided 2026-11-08): roles are per site in Multisite,
- *   and members are `administrator` of their own sites.
- * - **The launch offer** (replaces the trial; its numbers on the Offers
- *   page since 2026-11-14, Offers): during the first
- *   PROMO_MONTHS months, the first FREE_PLACES accounts are free for
- *   FREE_MONTHS months, with one site and no card (start_free()). The
- *   offer's months count from the network option `mody_promo_starts_at`
- *   (a Unix time), set by the first free account unless set before; the
- *   places given are counted in `mody_promo_given`, so a deleted account
- *   does not give its place back. When it ends (`free_until`, also the
- *   first billing date), the account needs a card (Mollie, M1-01 part 3):
- *   reminders a month and a week before, then the sites go read-only for
- *   60 days, then they are deleted (spec section 4; not built yet).
+ * - **Plans** (membership-tiers.md): `plan` is `free` or `paid`. A plan is
+ *   a column, not a WordPress role (decided 2026-11-08): roles are per site
+ *   in Multisite, and members are `administrator` of their own sites.
+ * - **A free service** (decided by the maintainer on 2026-11-20,
+ *   tickets/free-mvp.md; it replaces the launch offer and the price per
+ *   site of 2026-11-13): every account starts free, with one site, no card
+ *   and no end date (start_free(): `free_until` and `billing_due_at` stay
+ *   empty, so Mody Billing's daily run never reminds, charges or locks it).
+ *   Anyone may sign up while registration is open, or only invited people
+ *   (Offers::invited_only()). Paid tiers come later (freemium): `paid`,
+ *   PRICE and the billing code are kept for them, switched off
+ *   (Billing\Mollie::offered()).
  * - **Statuses** (spec section 4): `active` (free accounts included),
  *   `pending_payment` until a card is verified, `past_due` after a failed
- *   charge or no card when the free months end, `canceled` after a
+ *   charge (paid accounts; never a free one since 2026-11-20), `canceled` after a
  *   withdrawal (Billing\Billing::withdraw()), `expired_signup` when no payment
  *   arrived within 24 hours, and `expired` once the sites are deleted after
  *   60 days past due or canceled (M1-02).
@@ -56,18 +50,18 @@ final class Members {
 	/** The capability that opens it, given to every member (Mody Sites' WizardPage::CAPABILITY). */
 	public const MENU_CAPABILITY = 'mody_access_dashboard';
 
-	/** The plans: the launch offer, and paying per site. */
+	/** The plans: free (everyone now), and paying per site (later, switched off). */
 	public const PLANS = array( 'free', 'paid' );
 
-	/** One site's price in EUR, VAT included (decided 2026-11-13: ten months for a year). */
+	/** One site's price in EUR, VAT included (decided 2026-11-13; unused while payments are off, 2026-11-20). */
 	public const PRICE = array(
 		'monthly' => 7.99,
 		'yearly'  => 79.99,
 	);
 
 	/**
-	 * The sites an account may have: one during the offer; ten when paying,
-	 * each paid (a real limit, rule 7; more is not offered yet).
+	 * The sites an account may have: one free; ten when paying, each paid
+	 * (a real limit, rule 7; more is not offered yet).
 	 */
 	public const SITE_LIMITS = array(
 		'free' => 1,
@@ -77,18 +71,11 @@ final class Members {
 	/** The billing periods. */
 	public const PERIODS = array( 'monthly', 'yearly' );
 
-	/**
-	 * The launch offer's defaults: how many accounts, for how long, and for how
-	 * long it is offered. The Offers page changes them (Offers::places(),
-	 * free_months(), months(), since 2026-11-14).
-	 */
-	public const FREE_PLACES  = 50;
-	public const FREE_MONTHS  = 6;
-	public const PROMO_MONTHS = 3;
+	/** The launch offer's free months, for the version 4 migration of older trials only. */
+	private const OLD_FREE_MONTHS = 6;
 
-	/** Network options: when the offer started (Unix time), and how many places it gave. */
-	public const PROMO_START_OPTION = 'mody_promo_starts_at';
-	public const PROMO_GIVEN_OPTION = 'mody_promo_given';
+	/** The launch offer's network options (2026-11-13 to 2026-11-20), removed by version 8. */
+	private const OLD_PROMO_OPTIONS = array( 'mody_promo_starts_at', 'mody_promo_given' );
 
 	/** The plans before 2026-11-13, and the plan each became. */
 	private const OLD_PLANS = array(
@@ -105,7 +92,7 @@ final class Members {
 	public const STATUSES = array( 'pending_payment', 'active', 'past_due', 'canceled', 'expired_signup', 'expired' );
 
 	/** Bump when the table definition in install() changes. */
-	private const DB_VERSION = '7'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`. 6: cancel_at. 7: invited_by, invite_point_at (2026-11-14).
+	private const DB_VERSION = '8'; // 2: next_plan (M1-01 part 2). 3: the 2026-11-10 plans and billing_period. 4: free and paid, free_until, no next_plan (2026-11-13). 5: `canceled`. 6: cancel_at. 7: invited_by, invite_point_at (2026-11-14). 8: free accounts without an end (2026-11-20).
 
 	/** Network option that records the installed table version. */
 	private const DB_VERSION_OPTION = 'mody_members_db_version';
@@ -154,7 +141,7 @@ final class Members {
 			if ( in_array( 'trial_ends_at', $columns, true ) && ! in_array( 'free_until', $columns, true ) ) {
 				$wpdb->query( "ALTER TABLE {$table} CHANGE trial_ends_at free_until datetime DEFAULT NULL" );
 			}
-			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET free_until = DATE_ADD(created_at, INTERVAL %d MONTH), billing_due_at = DATE_ADD(created_at, INTERVAL %d MONTH) WHERE plan = 'free'", self::FREE_MONTHS, self::FREE_MONTHS ) );
+			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET free_until = DATE_ADD(created_at, INTERVAL %d MONTH), billing_due_at = DATE_ADD(created_at, INTERVAL %d MONTH) WHERE plan = 'free'", self::OLD_FREE_MONTHS, self::OLD_FREE_MONTHS ) );
 			if ( in_array( 'next_plan', $columns, true ) ) {
 				$wpdb->query( "ALTER TABLE {$table} DROP COLUMN next_plan" );
 			}
@@ -184,7 +171,30 @@ final class Members {
 ) {$charset};"
 		);
 
+		self::free_without_end();
 		update_site_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+	}
+
+	/**
+	 * Version 8 (decided by the maintainer on 2026-11-20): every free account
+	 * is free with no end. The launch offer's end, its first billing date and
+	 * a cancellation at that end are emptied; a free account the daily run
+	 * made past due or cancelled for want of a card is active again (its
+	 * sites were never deleted while it was not `expired`). Paid accounts are
+	 * left as they are. The offer's counters go.
+	 */
+	private static function free_without_end(): void {
+		global $wpdb;
+		$table = self::table();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Schema check.
+			return;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Own table; constants only.
+		$wpdb->query( "UPDATE {$table} SET free_until = NULL, billing_due_at = NULL, cancel_at = NULL, past_due_since = NULL, status = IF(status IN ('past_due','canceled'), 'active', status) WHERE plan = 'free' AND status IN ('active','past_due','canceled')" );
+		foreach ( self::OLD_PROMO_OPTIONS as $option ) {
+			delete_site_option( $option );
+		}
+		self::$rows = array();
 	}
 
 	/**
@@ -243,115 +253,42 @@ final class Members {
 	}
 
 	/**
-	 * Gives a new account one of the launch offer's places: plan `free`,
-	 * status `active`, free for FREE_MONTHS months (`free_until`, also the
-	 * first billing date). No card is needed. The first place starts the
-	 * offer's months.
+	 * Makes a new account free: plan `free`, status `active`, one site, no
+	 * card and no end date (decided by the maintainer on 2026-11-20).
 	 *
 	 * @param int  $user_id An existing user without a row.
 	 * @param bool $invited Whether they signed up through an invite link (Offers::invited_only()).
-	 * @return true|WP_Error `mody_promo_closed` when no place is left, the offer has ended or is off,
-	 *                       or is for invited people only and they were not.
+	 * @return true|WP_Error `mody_signups_invited_only` when sign-ups are for invited people
+	 *                       only and they were not.
 	 */
 	public static function start_free( int $user_id, bool $invited = false ): bool|WP_Error {
-		global $wpdb;
-		// One signup at a time takes a place, so two at once never make 51.
-		$locked = (bool) $wpdb->get_var( "SELECT GET_LOCK('mody_promo', 10)" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock, not data.
-		try {
-			if ( ! $locked || ! self::promo_open( $invited ) ) {
-				return new WP_Error( 'mody_promo_closed', self::promo_closed_message( $invited ) );
-			}
-			$created = self::create( $user_id, 'free', 'active' );
-			if ( is_wp_error( $created ) ) {
-				return $created;
-			}
-			if ( ! self::promo_starts() ) {
-				update_site_option( self::PROMO_START_OPTION, time() );
-			}
-			update_site_option( self::PROMO_GIVEN_OPTION, self::promo_given() + 1 );
-			$until = gmdate( 'Y-m-d H:i:s', (int) strtotime( '+' . Offers::free_months() . ' months' ) );
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
-			$wpdb->update(
-				self::table(),
-				array(
-					'free_until'     => $until,
-					'billing_due_at' => $until,
-				),
-				array( 'user_id' => $user_id ),
-				array( '%s', '%s' ),
-				array( '%d' )
-			);
-			unset( self::$rows[ $user_id ] );
-			return true;
-		} finally {
-			if ( $locked ) {
-				$wpdb->get_var( "SELECT RELEASE_LOCK('mody_promo')" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A lock, not data.
-			}
+		if ( ! self::free_open( $invited ) ) {
+			return new WP_Error( 'mody_signups_invited_only', self::free_closed_message() );
 		}
-	}
-
-	/** When the launch offer started, as a Unix time, or 0 before its first account. */
-	public static function promo_starts(): int {
-		return (int) get_site_option( self::PROMO_START_OPTION, 0 );
-	}
-
-	/** When the launch offer stops taking accounts, or 0 before it started. */
-	public static function promo_ends(): int {
-		$start = self::promo_starts();
-		return $start ? (int) strtotime( '+' . Offers::months() . ' months', $start ) : 0;
-	}
-
-	/** How many of the launch offer's places were given. */
-	public static function promo_given(): int {
-		return (int) get_site_option( self::PROMO_GIVEN_OPTION, 0 );
-	}
-
-	/** How many places are left. */
-	public static function promo_left(): int {
-		return max( 0, Offers::places() - self::promo_given() );
+		return self::create( $user_id, 'free', 'active' );
 	}
 
 	/**
-	 * Whether the launch offer takes this account: it is on, places are left,
-	 * within its months, and, when it is for invited people only, they were.
+	 * Whether a new free account can start: everyone may sign up, or only
+	 * invited people and they were (Offers, since 2026-11-14).
 	 *
 	 * @param bool $invited Whether the visitor came through an invite link.
 	 */
-	public static function promo_open( bool $invited = false ): bool {
-		$ends = self::promo_ends();
-		return Offers::launch_on()
-			&& ( $invited || ! Offers::invited_only() )
-			&& self::promo_left() > 0
-			&& ( ! $ends || time() < $ends );
+	public static function free_open( bool $invited = false ): bool {
+		return $invited || ! Offers::invited_only();
 	}
 
 	/**
-	 * What a visitor reads when the offer does not take their account.
-	 *
-	 * @param bool $invited Whether the visitor came through an invite link.
+	 * What a visitor reads when sign-ups do not take their account: they
+	 * are for invited people only.
 	 */
-	public static function promo_closed_message( bool $invited = false ): string {
-		$ends = self::promo_ends();
-		if ( ! Offers::launch_on() || ( $ends && time() >= $ends ) ) {
-			$first = __( 'Our launch offer has ended.', 'mody_cloud' );
-		} elseif ( self::promo_left() <= 0 ) {
-			/* translators: %d: how many free places the launch offer had. */
-			$first = sprintf( __( 'The %d free places of our launch offer are taken.', 'mody_cloud' ), Offers::places() );
-		} elseif ( ! $invited && Offers::invited_only() ) {
-			$first = __( 'Our launch offer is by invitation for now: sign up through the link a member sent you.', 'mody_cloud' );
-		} else {
-			$first = __( 'Our launch offer has ended.', 'mody_cloud' );
-		}
-		return $first . ' ' . sprintf(
-			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
-			__( 'Sign-ups at %s a month per site, VAT included, open soon.', 'mody_cloud' ),
-			self::price( self::PRICE['monthly'] )
-		);
+	public static function free_closed_message(): string {
+		return __( 'Sign-ups are by invitation for now: sign up through the link a member sent you.', 'mody_cloud' );
 	}
 
 	/**
 	 * When a member's free months end, as a Unix timestamp, or 0 when they
-	 * are not on the launch offer.
+	 * do not end (every free account since 2026-11-20) or the plan is not free.
 	 *
 	 * @param int $user_id User ID.
 	 */
@@ -413,7 +350,7 @@ final class Members {
 	 */
 	public static function plan_label( string $plan ): string {
 		return match ( $plan ) {
-			'free'  => __( 'Launch offer', 'mody_cloud' ),
+			'free'  => __( 'Free', 'mody_cloud' ),
 			'paid'  => __( 'Per site', 'mody_cloud' ),
 			default => $plan,
 		};

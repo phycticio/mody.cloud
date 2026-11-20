@@ -42,8 +42,8 @@ These colors are the named palette in the theme's `theme.json`. See [theme-devel
 ## Economics
 
 - AI cost per generated site is about 0.002 EUR. With 1M free credits that is thousands of sites at no cost. See [ai-engine.md](ai-engine.md).
-- **The price** (decided by the maintainer on 2026-11-13, replacing the plans of 2026-11-10): every site costs 7.99 EUR a month or 79.99 EUR a year, VAT included, with no discount for more sites. The first 50 accounts, in the first three months, get one site free for six months, no card. Every site gets the same: 1 GB, every plugin in the market, its own Mody, a custom domain and a way out. These are prices, not costs passed through: the briefing's "fees equal real cost" belonged to the non-profit association it described. See [membership-tiers.md](membership-tiers.md).
-- The bottleneck is **server capacity**. The limits (sites per account, 1 GB per site, Mody's tokens a month) are capacity and cost control: 5 million tokens cost at most about 3.25 EUR, against 6.60 EUR a monthly site leaves after VAT (membership-tiers.md).
+- **Free, freemium later** (decided by the maintainer on 2026-11-20, [tickets/free-mvp.md](../tickets/free-mvp.md); it replaces the price per site and the launch offer of 2026-11-13): every account gets one site free, with no card and no end date, for people who live in Spain. Mody Cloud takes no payments and no donations while it is run by its maintainer as a private person. The price per site decided on 2026-11-13 (7.99 EUR a month or 79.99 a year, VAT included) and the billing built for it are kept, switched off, for optional paid tiers later.
+- The bottleneck is **server capacity**, and while it is free, **Mody's tokens**: they are paid to Infomaniak for every site. The limits (one site per account, 500 MB per site, Mody's tokens a month) are capacity and cost control: a site's month costs about 0.85 EUR at regular use and at most about 3.25 EUR at the allowance (membership-tiers.md, Gating).
 - The briefing's dedicated VPS tier is not part of the plans (membership-tiers.md, Open questions).
 
 ## Glossary

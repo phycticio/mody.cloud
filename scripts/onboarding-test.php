@@ -45,13 +45,11 @@ if ( ! is_main_site() ) {
 $suffix = strtolower( wp_generate_password( 6, false ) );
 $email  = "modyonb{$suffix}@mody.local";
 $bare   = 0;
-// Accounts made here take places of the launch offer: start it fresh, and put it back after.
+// Accounts made here are free: sign-ups open to everyone, and the Offers setting put back after.
 $was_promo = array(
-	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
-	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
+	\Mody\Members\Offers::OPTION => get_site_option( \Mody\Members\Offers::OPTION, null ),
 );
-delete_site_option( Members::PROMO_START_OPTION );
-delete_site_option( Members::PROMO_GIVEN_OPTION );
+delete_site_option( \Mody\Members\Offers::OPTION );
 register_shutdown_function(
 	static function () use ( $was_promo ): void {
 		foreach ( $was_promo as $option => $value ) {
@@ -178,7 +176,7 @@ $bubble  = strpos( $out['body'], 'assets/agent-chat.js' );
 $agent   = function_exists( 'wp_ai_client_prompt' );
 $check( 'the Identity screen loads the tour and its settings', 200 === $out['code'] && false !== $tour && str_contains( $out['body'], 'window.modyTour' ) && str_contains( $out['body'], '"pending":true' ), (string) $out['code'] );
 $check( '... after the chat bubble', ! $agent || ( false !== $bubble && $bubble < $tour ) );
-$check( '... with the member\'s name and the last free day', str_contains( $out['body'], '"name":"Grace Hopper"' ) && str_contains( $out['body'], 'Your site is free until' ) );
+$check( '... with the member\'s name; no last free day (free with no end)', str_contains( $out['body'], '"name":"Grace Hopper"' ) && ! str_contains( $out['body'], 'Your site is free until' ) && str_contains( $out['body'], '"trialEnd":""' ) );
 
 $ids = array_column( EditorTour::steps( 'X', true ), 'id' );
 $check( 'the steps: welcome, identity, the agent, two tries, the editor', array( 'welcome', 'identity', 'agent', 'try-1', 'try-2', 'preview', 'styles', 'pages', 'navigation', 'patterns', 'templates', 'save', 'done' ) === $ids, implode( ',', $ids ) );

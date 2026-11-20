@@ -1,7 +1,7 @@
 <?php
 /**
  * Tests the Mody dashboard (tickets/mody-dashboard.md, 2026-11-11): every
- * site's Dashboard, the space per site (1 GB since 2026-11-13), Mody
+ * site's Dashboard, the space per site (500 MB since 2026-11-20), Mody
  * Analytics, Mody's work, the plans (per site since 2026-11-13) and Plan &
  * billing.
  *
@@ -10,17 +10,18 @@
  *   docker exec -i -u www-data mody_cloud_app \
  *     wp --path=/var/www/html/wp --url=https://mody.local eval-file - < scripts/dashboard-test.php
  *
- * 1. Storage: the network's quota, a new site's 1 GB, older sites moved from
- *    3 GB to 1 GB (a size set by hand stays), no limit on the main site, an
+ * 1. Storage: the network's quota, a new site's 500 MB, older sites moved
+ *    from 3 GB and 1 GB to 500 MB (a size set by hand stays), no limit on the main site, an
  *    upload over the quota refused.
  * 2. Mody Analytics: paths, sources, devices, the address behind the
  *    proxies, bots, visits (a new one after 30 minutes), journeys, entry
  *    and exit pages, only random visit IDs stored, the cap, several sites
  *    side by side, the archive after 13 months.
  * 3. Mody's work: the groups, and a site's summary from turn rows.
- * 4. The plans: the old plans' migration (to free and paid, free_until, no
- *    next_plan), choose_period() and its refusals.
- * 5. The page: the sections each user sees, and every section rendered.
+ * 4. The plans: the old plans' migration (to free and paid, no next_plan;
+ *    free with no end since version 8), choose_period() and its refusals.
+ * 5. The page: the sections each user sees, and every section rendered
+ *    (Your plan for a free account while payments are off, free-mvp.md).
  * 6. Over HTTP: wp-admin/ opens the dashboard, its menu item, the beacon
  *    on the front end and its route.
  *
@@ -86,21 +87,24 @@ $check( 'a throwaway site and users', $site > 0 && $member && $editor && $other,
 // 1. Storage --------------------------------------------------------------------------
 
 echo "\nStorage\n";
-$check( 'the network: 1 GB, the check on, 1 GB files', 1024 === (int) get_site_option( 'blog_upload_space' ) && 0 === (int) get_site_option( 'upload_space_check_disabled' ) && 1048576 === (int) get_site_option( 'fileupload_maxk' ) );
-$check( 'a new site gets its own 1024 MB', '1024' === (string) get_blog_option( $site, 'blog_upload_space' ) );
-// Version 2 of the settings: a site still on the old 3 GB gets 1 GB; a size set by hand stays.
-$hand = (int) get_blog_option( get_main_site_id(), 'blog_upload_space' );
+$check( 'the network: 500 MB, the check on, 1 GB files', 500 === (int) get_site_option( 'blog_upload_space' ) && 0 === (int) get_site_option( 'upload_space_check_disabled' ) && 1048576 === (int) get_site_option( 'fileupload_maxk' ) );
+$check( 'a new site gets its own 500 MB', '500' === (string) get_blog_option( $site, 'blog_upload_space' ) );
+// Version 3 of the settings: sites still on the old 3 GB or 1 GB get 500 MB; a size set by hand stays.
+$hand   = (int) get_blog_option( get_main_site_id(), 'blog_upload_space' );
+$second_old = (int) wpmu_create_blog( 'dashold' . $suffix . '.' . preg_replace( '/^www\./', '', get_network()->domain ), '/', 'Old', $member );
 update_blog_option( $site, 'blog_upload_space', 3072 );
-update_blog_option( get_main_site_id(), 'blog_upload_space', 500 );
+update_blog_option( $second_old, 'blog_upload_space', 1024 );
+update_blog_option( get_main_site_id(), 'blog_upload_space', 700 );
 update_site_option( 'mody_storage_version', '1' );
 update_site_option( 'blog_upload_space', 3072 );
 Storage::install();
-$check( 'older sites: 3 GB becomes 1 GB, a size set by hand stays', '1024' === (string) get_blog_option( $site, 'blog_upload_space' ) && 500 === (int) get_blog_option( get_main_site_id(), 'blog_upload_space' ) && 1024 === (int) get_site_option( 'blog_upload_space' ) && '2' === get_site_option( 'mody_storage_version' ) );
+$check( 'older sites: 3 GB and 1 GB become 500 MB, a size set by hand stays', '500' === (string) get_blog_option( $site, 'blog_upload_space' ) && '500' === (string) get_blog_option( $second_old, 'blog_upload_space' ) && 700 === (int) get_blog_option( get_main_site_id(), 'blog_upload_space' ) && 500 === (int) get_site_option( 'blog_upload_space' ) && '3' === get_site_option( 'mody_storage_version' ) );
+wpmu_delete_blog( $second_old, true );
 $hand ? update_blog_option( get_main_site_id(), 'blog_upload_space', $hand ) : delete_blog_option( get_main_site_id(), 'blog_upload_space' );
 $check( 'the main site has no limit', Storage::usage()['limited'] === false && get_space_allowed() > 1000000 );
 switch_to_blog( $site );
 $usage = Storage::usage();
-$check( 'a member site has 1 GB, limited', $usage['limited'] && GB_IN_BYTES === $usage['allowed'], size_format( $usage['allowed'] ) );
+$check( 'a member site has 500 MB, limited', $usage['limited'] && 500 * MB_IN_BYTES === $usage['allowed'], size_format( $usage['allowed'] ) );
 $upload = static function ( int $bytes ): array {
 	$tmp = (string) wp_tempnam( 'mody-quota' );
 	file_put_contents( $tmp, str_repeat( 'x', $bytes ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions -- Test file.
@@ -267,7 +271,7 @@ restore_current_blog();
 
 echo "\nThe plans\n";
 $check( 'the 2026-11-13 plans: free (one site) and paid (7.99 or 79.99 per site)', array( 'free', 'paid' ) === Members::PLANS && 1 === Members::SITE_LIMITS['free'] && 7.99 === Members::PRICE['monthly'] && 79.99 === Members::PRICE['yearly'] );
-$check( 'labels: Launch offer, Per site', 'Launch offer' === Members::plan_label( 'free' ) && 'Per site' === Members::plan_label( 'paid' ) );
+$check( 'labels: Free, Per site', 'Free' === Members::plan_label( 'free' ) && 'Per site' === Members::plan_label( 'paid' ) );
 
 // The migration from the 2026-11-10 plans, on the real table: version 3's shape again, four rows, then install().
 $table = Members::table();
@@ -286,12 +290,12 @@ foreach ( $ids as $user_id ) {
 	Members::delete( $user_id );
 }
 $check(
-	'old plans become new: the trial free for six months from signup, the paid plans paid',
+	'old plans become new: the trial free with no end (version 8), the paid plans paid',
 	array(
-		array( 'free', '2027-05-01 10:00:00', '2027-05-01 10:00:00' ),
+		array( 'free', null, null ),
 		array( 'paid', null, null ),
 		array( 'paid', null, null ),
-	) === array_map( 'array_values', (array) $migrated ) && "enum('free','paid')" === $type && ! in_array( 'next_plan', $columns, true ) && ! in_array( 'trial_ends_at', $columns, true ) && '7' === get_site_option( 'mody_members_db_version' ),
+	) === array_map( 'array_values', (array) $migrated ) && "enum('free','paid')" === $type && ! in_array( 'next_plan', $columns, true ) && ! in_array( 'trial_ends_at', $columns, true ) && '8' === get_site_option( 'mody_members_db_version' ),
 	wp_json_encode( $migrated )
 );
 
@@ -306,11 +310,8 @@ $second = (int) wpmu_create_blog( 'dash2' . $suffix . '.' . preg_replace( '/^www
 $chosen = Members::choose_period( $member, 'yearly' );
 $row    = Members::get( $member );
 $check( 'records the period', true === $chosen && 'yearly' === $row['billing_period'] && 'paid' === $row['plan'] );
-// The other user: a launch offer account, its free months set by hand (start_free() counts a place).
-Members::create( $other, 'free', 'active' );
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Test.
-$wpdb->update( $table, array( 'free_until' => gmdate( 'Y-m-d H:i:s', (int) strtotime( '+6 months' ) ), 'billing_due_at' => gmdate( 'Y-m-d H:i:s', (int) strtotime( '+6 months' ) ) ), array( 'user_id' => $other ) );
-Members::get( $other );
+// The other user: a free account.
+Members::start_free( $other );
 
 // 5. The page -------------------------------------------------------------------------
 
@@ -330,7 +331,7 @@ $check( 'the member: Overview, Visitors, Mody\'s work, Download your site, Your 
 wp_set_current_user( $editor );
 $check( 'an editor: Overview only', array( 'overview' ) === array_keys( DashboardPage::sections() ) );
 $html = $render( $member, 'overview' );
-$check( 'Overview: storage of 1 GB, pages, the brand', str_contains( $html, 'of 1 GB used' ) && str_contains( $html, 'Your brand' ) && str_contains( $html, 'Dashboard test' ) );
+$check( 'Overview: storage of 500 MB, pages, the brand', str_contains( $html, 'of 500 MB used' ) && str_contains( $html, 'Your brand' ) && str_contains( $html, 'Dashboard test' ) );
 $html = $render( $member, 'visitors' );
 $check( 'Visitors: the tiles, the chart, the lists', str_contains( $html, 'Page views' ) && str_contains( $html, 'mody-dashboard__bar' ) && str_contains( $html, 'example.org' ) && str_contains( $html, 'Show as a table' ) );
 $check( '... the journeys, entry and exit pages', str_contains( $html, 'Journeys' ) && str_contains( $html, 'mody-dashboard__step-arrow' ) && str_contains( $html, 'Entry pages' ) && str_contains( $html, 'Exit pages' ) && str_contains( $html, 'Single-page visits' ) );
@@ -342,10 +343,12 @@ $check( 'Your sites: both sites, 2 of 10 used, New site', str_contains( $html, '
 $check( '... visitors across them: the sum, the chart, the sites compared', str_contains( $html, 'Visitors across your sites' ) && str_contains( $html, 'Visits per day, all your sites' ) && str_contains( $html, 'mody-dashboard__compare' ) && str_contains( $html, 'section=visitors' ) && preg_match( '/\d+ visits · \d+ page views in 30 days/', $html ) );
 $html = $render( $member, 'plan' );
 $check( 'Plan & billing, paying: sites times the price, the choice, no card yet', str_contains( $html, '2 sites × 79.99 EUR a year: 159.98 EUR, VAT included' ) && str_contains( $html, 'Your choice' ) && str_contains( $html, 'None yet.' ) && str_contains( $html, 'you save 15.89 EUR per site' ) && str_contains( $html, '7.99 EUR' ) );
-$check( '... every site the same: 1 GB and 5,000,000 tokens a month', str_contains( $html, '1 GB of space' ) && str_contains( $html, '5,000,000 tokens a month' ) );
+$check( '... every site the same: 500 MB and 5,000,000 tokens a month', str_contains( $html, '500 MB of space' ) && str_contains( $html, '5,000,000 tokens a month' ) );
 add_user_to_blog( $site, $other, 'administrator' );
 $html = $render( $other, 'plan' );
-$check( 'Plan & billing, launch offer: free until, then the price, read-only without a card', str_contains( $html, 'Launch offer: one site, free until' ) && str_contains( $html, 'days left' ) && str_contains( $html, 'After the free months' ) && str_contains( $html, '1 site × 7.99 EUR a month: 7.99 EUR, VAT included' ) && str_contains( $html, 'once you add a card' ) && str_contains( $html, 'read-only for 60 days' ) );
+$check( 'Your plan, free (payments off): one site, 500 MB, Mody\'s tokens, no price or card', str_contains( $html, 'Free: one site, no card needed.' ) && str_contains( $html, '500 MB of space' ) && str_contains( $html, '5,000,000 tokens a month' ) && ! str_contains( $html, 'EUR' ) && ! str_contains( $html, 'How you pay' ) && ! str_contains( $html, 'read-only' ) );
+wp_set_current_user( $other );
+$check( '... the section is called Your plan', 'Your plan' === ( DashboardPage::sections()['plan'] ?? '' ) );
 remove_user_from_blog( $other, $site );
 $html = $render( $member, 'export' );
 $check( 'Download your site: the button, what comes along, what stays (tests in export-panel-test.php)', str_contains( $html, 'Prepare my download' ) && str_contains( $html, 'What stays with Mody Cloud' ) );

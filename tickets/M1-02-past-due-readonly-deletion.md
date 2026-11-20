@@ -2,6 +2,8 @@
 
 **Milestone:** M1 · **Spec:** documentation/mvp-spec.md §4 · **Status:** built 2026-11-13 on `feature/billing-lifecycle` (see Results)
 
+> **Paused on 2026-11-20 by [free-mvp.md](free-mvp.md):** free accounts have no end date, so nothing here applies to them; it stays for the paid tiers.
+
 ## Goal
 A past-due account has all its sites read-only (with a banner) and is deleted 60 days later, with a warning at day 53.
 

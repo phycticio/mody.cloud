@@ -56,6 +56,8 @@ Member site URLs: `slug.mody.cloud` (local: `slug.mody.cloud.local`). Dashboard:
 
 ## 4. Price, launch offer and billing
 
+> **Superseded on 2026-11-20 for the MVP:** Mody Cloud starts as a free service. Every account gets one free site (500 MB, Mody's monthly allowance), no card and no end date, sign-ups from Spain only, no payments; optional paid tiers later (freemium). The price, the launch offer and the billing below are kept for those tiers and switched off (`mody_payments_open`). See [membership-tiers.md](membership-tiers.md) and [tickets/free-mvp.md](../tickets/free-mvp.md).
+
 | | Per site | VAT |
 | --- | --- | --- |
 | Monthly | 7.99 EUR | included |

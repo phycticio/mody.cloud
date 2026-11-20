@@ -4,8 +4,8 @@
  * Plain script, no build step. Hides the block's form and asks its four
  * questions one at a time: name, email, the project's name, the site's
  * address. Each answer is checked on the server (mody-platform/v1/register/check)
- * before the next question; then a summary, and Create my site
- * (mody-platform/v1/register). All text is inserted with textContent,
+ * before the next question; then a summary, and "I live in Spain: create my
+ * site" (mody-platform/v1/register, with `spain`: sign-ups from Spain only). All text is inserted with textContent,
  * never as HTML. Without this script the form works on its own.
  *
  * Antibot (tickets/antibot-altcha.md): creating the account sends an ALTCHA
@@ -315,7 +315,8 @@
 		pending.classList.add( 'is-pending' );
 		try {
 			const altcha = widget ? await prove() : '';
-			const { ok, data } = await post( '', { ...answers, altcha } );
+			// The summary's button is the visitor's confirmation that they live in Spain (free-mvp.md).
+			const { ok, data } = await post( '', { ...answers, altcha, spain: true } );
 			pending.remove();
 			if ( ok ) {
 				say( strings.done.replace( '%1$s', data.address ).replace( '%2$s', data.email ) );
