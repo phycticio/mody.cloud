@@ -26,7 +26,7 @@ The platform is launch-ready for 100 founding members: member sites reachable in
   - **Secrets:** `INFOMANIAK_API_KEY`, the Mollie keys and the SMTP password only in the server `.env`, never in the database, logs or prompts (rule 6). `.env` untracked.
 - **Monitoring:** Query Monitor is a dev requirement and never reaches production, so it is not the answer here. What is left:
   - the error log at `app/logs/debug.log`;
-  - a simple system health page for super admins: site count, past-due count, failed provisioning jobs, agent errors from `mody_agent_events`.
+  - a simple system health page for super admins: site count, past-due count, failed provisioning jobs, agent errors from `mody_agent_events`. **Built on 2026-11-20** ([health-page.md](health-page.md), #29): Network Admin → Mody → Health, with Mody's tokens and their cost first, since the service is free.
 - **Stale cleanup** (after launch is stable): the Tamarind leftovers listed in local-development.md, "Known stale items". `bin/build` is current and not on that list.
 
 ## Security pass (2026-11-12)

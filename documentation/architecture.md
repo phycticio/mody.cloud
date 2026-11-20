@@ -84,12 +84,13 @@ Every Mody plugin, all loaded as MU plugins (since 2026-11-17 there is no `mody-
 | `mody-domains` | Custom domains | No |
 | `mody-export` | Take your site with you | No |
 | `mody-fonts` | The Font Library with the Mody fonts | No (Inter is baked into the theme) |
+| `mody-health` | Network Admin → Mody → Health: the platform at a glance, for super admins (2026-11-20) | No |
 | `mody-images` | Web-efficient uploads and how big a picture may be | Yes |
 | `mody-languages` | Site languages | Yes |
 | `mody-locks` | What members may not do | No |
 | `mody-login` | The login page in the site's brand | Yes |
 | `mody-mail` | Outgoing mail | No |
-| `mody-members` | Accounts, the signup chat, the launch offer, invites | No |
+| `mody-members` | Accounts (free since 2026-11-20), the signup chat, invites | No |
 | `mody-onboarding` | The first login and the editor tour | No |
 | `mody-palette` | Palette-only color pickers | Yes |
 | `mody-patterns` | The Mody pattern collection and placeholders | Yes |
@@ -98,7 +99,7 @@ Every Mody plugin, all loaded as MU plugins (since 2026-11-17 there is no `mody-
 | `mody-seo` | A page's search appearance | Yes |
 | `mody-sites` | The New site wizard, provisioning, the quota | No |
 | `mody-spectra` | Spectra without its outside connections | Yes |
-| `mody-storage` | 1 GB per site | No |
+| `mody-storage` | 500 MB per site | No |
 | `mody-styles` | Writing a site's Global Styles | No |
 | `mody-updates` | No updates from wp-admin | No |
 
