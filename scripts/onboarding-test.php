@@ -20,6 +20,7 @@
  *    user's. Then no tour, unless asked for with ?mody-tour=start.
  * 5. Later resets behave as in WordPress; without a site the first screen
  *    is the dashboard; outside wp-login.php only the stage moves.
+ * 6. Core's welcome guides: a script switches them off in both editors.
  *
  * Everything created is removed at the end. No model call.
  */
@@ -238,5 +239,12 @@ update_user_meta( $bare, Onboarding::META, Onboarding::STAGE_PASSWORD );
 $check( 'without a site, the first screen is the dashboard', Registration::dashboard_url() === Onboarding::first_url( $bare ) );
 reset_password( get_userdata( $bare ), 'yet another long password ' . $suffix ); // Not on wp-login.php: no redirect.
 $check( 'outside wp-login.php the stage moves, nothing else', Onboarding::STAGE_TOUR === get_user_meta( $bare, Onboarding::META, true ) && 0 === get_current_user_id() );
+
+// 6. Core's welcome guides off (CoreGuides, 2026-11-20): pictures from s.w.org, and they covered the tour.
+echo "\nCore's welcome guides\n";
+\Mody\Onboarding\CoreGuides::enqueue();
+$after = implode( "\n", (array) wp_scripts()->get_data( 'wp-preferences', 'after' ) );
+$check( 'a script after core\'s preferences store switches every guide off', str_contains( $after, '"core\\/edit-site":["welcomeGuide","welcomeGuidePage","welcomeGuideStyles","welcomeGuideTemplate"]' ) && str_contains( $after, '"core\\/edit-post":["welcomeGuide","welcomeGuideTemplate"]' ) && str_contains( $after, 'wp.data.subscribe( quiet' ) );
+$check( '... and it is hooked for both editors', false !== has_action( 'enqueue_block_editor_assets', array( \Mody\Onboarding\CoreGuides::class, 'enqueue' ) ) );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

@@ -13,6 +13,8 @@
  * the first password logs the member in on their site's Identity screen,
  * where the editor tour shows the agent, asks for two requests, then
  * explains the Site Editor. Their stage is the user meta `mody_onboarding`.
+ * Core's own welcome guides are off in both editors for everyone
+ * (CoreGuides): the tour replaces them, and they load pictures from s.w.org.
  *
  * Other plugins tell it what it cannot know:
  *
@@ -49,5 +51,6 @@ if ( is_multisite() ) {
 	add_action( 'init', array( Onboarding::class, 'register_meta' ) );
 	add_action( 'after_password_reset', array( Onboarding::class, 'after_password_reset' ) );
 	add_action( 'enqueue_block_editor_assets', array( EditorTour::class, 'enqueue' ), 20 ); // After the agent's chat bubble.
+	add_action( 'enqueue_block_editor_assets', array( CoreGuides::class, 'enqueue' ) ); // Core's welcome guides off: s.w.org pictures, and they cover the tour.
 	add_filter( 'rest_prepare_user', array( Onboarding::class, 'hide_stage' ), 10, 3 ); // The tour's stage is nobody else's business (security pass).
 }

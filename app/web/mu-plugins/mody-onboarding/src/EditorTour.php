@@ -23,9 +23,9 @@ defined( 'ABSPATH' ) || exit;
  * and so on), the content area, the canvas and the Save button.
  *
  * Finishing or skipping sets the member's stage to `done` through
- * `wp/v2/users/me`, and switches off core's own "Welcome to the site editor"
- * guide (the `core/edit-site` preference `welcomeGuide`), which would cover
- * the tour and loads its pictures from s.w.org (rule 1).
+ * `wp/v2/users/me`. Core's own welcome guides, which would cover the tour
+ * and load their pictures from s.w.org (rule 1), are off for everyone since
+ * 2026-11-20 (CoreGuides).
  */
 final class EditorTour {
 
