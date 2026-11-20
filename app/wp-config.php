@@ -187,16 +187,6 @@ if ( MULTISITE ) {
 	} else {
 		$cookie_domain = $http_host;
 	}
-	/*
-	 * A member's own domain (tickets/custom-domains.md): its admin is there
-	 * since 2026-11-20, and a browser refuses a cookie for the network's
-	 * domain on it, so the login cookie there is that host's own (false:
-	 * no Domain attribute).
-	 */
-	$cookie_host = strtolower( (string) preg_replace( '/:\d+$/', '', (string) $http_host ) );
-	if ( $subdomain_install && $cookie_host !== $main_network_domain && ! str_ends_with( $cookie_host, '.' . $main_network_domain ) ) {
-		$cookie_domain = false;
-	}
 
 	define( 'DOMAIN_CURRENT_SITE', $main_network_domain );
 	define( 'PATH_CURRENT_SITE', '/' );

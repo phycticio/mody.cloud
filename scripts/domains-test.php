@@ -14,15 +14,13 @@
  *    target's addresses; otherwise why not.
  * 4. The certificate through Nginx Proxy Manager (a fake NPM): pending →
  *    issuing → active, the proxy host forwarding like the network's, the
- *    site's address and its admin switched to the domain (the old ones
- *    kept, 2026-11-20, #19); a domain live before gets its admin moved by
- *    table version 2; without NPM it waits; after a day it stops; Try again.
- * 5. Over HTTP, through the local Nginx: the domain serves its site, its
- *    login page (with a cookie of its own) and wp-admin; the old address
- *    sends visitors and wp-admin to the domain; an unknown domain gets no site.
- * 6. Super admins: refused on a member's domain; for them the site's admin
- *    links point to its mody.cloud address; members keep the domain.
- * 7. Taking it off: both addresses back, NPM's host and certificate removed,
+ *    site's address switched (the old one kept); without NPM it waits; after
+ *    a day it stops; Try again.
+ * 5. Over HTTP, through the local Nginx: the domain serves its site; the
+ *    login goes to the mody.cloud address; the old address sends visitors to
+ *    the domain; an unknown domain gets no site.
+ * 6. Admin links stay on the admin host.
+ * 7. Taking it off: the address back, NPM's host and certificate removed,
  *    the mapping gone; a deleted site's domain goes too.
  * 8. The Dashboard's section.
  *
@@ -194,14 +192,7 @@ $check( 'active: NPM\'s certificate and proxy host kept', 'active' === $after['s
 $check( '... a Let\'s Encrypt certificate for the domain, HTTP challenge, only what NPM 2.16 accepts', 1 === count( $cert ) && 'letsencrypt' === $cert[0][2]['provider'] && array( $domain ) === $cert[0][2]['domain_names'] && array( 'dns_challenge' => false ) === $cert[0][2]['meta'] ); // NPM 2.16's schema: nothing else in meta.
 $check( '... the proxy host forwards like the network\'s, HTTPS forced, the certificate on it', 1 === count( $host ) && 'host.docker.internal' === $host[0][2]['forward_host'] && 8195 === $host[0][2]['forward_port'] && 'http' === $host[0][2]['forward_scheme'] && true === $host[0][2]['ssl_forced'] && 41 === $host[0][2]['certificate_id'] );
 $check( '... logged in with a token', 'Bearer tok123' === $host[0][3] );
-$old_admin = (string) $after['old_siteurl'];
-$check( '... the site\'s public address and its admin are the domain; the old ones kept', 'https://' . $domain === get_blog_option( $site, 'home' ) && str_starts_with( (string) get_blog_option( $site, 'siteurl' ), 'https://' . $domain ) && $old === $after['old_home'] && str_contains( $old_admin, 'domtest' . $suffix . '.' . $network ), (string) get_blog_option( $site, 'siteurl' ) );
-// Table version 2: a domain that went live before (its admin on the old address) gets the admin moved.
-update_blog_option( $site, 'siteurl', $old_admin );
-$wpdb->update( Mapping::table(), array( 'old_siteurl' => null ), array( 'site_id' => $site ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-update_site_option( 'mody_domains_db_version', '1' );
-Domains::install();
-$check( 'version 2: a domain live before gets its admin on the domain, the old address kept', str_starts_with( (string) get_blog_option( $site, 'siteurl' ), 'https://' . $domain ) && $old_admin === Domains::of_site( $site )['old_siteurl'] && '2' === get_site_option( 'mody_domains_db_version' ) );
+$check( '... the site\'s public address is the domain; the admin stays; the old one kept', 'https://' . $domain === get_blog_option( $site, 'home' ) && str_contains( (string) get_blog_option( $site, 'siteurl' ), 'domtest' . $suffix . '.' . $network ) && $old === $after['old_home'] );
 $check( '... the mapping finds it', is_array( Mapping::active( $domain ) ) && $site === (int) Mapping::active( $domain )['site_id'] );
 
 // An NPM user that sees only its own items: forward to the stack's Nginx container (as mody.cloud's own host does).
@@ -275,77 +266,26 @@ $get = static function ( string $host, string $path = '/' ): array {
 $front = $get( $domain );
 $check( 'the domain serves its site', 200 === $front['code'] && str_contains( $front['body'], 'Domain Test Bakery' ), $front['code'] . ' ' . $front['error'] );
 $check( '... its links are on the domain', str_contains( $front['body'], 'https://' . $domain ) );
-$login = $get( $domain, '/wp-login.php' );
-$check( 'the login page is on the domain, its form posting there', 200 === $login['code'] && str_contains( $login['body'], 'name="log"' ) && str_contains( $login['body'], 'action="https://' . $domain . '/wp-login.php' ), $login['code'] . ' ' . $login['location'] );
-$cookie = wp_remote_retrieve_header(
-	wp_remote_get( 'https://mody_cloud_server/wp-login.php', array( 'headers' => array( 'Host' => $domain ), 'sslverify' => false, 'redirection' => 0 ) ),
-	'set-cookie'
-);
-$cookie = implode( '; ', (array) $cookie );
-$check( '... its cookies are the domain\'s own (no Domain for the network)', str_contains( $cookie, 'wordpress_test_cookie' ) && false === stripos( $cookie, 'domain=' ), $cookie );
+$login = $get( $domain, '/wp-login.php?redirect_to=x' );
+$check( 'the login on the domain goes to the mody.cloud address', 302 === $login['code'] && str_contains( $login['location'], 'domtest' . $suffix . '.' . $network . '/wp-login.php' ) && str_contains( $login['location'], 'redirect_to=x' ), $login['code'] . ' ' . $login['location'] );
 $admin = $get( $domain, '/wp-admin/' );
-$check( 'wp-admin on the domain asks for the domain\'s login', 302 === $admin['code'] && str_starts_with( $admin['location'], 'https://' . $domain . '/wp-login.php' ), $admin['location'] );
+$check( '... so does wp-admin', 302 === $admin['code'] && str_contains( $admin['location'], 'domtest' . $suffix . '.' . $network . '/wp-admin/' ), $admin['location'] );
 $oldsite = $get( 'domtest' . $suffix . '.' . $network, '/' );
 $check( 'the old address sends visitors to the domain', in_array( $oldsite['code'], array( 301, 302 ), true ) && str_starts_with( $oldsite['location'], 'https://' . $domain ), $oldsite['code'] . ' ' . $oldsite['location'] );
-$oldadmin = $get( 'domtest' . $suffix . '.' . $network, '/wp-admin/admin.php?page=mody-dashboard' );
-$check( '... and its wp-admin to the domain\'s, path and query kept', 302 === $oldadmin['code'] && 'https://' . $domain . '/wp-admin/admin.php?page=mody-dashboard' === $oldadmin['location'], $oldadmin['location'] );
-$oldlogin = $get( 'domtest' . $suffix . '.' . $network, '/wp-login.php' );
-$check( '... its login page stays, for super admins', 200 === $oldlogin['code'] && str_contains( $oldlogin['body'], 'name="log"' ), (string) $oldlogin['code'] );
 $unknown = $get( 'www.unknown' . $suffix . '.test' );
 $check( 'an unknown domain gets no site', ! str_contains( $unknown['body'], 'Domain Test Bakery' ), (string) $unknown['code'] );
 
-// 6. Super admins -------------------------------------------------------------------------------------------
+// 6. Admin links -------------------------------------------------------------------------------------------
 
-echo "\nSuper admins\n";
-$host_before          = $_SERVER['HTTP_HOST'] ?? null;
-$_SERVER['HTTP_HOST'] = $domain;
-$refused              = Domains::refuse_super_admin_login( $super );
-$member               = (int) wp_insert_user( array( 'user_login' => 'domtestm' . $suffix, 'user_email' => 'domtestm' . $suffix . '@mody.local', 'user_pass' => wp_generate_password( 24 ), 'role' => '' ) );
-$check( 'on a member\'s domain a super admin cannot log in, and is told where', is_wp_error( $refused ) && 'mody_domain_super_admin' === $refused->get_error_code() && str_contains( $refused->get_error_message(), 'domtest' . $suffix . '.' . $network . '/wp-login.php' ), is_wp_error( $refused ) ? $refused->get_error_message() : 'allowed' );
-$check( '... nor counts as logged in, whatever arrives; a member does', false === Domains::no_super_admin_on_domain( (int) $super->ID ) && $member === Domains::no_super_admin_on_domain( $member ) && Domains::refuse_super_admin_login( get_userdata( $member ) ) instanceof WP_User );
-$_SERVER['HTTP_HOST'] = $network;
-wp_set_current_user( (int) $super->ID );
+echo "\nAdmin links\n";
 switch_to_blog( $site );
-$for_super = admin_url( 'admin.php?page=mody-dashboard' );
-$rest      = rest_url( 'wp/v2/pages' );
+$moved = Domains::on_admin_host( home_url( '/?p=12&preview=true' ) );
 restore_current_blog();
-$from_main = get_admin_url( $site );
-$check( 'for a super admin, the site\'s admin and REST addresses are its mody.cloud ones', str_starts_with( $for_super, 'https://domtest' . $suffix . '.' . $network . '/' ) && str_starts_with( $rest, 'https://domtest' . $suffix . '.' . $network . '/' ) && str_starts_with( $from_main, 'https://domtest' . $suffix . '.' . $network . '/' ), $for_super . ' ' . $from_main );
-wp_set_current_user( $member );
 switch_to_blog( $site );
-$for_member = admin_url( 'admin.php?page=mody-dashboard' );
-$safe       = wp_validate_redirect( 'https://domtest' . $suffix . '.' . $network . '/wp-admin/', 'FALLBACK' );
+$safe = wp_validate_redirect( site_url( '/wp-admin/admin.php?page=mody-dashboard' ), 'FALLBACK' );
 restore_current_blog();
-$check( 'for a member, the domain', str_starts_with( $for_member, 'https://' . $domain . '/wp-admin/' ), $for_member );
-$check( 'safe redirects to the site\'s mody.cloud address stay allowed (super admins work there)', str_contains( $safe, 'domtest' . $suffix . '.' . $network . '/wp-admin/' ), $safe );
-// A member logs in on the domain, with the domain's own cookie, and opens wp-admin there.
-$password = 'Dom-' . wp_generate_password( 20, false );
-wp_set_password( $password, $member );
-add_user_to_blog( $site, $member, 'administrator' );
-\Mody\Security\RateLimit::clear();
-$posted = wp_remote_post(
-	'https://mody_cloud_server/wp-login.php',
-	array(
-		'headers'     => array( 'Host' => $domain, 'Cookie' => 'wordpress_test_cookie=WP%20Cookie%20check' ),
-		'body'        => array( 'log' => 'domtestm' . $suffix, 'pwd' => $password, 'testcookie' => '1', 'altcha' => class_exists( \Mody\Security\Altcha::class ) ? \Mody\Security\Altcha::solve( \Mody\Security\Altcha::challenge( 3 ) ) : '' ),
-		'sslverify'   => false,
-		'redirection' => 0,
-		'timeout'     => 60,
-	)
-);
-$jar = array();
-foreach ( (array) wp_remote_retrieve_header( $posted, 'set-cookie' ) as $line ) {
-	if ( preg_match( '/^(wordpress_[^=]+)=([^;]+)/', (string) $line, $m ) && 'deleted' !== $m[2] ) {
-		$jar[] = $m[1] . '=' . $m[2];
-	}
-}
-$logged = wp_remote_get( 'https://mody_cloud_server/wp-admin/', array( 'headers' => array( 'Host' => $domain, 'Cookie' => implode( '; ', $jar ) ), 'sslverify' => false, 'redirection' => 0, 'timeout' => 60 ) );
-$code   = (int) wp_remote_retrieve_response_code( $logged );
-$where  = (string) wp_remote_retrieve_header( $logged, 'location' );
-$check( 'a member logs in on the domain and opens wp-admin there', 302 === (int) wp_remote_retrieve_response_code( $posted ) && $jar && ( 200 === $code || str_starts_with( $where, 'https://' . $domain . '/wp-admin/' ) ), wp_remote_retrieve_response_code( $posted ) . ' then ' . $code . ' ' . $where );
-wp_set_current_user( 0 );
-wpmu_delete_user( $member );
-null === $host_before ? $_SERVER['HTTP_HOST'] = $network : $_SERVER['HTTP_HOST'] = $host_before;
+$check( 'safe redirects to the admin host are allowed (they looped back to wp-admin before)', str_contains( $safe, 'domtest' . $suffix . '.' . $network . '/wp-admin/admin.php' ), $safe );
+$check( 'previews and admin REST addresses stay on the admin host', str_contains( $moved, 'domtest' . $suffix . '.' . $network ) && ! str_contains( $moved, $domain ) && str_contains( $moved, 'preview=true' ), $moved );
 
 // 7. Taking it off ------------------------------------------------------------------------------------------
 
@@ -353,7 +293,7 @@ echo "\nTaking it off\n";
 $npm['calls'] = array();
 $done         = Domains::remove( $site );
 $deletes      = array_values( array_filter( $npm['calls'], static fn( array $c ): bool => 'DELETE' === $c[0] ) );
-$check( 'off: both old addresses back, NPM\'s host and certificate removed, no mapping', true === $done && $old === get_blog_option( $site, 'home' ) && $old_admin === get_blog_option( $site, 'siteurl' ) && array( '/nginx/proxy-hosts/77', '/nginx/certificates/41' ) === array_column( $deletes, 1 ) && null === Mapping::active( $domain ) && null === Domains::of_site( $site ) );
+$check( 'off: the old address back, NPM\'s host and certificate removed, no mapping', true === $done && $old === get_blog_option( $site, 'home' ) && array( '/nginx/proxy-hosts/77', '/nginx/certificates/41' ) === array_column( $deletes, 1 ) && null === Mapping::active( $domain ) && null === Domains::of_site( $site ) );
 $gone = $get( $domain );
 $check( '... the domain no longer serves the site', ! str_contains( $gone['body'], 'Domain Test Bakery' ), (string) $gone['code'] );
 wpmu_delete_blog( $other, true );
