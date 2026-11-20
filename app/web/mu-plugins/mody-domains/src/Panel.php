@@ -68,7 +68,7 @@ final class Panel {
 		self::notice();
 		if ( ! $row ) {
 			?>
-			<p><?php esc_html_e( 'Your site can answer at your own domain, such as www.yourshop.com. You buy the domain from any registrar, then point it to us here. Your editor and wp-admin stay at this site\'s mody.cloud address.', 'mody_cloud' ); ?></p>
+			<p><?php esc_html_e( 'Your site can answer at your own domain, such as www.yourshop.com. You buy the domain from any registrar, then point it to us here. Once it is live, your editor and wp-admin move to your domain too: you log in there, at your domain followed by /wp-login.php.', 'mody_cloud' ); ?></p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="mody-domain__form">
 				<?php wp_nonce_field( Domains::ADD_ACTION ); ?>
 				<input type="hidden" name="action" value="<?php echo esc_attr( Domains::ADD_ACTION ); ?>" />
