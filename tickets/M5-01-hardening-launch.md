@@ -47,8 +47,15 @@ An audit of six surfaces (signup and login, the agent and REST, wp-admin handler
 - **The main site:** WordPress's "Sample Page" and its default "Privacy Policy" draft are in the trash. `wp_page_for_privacy_policy` points at the published privacy page (276), which core links from login and signup.
 - **The theme's spacing sizes** are fixed without moving anything (theme-development.md, Design tokens).
 
+## Launch checklist for the free service (2026-11-20)
+Mody Cloud launches free ([free-mvp.md](free-mvp.md), decided by the maintainer on 2026-11-20): no payments, so Mollie's live key, invoices and the paid legal texts are not launch tasks any more. What is left, in order:
+1. **The free service** built and deployed ([free-mvp.md](free-mvp.md), [#13](https://github.com/phycticio/mody.cloud/issues/13)).
+2. **Every member screen in a real browser** ([launch-browser-check.md](launch-browser-check.md), [#17](https://github.com/phycticio/mody.cloud/issues/17)).
+3. **Production checked end to end** ([launch-production-check.md](launch-production-check.md), [#16](https://github.com/phycticio/mody.cloud/issues/16)): the server's configuration, Spain only, a real signup, the restore's full-stack check, the Composer credential rotated, the legal pages after the adviser's read.
+4. **The security sign-off** recorded below, after 1 to 3.
+
 ## Acceptance (launch checklist)
 - [ ] Fresh machine: `cp sample.env .env`, certs, `docker compose up`, core install, multisite activation — the site is usable (documented in local-development.md).
-- [ ] Register → trial → create site → edit in Site Editor → agent tool → all work over HTTPS on the production front end.
-- [ ] Restore drill completes with zero data loss on the test account.
+- [ ] Register (from Spain) → free site → edit in Site Editor → agent tool → all work over HTTPS on the production front end ([launch-production-check.md](launch-production-check.md)).
+- [ ] Restore drill completes with zero data loss on the test account, and WordPress runs on the restored data ([backups.md](backups.md)).
 - [ ] Security pass sign-off recorded in this ticket (the pass itself: above, 2026-11-12).
