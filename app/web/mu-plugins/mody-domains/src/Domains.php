@@ -26,13 +26,21 @@ defined( 'ABSPATH' ) || exit;
  *   gets the certificate and the proxy host (ProxyManager), then `active`:
  *   the site's `home` becomes `https://<domain>` (the old one is kept in
  *   the row). `failed` after a day of failed tries; Try again restarts.
- * - **The admin stays on `*.mody.cloud`:** `siteurl` is not changed, so
- *   wp-admin, the editors, logins and REST calls from the admin keep the
- *   network's login cookie. On the custom domain, wp-login.php and wp-admin
- *   redirect there; previews use it too; REST addresses printed in the admin
- *   use it (rest_url()). Visitors of the public site at the old address are
- *   sent to the domain (301; WordPress's own canonical redirect only changes
- *   www against no www); logged-in users and previews stay, so editing works.
+ * - **The admin moves to the domain too** (decided by the maintainer on
+ *   2026-11-20, issue #19; until then it stayed on `*.mody.cloud`): when the
+ *   domain goes live, `home` and `siteurl` both become `https://<domain>`
+ *   (each old value kept in the row), so wp-login.php, wp-admin, the editors,
+ *   previews and REST calls all use the member's own address. The login
+ *   cookie there is the domain's own (`COOKIE_DOMAIN` in wp-config.php is
+ *   the network's only on its own hosts), so a member logs in once on their
+ *   domain.
+ * - **At the old address:** the public site and wp-admin send everyone to
+ *   the domain (301 and 302; WordPress's own canonical redirect only changes
+ *   www against no www), except super admins.
+ * - **Super admins stay on `*.mody.cloud`:** they cannot log in on a
+ *   member's domain (its owner controls where its DNS points, so a session
+ *   made there could be captured), and for them the site's admin addresses
+ *   are rewritten to its `*.mody.cloud` address (for_super_admin()).
  * - **Taking it off** restores `home` and removes NPM's host and certificate.
  *   A deleted site's domain goes with it.
  */
@@ -53,7 +61,7 @@ final class Domains {
 	public const GIVE_UP_HOURS = 24;
 
 	/** Bump when the table definition changes. */
-	private const DB_VERSION = '1';
+	private const DB_VERSION = '2'; // 2: old_siteurl; live domains get the admin too (2026-11-20).
 
 	/** Network option with the installed version. */
 	private const DB_VERSION_OPTION = 'mody_domains_db_version';
@@ -69,10 +77,13 @@ final class Domains {
 		add_action( 'admin_post_' . self::ADD_ACTION, array( self::class, 'handle_add' ) );
 		add_action( 'admin_post_' . self::CHECK_ACTION, array( self::class, 'handle_check' ) );
 		add_action( 'admin_post_' . self::REMOVE_ACTION, array( self::class, 'handle_remove' ) );
-		add_action( 'init', array( self::class, 'admin_on_network' ), 0 );
+		add_action( 'init', array( self::class, 'admin_on_domain' ), 0 );
 		add_action( 'template_redirect', array( self::class, 'send_to_domain' ), 1 );
-		add_filter( 'rest_url', array( self::class, 'rest_url' ), 10, 2 );
-		add_filter( 'preview_post_link', array( self::class, 'on_admin_host' ) );
+		add_filter( 'wp_authenticate_user', array( self::class, 'refuse_super_admin_login' ) );
+		add_filter( 'determine_current_user', array( self::class, 'no_super_admin_on_domain' ), 99 );
+		add_filter( 'site_url', array( self::class, 'for_super_admin' ) );
+		add_filter( 'rest_url', array( self::class, 'for_super_admin' ) );
+		add_filter( 'preview_post_link', array( self::class, 'for_super_admin' ) );
 		add_filter( 'allowed_redirect_hosts', array( self::class, 'allowed_redirect_hosts' ) );
 		add_action( 'wp_delete_site', array( self::class, 'site_deleted' ) );
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -90,6 +101,7 @@ final class Domains {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$table = Mapping::table();
+		$was   = (string) get_site_option( self::DB_VERSION_OPTION );
 		dbDelta(
 			"CREATE TABLE {$table} (
   id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -97,6 +109,7 @@ final class Domains {
   domain varchar(253) NOT NULL,
   status varchar(20) NOT NULL DEFAULT 'pending',
   old_home varchar(255) DEFAULT NULL,
+  old_siteurl varchar(255) DEFAULT NULL,
   npm_host_id int(10) unsigned NOT NULL DEFAULT 0,
   npm_cert_id int(10) unsigned NOT NULL DEFAULT 0,
   checked_at datetime DEFAULT NULL,
@@ -109,7 +122,41 @@ final class Domains {
   KEY status (status)
 ) {$wpdb->get_charset_collate()};"
 		);
+		if ( '1' === $was ) {
+			// Version 2: domains already live get the admin too.
+			$live = $wpdb->get_results( "SELECT * FROM {$table} WHERE status = 'active'", ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Own table.
+			foreach ( (array) $live as $row ) {
+				if ( get_site( (int) $row['site_id'] ) ) {
+					$wpdb->update( $table, array( 'old_siteurl' => self::admin_to_domain( (int) $row['site_id'], (string) $row['domain'] ) ), array( 'id' => (int) $row['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Own table.
+				}
+			}
+		}
 		update_site_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+	}
+
+	/**
+	 * A URL with its scheme and host replaced by `https://<domain>`, its path
+	 * and query kept (a `siteurl` of `https://x.mody.cloud/wp` keeps `/wp`).
+	 *
+	 * @param string $url    A URL.
+	 * @param string $domain The domain.
+	 */
+	public static function on_domain( string $url, string $domain ): string {
+		return 'https://' . $domain . (string) preg_replace( '#^[a-z][a-z0-9+.-]*://[^/?\#]*#i', '', $url );
+	}
+
+	/**
+	 * The site's admin moves to its domain: `siteurl` becomes the domain.
+	 *
+	 * @param int    $site_id Site.
+	 * @param string $domain  Its live domain.
+	 * @return string The old `siteurl`.
+	 */
+	private static function admin_to_domain( int $site_id, string $domain ): string {
+		$old = (string) get_blog_option( $site_id, 'siteurl' );
+		update_blog_option( $site_id, 'siteurl', self::on_domain( $old, $domain ) );
+		clean_blog_cache( $site_id );
+		return $old;
 	}
 
 	/**
@@ -309,12 +356,17 @@ final class Domains {
 	private static function activate( array $row, array $made ): array {
 		$site_id = (int) $row['site_id'];
 		$old     = (string) get_blog_option( $site_id, 'home' );
+		$admin   = (string) get_blog_option( $site_id, 'siteurl' );
 		update_blog_option( $site_id, 'home', 'https://' . $row['domain'] );
+		if ( ! str_starts_with( $admin, 'https://' . $row['domain'] ) ) {
+			$admin = self::admin_to_domain( $site_id, (string) $row['domain'] );
+		}
 		clean_blog_cache( $site_id );
 		return array(
 			'status'      => 'active',
 			'error'       => null,
 			'old_home'    => '' !== (string) ( $row['old_home'] ?? '' ) ? $row['old_home'] : $old,
+			'old_siteurl' => '' !== (string) ( $row['old_siteurl'] ?? '' ) ? $row['old_siteurl'] : $admin,
 			'npm_host_id' => $made['host'],
 			'npm_cert_id' => $made['certificate'],
 		);
@@ -334,6 +386,9 @@ final class Domains {
 		}
 		if ( 'active' === $row['status'] && ! empty( $row['old_home'] ) && get_site( $site_id ) ) {
 			update_blog_option( $site_id, 'home', (string) $row['old_home'] );
+			if ( ! empty( $row['old_siteurl'] ) ) {
+				update_blog_option( $site_id, 'siteurl', (string) $row['old_siteurl'] );
+			}
 			clean_blog_cache( $site_id );
 		}
 		if ( $row['npm_host_id'] || $row['npm_cert_id'] ) {
@@ -370,79 +425,136 @@ final class Domains {
 	}
 
 	/**
-	 * `init` (early): on a custom domain, the login and the admin go to the
-	 * site's `*.mody.cloud` address, where the network's login cookie works.
+	 * The site's live domain when this request came in at its `*.mody.cloud`
+	 * address, or '' (no domain, or the request is already on it).
 	 */
-	public static function admin_on_network(): void {
+	private static function domain_elsewhere(): string {
 		$host = Mapping::request_host();
-		if ( '' === $host || Mapping::is_network_host( $host ) || ! Mapping::active( $host ) ) {
+		$home = (string) wp_parse_url( (string) get_option( 'home' ), PHP_URL_HOST );
+		if ( '' === $host || '' === $home || $host === $home || ! Mapping::is_network_host( $host ) || ! Mapping::active( $home ) ) {
+			return '';
+		}
+		return $home;
+	}
+
+	/**
+	 * Whether this request came in at a member's custom domain.
+	 */
+	private static function on_custom_domain(): bool {
+		$host = Mapping::request_host();
+		return '' !== $host && ! Mapping::is_network_host( $host ) && null !== Mapping::active( $host );
+	}
+
+	/**
+	 * Whether the user running this request is a super admin, without asking
+	 * WordPress to work out the user before it has (filters that run early).
+	 */
+	private static function super_admin_now(): bool {
+		return did_action( 'set_current_user' ) > 0 && is_super_admin();
+	}
+
+	/**
+	 * `init` (early): wp-admin at the site's old `*.mody.cloud` address goes
+	 * to its domain (same path and query), for everyone but super admins.
+	 * wp-login.php stays, so super admins can log in there.
+	 */
+	public static function admin_on_domain(): void {
+		$domain = self::domain_elsewhere();
+		if ( '' === $domain || is_super_admin() ) {
 			return;
 		}
-		$path = (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/', PHP_URL_PATH ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Compared, then passed to site_url().
-		if ( preg_match( '#^/(wp-login\.php|wp-admin(/|$)|wp-signup\.php|wp-activate\.php)#', $path ) ) {
-			$query = isset( $_SERVER['QUERY_STRING'] ) && '' !== $_SERVER['QUERY_STRING'] ? '?' . (string) wp_unslash( $_SERVER['QUERY_STRING'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Kept as is for the redirect.
-			wp_redirect( site_url( ltrim( $path, '/' ) ) . $query, 302 ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- The site's own admin address.
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Appended to the site's own domain.
+		$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+		$base = rtrim( (string) wp_parse_url( (string) get_option( 'siteurl' ), PHP_URL_PATH ), '/' );
+		if ( preg_match( '#^' . preg_quote( $base, '#' ) . '/wp-admin(/|$)#', $path ) && ! preg_match( '#/wp-admin/(admin-ajax|admin-post|async-upload)\.php$#', $path ) ) {
+			wp_redirect( 'https://' . $domain . '/' . ltrim( $uri, '/' ), 302 ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- The site's own custom domain.
 			exit;
 		}
 	}
 
 	/**
 	 * `template_redirect`: the public site, opened at its old address, moves
-	 * to its custom domain (same path and query).
+	 * to its custom domain (same path and query), for everyone but super
+	 * admins (who work there).
 	 */
 	public static function send_to_domain(): void {
-		$host = Mapping::request_host();
-		$home = (string) wp_parse_url( home_url(), PHP_URL_HOST );
-		if ( '' === $host || $host === $home || ! Mapping::is_network_host( $host ) || ! Mapping::active( $home ) ) {
-			return;
-		}
-		if ( is_user_logged_in() || is_preview() || is_customize_preview() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+		$domain = self::domain_elsewhere();
+		if ( '' === $domain || is_super_admin() || is_preview() || is_customize_preview() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return;
 		}
 		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Appended to the site's own domain.
-		wp_redirect( 'https://' . $home . '/' . ltrim( $uri, '/' ), 301 ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- The site's own custom domain.
+		wp_redirect( 'https://' . $domain . '/' . ltrim( $uri, '/' ), 301 ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- The site's own custom domain.
 		exit;
 	}
 
 	/**
-	 * A URL on the site's admin host (`siteurl`) instead of its custom domain.
+	 * `wp_authenticate_user`: a super admin cannot log in on a member's
+	 * domain; the message gives the site's `*.mody.cloud` login.
+	 *
+	 * @param \WP_User|WP_Error $user The user, or an earlier error.
+	 * @return \WP_User|WP_Error
+	 */
+	public static function refuse_super_admin_login( $user ) {
+		if ( ! ( $user instanceof \WP_User ) || ! self::on_custom_domain() || ! is_super_admin( $user->ID ) ) {
+			return $user;
+		}
+		$row  = Mapping::active( Mapping::request_host() );
+		$site = $row ? get_site( (int) $row['site_id'] ) : null;
+		return new WP_Error(
+			'mody_domain_super_admin',
+			sprintf(
+				/* translators: %s: the site's login page at its mody.cloud address. */
+				__( 'Super admins do not log in on a member\'s own domain. Log in at %s instead.', 'mody_cloud' ),
+				esc_html( 'https://' . ( $site ? $site->domain : Mapping::network_domain() ) . '/wp-login.php' )
+			)
+		);
+	}
+
+	/**
+	 * `determine_current_user` (late): on a member's domain nobody is a super
+	 * admin, whatever cookie or credential arrives.
+	 *
+	 * @param int|false $user_id The user found so far.
+	 * @return int|false
+	 */
+	public static function no_super_admin_on_domain( $user_id ) {
+		return $user_id && self::on_custom_domain() && is_super_admin( (int) $user_id ) ? false : $user_id;
+	}
+
+	/**
+	 * `site_url`, `rest_url`, `preview_post_link`: for a super admin working
+	 * at the network's addresses, a site's admin, REST and preview URLs on its
+	 * custom domain point to its `*.mody.cloud` address instead, where their
+	 * login works (Network Admin's links to a site's Dashboard too).
 	 *
 	 * @param string $url A URL.
 	 */
-	public static function on_admin_host( string $url ): string {
-		$home  = (string) wp_parse_url( home_url(), PHP_URL_HOST );
-		$admin = (string) wp_parse_url( site_url(), PHP_URL_HOST );
-		if ( '' === $home || $home === $admin || (string) wp_parse_url( $url, PHP_URL_HOST ) !== $home ) {
+	public static function for_super_admin( $url ) {
+		$url  = (string) $url;
+		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
+		if ( '' === $host || Mapping::is_network_host( $host ) || ! Mapping::is_network_host( Mapping::request_host() ) || ! self::super_admin_now() ) {
 			return $url;
 		}
-		return (string) preg_replace( '#^(https?://)' . preg_quote( $home, '#' ) . '#i', '$1' . $admin, $url );
+		$row  = Mapping::active( $host );
+		$site = $row ? get_site( (int) $row['site_id'] ) : null;
+		return $site ? (string) preg_replace( '#^https?://' . preg_quote( $host, '#' ) . '#i', 'https://' . $site->domain, $url ) : $url;
 	}
 
 	/**
-	 * `rest_url`: in the admin (the editors call the REST API with the login
-	 * cookie), the admin host.
-	 *
-	 * @param string $url  The REST URL.
-	 * @param string $path The route.
-	 */
-	public static function rest_url( string $url, string $path ): string {
-		unset( $path );
-		return is_admin() || ( defined( 'REST_REQUEST' ) && REST_REQUEST && is_user_logged_in() ) ? self::on_admin_host( $url ) : $url;
-	}
-
-	/**
-	 * `allowed_redirect_hosts`: the site's admin host too. WordPress allows
-	 * only the home host, so once `home` is the custom domain every
-	 * wp_safe_redirect() to the admin (`siteurl`) fell back to wp-admin, which
-	 * redirected again: a loop on the first real domain (2026-11-14).
+	 * `allowed_redirect_hosts`: the site's admin host and its `*.mody.cloud`
+	 * address too. WordPress allows only the home host; a super admin works
+	 * at the network address, and before 2026-11-20 every member did (a
+	 * redirect loop on the first real domain, 2026-11-14).
 	 *
 	 * @param string[] $hosts Allowed hosts.
 	 * @return string[]
 	 */
 	public static function allowed_redirect_hosts( array $hosts ): array {
-		$admin = (string) wp_parse_url( site_url(), PHP_URL_HOST );
-		if ( '' !== $admin && ! in_array( $admin, $hosts, true ) ) {
-			$hosts[] = $admin;
+		$site = get_site();
+		foreach ( array( (string) wp_parse_url( site_url(), PHP_URL_HOST ), $site ? (string) $site->domain : '' ) as $host ) {
+			if ( '' !== $host && ! in_array( $host, $hosts, true ) ) {
+				$hosts[] = $host;
+			}
 		}
 		return $hosts;
 	}
