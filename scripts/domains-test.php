@@ -21,7 +21,9 @@
  *    login page (with a cookie of its own) and wp-admin; the old address
  *    sends visitors and wp-admin to the domain; an unknown domain gets no site.
  * 6. Super admins: refused on a member's domain; for them the site's admin
- *    links point to its mody.cloud address; members keep the domain.
+ *    links point to its mody.cloud address; members keep the domain. A
+ *    member's real login on the domain. Sessions count only where they were
+ *    made: the domain, or the network (#27).
  * 7. Taking it off: both addresses back, NPM's host and certificate removed,
  *    the mapping gone; a deleted site's domain goes too.
  * 8. The Dashboard's section.
@@ -343,6 +345,30 @@ $logged = wp_remote_get( 'https://mody_cloud_server/wp-admin/', array( 'headers'
 $code   = (int) wp_remote_retrieve_response_code( $logged );
 $where  = (string) wp_remote_retrieve_header( $logged, 'location' );
 $check( 'a member logs in on the domain and opens wp-admin there', 302 === (int) wp_remote_retrieve_response_code( $posted ) && $jar && ( 200 === $code || str_starts_with( $where, 'https://' . $domain . '/wp-admin/' ) ), wp_remote_retrieve_response_code( $posted ) . ' then ' . $code . ' ' . $where );
+// Sessions count only where they were made (HostSessions, #27).
+echo "\nSessions\n";
+$tokens   = WP_Session_Tokens::get_instance( $member );
+$on       = static function ( string $host, string $token ) use ( $tokens ): bool {
+	$_SERVER['HTTP_HOST'] = $host;
+	return $tokens->verify( $token );
+};
+$_SERVER['HTTP_HOST'] = $domain;
+$from_domain          = $tokens->create( time() + 300 );
+$_SERVER['HTTP_HOST'] = $network;
+$from_network         = $tokens->create( time() + 300 );
+$old_address          = 'domtest' . $suffix . '.' . $network;
+$check( 'the session manager is Mody Domains\' HostSessions', $tokens instanceof \Mody\Domains\HostSessions );
+$check( 'a login made on the domain counts there only', $on( $domain, $from_domain ) && ! $on( $network, $from_domain ) && ! $on( $old_address, $from_domain ) && ! $on( 'www.other' . $suffix . '.test', $from_domain ) );
+$check( 'a login made on the network counts on every network address, never on the domain', $on( $network, $from_network ) && $on( $old_address, $from_network ) && ! $on( $domain, $from_network ) );
+$sessions = get_user_meta( $member, 'session_tokens', true );
+foreach ( $sessions as $verifier => $session ) {
+	unset( $sessions[ $verifier ]['mody_scope'] ); // As made before #27.
+}
+update_user_meta( $member, 'session_tokens', $sessions );
+$check( 'a session from before counts as the network\'s', $on( $network, $from_network ) && $on( $network, $from_domain ) && ! $on( $domain, $from_domain ) );
+$tokens->destroy_all();
+$_SERVER['HTTP_HOST'] = $network;
+
 wp_set_current_user( 0 );
 wpmu_delete_user( $member );
 null === $host_before ? $_SERVER['HTTP_HOST'] = $network : $_SERVER['HTTP_HOST'] = $host_before;

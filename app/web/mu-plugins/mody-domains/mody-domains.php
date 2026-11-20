@@ -48,6 +48,7 @@ spl_autoload_register(
 
 if ( is_multisite() ) {
 	Domains::register();
+	HostSessions::register(); // A login counts only where it was made: the network, or one member's domain (#27).
 	add_filter( 'mody_dashboard_sections', array( Panel::class, 'add_section' ) );
 	add_action( 'mody_dashboard_section_' . Panel::SECTION, array( Panel::class, 'render' ) );
 	add_action( 'admin_enqueue_scripts', array( Panel::class, 'enqueue' ) );
