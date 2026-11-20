@@ -123,7 +123,8 @@ $draft_with = static function ( string $needle ) use ( $called ): callable {
 			return false;
 		}
 		$drafts = get_posts( array( 'post_type' => 'page', 'post_status' => 'draft', 'numberposts' => 1, 'orderby' => 'ID', 'order' => 'DESC' ) );
-		return $drafts && str_contains( wp_strip_all_tags( $drafts[0]->post_content ), $needle );
+		// Any case: "same-day repair" mid-sentence is as right as the heading's "Same-day repair" (a false failure on 2026-11-20).
+		return $drafts && false !== stripos( wp_strip_all_tags( $drafts[0]->post_content ), $needle );
 	};
 };
 $sections_changed = static function ( array $t, string $original ): array {
