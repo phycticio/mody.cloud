@@ -2,7 +2,7 @@
 
 **Status:** built and deployed 2026-11-13 (`1039407`); **published on production the same day** (pages 274, 275 and 276), with the home page's links in all four languages. All four seller options are set on production and locally. **Asked by** the maintainer on 2026-11-13 ("tell me what's next and let's go to it"), after card payments: real money needs these pages first.
 
-> **Rewritten on 2026-11-20 for the free service ([free-mvp.md](free-mvp.md)):** the legal notice names the maintainer as a private person, offering the service free of charge; the terms have no price, payments or withdrawal section, say who can sign up (Spain) and how it can end (30 days' notice); the privacy policy drops Mollie and payment records. The paid version is in git history for the paid tiers. To be read by the maintainer's adviser before it is published.
+> **Rewritten on 2026-11-20 for the free service ([free-mvp.md](free-mvp.md)):** the legal notice names the maintainer as a private person, offering the service free of charge; the terms have no price, payments or withdrawal section, say who can sign up (Spain) and how it can end (30 days' notice); the privacy policy drops Mollie and payment records. The paid version is in git history for the paid tiers. Published on production on 2026-11-20 (the maintainer chose to publish before the adviser's read); the adviser's changes come as a new pull request.
 
 ## What
 - `scripts/legal-pages.php` (run on the main site, like `scripts/home-page.php`; it replaces the pages, so edit the script) makes three pages:
