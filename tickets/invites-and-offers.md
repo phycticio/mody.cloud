@@ -2,6 +2,8 @@
 
 **Builds on:** [pricing-per-site.md](pricing-per-site.md) (the launch offer), [M1-03](M1-03-chat-signup-and-editor-tour.md) (the signup chat), [mody-dashboard.md](mody-dashboard.md) · **Docs:** [membership-tiers.md](../documentation/membership-tiers.md) · **Status:** planned and built 2026-11-14 on `feature/invites-and-offers`.
 
+> **Changed on 2026-11-20 by [free-mvp.md](free-mvp.md):** the invited friend gets a free account like everyone; points are hidden while payments are off; the Offers page keeps only who may sign up and invites on or off.
+
 ## Asked for
 By the maintainer on 2026-11-14:
 

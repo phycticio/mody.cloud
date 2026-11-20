@@ -17,15 +17,17 @@
  * 3. Open, over HTTP: the page with the chat's script and the form (no
  *    password, no plans, no card); the check route (nonce, each field, the
  *    suggestion); the register route: bad answers (400 with fields), then a
- *    good one (201): the user without a main-site role, a place of the
- *    launch offer (six months free, one site, no card), the onboarding stage, the site with its starter page and no
+ *    good one (201): the user without a main-site role, a free account
+ *    (one site, no card, no end; free-mvp.md), the onboarding stage, the site with its starter page and no
  *    model call, the welcome email with the set-password link; the same
  *    email again is refused.
  * 4. The form without JavaScript: errors keep the answers, an expired nonce,
  *    and a good post says "Done!". A logged-in visitor is told they have an
  *    account; members log in to the dashboard.
- * 5. The launch offer's places taken: the page says so and the price, and
- *    nothing is created.
+ * 5. Sign-ups from Spain only, for invited people only: without the
+ *    confirmation nothing is created (the chat and the form); an address
+ *    placed outside Spain is refused; with invited people only, the page
+ *    says so and the route refuses.
  * 6. Closed again: the page says so, and nothing is created.
  *
  * Antibot (tickets/antibot-altcha.md): the page has the ALTCHA widget and
@@ -67,11 +69,9 @@ $emails      = array( 'a' => "modyreg{$suffix}@mody.local", 'b' => "modyregb{$su
 $slugs       = array( 'a' => "regtest{$suffix}", 'b' => "regtestb{$suffix}", 'c' => "regtestc{$suffix}" );
 $was_open    = get_site_option( Registration::OPEN_OPTION );
 $was_promo   = array(
-	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
-	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
+	\Mody\Members\Offers::OPTION => get_site_option( \Mody\Members\Offers::OPTION, null ),
 );
-delete_site_option( Members::PROMO_START_OPTION ); // The offer as at launch: 50 places.
-delete_site_option( Members::PROMO_GIVEN_OPTION );
+delete_site_option( \Mody\Members\Offers::OPTION ); // Sign-ups open to everyone.
 $page_before = (int) get_option( Registration::PAGE_OPTION );
 $admins      = get_super_admins();
 $super       = get_user_by( 'login', $admins[0] );
@@ -242,7 +242,8 @@ $check( '... the antibot widget and its script, in the form', str_contains( $out
 $in_container = do_blocks( '<!-- wp:spectra/container {"tagName":"section"} --><div class="wp-block-spectra-container"><!-- wp:' . Registration::BLOCK . ' /--></div><!-- /wp:spectra/container -->' );
 $check( '... and inside a Spectra container too (its kses; the home page)', str_contains( $in_container, '<altcha-widget class="mody-altcha" name="altcha" challenge="' ) && str_contains( $in_container, 'auto="onfocus"' ) );
 $check( '... the four questions, the address\'s suffix', str_contains( $out['body'], 'name="mody_name"' ) && str_contains( $out['body'], 'name="mody_email"' ) && str_contains( $out['body'], 'name="mody_title"' ) && str_contains( $out['body'], 'name="mody_slug"' ) && str_contains( $out['body'], esc_html( Registration::address_suffix() ) ) );
-$check( '... no password; free for 6 months, no card, then the price with VAT, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && str_contains( $out['body'], 'free for 6 months' ) && str_contains( $out['body'], 'no card needed' ) && str_contains( $out['body'], '7.99 EUR a month, VAT included' ) && false === stripos( $out['body'], 'unlimited' ) );
+$check( '... no password; a free site, no card, no price, never "unlimited"', ! str_contains( $out['body'], 'type="password"' ) && str_contains( $out['body'], 'your free website is ready, no card needed' ) && ! str_contains( $out['body'], 'EUR' ) && false === stripos( $out['body'], 'unlimited' ) );
+$check( '... open to people who live in Spain: said, and the form\'s box', str_contains( $out['body'], 'open to people who live in Spain' ) && str_contains( $out['body'], 'name="mody_spain"' ) && str_contains( $out['body'], 'I live in Spain: create my site' ) );
 
 $out = $rest( 'register/check', array( 'field' => 'name', 'value' => 'Ada', 'nonce' => 'deadbeef00' ) );
 $check( 'check: a wrong nonce is refused (403)', 403 === $out['code'] && 'mody_registration_expired' === ( $out['json']['code'] ?? '' ), (string) $out['code'] );
@@ -264,6 +265,7 @@ $answers = static fn( string $key, array $over = array() ): array => array_merge
 		'slug'   => $slugs[ $key ],
 		'nonce'  => $nonce,
 		'altcha' => $proof(),
+		'spain'  => true,
 	),
 	$over
 );
@@ -276,6 +278,8 @@ $out = $rest( 'register', $answers( 'b', array( 'altcha' => $used ) ) );
 $check( '... and with a solution used before: 403', 403 === $out['code'] && 'mody_altcha_failed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $emails['b'] ), (string) $out['code'] );
 $out = $rest( 'register', $answers( 'b', array( 'altcha' => Altcha::solve( Altcha::challenge( 3 ) ) . 'x' ) ) );
 $check( '... and with a changed one: 403', 403 === $out['code'] && ! get_user_by( 'email', $emails['b'] ), (string) $out['code'] );
+$out = $rest( 'register', $answers( 'b', array( 'spain' => false ) ) );
+$check( 'register without confirming Spain: 400, nothing created', 400 === $out['code'] && 'mody_spain_unconfirmed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $emails['b'] ), (string) $out['code'] );
 
 $mails   = array();
 $started = microtime( true );
@@ -295,8 +299,7 @@ $user    = get_user_by( 'email', $emails['a'] );
 $row     = $user ? Members::get( $user->ID ) : null;
 $check( 'register(): the account, in seconds', is_array( $account ) && $user && $seconds < 20, sprintf( '%.1fs', $seconds ) );
 $check( '... the user, with their name and no main-site role', $user && 'Ada Lovelace' === $user->display_name && ! ( new WP_User( $user->ID ) )->roles, $user ? $user->user_login : 'no user' );
-$until = $row ? (int) strtotime( $row['free_until'] . ' UTC' ) : 0;
-$check( '... a place of the launch offer: free for six months, active', $row && 'free' === $row['plan'] && 'active' === $row['status'] && abs( $until - (int) strtotime( '+6 months' ) ) < 300 && $row['free_until'] === $row['billing_due_at'] && 49 === Members::promo_left(), $row ? $row['free_until'] : '' );
+$check( '... free, active, with no end and no billing date', $row && 'free' === $row['plan'] && 'active' === $row['status'] && null === $row['free_until'] && null === $row['billing_due_at'], $row ? (string) wp_json_encode( $row ) : '' );
 $check( '... the onboarding stage: password', $user && Onboarding::STAGE_PASSWORD === get_user_meta( $user->ID, Onboarding::META, true ) );
 $site_id = is_array( $account ) ? (int) $account['site_id'] : 0;
 $job     = $site_id ? Jobs::get( (int) get_blog_option( $site_id, 'mody_provisioning_job' ) ) : null;
@@ -312,7 +315,7 @@ $to_member = array_values( array_filter( $mails, static fn( array $mail ): bool 
 $welcome   = $to_member[0] ?? array();
 $body      = (string) ( $welcome['message'] ?? '' );
 $check( 'one email to the member: the welcome', 1 === count( $to_member ) && str_contains( (string) ( $welcome['subject'] ?? '' ), 'choose your password' ), count( $mails ) . ' sent' );
-$check( '... with the site, the free months, no card, then the price', str_contains( $body, 'https://' . Pipeline::domain( $slugs['a'] ) . '/' ) && str_contains( $body, 'Your site is free until' ) && str_contains( $body, 'no card is needed until then' ) && str_contains( $body, '7.99 EUR a month, VAT included' ) );
+$check( '... with the site, free, no card, no price', str_contains( $body, 'https://' . Pipeline::domain( $slugs['a'] ) . '/' ) && str_contains( $body, 'Your site is free, and no card is needed.' ) && str_contains( $body, 'under Your plan' ) && ! str_contains( $body, 'EUR' ) );
 preg_match( '#(https?://\S+wp-login\.php\?action=rp&key=([^&\s]+)&login=([^\s]+))#', $body, $link );
 $check( '... and the set-password link, with a valid key', isset( $link[2] ) && $user && rawurldecode( $link[3] ) === $user->user_login && check_password_reset_key( $link[2], $user->user_login ) instanceof WP_User );
 
@@ -339,6 +342,7 @@ $form = static fn( array $over = array() ): array => array_merge(
 		'mody_email'  => $emails['c'],
 		'mody_title'  => 'Difference Engines',
 		'mody_slug'   => $slugs['c'],
+		'mody_spain'  => '1',
 		'altcha'      => $proof(),
 	),
 	$over
@@ -347,6 +351,8 @@ $out = $http( 'POST', $url, array(), $form( array( 'mody_email' => 'not-an-email
 $check( 'a bad post: its error, the answers kept, no account', 200 === $out['code'] && str_contains( $out['body'], 'Please enter a valid email address.' ) && str_contains( $out['body'], 'value="Charles Babbage"' ) && str_contains( $out['body'], 'value="' . $slugs['c'] . '"' ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
 $out = $http( 'POST', $url, array(), $form( array( 'altcha' => '' ) ) );
 $check( 'a post without the antibot solution: refused, no account', str_contains( $out['body'], esc_html( Altcha::failed_message() ) ) && ! get_user_by( 'email', $emails['c'] ) );
+$out = $http( 'POST', $url, array(), $form( array( 'mody_spain' => '' ) ) );
+$check( 'a post without "I live in Spain": asked to confirm, no account', str_contains( $out['body'], 'Please confirm that you live in Spain.' ) && ! get_user_by( 'email', $emails['c'] ) );
 $out = $http( 'POST', $url, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
 $check( 'an expired nonce is refused', str_contains( $out['body'], 'The form expired.' ) && ! get_user_by( 'email', $emails['c'] ) );
 $out = $http( 'POST', $url, array(), $form() );
@@ -367,28 +373,37 @@ if ( $user ) {
 	$out = $http( 'GET', $url, $cookie( $user->ID ) );
 	$check( 'a logged-in visitor: "You already have an account."', str_contains( $out['body'], 'You already have an account.' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
 	$out = $http( 'GET', Registration::dashboard_url(), $cookie( $user->ID ) );
-	$check( 'the free member\'s dashboard: 1 of 1 site, no New site', 200 === $out['code'] && str_contains( $out['body'], '1 of 1 site used' ) && str_contains( $out['body'], 'The launch offer includes one site.' ), (string) $out['code'] );
+	$check( 'the free member\'s dashboard: 1 of 1 site, no New site', 200 === $out['code'] && str_contains( $out['body'], '1 of 1 site used' ) && str_contains( $out['body'], 'The free plan includes one site.' ), (string) $out['code'] );
 	$home = Registration::login_redirect( admin_url(), '', $user );
 	$check( 'members log in to their site\'s Mody dashboard (Plan & billing is there)', Registration::member_home( $user->ID ) === $home && str_contains( $home, Pipeline::domain( $slugs['a'] ) ) && str_contains( $home, 'page=mody-dashboard' ), $home );
 	$check( '... unless they asked for a page', 'https://example.test/x' === Registration::login_redirect( 'https://example.test/x', 'https://example.test/x', $user ) );
 	$check( '... and others keep the default', admin_url() === Registration::login_redirect( admin_url(), '', $super ) );
 }
 
-// 5. The launch offer's places taken ----------------------------------------------------
+// 5. Spain only, and invited people only ----------------------------------------------
 
-echo "\nThe places taken\n";
-update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES );
-$other = 'modyrege' . $suffix . '@mody.local';
-$out   = $http( 'GET', $url );
-if ( Mody\Billing\Mollie::configured() ) {
-	// With a Mollie key (the web server's environment), signing up means paying (billing-test.php covers it).
-	$check( 'with Mollie: the chat asks for the first month by card', str_contains( $out['body'], 'pay the first month by card' ) && str_contains( $out['body'], 'name="mody_email"' ) );
-} else {
-	$check( 'the page says the 50 places are taken, and the price', str_contains( $out['body'], 'The 50 free places of our launch offer are taken.' ) && str_contains( $out['body'], '7.99 EUR a month per site, VAT included' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
-	$out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
-	$check( 'the register route refuses (403)', 403 === $out['code'] && 'mody_promo_closed' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $other ), (string) $out['code'] );
-}
-update_site_option( Members::PROMO_GIVEN_OPTION, 1 );
+echo "\nSpain only, invited only\n";
+$other   = 'modyrege' . $suffix . '@mody.local';
+$request = new WP_REST_Request( 'POST', '/' . Registration::REST_NAMESPACE . '/register' );
+$request->set_param( 'nonce', wp_create_nonce( Registration::ACTION ) );
+$request->set_param( 'ref', '' );
+$country = static fn(): string => 'FR';
+add_filter( 'mody_registration_country', $country );
+$refused = Registration::rest_permission( $request );
+$check( 'an address placed in France: refused (403), told Spain only', is_wp_error( $refused ) && 'mody_outside_spain' === $refused->get_error_code() && str_contains( $refused->get_error_message(), 'live in Spain' ) );
+remove_filter( 'mody_registration_country', $country );
+$country = static fn(): string => 'ES';
+add_filter( 'mody_registration_country', $country );
+$check( '... one placed in Spain passes', Registration::outside_spain() === false );
+remove_filter( 'mody_registration_country', $country );
+$check( '... and one it cannot place passes (a private address here)', false === Registration::outside_spain() );
+
+update_site_option( \Mody\Members\Offers::OPTION, array( 'launch_who' => 'invited', 'invites_on' => true ) );
+$out = $http( 'GET', $url );
+$check( 'invited only: the page says so, no form', str_contains( $out['body'], 'Sign-ups are by invitation for now' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
+$out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
+$check( '... the register route refuses (403)', 403 === $out['code'] && 'mody_signups_invited_only' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $other ), (string) $out['code'] );
+delete_site_option( \Mody\Members\Offers::OPTION );
 
 // 6. Closed again -------------------------------------------------------------------
 

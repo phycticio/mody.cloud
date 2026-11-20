@@ -49,11 +49,11 @@ $markup = <<<'HTML'
 
 <!-- wp:list {"style":{"spacing":{"padding":{"left":"var:preset|spacing|40"}}}} -->
 <ul style="padding-left:var(--wp--preset--spacing--40)" class="wp-block-list"><!-- wp:list-item -->
-<li><strong>6 months free</strong> for the first 50 sign-ups, no card needed</li>
+<li><strong>Free</strong>: one site, no card needed</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
-<li>Then <strong>7.99 € a month</strong> per site, VAT included, everything included</li>
+<li>Open to people who live in <strong>Spain</strong>, for now</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
@@ -92,17 +92,17 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|20"}}} -->
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">6 months</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">0 €</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Free for the first 50 sign-ups, with one site. No card to start.</p>
+<p>Your site is free: one site, no card, no end date.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|20"}}} -->
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">1 GB</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">500 MB</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -292,7 +292,7 @@ $markup = <<<'HTML'
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|40"},"@tablet":{"layout":{"columnCount":2}},"@mobile":{"layout":{"columnCount":1}}},"layout":{"type":"grid","columnCount":3,"minimumColumnWidth":null}} -->
 <!-- wp:spectra/container {"variationSelected":true,"backgroundColor":"base","style":{"border":{"radius":"16px"},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|40","right":"var:preset|spacing|40","bottom":"var:preset|spacing|40","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"textColor":"primary","fontSize":"large"} -->
-<h3 class="wp-block-heading has-primary-color has-text-color has-large-font-size">1 GB for every site</h3>
+<h3 class="wp-block-heading has-primary-color has-text-color has-large-font-size">500 MB for every site</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -388,17 +388,17 @@ $markup = <<<'HTML'
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"style":{"typography":{"textAlign":"center"}}} -->
-<h2 class="wp-block-heading has-text-align-center">One price per site, the same features</h2>
+<h2 class="wp-block-heading has-text-align-center">Free, with everything included</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center">Every site gets the same: 1 GB of space, everything built in, its own Mody and the full Site Editor. Every site costs the same, however many you have. Pay monthly, or yearly and get two months free.</p>
+<p class="has-text-align-center">Every site gets the same: 500 MB of space, everything built in, its own Mody and the full Site Editor. One free site per account, for people who live in Spain.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"spacing":{"blockGap":"var:preset|spacing|40"},"@tablet":{"layout":{"columnCount":1}},"@mobile":{"layout":{"columnCount":1}}},"layout":{"type":"grid","columnCount":3,"minimumColumnWidth":null}} -->
 <!-- wp:spectra/container {"variationSelected":true,"backgroundColor":"accent","textColor":"base","style":{"border":{"radius":"16px"},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"textColor":"base","fontSize":"large"} -->
-<h3 class="wp-block-heading has-base-color has-text-color has-large-font-size">Launch offer</h3>
+<h3 class="wp-block-heading has-base-color has-text-color has-large-font-size">Free</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
@@ -406,49 +406,49 @@ $markup = <<<'HTML'
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p><strong>6 months free, one site.</strong> For the first 50 people who sign up in our first three months. No card needed.</p>
+<p><strong>One site, free.</strong> No card needed, and no end date.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"border":{"radius":"16px","top":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"right":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"bottom":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"left":{"color":"var:preset|color|primary","width":"1px","style":"solid"}},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"fontSize":"large"} -->
-<h3 class="wp-block-heading has-large-font-size">Monthly</h3>
+<h3 class="wp-block-heading has-large-font-size">Who can join</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">7.99 €</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">Spain</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph {"fontSize":"small"} -->
-<p class="has-small-font-size">per site a month, VAT included</p>
+<p class="has-small-font-size">for now</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Cancel at the end of any month.</p>
+<p>Mody Cloud is open to people who live in Spain while it is small.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:spectra/container {"variationSelected":true,"style":{"border":{"radius":"16px","top":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"right":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"bottom":{"color":"var:preset|color|primary","width":"1px","style":"solid"},"left":{"color":"var:preset|color|primary","width":"1px","style":"solid"}},"spacing":{"blockGap":"var:preset|spacing|20","padding":{"top":"var:preset|spacing|50","right":"var:preset|spacing|40","bottom":"var:preset|spacing|50","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","orientation":"vertical","justifyContent":"left","verticalAlignment":"top"}} -->
 <!-- wp:heading {"level":3,"fontSize":"large"} -->
-<h3 class="wp-block-heading has-large-font-size">Yearly</h3>
+<h3 class="wp-block-heading has-large-font-size">Later</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"textColor":"primary","fontSize":"xx-large","style":{"typography":{"fontWeight":"700","lineHeight":"1.1"}}} -->
-<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">79.99 €</p>
+<p class="has-primary-color has-text-color has-xx-large-font-size" style="font-weight:700;line-height:1.1">More</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph {"fontSize":"small"} -->
-<p class="has-small-font-size">per site a year, VAT included: twelve months for the price of ten</p>
+<p class="has-small-font-size">paid plans, when they come</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>You save 15.89 € on twelve monthly payments.</p>
+<p>Optional plans with more space and more sites.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 <!-- /wp:spectra/container -->
 
 <!-- wp:paragraph {"textColor":"secondary","fontSize":"small","style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size">Billing is not open yet. Before your free months end, we will ask you to add a card and choose monthly or yearly, paid through Mollie, a European payment provider. Without a card by then, your site becomes read-only for 60 days and is then deleted; you can download it at any time.</p>
+<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size">We take no payments: Mody Cloud is free while it grows. If paid plans come, they will be optional, and we will tell you before anything about your account changes. You can download your site at any time.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 
@@ -471,7 +471,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>No. The first 50 people who sign up get their site free for six months, with no card. Before the free months end, we ask you to add a card: 7.99 € a month per site, VAT included. We remind you a month and a week before, and tell you clearly what happens to your site if you don't.</p>
+<p>No. Your site is free, with no card and no end date. We take no payments. Mody Cloud is open to people who live in Spain for now.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -485,7 +485,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Mody Cloud is run by an independent professional, self-employed in Spain, who builds and looks after the whole platform. Prices are public and the same for everyone, and every limit is a real one: 1 GB per site, a monthly allowance of work for each site's Mody, and up to ten sites per account.</p>
+<p>Mody Cloud is built and run by one person in Spain, who looks after the whole platform. It is free for now, and every limit is a real one: one site per account, 500 MB per site, and a monthly allowance of work for each site's Mody.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -548,28 +548,28 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-item {"backgroundColor":"base","style":{"border":{"radius":"12px"}}} -->
 <!-- wp:spectra/accordion-child-header {"style":{"spacing":{"padding":{"top":"var:preset|spacing|30","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","flexWrap":"nowrap","justifyContent":"space-between","verticalAlignment":"center"}} -->
-<!-- wp:spectra/accordion-child-header-content {"text":"Do my sites share one Mody?","style":{"typography":{"fontWeight":"600"}}} /-->
+<!-- wp:spectra/accordion-child-header-content {"text":"Does Mody share what it learns between sites?","style":{"typography":{"fontWeight":"600"}}} /-->
 
 <!-- wp:spectra/accordion-child-header-icon /-->
 <!-- /wp:spectra/accordion-child-header -->
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>No. Each site has its own Mody, which reads only that site's brand and content. Nothing passes from one site to another, even within your account.</p>
+<p>No. Each site has its own Mody, which reads only that site's brand and content. Nothing passes from one site to another.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
 
 <!-- wp:spectra/accordion-child-item {"backgroundColor":"base","style":{"border":{"radius":"12px"}}} -->
 <!-- wp:spectra/accordion-child-header {"style":{"spacing":{"padding":{"top":"var:preset|spacing|30","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}},"layout":{"type":"flex","flexWrap":"nowrap","justifyContent":"space-between","verticalAlignment":"center"}} -->
-<!-- wp:spectra/accordion-child-header-content {"text":"What happens if a payment fails?","style":{"typography":{"fontWeight":"600"}}} /-->
+<!-- wp:spectra/accordion-child-header-content {"text":"Can I have more than one site?","style":{"typography":{"fontWeight":"600"}}} /-->
 
 <!-- wp:spectra/accordion-child-header-icon /-->
 <!-- /wp:spectra/accordion-child-header -->
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>Your sites stay online but read-only while we retry, for up to 60 days, with a reminder to update your payment. Before anything is deleted, we send you a link to export your content.</p>
+<p>Not yet: one site per account while Mody Cloud is free. Optional paid plans with more sites will come later.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->
@@ -596,7 +596,7 @@ $markup = <<<'HTML'
 <!-- /wp:heading -->
 
 <!-- wp:paragraph {"fontSize":"large","style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center has-large-font-size">Free for 6 months for the first 50. No card. Sovereign from the first page.</p>
+<p class="has-text-align-center has-large-font-size">Free, one site, no card. Sovereign from the first page.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->
@@ -636,7 +636,7 @@ $page     = array(
 	// The SEO title and SEO description (Mody SEO).
 	'meta_input'   => array(
 		'mody_seo_title'       => 'AI WordPress Website Builder, Hosted in Europe | Mody Cloud',
-		'mody_seo_description' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. 6 months free for the first 50, no card; then 7.99 € a month per site, VAT included.',
+		'mody_seo_description' => 'Mody, a sovereign AI, writes your WordPress site in your brand\'s voice, hosted in Europe. Free: one site, no card needed. Open to people who live in Spain.',
 	),
 );
 if ( $existing ) {

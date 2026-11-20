@@ -23,7 +23,7 @@
  * Styles (the preset) when they are there. What it cannot know comes through
  * filters the plugin that keeps the accounts answers: `mody_site_limit`,
  * `mody_can_create_site`, `mody_sites_payment_pending` (whether the account
- * must pay before its first site), `mody_sites_on_launch_offer` and
+ * must pay before its first site), `mody_sites_on_launch_offer` (whether the account is on the free plan; named after the old launch offer) and
  * `mody_sites_plan_url`.
  *
  * One of the independent Mody plugins (tickets/independent-mody-plugins.md):

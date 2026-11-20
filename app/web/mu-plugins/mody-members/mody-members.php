@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Mody Members
- * Description:       Member accounts: the signup chat, the plan and the launch offer, the sites an account may have, and Invite friends.
+ * Description:       Member accounts: the signup chat, the free plan, the sites an account may have, and Invite friends.
  * Version:           1.0.0
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
@@ -9,18 +9,20 @@
  * Update URI:        false
  * Text Domain:       mody_cloud
  *
- * Member accounts (M1-01, M1-03, tickets/pricing-per-site.md and
- * tickets/invites-and-offers.md):
+ * Member accounts (M1-01, M1-03, tickets/invites-and-offers.md and
+ * tickets/free-mvp.md):
  *
  * - **Members**: the `mody_members` table, one row per account: the plan,
- *   the price per site, the launch offer's free months, the site limit
- *   (through `mody_site_limit`), the network's Mody menu.
+ *   free with no end since 2026-11-20 (the price per site is kept for paid
+ *   tiers later), the site limit (through `mody_site_limit`), the
+ *   network's Mody menu.
  * - **Registration**: the `mody/register` block on the main site's
- *   /register/ page, a chat that creates the account, a place of the launch
- *   offer and the first site (through Mody Sites, which it needs), then
+ *   /register/ page, a chat that creates a free account and its first site
+ *   (through Mody Sites, which it needs; sign-ups from Spain only), then
  *   emails the set-password link; paid sign-ups when Mody Billing offers
  *   cards. Its REST routes keep `mody-platform/v1`.
- * - **Offers**: Network Admin → Mody → Offers, the launch offer's numbers.
+ * - **Offers**: Network Admin → Mody → Offers: sign-ups open to everyone or
+ *   to invited people only, and invites on or off.
  * - **Invites**: Invite friends, a section of the Mody dashboard through its
  *   hooks.
  *

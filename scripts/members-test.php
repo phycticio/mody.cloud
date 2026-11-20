@@ -12,20 +12,21 @@
  * 2. create(): refuses a missing user, an unknown plan or status, and a
  *    second row; creates a pending free account by default.
  * 3. Site limits: a user without a row keeps the default (3); each plan gives
- *    its own (the launch offer 1, paying 10; 2026-11-13), through
+ *    its own (free 1, paying 10; 2026-11-13), through
  *    Provisioning\Quota.
  * 4. The dashboard capability: only with a row (super admins pass anyway).
  * 5. Over HTTP: with a row, a user who is not a super admin opens Network
  *    Admin → Mody → New site and sees the plan's limit; without one, the page
  *    refuses them.
  *
- * 6. The launch offer (2026-11-13): start_free() gives a place (free six
- *    months, one site, no card), starts the offer's three months, counts
- *    the places, and refuses once the 50 are given or the months passed;
- *    a deleted account does not give its place back.
+ * 6. Free accounts (tickets/free-mvp.md, 2026-11-20): start_free() makes a
+ *    free account with one site, no card and no end date, for anyone, or
+ *    for invited people only when the Offers page says so. Version 8 of
+ *    the table empties the launch offer's end on older free accounts and
+ *    makes those past due or cancelled active again; paid ones stay.
  *
- * Two test users are created and removed with their rows; the offer's two
- * options are put back as they were. No model call.
+ * Two test users are created and removed with their rows; the Offers
+ * setting and the table version are put back as they were. No model call.
  */
 
 use Mody\Members\Members;
@@ -111,7 +112,7 @@ foreach ( Members::PLANS as $slug ) {
 	Members::create( $member, $slug, 'active' );
 	$limits[ $slug ] = Quota::limit( $member );
 }
-$check( 'each plan its own: the launch offer 1, paying 10', array(
+$check( 'each plan its own: free 1, paying 10', array(
 	'free' => 1,
 	'paid' => 10,
 ) === $limits, wp_json_encode( $limits ) );
@@ -160,35 +161,41 @@ $check( '... and no other network menu', ! preg_match( '/href=[\'"](sites|users|
 $out = $http( $cookie( $stranger ) );
 $check( 'a user without a row is refused', in_array( $out['code'], array( 403, 500 ), true ) && str_contains( $out['body'], 'Sorry, you are not allowed to' ), (string) $out['code'] );
 
-// 6. The launch offer -----------------------------------------------------------------
+// 6. Free accounts -------------------------------------------------------------------
 
-echo "\nThe launch offer\n";
-$saved_start = get_site_option( Members::PROMO_START_OPTION, null );
-$saved_given = get_site_option( Members::PROMO_GIVEN_OPTION, null );
-delete_site_option( Members::PROMO_START_OPTION );
-delete_site_option( Members::PROMO_GIVEN_OPTION );
+echo "\nFree accounts\n";
+$saved_offers = get_site_option( \Mody\Members\Offers::OPTION, null );
+delete_site_option( \Mody\Members\Offers::OPTION );
 Members::delete( $member );
 Members::delete( $stranger );
-$check( 'before the first account: open, 50 places, no end yet', Members::promo_open() && 50 === Members::promo_left() && 0 === Members::promo_ends() );
-$free  = Members::start_free( $member );
-$row   = Members::get( $member );
-$until = Members::free_until( $member );
-$check( 'a place: free, active, no card, one site', true === $free && 'free' === $row['plan'] && 'active' === $row['status'] && empty( $row['mollie_payment_method_id'] ) && 1 === Quota::limit( $member ) );
-$check( '... free for six months, the first billing date the same', abs( $until - (int) strtotime( '+6 months' ) ) < 120 && $row['free_until'] === $row['billing_due_at'], (string) $row['free_until'] );
-$check( '... it started the three months and took a place', abs( Members::promo_ends() - (int) strtotime( '+3 months' ) ) < 120 && 49 === Members::promo_left() );
-Members::delete( $member );
-$check( 'a deleted account does not give its place back', 49 === Members::promo_left() );
-update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES );
-$full = Members::start_free( $stranger );
-$check( 'the 51st is refused, nothing written', is_wp_error( $full ) && 'mody_promo_closed' === $full->get_error_code() && null === Members::get( $stranger ) && ! Members::promo_open() );
-$check( '... and told the places are taken, and the price', str_contains( $full->get_error_message(), 'The 50 free places' ) && str_contains( $full->get_error_message(), '7.99' ), $full->get_error_message() );
-update_site_option( Members::PROMO_GIVEN_OPTION, 10 );
-update_site_option( Members::PROMO_START_OPTION, (int) strtotime( '-3 months -1 day' ) );
-$late = Members::start_free( $stranger );
-$check( 'after three months, refused with places left', is_wp_error( $late ) && str_contains( $late->get_error_message(), 'has ended' ) && null === Members::get( $stranger ) );
-$check( 'prices: 7.99 a month, 79.99 a year, saving 15.89 per site', 7.99 === Members::PRICE['monthly'] && 79.99 === Members::PRICE['yearly'] && 15.89 === Members::yearly_saving() && 23.97 === Members::total( 3, 'monthly' ) );
-foreach ( array( Members::PROMO_START_OPTION => $saved_start, Members::PROMO_GIVEN_OPTION => $saved_given ) as $option => $value ) {
-	null === $value ? delete_site_option( $option ) : update_site_option( $option, $value );
-}
+$check( 'open to everyone by default', Members::free_open() && Members::free_open( true ) );
+$free = Members::start_free( $member );
+$row  = Members::get( $member );
+$check( 'free, active, no card, one site', true === $free && 'free' === $row['plan'] && 'active' === $row['status'] && empty( $row['mollie_payment_method_id'] ) && 1 === Quota::limit( $member ) );
+$check( '... with no end: no free_until, no billing date', null === $row['free_until'] && null === $row['billing_due_at'] && 0 === Members::free_until( $member ), wp_json_encode( array( $row['free_until'], $row['billing_due_at'] ) ) );
+$check( 'the launch offer\'s counters are gone', false === get_site_option( 'mody_promo_given' ) && false === get_site_option( 'mody_promo_starts_at' ) );
+update_site_option( \Mody\Members\Offers::OPTION, array( 'launch_who' => 'invited', 'invites_on' => true ) );
+$closed = Members::start_free( $stranger );
+$check( 'invited only: a visitor without an invite is refused, nothing written', is_wp_error( $closed ) && 'mody_signups_invited_only' === $closed->get_error_code() && null === Members::get( $stranger ) && ! Members::free_open() );
+$check( '... and told why, without a price', str_contains( $closed->get_error_message(), 'by invitation' ) && ! str_contains( $closed->get_error_message(), 'EUR' ), $closed->get_error_message() );
+$invited = Members::start_free( $stranger, true );
+$check( '... an invited one is free', true === $invited && 'free' === Members::get( $stranger )['plan'] );
+delete_site_option( \Mody\Members\Offers::OPTION );
+
+// Version 8: older free accounts lose their end; a paid one keeps its date.
+$table = Members::table();
+$wpdb->update( $table, array( 'free_until' => '2027-05-01 00:00:00', 'billing_due_at' => '2027-05-01 00:00:00', 'status' => 'past_due', 'past_due_since' => '2026-11-01 00:00:00', 'cancel_at' => '2027-05-01 00:00:00' ), array( 'user_id' => $member ) );
+$wpdb->update( $table, array( 'plan' => 'paid', 'billing_due_at' => '2026-12-01 00:00:00' ), array( 'user_id' => $stranger ) );
+$saved_version = get_site_option( 'mody_members_db_version' );
+update_site_option( 'mody_members_db_version', '7' );
+Members::install();
+$after = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE user_id = %d", $member ), ARRAY_A );
+$paid  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE user_id = %d", $stranger ), ARRAY_A );
+$check( 'version 8: a free account past due is active, with no end, no billing date, no cancellation', 'active' === $after['status'] && null === $after['free_until'] && null === $after['billing_due_at'] && null === $after['cancel_at'] && null === $after['past_due_since'], wp_json_encode( $after ) );
+$check( '... a paid account keeps its billing date', 'paid' === $paid['plan'] && '2026-12-01 00:00:00' === $paid['billing_due_at'] );
+$check( '... and the table is at version 8', '8' === get_site_option( 'mody_members_db_version' ) );
+update_site_option( 'mody_members_db_version', $saved_version );
+$check( 'prices kept for paid tiers: 7.99 a month, 79.99 a year, saving 15.89 per site', 7.99 === Members::PRICE['monthly'] && 79.99 === Members::PRICE['yearly'] && 15.89 === Members::yearly_saving() && 23.97 === Members::total( 3, 'monthly' ) );
+null === $saved_offers ? delete_site_option( \Mody\Members\Offers::OPTION ) : update_site_option( \Mody\Members\Offers::OPTION, $saved_offers );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

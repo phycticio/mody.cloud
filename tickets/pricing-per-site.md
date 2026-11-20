@@ -2,6 +2,8 @@
 
 **Status:** built 2026-11-13 on `feature/pricing-per-site`, not deployed. **Docs:** [membership-tiers.md](../documentation/membership-tiers.md), [mvp-spec.md §4](../documentation/mvp-spec.md#4-price-launch-offer-and-billing). **Replaces:** the plans of 2026-11-10 (1, 3 and 10 sites) and the 30-day trial with 3 sites.
 
+> **Replaced on 2026-11-20 by [free-mvp.md](free-mvp.md):** Mody Cloud is free (one site, 500 MB, no card, no end date, Spain only). The launch offer is gone; the price per site and the billing are kept, switched off, for the paid tiers.
+
 ## Asked for
 By the maintainer on 2026-11-13:
 

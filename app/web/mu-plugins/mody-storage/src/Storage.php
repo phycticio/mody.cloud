@@ -1,7 +1,7 @@
 <?php
 /**
- * 1 GB of space per site (membership-tiers.md), with WordPress's own upload
- * quota.
+ * 500 MB of space per site (membership-tiers.md, tickets/free-mvp.md), with
+ * WordPress's own upload quota.
  *
  * @package Mody\Storage
  */
@@ -12,18 +12,20 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Enforced since 2026-11-11 (tickets/mody-dashboard.md, decision 8); 3 GB
- * until the maintainer made it 1 GB for every site on 2026-11-13:
+ * until the maintainer made it 1 GB for every site on 2026-11-13, and
+ * 1 GB until the free service's 500 MB on 2026-11-20:
  *
- * - **Every new site** gets `blog_upload_space` = 1024 (MB) when it is
+ * - **Every new site** gets `blog_upload_space` = SITE_MB when it is
  *   created (`wp_initialize_site`), whatever creates it: the signup, the
  *   wizard, WP-CLI.
- * - **The network** (once per VERSION, install()): the same 1024 as the
+ * - **The network** (once per VERSION, install()): the same SITE_MB as the
  *   default, the check switched on (`upload_space_check_disabled` = 0), and
  *   WordPress's per-file cap (`fileupload_maxk`, 1.5 MB by default, enforced
  *   only with the check) raised to PHP's 1 GB (config/php/uploads.ini).
- * - **Sites made before** (version 2): those with the old 3072 get 1024. A
- *   site already over it keeps its files; it uploads again once under 1 GB.
- *   A size a super admin set by hand (any other value) stays.
+ * - **Sites made before** (versions 2 and 3): those with an old size
+ *   (OLD_SITE_MB: 3072 or 1024) get SITE_MB. A site already over it keeps
+ *   its files; it uploads again once under it. A size a super admin set by
+ *   hand (any other value) stays.
  * - **The main site** is the platform's own: no limit (space_allowed()).
  *
  * WordPress counts the site's uploads folder only (get_space_used()), not
@@ -32,10 +34,10 @@ defined( 'ABSPATH' ) || exit;
 final class Storage {
 
 	/** Each site's space, in MB. */
-	public const SITE_MB = 1024;
+	public const SITE_MB = 500;
 
-	/** The space every site had before 2026-11-13, in MB. */
-	private const OLD_SITE_MB = 3072;
+	/** The sizes every site had before, in MB: until 2026-11-13, and until 2026-11-20. */
+	private const OLD_SITE_MB = array( 3072, 1024 );
 
 	/** The largest single file, in KB: PHP's `upload_max_filesize` (1024M). */
 	public const FILE_KB = 1048576;
@@ -44,7 +46,7 @@ final class Storage {
 	private const MAIN_SITE_MB = 10485760;
 
 	/** Bump to apply the network settings again. */
-	private const VERSION = '2'; // 2: 1 GB, older sites too (2026-11-13).
+	private const VERSION = '3'; // 2: 1 GB, older sites too (2026-11-13). 3: 500 MB (2026-11-20).
 
 	/** Network option that records the applied version. */
 	private const VERSION_OPTION = 'mody_storage_version';
@@ -75,7 +77,7 @@ final class Storage {
 				'number' => 0,
 			)
 		) as $site_id ) {
-			if ( self::OLD_SITE_MB === (int) get_blog_option( (int) $site_id, 'blog_upload_space' ) ) {
+			if ( in_array( (int) get_blog_option( (int) $site_id, 'blog_upload_space' ), self::OLD_SITE_MB, true ) ) {
 				update_blog_option( (int) $site_id, 'blog_upload_space', self::SITE_MB );
 			}
 		}
@@ -83,7 +85,7 @@ final class Storage {
 	}
 
 	/**
-	 * `wp_initialize_site`, after core filled the new site's tables: its 1 GB.
+	 * `wp_initialize_site`, after core filled the new site's tables: its SITE_MB.
 	 *
 	 * @param \WP_Site $site The new site.
 	 */

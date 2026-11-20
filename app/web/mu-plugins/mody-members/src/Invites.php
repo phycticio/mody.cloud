@@ -1,7 +1,8 @@
 <?php
 /**
  * Invite friends: each member's invite link, who joined through it, and a
- * point when an invited friend first pays (tickets/invites-and-offers.md).
+ * point when an invited friend first pays (tickets/invites-and-offers.md;
+ * points hidden while payments are off, tickets/free-mvp.md).
  *
  * @package Mody\Members
  */
@@ -21,7 +22,9 @@ defined( 'ABSPATH' ) || exit;
  * - **The point:** when the invited account's first payment is paid
  *   (Billing: a `signup` or `charge` payment), `invite_point_at` is set,
  *   once. A withdrawal takes it back (uncredit()).
- * - **Points give nothing yet**, and the section says so (rule 7).
+ * - **Points give nothing yet**, and the section says so (rule 7). While
+ *   payments are off (the free service, decided 2026-11-20) nobody can
+ *   earn one, so the section shows no points (payments_on()).
  * - **The section** shows the link, how many joined and the points, never
  *   who: that would tell whether an email has an account.
  * - **Off** (Offers::invites_on()): no section, and links record nothing.
@@ -211,18 +214,15 @@ final class Invites {
 	 * What an invited friend gets now, in a sentence.
 	 */
 	public static function offer_sentence(): string {
-		if ( Members::promo_open( true ) ) {
-			return sprintf(
-				/* translators: %d: free months. */
-				_n( 'Your friends get what every new account gets now: one site free for %d month, no card needed, while the launch offer has places.', 'Your friends get what every new account gets now: one site free for %d months, no card needed, while the launch offer has places.', Offers::free_months(), 'mody_cloud' ),
-				Offers::free_months()
-			);
-		}
-		return sprintf(
-			/* translators: %s: a site's monthly price, such as 7.99 EUR. */
-			__( 'Your friends sign up like everyone: %s a month per site, VAT included.', 'mody_cloud' ),
-			Members::price( Members::PRICE['monthly'] )
-		);
+		return __( 'Your friends get what every new account gets: one free site, no card needed.', 'mody_cloud' );
+	}
+
+	/**
+	 * Whether payments are on (Mody Billing offers cards), so a point can be
+	 * earned; false without Mody Billing.
+	 */
+	private static function payments_on(): bool {
+		return class_exists( \Mody\Billing\Mollie::class ) && \Mody\Billing\Mollie::offered();
 	}
 
 	/**
@@ -246,13 +246,17 @@ final class Invites {
 					<th scope="row"><?php esc_html_e( 'Joined through your link', 'mody_cloud' ); ?></th>
 					<td><?php echo esc_html( number_format_i18n( $counts['joined'] ) ); ?></td>
 				</tr>
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Your points', 'mody_cloud' ); ?></th>
-					<td><?php echo esc_html( number_format_i18n( $counts['points'] ) ); ?></td>
-				</tr>
+				<?php if ( self::payments_on() ) : ?>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Your points', 'mody_cloud' ); ?></th>
+						<td><?php echo esc_html( number_format_i18n( $counts['points'] ) ); ?></td>
+					</tr>
+				<?php endif; ?>
 			</tbody>
 		</table>
-		<p class="description"><?php esc_html_e( 'You earn a point when a friend you invited makes their first payment. Points give nothing yet: we count them now, and we will tell you before they are worth something.', 'mody_cloud' ); ?></p>
+		<?php if ( self::payments_on() ) : ?>
+			<p class="description"><?php esc_html_e( 'You earn a point when a friend you invited makes their first payment. Points give nothing yet: we count them now, and we will tell you before they are worth something.', 'mody_cloud' ); ?></p>
+		<?php endif; ?>
 		<script>
 		( function () {
 			var button = document.getElementById( 'mody-invite-copy' );
