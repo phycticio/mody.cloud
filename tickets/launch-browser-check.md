@@ -1,6 +1,6 @@
 # Every member screen checked in a real browser before launch
 
-**Builds on:** [free-mvp.md](free-mvp.md), [M1-03](M1-03-chat-signup-and-editor-tour.md), [M5-01](M5-01-hardening-launch.md) · **Feeds:** the launch · **Status:** planned on 2026-11-20 · **Issue:** [#17](https://github.com/phycticio/mody.cloud/issues/17)
+**Builds on:** [free-mvp.md](free-mvp.md), [M1-03](M1-03-chat-signup-and-editor-tour.md), [M5-01](M5-01-hardening-launch.md) · **Feeds:** the launch · **Status:** planned on 2026-11-20; screens 1, 2, 3 and part of 6 checked locally the same day · **Issue:** [#17](https://github.com/phycticio/mody.cloud/issues/17)
 
 ## Goal (maintainer, 2026-11-20)
 
@@ -27,4 +27,9 @@ Many features are built and tested by scripts but wait on "a look in the browser
 None yet.
 
 ## Results
-Not started.
+**2026-11-20, locally, on `feature/#13-free-mvp`** (headless Chromium, Node 22 over CDP; two throwaway accounts, removed after):
+- **1. `/register/`** at 1440 and 390 px: the intro ("your free website is ready, no card needed… open to people who live in Spain"), the four answers, the address suggestion kept, the summary with "I live in Spain: create my site" and "Change something", then "Done!" and the spam note. No sideways scroll, no console errors. Both accounts: free, active, no end date, a 500 MB site. **Pass.** Not checked yet: an error answer (a taken address), the form without JavaScript in a browser (covered by `registration-test.php`).
+- **2. The welcome email** in Mailpit for both: the site's address, the set-password link, "free, and no card is needed". **Pass.**
+- **3. The first login:** the set-password page leads to the site's Identity screen with the editor tour ("1 of 13, Welcome, Lina Test!"). **Pass.** The tour's steps past the first, and its two requests to Mody, not walked yet.
+- **6. The Dashboard:** Your plan (free, one site, 500 MB, 5,000,000 tokens a month, no EUR, "Paid plans with more will come later") and Invite friends (the link, joined, no points). **Pass.** The other sections not looked at yet.
+- **Still to do:** screens 4 (Mody in the editors, real model calls), 5, 7, 8 and 9, the rest of 3 and 6, and the maintainer's look on production.
