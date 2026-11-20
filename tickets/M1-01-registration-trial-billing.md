@@ -2,6 +2,8 @@
 
 **Milestone:** M1 · **Spec:** documentation/mvp-spec.md §3, §4, §5, §11, §12 · **Status:** in progress: parts 1 and 2 done 2026-11-08; parts 3 to 5 to do. Split into parts on 2026-11-08 (rule 5); before that the ticket was one block. **Changed on 2026-11-08 by [M1-03](M1-03-chat-signup-and-editor-tour.md):** the trial needs no card, and the signup is a chat that creates the first site. Part 2's form is replaced, and part 3 moves to the end of the trial.
 
+> **Paused on 2026-11-20 by [free-mvp.md](free-mvp.md):** Mody Cloud is free for now. Everything here is built and kept, switched off by the network option `mody_payments_open`, for the paid tiers.
+
 **Changed 2026-11-13** ([pricing-per-site.md](pricing-per-site.md)): one price per site (7.99 EUR a month or 79.99 a year, VAT included) and the launch offer (the first 50 accounts, one site free for six months) replace the plans and the trial below. Part 3 now charges the price times the account's sites when the free months end, sends the reminders a month and a week before, and opens paid signups.
 
 ## Goal

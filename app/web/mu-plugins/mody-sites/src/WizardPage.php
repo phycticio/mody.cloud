@@ -176,7 +176,7 @@ final class WizardPage {
 					<?php
 					echo esc_html(
 						apply_filters( 'mody_sites_on_launch_offer', false, $user_id ) // The accounts' plugin knows.
-							? __( 'The launch offer includes one site.', 'mody_cloud' )
+							? __( 'The free plan includes one site.', 'mody_cloud' )
 							/* translators: %d: the most sites an account can have. */
 							: sprintf( _n( 'An account can have %d site, so you cannot create another one.', 'An account can have %d sites, so you cannot create another one.', $limit, 'mody_cloud' ), $limit )
 					);

@@ -65,13 +65,11 @@ $created  = array(); // Users to delete.
 $post_id  = 0;
 $views_id = (int) $wpdb->get_var( 'SELECT COALESCE(MAX(id), 0) FROM ' . Store::views() ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 update_site_option( Registration::OPEN_OPTION, 1 );
-// Accounts made here take places of the launch offer: start it fresh, and put it back after.
+// Accounts made here are free: sign-ups open to everyone, and the Offers setting put back after.
 $was_promo = array(
-	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
-	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
+	\Mody\Members\Offers::OPTION => get_site_option( \Mody\Members\Offers::OPTION, null ),
 );
-delete_site_option( Members::PROMO_START_OPTION );
-delete_site_option( Members::PROMO_GIVEN_OPTION );
+delete_site_option( \Mody\Members\Offers::OPTION );
 register_shutdown_function(
 	static function () use ( $was_promo ): void {
 		foreach ( $was_promo as $option => $value ) {
@@ -533,7 +531,7 @@ RateLimit::clear();
 $timed = static function ( string $email, string $slug, string $address ) use ( $rest, $nonce, $proof ): array {
 	$altcha  = $proof();
 	$started = microtime( true );
-	$out     = $rest( 'register', array( 'name' => 'Marie Curie', 'email' => $email, 'title' => 'Curie Radium', 'slug' => $slug, 'nonce' => $nonce, 'altcha' => $altcha ), $address );
+	$out     = $rest( 'register', array( 'name' => 'Marie Curie', 'email' => $email, 'title' => 'Curie Radium', 'slug' => $slug, 'nonce' => $nonce, 'altcha' => $altcha, 'spain' => true ), $address );
 	return array( $out, microtime( true ) - $started );
 };
 $activation = static fn( string $email ): string => (string) $wpdb->get_var( $wpdb->prepare( "SELECT user_activation_key FROM {$wpdb->users} WHERE user_email = %s", $email ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -587,6 +585,7 @@ $out = $rest(
 		'slug'   => 'secvict2' . $suffix,
 		'nonce'  => $nonce,
 		'altcha' => $proof(),
+		'spain'  => true,
 	),
 	'198.51.100.215'
 );

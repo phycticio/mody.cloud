@@ -34,11 +34,12 @@
  *     banner; Mody refuses; lifted when paid.
  * 12. Day 53: one last warning; day 60: the sites in the network's trash,
  *     the account expired.
- * 14. Paid sign-ups after the launch offer: the account waits, no site; the
+ * 14. Paid sign-ups when no free account takes the visitor: the account waits, no site; the
  *     link to pay by email; the pay page with the terms; the first month on
  *     a new card; paid: active, the site made, the welcome email, the 14
  *     days; a second try resends the link; unpaid after a day: removed;
- *     without a key: closed.
+ *     without a key: closed. Payments are switched on for the run
+ *     (Mollie::OPEN_OPTION, off while the service is free, free-mvp.md).
  * 15. Refunds and chargebacks made in Mollie's dashboard: a refund recorded,
  *     shown and emailed once, the account unchanged; the withdrawal's own
  *     refund not emailed twice; a chargeback: past due, the card dropped,
@@ -199,6 +200,10 @@ $member = static function ( string $name, array $fields = array() ) use ( $suffi
 	);
 	return $id;
 };
+// Payments are off while Mody Cloud is free (tickets/free-mvp.md): on for this run, back after.
+$payments_before = get_site_option( Mollie::OPEN_OPTION, null );
+update_site_option( Mollie::OPEN_OPTION, 1 );
+register_shutdown_function( static fn() => null === $payments_before ? delete_site_option( Mollie::OPEN_OPTION ) : update_site_option( Mollie::OPEN_OPTION, $payments_before ) );
 register_shutdown_function(
 	static function () use ( &$users, &$sites, $key_before, $wpdb ): void {
 		require_once ABSPATH . 'wp-admin/includes/ms.php';
@@ -492,25 +497,20 @@ $check( 'a cancelled plan: nothing to warn about', 0 === Billing::card_expires_f
 // 14. Paid sign-ups ----------------------------------------------------------------------------------------
 
 echo "\nPaid sign-ups\n";
-$promo = array(
-	Members::PROMO_START_OPTION => get_site_option( Members::PROMO_START_OPTION, null ),
-	Members::PROMO_GIVEN_OPTION => get_site_option( Members::PROMO_GIVEN_OPTION, null ),
-);
-register_shutdown_function(
-	static function () use ( $promo ): void {
-		foreach ( $promo as $option => $value ) {
-			null === $value ? delete_site_option( $option ) : update_site_option( $option, $value );
-		}
-	}
-);
-update_site_option( Members::PROMO_GIVEN_OPTION, Members::FREE_PLACES ); // The 50 places are taken.
+$offers = get_site_option( \Mody\Members\Offers::OPTION, null );
+register_shutdown_function( static fn() => null === $offers ? delete_site_option( \Mody\Members\Offers::OPTION ) : update_site_option( \Mody\Members\Offers::OPTION, $offers ) );
+// Free sign-ups for invited people only, and this visitor has no invite: signing up means paying.
+update_site_option( \Mody\Members\Offers::OPTION, array( 'launch_who' => 'invited' ) );
 RateLimit::clear();
 wp_set_current_user( 0 );
 $email   = 'billpay' . $suffix . '@mody.local';
 $slug    = 'billpay' . $suffix;
-$account = Registration::register( 'Pia Payer', $email, 'Pia Paid Bakery', $slug, false, Invites::code( $inviter ) );
+$account = Registration::register( 'Pia Payer', $email, 'Pia Paid Bakery', $slug );
 $pia     = is_array( $account ) ? (int) $account['user_id'] : 0;
 $users[] = $pia;
+if ( $pia ) {
+	Members::update( $pia, array( 'invited_by' => $inviter ) ); // Recorded as invited, for the point on the first payment.
+}
 Members::forget();
 $check( 'paying now: the chat says so', Registration::paying() && Registration::takes_accounts() );
 $check( 'the account waits for its payment: paid plan, pending, no site', $pia && 'pending_payment' === Members::get( $pia )['status'] && 'paid' === Members::get( $pia )['plan'] && ! Lifecycle::owned_sites( $pia ) && 0 === $account['site_id'], is_wp_error( $account ) ? $account->get_error_message() : '' );
@@ -627,9 +627,12 @@ $check( '... the command line still starts a card check', is_string( Billing::ad
 remove_filter( 'mody_billing_environment', $env );
 $check( 'a test key elsewhere (local) is offered', Mollie::offered() );
 
+update_site_option( Mollie::OPEN_OPTION, 0 );
+$check( 'payments switched off (the free service): a key offers nothing', ! Mollie::offered() && ! Registration::paying() );
+update_site_option( Mollie::OPEN_OPTION, 1 );
 putenv( 'MOLLIE_API_KEY' );
 $html = $render( $di );
-$check( 'without a key: "Card payments open soon", no form', str_contains( $html, 'Card payments open soon' ) && ! str_contains( $html, 'name="accept"' ) );
+$check( 'without a key: a free account sees Your plan, no card form', str_contains( $html, 'Free: one site, no card needed.' ) && ! str_contains( $html, 'name="accept"' ) );
 wp_set_current_user( 0 );
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

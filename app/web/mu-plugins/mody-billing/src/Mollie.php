@@ -32,6 +32,15 @@ final class Mollie {
 	private const TIMEOUT = 20;
 
 	/**
+	 * Network option: payments are open when it is truthy (decided by the
+	 * maintainer on 2026-11-20, tickets/free-mvp.md). Mody Cloud is a free
+	 * service for now, so a key alone never offers members a card or a paid
+	 * sign-up: `wp site option update mody_payments_open 1` does, with the
+	 * paid tiers.
+	 */
+	public const OPEN_OPTION = 'mody_payments_open';
+
+	/**
 	 * The API key, or '' when none is set.
 	 */
 	public static function key(): string {
@@ -60,7 +69,8 @@ final class Mollie {
 		 * @param string $type wp_get_environment_type().
 		 */
 		$environment = (string) apply_filters( 'mody_billing_environment', wp_get_environment_type() );
-		return self::configured() && ! ( self::test_mode() && 'production' === $environment );
+		// Payments must be switched on as well (OPEN_OPTION): off while the service is free.
+		return (bool) get_site_option( self::OPEN_OPTION ) && self::configured() && ! ( self::test_mode() && 'production' === $environment );
 	}
 
 	/**
