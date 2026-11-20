@@ -50,7 +50,7 @@ final class Mollie {
 	 * Whether members are offered card payments: a key is set, and it is not
 	 * a sandbox key on production (2026-11-13). A `test_` key on production is
 	 * for checking Mollie's webhook from the command line (`wp mody-billing
-	 * card-check`); members never see test mode there, so no card of theirs
+	 * card_check`); members never see test mode there, so no card of theirs
 	 * is kept in the sandbox, where the live key cannot charge it.
 	 */
 	public static function offered(): bool {
