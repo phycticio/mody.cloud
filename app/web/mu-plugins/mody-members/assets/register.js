@@ -8,6 +8,9 @@
  * site" (mody-platform/v1/register, with `spain`: sign-ups from Spain only). All text is inserted with textContent,
  * never as HTML. Without this script the form works on its own.
  *
+ * Every word comes from the server (`config.strings`), in the page's language;
+ * each request sends that language (`config.lang`, tickets/signup-chat-languages.md).
+ *
  * Antibot (tickets/antibot-altcha.md): creating the account sends an ALTCHA
  * solution. The form's widget solves it in the background after the first
  * answer; each solution is used once, so a new one is solved for a retry.
@@ -208,7 +211,8 @@
 			credentials: 'same-origin',
 			headers: { 'Content-Type': 'application/json' },
 			// The invite code the page was opened with, if any: the permission check and the account both need it.
-			body: JSON.stringify( { ...body, nonce: config.nonce, ref: config.ref || '' } ),
+			// The page's language: the server answers in it, and so does the welcome email.
+			body: JSON.stringify( { ...body, nonce: config.nonce, ref: config.ref || '', lang: config.lang || '' } ),
 		} );
 		const data = await response.json().catch( () => ( {} ) );
 		return { ok: response.ok, data };

@@ -534,7 +534,8 @@ final class Registration {
 		}
 
 		if ( $defer && (bool) apply_filters( 'mody_registration_defer', function_exists( 'fastcgi_finish_request' ) ) ) {
-			self::later( $work );
+			$locale = SignupLanguage::active(); // After the response, in the visitor's language still.
+			self::later( static fn() => SignupLanguage::with( $locale, $work ) );
 			return $answer;
 		}
 		$result = $work();
@@ -610,6 +611,7 @@ final class Registration {
 				'display_name'  => $name,
 				'nickname'      => $name,
 				'role'          => '', // No role on the main site: the row is the membership.
+				'locale'        => SignupLanguage::for_account(), // The chat's language, once WordPress has it.
 			)
 		);
 		if ( is_wp_error( $user_id ) ) {
@@ -690,6 +692,17 @@ final class Registration {
 		if ( ! $user ) {
 			return false;
 		}
+		return SignupLanguage::with( SignupLanguage::of_user( $user->ID ), static fn(): bool => self::write_welcome( $user, $title, $url ) );
+	}
+
+	/**
+	 * The welcome email, in the language in use (send_welcome()).
+	 *
+	 * @param WP_User $user  The new member.
+	 * @param string  $title The site's name.
+	 * @param string  $url   The site's address.
+	 */
+	private static function write_welcome( WP_User $user, string $title, string $url ): bool {
 		$key = get_password_reset_key( $user );
 		if ( is_wp_error( $key ) ) {
 			return false;
@@ -984,6 +997,16 @@ final class Registration {
 		if ( self::rate( 'signup_note', strtolower( $user->user_email ) ) ) {
 			return false;
 		}
+		return SignupLanguage::with( SignupLanguage::of_user( $user->ID ), static fn(): bool => self::write_existing_note( $user ) );
+	}
+
+	/**
+	 * The note for an existing member, in the language in use
+	 * (send_existing_note()).
+	 *
+	 * @param WP_User $user The member.
+	 */
+	private static function write_existing_note( WP_User $user ): bool {
 		// A paid sign-up not paid yet: a new link to pay, for the site it asked for.
 		$row    = Members::get( $user->ID );
 		$signup = get_user_meta( $user->ID, self::PAY_META, true );
@@ -1015,6 +1038,12 @@ final class Registration {
 			'default'   => '',
 			'maxLength' => 64,
 		);
+		// The page's language (SignupLanguage), optional: an unknown one is English.
+		$lang = array(
+			'type'      => 'string',
+			'default'   => '',
+			'maxLength' => 10,
+		);
 		register_rest_route(
 			self::REST_NAMESPACE,
 			'/register/check',
@@ -1031,6 +1060,7 @@ final class Registration {
 					'value' => $string( 500 ),
 					'nonce' => $string( 64 ),
 					'ref'   => $ref,
+					'lang'  => $lang,
 				),
 			)
 		);
@@ -1053,6 +1083,7 @@ final class Registration {
 						'maxLength' => 4096,
 					),
 					'ref'    => $ref,
+					'lang'   => $lang,
 					'spain'  => array( // The visitor confirmed they live in Spain (free-mvp.md).
 						'type'    => 'boolean',
 						'default' => false,
@@ -1147,9 +1178,17 @@ final class Registration {
 	}
 
 	/**
-	 * `template_redirect`: handles the form posted without JavaScript.
+	 * `template_redirect`: handles the form posted without JavaScript, in the
+	 * page's language (SignupLanguage).
 	 */
 	public static function handle(): void {
+		SignupLanguage::with( SignupLanguage::of_page(), array( self::class, 'handle_post' ) );
+	}
+
+	/**
+	 * The form posted without JavaScript (handle()).
+	 */
+	public static function handle_post(): void {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- The nonce is checked below, once the request is known to be ours.
 		$method = isset( $_SERVER['REQUEST_METHOD'] ) ? sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) : '';
 		if ( 'post' !== $method || ! isset( $_POST['mody_action'] ) || self::ACTION !== $_POST['mody_action'] || ! is_main_site() ) {
@@ -1254,6 +1293,15 @@ final class Registration {
 		if ( ! is_main_site() ) {
 			return '';
 		}
+		return SignupLanguage::with( SignupLanguage::of_page(), static fn(): string => self::render_block( $attributes ) );
+	}
+
+	/**
+	 * The block, in the language in use (render()).
+	 *
+	 * @param array<string, mixed> $attributes The block's attributes.
+	 */
+	private static function render_block( array $attributes ): string {
 		wp_enqueue_style( self::STYLE ); // WordPress does it for a block; render() is also called directly.
 		$wrapper = self::wrapper_attributes( $attributes );
 		$pay     = self::render_pay( $wrapper );
@@ -1481,6 +1529,7 @@ final class Registration {
 		return array(
 			'endpoint' => rest_url( self::REST_NAMESPACE . '/register' ),
 			'ref'      => $ref,
+			'lang'     => SignupLanguage::active(), // Sent with every request: the answers in the page's language.
 			'nonce'    => wp_create_nonce( self::ACTION ),
 			'suffix'   => self::address_suffix(),
 			'login'    => wp_login_url(),
@@ -1608,12 +1657,20 @@ final class Registration {
 	}
 
 	/**
-	 * A legal page's address (Mody Billing's); '' without it.
+	 * A legal page's address (Mody Billing's), its translation in the language
+	 * in use when Mody Languages has a published one; '' without Mody Billing.
 	 *
 	 * @param string $slug `terms` or `privacy`.
 	 */
 	private static function legal_url( string $slug ): string {
-		return class_exists( Billing::class ) ? Billing::legal_url( $slug ) : '';
+		$url    = class_exists( Billing::class ) ? Billing::legal_url( $slug ) : '';
+		$locale = SignupLanguage::active();
+		if ( '' === $url || '' === $locale || ! class_exists( \Mody\Languages\Translations::class ) ) {
+			return $url;
+		}
+		$page        = url_to_postid( $url );
+		$translation = $page ? \Mody\Languages\Translations::in( $page, $locale ) : 0;
+		return $translation ? (string) get_permalink( $translation ) : $url;
 	}
 
 	/**
