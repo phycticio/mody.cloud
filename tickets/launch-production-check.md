@@ -1,6 +1,6 @@
 # Production checked end to end before launch
 
-**Builds on:** [free-mvp.md](free-mvp.md), [M5-01](M5-01-hardening-launch.md), [M5-02](M5-02-production-member-sites.md), [backups.md](backups.md) · **Feeds:** the launch · **Status:** planned on 2026-11-20 · **Issue:** [#16](https://github.com/phycticio/mody.cloud/issues/16)
+**Builds on:** [free-mvp.md](free-mvp.md), [M5-01](M5-01-hardening-launch.md), [M5-02](M5-02-production-member-sites.md), [backups.md](backups.md) · **Feeds:** the launch · **Status:** planned on 2026-11-20; steps 1, 2, 3 and 7 done the same day · **Issue:** [#16](https://github.com/phycticio/mody.cloud/issues/16)
 
 ## Goal (maintainer, 2026-11-20)
 
@@ -30,4 +30,10 @@ Who does each step: **agent** (with the maintainer's go for anything on the serv
 - **Q2. A cap on accounts** while the service is free: none was decided (free-mvp.md, D1); closing registration is the safety valve. Should an alert at some number of accounts come first? **Open question.**
 
 ## Results
-Not started.
+**2026-11-20 (read-only on production, by the agent; nothing changed on the server but the deploy and the legal pages the maintainer asked for):**
+- **1. Deployed** in `990aa62` after a database backup; table versions 8 (members), 2 (domains) and 3 (storage) ran; no site over 500 MB; no 500s ([free-mvp.md](free-mvp.md), Deployed).
+- **2. Server configuration:** `.env` sets `BREVO_API_KEY`, `MAIL_SENDER_EMAIL`, `INFOMANIAK_API_KEY`, `INFOMANIAK_AI_BASE_URL`, `NPM_API_URL`, `NPM_API_EMAIL`, `NPM_API_PASSWORD` and a `test_` `MOLLIE_API_KEY` (values not read); `MODY_DOMAINS_TARGET` is unset, so the default `sites.mody.cloud` applies. `mody_registration_open` is 1, `mody_payments_open` unset. `compose.prod.yml` has the Ofelia labels (21) and the backup service. The location file is from 2026-11-13. Running: the app, Nginx, MariaDB, Redis, backup, Ofelia and Uptime Kuma containers. Ofelia's last 30 hours: `mody-backup-db` every 6 hours (11.4 MB), `mody-backup-full` nightly, `mody-billing` daily, none failed.
+- **The visitor's real address reaches PHP:** the last 7 days of page views have a country for 86 of 98 (ES 71, US 14, NL 1, GB 1); 12 without one (**Inference:** IPv6 or addresses DB-IP Lite does not place).
+- **3. Spain only:** on production, `Locator::locate()` places a Telefónica address in ES and Google's 8.8.8.8 in the US, so the signup refuses the second and accepts the first.
+- **7. The legal pages** for the free service published on 2026-11-20 at the maintainer's request ("publish the free version now"); the adviser's read comes after.
+- **Still the maintainer's:** 4 (a real signup from Spain: the email through Brevo, the tour, two requests to Mody), 5 (the restore's full-stack check), 6 (rotate the Composer credential). Q1 and Q2 below are answered by the health page, if its pull request is merged.
