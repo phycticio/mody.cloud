@@ -14,17 +14,17 @@ Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026
 
 ## Waiting on the maintainer
 - **The legal pages:** the free version is published (2026-11-20); the adviser's read ([legal-pages.md](legal-pages.md)).
-- **Native speakers' read** of the home page in Spanish, German and Italian (`scripts/home-page-translations.json`; the free-service texts of 2026-11-20 are Claude's).
+- **Native speakers' read** of the home page in Spanish, German and Italian (`scripts/home-page-translations.json`; the free-service texts of 2026-11-20 are Claude's), and of the signup chat in seven languages (`app/web/mu-plugins/mody-members/languages/`, 2026-11-21).
 - **Decisions still open:**
   - the paid tiers of the freemium, and who may sign up beyond Spain ([membership-tiers.md](../documentation/membership-tiers.md#open-questions));
   - an alert when accounts or Mody's cost pass a threshold (production check, Q2; the health page shows the numbers);
   - single sign-on between `mody.cloud` and members' own domains (members log in once more on their domain; [custom-domains.md](custom-domains.md));
-  - the signup chat in Spanish, German and Italian (queue item 1: a plan to confirm).
+  - the signup chat in other languages: the open questions of [signup-chat-languages.md](signup-chat-languages.md) (the account's language before part 9, Spanish sites for Spanish signups, `/register/` in English only).
 - **A look in the browser at features built and deployed before 2026-11-20:** the analytics board and its analyst ([analytics-chat.md](analytics-chat.md)), Download your site ([take-your-site-with-you.md](take-your-site-with-you.md); its phase 0 production spike, a 3 GB download through Cloudflare, is the maintainer's), custom domains on a second real domain ([custom-domains.md](custom-domains.md)), images ([image-optimization.md](image-optimization.md)), the login page ([login-branding.md](login-branding.md)), M3-09's steps ([M3-09](M3-09-agent-navigates-site-editor.md)). The launch browser check covered the member's journey; these are the parts it did not open.
 - **Docker Desktop's uninstall** on this Mac ([move-local-docker-to-colima.md](move-local-docker-to-colima.md), part F).
 
 ## Queue
-1. **The signup chat in Spanish, German and Italian.** On `/es/`, `/de/` and `/it/` the home page is translated but the chat inside it is English, and sign-ups are open to people in Spain only. WordPress switches its words only for installed languages ([site-languages.md](site-languages.md), part 9), the chat's answers come from REST routes that do not know the page's language, and the welcome email has none either. **Proposed (not decided):** the chat sends its page's language; `mody_cloud` translations for the chat, the emails and Your plan in `es_ES`, `de_DE` and `it_IT`, loaded for that language; the account remembers it (the user's locale), so its emails and wp-admin follow. Touches [M1-04](M1-04-registration-block.md) part C, which the maintainer has in progress (a git stash).
+1. **[The signup chat speaks the page's language](signup-chat-languages.md)** ([#33](https://github.com/phycticio/mody.cloud/issues/33), asked by the maintainer on 2026-11-21): built the same day, in review (#34). The chat, its answers and the emails in Spanish, French, German, Italian, Portuguese, Dutch and Catalan, from Mody Members' own translation files; English stays the default. Next: a native speaker's read (Spanish and Catalan first), the deploy, and the ticket's open questions.
 2. **[Site languages](site-languages.md):** parts 1 to 7 and 11 built and deployed. Next: part 8 (Translate with Mody), part 9 (WordPress's own translations: language packs at build time) and part 10 (documents).
 3. **[M3-10](M3-10-agent-edits-global-styles.md):** parts A and B deployed. Next is part C: `mody/undo-styles`, the editor check and the docs.
 4. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md):** parts 1 to 3 deployed; parts 4 to 7 were taken over by [agent-knows-gutenberg-spectra-settings.md](agent-knows-gutenberg-spectra-settings.md) (27 block families, deployed 2026-11-11).
