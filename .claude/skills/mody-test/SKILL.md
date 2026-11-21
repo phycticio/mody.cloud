@@ -31,6 +31,7 @@ Start from the "Where to work" table in `AGENTS.md`: each row names its tests. T
 | The agent, its prompts, tools or the validator | `ai-agent-chat-test`, `agent-bubble-test`, `agent-edit-test`, `agent-template-test`, `block-reference-test`, `spectra-layout-test`, `spectra-blocks-test`, `spectra-content-test`, then the evaluation set below |
 | Spectra or its guard, Composer updates | `spectra-guard-test` (always after a Spectra update), `spectra-blocks-test`, `member-plugins-test` |
 | Members, billing, signup | `members-test`, `registration-test`, `billing-test` (a fake Mollie), `invites-test`, `security-signup-test` |
+| Security (login, two-step login, firewall, file check) | `security-test`, `antibot-test`, `security-signup-test`; for the profile's and login's scripts, the headless browser with Chromium's virtual security key (`WebAuthn.addVirtualAuthenticator`) |
 | Gating, locks, updates | `gating-test`, `updates-test`, `member-plugins-test`, `ai-plugin-lockdown-test` |
 | Theme, styles, palette | `style-variations-test`, `site-styles-test`, `gradients-test`, `font-library-test`, plus a JSON parse of `theme.json` |
 | Export (Take your site with you) | `export-*-test.php` and `export-portable-test.sh` |

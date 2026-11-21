@@ -1,0 +1,28 @@
+/* Two-step login's second screen, inside wp-login.php's form. */
+.mody-two-factor__intro {
+	margin-bottom: 16px;
+}
+
+.mody-two-factor__key .button {
+	float: none;
+	width: 100%;
+}
+
+.mody-two-factor__status:not(:empty) {
+	margin-top: 8px;
+}
+
+.mody-two-factor__or {
+	border-top: 1px solid #dcdcde;
+	margin-top: 20px;
+	padding-top: 16px;
+}
+
+.mody-two-factor__note {
+	margin-bottom: 16px;
+}
+
+.login form.mody-two-factor .input {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	letter-spacing: 0.08em;
+}

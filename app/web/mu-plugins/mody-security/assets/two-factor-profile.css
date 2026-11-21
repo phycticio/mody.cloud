@@ -1,0 +1,121 @@
+/* Two-step login on the profile. */
+.mody-two-factor {
+	margin: 2em 0;
+	max-width: 760px;
+}
+
+.mody-two-factor h3 {
+	margin: 1.6em 0 0.6em;
+}
+
+.mody-two-factor__badge {
+	background: #dcdcde;
+	border-radius: 10px;
+	display: inline-block;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1;
+	margin-right: 0.5em;
+	padding: 4px 9px;
+}
+
+.mody-two-factor__badge.is-on {
+	background: #00a32a;
+	color: #fff;
+}
+
+.mody-two-factor__message {
+	border-left: 4px solid #72aee6;
+	background: #fff;
+	padding: 8px 12px;
+}
+
+.mody-two-factor__message.is-error {
+	border-left-color: #d63638;
+}
+
+.mody-two-factor__setup > summary {
+	display: inline-block;
+	list-style: none;
+}
+
+.mody-two-factor__setup > summary::-webkit-details-marker {
+	display: none;
+}
+
+.mody-two-factor__setup-body {
+	align-items: flex-start;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px 24px;
+	margin-top: 12px;
+}
+
+.mody-two-factor__setup-body ol {
+	flex: 1 1 280px;
+	margin-top: 0;
+}
+
+.mody-two-factor__setup-body li {
+	margin-bottom: 12px;
+}
+
+.mody-two-factor__qr svg {
+	border: 1px solid #dcdcde;
+	display: block;
+	height: auto;
+	max-width: 100%;
+}
+
+.mody-two-factor__secret {
+	display: inline-block;
+	letter-spacing: 0.06em;
+	margin-top: 4px;
+	user-select: all;
+	word-break: break-all;
+}
+
+.mody-two-factor__code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	letter-spacing: 0.1em;
+	margin: 4px 4px 0 0;
+	width: 10em;
+}
+
+.mody-two-factor__add-key label {
+	margin-right: 6px;
+}
+
+.mody-two-factor__codes {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-left: 4px solid #dba617;
+	margin: 12px 0;
+	padding: 4px 16px 16px;
+}
+
+.mody-two-factor__codes ol {
+	columns: 2;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 15px;
+	letter-spacing: 0.04em;
+	list-style-position: inside;
+	margin: 12px 0;
+	max-width: 420px;
+	padding: 0;
+}
+
+.mody-two-factor__codes li {
+	margin-bottom: 6px;
+}
+
+@media (max-width: 600px) {
+	.mody-two-factor__codes ol {
+		columns: 1;
+	}
+}
+
+/* wp-admin's headings are display: block, which beats the hidden attribute. */
+.mody-two-factor [hidden] {
+	display: none !important;
+}
