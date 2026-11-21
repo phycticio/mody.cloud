@@ -665,12 +665,17 @@ $links = array(
 	'Questions'    => home_url( '/#faq' ),
 	'Log in'       => wp_login_url(),
 );
-$menu  = '';
-foreach ( $links as $label => $url ) {
-	$menu .= '<!-- wp:navigation-link ' . wp_json_encode( array( 'label' => $label, 'url' => $url, 'kind' => 'custom', 'isTopLevelLink' => true ), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . ' /-->' . "\n\n";
-}
 // The newest menu without a language: the translated ones (scripts/home-page-translations.php) carry mody_lang.
 $navigation = get_posts( array( 'post_type' => 'wp_navigation', 'post_status' => 'publish', 'numberposts' => 1, 'orderby' => 'date', 'order' => 'DESC', 'meta_query' => array( array( 'key' => 'mody_lang', 'compare' => 'NOT EXISTS' ) ) ) ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+// The "Our source code" dropdown belongs to scripts/product-pages.php: kept, before Log in.
+$source_code = $navigation && preg_match( '#<!-- wp:navigation-submenu \{[^\n]*"className":"mody-source-code"[^\n]*-->.*?<!-- /wp:navigation-submenu -->#s', $navigation[0]->post_content, $found ) ? $found[0] : '';
+$menu        = '';
+foreach ( $links as $label => $url ) {
+	if ( 'Log in' === $label && '' !== $source_code ) {
+		$menu .= $source_code . "\n\n";
+	}
+	$menu .= '<!-- wp:navigation-link ' . wp_json_encode( array( 'label' => $label, 'url' => $url, 'kind' => 'custom', 'isTopLevelLink' => true ), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . ' /-->' . "\n\n";
+}
 $nav        = array(
 	'post_type'    => 'wp_navigation',
 	'post_status'  => 'publish',

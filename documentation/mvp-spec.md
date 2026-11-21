@@ -45,7 +45,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 
 | Actor | Access |
 | --- | --- |
-| **Prospect** | Public pages on the main site (site 1): the home page, which is the landing page (what Mody Cloud is, how it works, the agent, sovereignty, the plans, questions) and holds the signup chat; and `/register/`. The home page is built by `scripts/home-page.php` (2026-11-10), which also sets the header menu to its sections. |
+| **Prospect** | Public pages on the main site (site 1): the home page, which is the landing page (what Mody Cloud is, how it works, the agent, sovereignty, the plans, questions) and holds the signup chat; and `/register/`. The home page is built by `scripts/home-page.php` (2026-11-10), which also sets the header menu to its sections. The product pages (the catalog `/plugins/` and a page per plugin under it, `/plugins/<slug>/`, with the menu's **Our source code**) are built by `scripts/product-pages.php` (2026-11-21, [product-pages-bari-and-plugins.md](../tickets/product-pages-bari-and-plugins.md)). |
 | **Member** | One network-wide WordPress account (shared login, cookies cover all subdomains via `COOKIE_DOMAIN`). Is `administrator` of each own subdomain site. Sees the custom **Mody** menu in the Network Admin: dashboard, new site, billing. |
 | **Platform admin** | Super admin of the network, plus the list of plugins hidden from members and exception handling. |
 | **Agent** | A server-side tool loop in the MU plugin, using the WordPress AI Client. Tools are WordPress abilities with permission callbacks (decision 13). They run in-process for the agent, and for authenticated users through the REST abilities endpoint and MCP. Never anonymously. |
