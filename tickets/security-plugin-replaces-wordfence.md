@@ -1,6 +1,6 @@
 # Mody Security replaces Wordfence, with two-step login
 
-**Builds on:** [antibot-altcha.md](antibot-altcha.md) and the security pass of 2026-11-12 ([M5-01](M5-01-hardening-launch.md#security-pass-2026-11-12)), both in the `mody-security` plugin · **Feeds:** [M5-01](M5-01-hardening-launch.md) (the security sign-off), [architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1) (one exception less) · **Status:** planned and built on 2026-11-21 on `feature/#38-security-plugin-replaces-wordfence`, tested locally; not committed, not deployed · **Issue:** [#38](https://github.com/phycticio/mody.cloud/issues/38)
+**Builds on:** [antibot-altcha.md](antibot-altcha.md) and the security pass of 2026-11-12 ([M5-01](M5-01-hardening-launch.md#security-pass-2026-11-12)), both in the `mody-security` plugin · **Feeds:** [M5-01](M5-01-hardening-launch.md) (the security sign-off), [architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1) (one exception less) · **Status:** planned and built on 2026-11-21 on `feature/#38-security-plugin-replaces-wordfence`, tested locally; draft pull request [#39](https://github.com/phycticio/mody.cloud/pull/39), not deployed · **Issue:** [#38](https://github.com/phycticio/mody.cloud/issues/38)
 
 ## Goal (maintainer, 2026-11-21)
 
@@ -116,7 +116,8 @@ Wordfence's firewall may load before WordPress through `auto_prepend_file` in th
     - logging in through the real form, ALTCHA included: with the key, with an app code, with a recovery code (on a 390 px phone too, no horizontal scroll);
     - the Security page's seven sections, and a super admin sent to the setup on first visit;
     - no console errors, no request outside the network.
-  - The other tests: see the suite below.
+  - **The whole suite, offline** (56 scripts): every one passes but the 8 known failures of `agent-template-test` (3), `editor-navigation-test` (4) and `wizard-test` (1), which read the local main site's content (2026-11-17, independent-mody-plugins.md). `scripts/nginx-hardening-test.sh`: 206 passed.
+  - Seven tests browse wp-admin as a super admin and met the new default (set up two-step login first): `admin-colors`, `agent-bubble`, `gating`, `languages`, `member-plugins`, `network-profile`, `updates`. Each now turns the requirement off while it runs and restores it.
 - **Not checked:**
   - a real phone app and a real hardware key (the codes follow RFC 6238; the key flow ran against Chromium's CTAP2 emulation);
   - Firefox and Safari;
