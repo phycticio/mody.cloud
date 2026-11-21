@@ -8,7 +8,11 @@
 	padding: 0;
 }
 
-.wp-block-mody-language-switcher a {
+.wp-block-mody-language-switcher a,
+.wp-block-mody-language-switcher summary {
+	align-items: center;
+	display: inline-flex;
+	gap: 0.4em;
 	text-decoration: none;
 }
 
@@ -22,17 +26,130 @@
 	font-weight: 600;
 }
 
-/* Narrow screens: the short codes (ES, DE), the full names kept for screen readers. */
+/* Flags: the block's own SVGs, as tall as a capital letter, with a faint edge for the white stripes. */
+.wp-block-mody-language-switcher__flag {
+	display: inline-flex;
+	flex: none;
+}
+
+.wp-block-mody-language-switcher__flag svg {
+	border-radius: 2px;
+	display: block;
+	height: 1em;
+	outline: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+	outline-offset: -1px;
+	width: 1.5em;
+}
+
+/* Only the flag: the name stays for screen readers (and as the link's tooltip). */
+.wp-block-mody-language-switcher.is-display-flag .wp-block-mody-language-switcher__flag + .wp-block-mody-language-switcher__name {
+	border: 0;
+	clip: rect(0, 0, 0, 0);
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	padding: 0;
+	position: absolute;
+	white-space: nowrap;
+	width: 1px;
+}
+
+/* Where the name is hidden, the current language's flag gets a ring. */
+.wp-block-mody-language-switcher.is-display-flag [aria-current] .wp-block-mody-language-switcher__flag svg {
+	outline: 2px solid currentColor;
+	outline-offset: 1px;
+}
+
+/* The dropdown: a <details> whose summary shows the current language. */
+/* The list hangs from the button, whatever the block's width; aligned to its end, so a switcher at the end of a header stays on screen. */
+.wp-block-mody-language-switcher__dropdown {
+	display: inline-block;
+	position: relative;
+}
+
+.wp-block-mody-language-switcher__dropdown > summary {
+	cursor: pointer;
+	list-style: none;
+}
+
+.wp-block-mody-language-switcher__dropdown > summary::-webkit-details-marker {
+	display: none;
+}
+
+.wp-block-mody-language-switcher__dropdown > summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.wp-block-mody-language-switcher__chevron {
+	border-bottom: 1.5px solid currentColor;
+	border-right: 1.5px solid currentColor;
+	height: 0.4em;
+	margin: 0 0.15em 0.2em;
+	transform: rotate(45deg);
+	transition: transform 0.15s;
+	width: 0.4em;
+}
+
+.wp-block-mody-language-switcher__dropdown[open] .wp-block-mody-language-switcher__chevron {
+	margin-bottom: -0.1em;
+	transform: rotate(-135deg);
+}
+
+.wp-block-mody-language-switcher__dropdown ul {
+	background-color: var(--wp--preset--color--base, Canvas);
+	border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+	border-radius: 0.4em;
+	box-shadow: 0 0.5em 1.5em color-mix(in srgb, currentColor 15%, transparent);
+	color: var(--wp--preset--color--contrast, CanvasText);
+	flex-direction: column;
+	flex-wrap: nowrap;
+	gap: 0;
+	inset-inline-end: 0;
+	min-width: max-content;
+	padding: 0.35em 0;
+	position: absolute;
+	top: calc(100% + 0.4em);
+	z-index: 100;
+}
+
+/* view.js: from the button's start, when the list fits on the screen. */
+.wp-block-mody-language-switcher__dropdown.opens-start ul {
+	inset-inline-end: auto;
+	inset-inline-start: 0;
+}
+
+/* With the block's own background, the list wears it, and its text color. */
+.wp-block-mody-language-switcher.has-background .wp-block-mody-language-switcher__dropdown,
+.wp-block-mody-language-switcher.has-background .wp-block-mody-language-switcher__dropdown ul {
+	background-color: inherit;
+	color: inherit;
+}
+
+.wp-block-mody-language-switcher__dropdown ul a {
+	color: inherit;
+	display: flex;
+	padding: 0.4em 1em;
+}
+
+.wp-block-mody-language-switcher__dropdown ul a:hover,
+.wp-block-mody-language-switcher__dropdown ul a:focus-visible {
+	background-color: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* Short codes (ES, DE) only on phones, where a language has no flag. */
 .wp-block-mody-language-switcher__code {
 	display: none;
 }
 
+/* Phones: in the row and the dropdown's button, the flag or the short code; the full names kept for screen readers. */
 @media (max-width: 600px) {
 	.wp-block-mody-language-switcher ul {
 		gap: 0.5em;
 	}
 
-	.wp-block-mody-language-switcher__name {
+	.wp-block-mody-language-switcher:not(.is-dropdown) .wp-block-mody-language-switcher__name,
+	.wp-block-mody-language-switcher summary .wp-block-mody-language-switcher__name {
 		border: 0;
 		clip: rect(0, 0, 0, 0);
 		height: 1px;
@@ -44,7 +161,13 @@
 		width: 1px;
 	}
 
-	.wp-block-mody-language-switcher__code {
+	.wp-block-mody-language-switcher:not(.is-dropdown) [aria-current] .wp-block-mody-language-switcher__flag svg {
+		outline: 2px solid currentColor;
+		outline-offset: 1px;
+	}
+
+	.wp-block-mody-language-switcher:not(.is-dropdown) .wp-block-mody-language-switcher__code,
+	.wp-block-mody-language-switcher summary .wp-block-mody-language-switcher__code {
 		display: inline;
 	}
 }

@@ -4,6 +4,12 @@
  *
  * - Server-rendered: a list of the site's languages, each linking to the
  *   current page's published translation, or to that language's home page.
+ * - Two settings (tickets/language-switcher-settings.md): the layout, links
+ *   in a row or a dropdown (a <details> element, so it works without
+ *   JavaScript; view.js closes it on Escape or a click outside), and what
+ *   each language shows: its name, its flag or both. The flags are the
+ *   block's own SVGs (blocks/language-switcher/flags/), inlined: nothing is
+ *   loaded from outside.
  * - Placed after every navigation block by a block hook (block.json), so
  *   every header gets it, but only on a site with more than one language: on
  *   others the hook is dropped, so templates, the editors and the agent see
@@ -25,6 +31,12 @@ defined( 'ABSPATH' ) || exit;
 final class Switcher {
 
 	public const EDITOR = 'mody-language-switcher-editor';
+
+	/** The layouts: links in a row (the default), or a dropdown. */
+	public const LAYOUTS = array( 'list', 'dropdown' );
+
+	/** What each language shows: its name (the default), its flag, or both. */
+	public const DISPLAYS = array( 'text', 'flag', 'both' );
 
 	/**
 	 * Hooked on load.
@@ -60,10 +72,10 @@ final class Switcher {
 			file_exists( $file ) ? (string) filemtime( $file ) : '1',
 			true
 		);
-		// The style's version is its file's time, so proxies never keep an old copy (core uses WordPress's version).
+		// The style's and the view script's version is their newest file's time, so proxies never keep an old copy (core uses WordPress's version).
 		$version = static function ( array $metadata ) use ( $root ): array {
 			if ( 'mody/language-switcher' === ( $metadata['name'] ?? '' ) ) {
-				$metadata['version'] = (string) filemtime( $root . '/blocks/language-switcher/style.css' );
+				$metadata['version'] = (string) max( (int) filemtime( $root . '/blocks/language-switcher/style.css' ), (int) filemtime( $root . '/blocks/language-switcher/view.js' ) );
 			}
 			return $metadata;
 		};
@@ -91,6 +103,39 @@ final class Switcher {
 	}
 
 	/**
+	 * A language's flag: the block's own SVG, or '' when it has none.
+	 *
+	 * @param string $locale A locale.
+	 */
+	public static function flag( string $locale ): string {
+		static $flags = array();
+		$slug = Languages::slug( $locale );
+		if ( ! isset( $flags[ $slug ] ) ) {
+			$file           = dirname( __DIR__ ) . '/blocks/language-switcher/flags/' . $slug . '.svg';
+			$flags[ $slug ] = preg_match( '/^[a-z]{2,3}$/', $slug ) && is_readable( $file ) ? trim( (string) file_get_contents( $file ) ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- the plugin's own file.
+		}
+		return $flags[ $slug ];
+	}
+
+	/**
+	 * What a language shows: its flag, its name, and its short code for
+	 * phones when it has no flag. The name is always there, for screen
+	 * readers when only the flag shows.
+	 *
+	 * @param string $locale  A locale.
+	 * @param string $display One of DISPLAYS.
+	 */
+	private static function label_html( string $locale, string $display ): string {
+		$flag = 'text' === $display ? '' : self::flag( $locale );
+		$html = '' === $flag ? '' : '<span class="wp-block-mody-language-switcher__flag" aria-hidden="true">' . $flag . '</span>';
+		$html .= sprintf( '<span class="wp-block-mody-language-switcher__name">%s</span>', esc_html( Languages::label( $locale ) ) );
+		if ( '' === $flag ) {
+			$html .= sprintf( '<span class="wp-block-mody-language-switcher__code" aria-hidden="true">%s</span>', esc_html( strtoupper( Languages::slug( $locale ) ) ) );
+		}
+		return $html;
+	}
+
+	/**
 	 * The block's markup.
 	 *
 	 * @param array<string, mixed> $attributes The block's attributes.
@@ -108,6 +153,8 @@ final class Switcher {
 			);
 		}
 
+		$layout  = in_array( $attributes['layout'] ?? '', self::LAYOUTS, true ) ? $attributes['layout'] : 'list';
+		$display = in_array( $attributes['display'] ?? '', self::DISPLAYS, true ) ? $attributes['display'] : 'text';
 		$current = Router::current();
 		$items   = '';
 		foreach ( Languages::site_locales() as $locale ) {
@@ -116,19 +163,30 @@ final class Switcher {
 				continue;
 			}
 			$items .= sprintf(
-				'<li><a href="%s" lang="%s"%s><span class="wp-block-mody-language-switcher__name">%s</span><span class="wp-block-mody-language-switcher__code" aria-hidden="true">%s</span></a></li>',
+				'<li><a href="%s" lang="%s"%s%s>%s</a></li>',
 				esc_url( $preview ? Router::home( $locale ) : self::target( $locale ) ),
 				esc_attr( Languages::code( $locale ) ),
+				'flag' === $display && '' !== self::flag( $locale ) ? ' title="' . esc_attr( Languages::label( $locale ) ) . '"' : '',
 				$is_current ? ' aria-current="page"' : '',
-				esc_html( Languages::label( $locale ) ),
-				esc_html( strtoupper( Languages::slug( $locale ) ) )
+				self::label_html( $locale, $display )
+			);
+		}
+
+		$list = '<ul>' . $items . '</ul>';
+		if ( 'dropdown' === $layout ) {
+			$list = sprintf(
+				'<details class="wp-block-mody-language-switcher__dropdown"><summary lang="%s"%s>%s<span class="wp-block-mody-language-switcher__chevron" aria-hidden="true"></span></summary>%s</details>',
+				esc_attr( Languages::code( $current ) ),
+				'flag' === $display && '' !== self::flag( $current ) ? ' title="' . esc_attr( Languages::label( $current ) ) . '"' : '',
+				self::label_html( $current, $display ),
+				$list
 			);
 		}
 		return sprintf(
-			'<nav %s aria-label="%s"><ul>%s</ul></nav>',
-			get_block_wrapper_attributes(),
+			'<nav %s aria-label="%s">%s</nav>',
+			get_block_wrapper_attributes( array( 'class' => ( 'dropdown' === $layout ? 'is-dropdown ' : '' ) . 'is-display-' . $display ) ),
 			esc_attr__( 'Languages', 'mody_cloud' ),
-			$items
+			$list
 		);
 	}
 }

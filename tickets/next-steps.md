@@ -2,7 +2,7 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-21, refreshed by the agent after the night's work: production runs `990aa62` (deployed 2026-11-20), so everything merged before it is live; items that said "not deployed" were brought up to date, finished ones moved to the end.
+**Last updated:** 2026-11-21: the language switcher's settings built (#35, not committed). Before that the same day, refreshed by the agent after the night's work: production runs `990aa62` (deployed 2026-11-20), so everything merged before it is live; items that said "not deployed" were brought up to date, finished ones moved to the end.
 
 ## Now: the launch
 Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026-11-20 in `990aa62`): one free site per account, 500 MB, Mody's 5 million tokens a month, sign-ups from Spain only, no payments. The checklist is [M5-01](M5-01-hardening-launch.md) ([#10](https://github.com/phycticio/mody.cloud/issues/10)).
@@ -25,13 +25,14 @@ Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026
 
 ## Queue
 1. **[The signup chat speaks the page's language](signup-chat-languages.md)** ([#33](https://github.com/phycticio/mody.cloud/issues/33), asked by the maintainer on 2026-11-21): built the same day, in review (#34). The chat, its answers and the emails in Spanish, French, German, Italian, Portuguese, Dutch and Catalan, from Mody Members' own translation files; English stays the default. Next: a native speaker's read (Spanish and Catalan first), the deploy, and the ticket's open questions.
-2. **[Site languages](site-languages.md):** parts 1 to 7 and 11 built and deployed. Next: part 8 (Translate with Mody), part 9 (WordPress's own translations: language packs at build time) and part 10 (documents).
-3. **[M3-10](M3-10-agent-edits-global-styles.md):** parts A and B deployed. Next is part C: `mody/undo-styles`, the editor check and the docs.
-4. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md):** parts 1 to 3 deployed; parts 4 to 7 were taken over by [agent-knows-gutenberg-spectra-settings.md](agent-knows-gutenberg-spectra-settings.md) (27 block families, deployed 2026-11-11).
-5. **[M1-04](M1-04-registration-block.md):** parts 0, A and B done. Next is part C, the questions and their mapping (the maintainer's work in progress, stashed).
-6. **[The analytics chat](analytics-chat.md):** phases 1 to 3 deployed. Next: phase 4 (across sites: Your sites' board, the network page for super admins).
-7. **[Take your site with you](take-your-site-with-you.md):** phases 1 and 2 deployed. Next: phase 3, the one-click Mody Import.
-8. **[SEO](seo.md):** the SEO title and description deployed. Not built: archives, noindex, Open Graph, the sitemap and the audit.
+2. **[The language switcher: a dropdown, and flags](language-switcher-settings.md)** ([#35](https://github.com/phycticio/mody.cloud/issues/35), asked by the maintainer on 2026-11-21): built the same day on `feature/#35-language-switcher-settings`. Mody knows the settings too. Next: the review, and the ticket's open questions (the flag for English, one choice for every header copy).
+3. **[Site languages](site-languages.md):** parts 1 to 7 and 11 built and deployed. Next: part 8 (Translate with Mody), part 9 (WordPress's own translations: language packs at build time) and part 10 (documents).
+4. **[M3-10](M3-10-agent-edits-global-styles.md):** parts A and B deployed. Next is part C: `mody/undo-styles`, the editor check and the docs.
+5. **[M3-11](M3-11-spectra-mu-plugin-all-blocks.md):** parts 1 to 3 deployed; parts 4 to 7 were taken over by [agent-knows-gutenberg-spectra-settings.md](agent-knows-gutenberg-spectra-settings.md) (27 block families, deployed 2026-11-11).
+6. **[M1-04](M1-04-registration-block.md):** parts 0, A and B done. Next is part C, the questions and their mapping (the maintainer's work in progress, stashed).
+7. **[The analytics chat](analytics-chat.md):** phases 1 to 3 deployed. Next: phase 4 (across sites: Your sites' board, the network page for super admins).
+8. **[Take your site with you](take-your-site-with-you.md):** phases 1 and 2 deployed. Next: phase 3, the one-click Mody Import.
+9. **[SEO](seo.md):** the SEO title and description deployed. Not built: archives, noindex, Open Graph, the sitemap and the audit.
 
 ## Built and paused
 - **Card payments and the billing lifecycle** ([M1-01](M1-01-registration-trial-billing.md) part 3, [M1-02](M1-02-past-due-readonly-deletion.md), [pricing-per-site.md](pricing-per-site.md)): built, checked on production with Mollie's test key (2026-11-18), switched off since 2026-11-20 (`mody_payments_open`). Before switching on: the paid tiers, the paid legal texts (git history), invoices, the Dashboard's paid-path texts (they still speak of free months).

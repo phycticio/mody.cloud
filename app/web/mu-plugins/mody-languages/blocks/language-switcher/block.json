@@ -5,13 +5,23 @@
 	"title": "Language switcher",
 	"category": "widgets",
 	"icon": "translation",
-	"description": "Links to the current page in each of the site's languages. It shows nothing while the site has one language.",
+	"description": "Links to the current page in each of the site's languages, in a row or a dropdown, as names, flags or both. It shows nothing while the site has one language.",
 	"keywords": [ "language", "translation", "multilingual" ],
 	"textdomain": "mody_cloud",
 	"attributes": {
 		"showCurrent": {
 			"type": "boolean",
 			"default": true
+		},
+		"layout": {
+			"type": "string",
+			"enum": [ "list", "dropdown" ],
+			"default": "list"
+		},
+		"display": {
+			"type": "string",
+			"enum": [ "text", "flag", "both" ],
+			"default": "text"
 		}
 	},
 	"supports": {
@@ -36,5 +46,6 @@
 		"core/navigation": "after"
 	},
 	"editorScript": "mody-language-switcher-editor",
-	"style": "file:./style.css"
+	"style": "file:./style.css",
+	"viewScript": "file:./view.js"
 }
