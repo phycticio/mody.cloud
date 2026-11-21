@@ -40,7 +40,7 @@ Then, the same day, replacing the first version (every login page in the main si
   - **The logo:** the site's logo (`site_logo`, else the `custom_logo` theme mod) at full size with `srcset`, else its site icon, else its name. It links to the site's home page. It fits inside the form's width and 84px high (64px on phones), without distortion. A logo is drawn for the site's background, so on a page of another color (Bold, Dark, Secondary) it sits on a plate of the background color.
   - **Preview:** `?mody-login-scheme=<slug>` shows another scheme to users who may choose one. An administrator opening it while logged in stays on the form instead of being sent to wp-admin.
 - **`SettingsPage`** (Settings → Login):
-  - **Layout:** tabs on the left (one today: Login color scheme) and the tab on the right. On narrow screens the tabs go above the panel, as a row.
+  - **Layout:** tabs on the left (one today: Login color scheme) and the tab on the right. On narrow screens the tabs go above the panel, as a row. Since 2026-11-21 it is the Mody dashboard's layout, with the site as the card ([mody-pages-dashboard-layout.md](mody-pages-dashboard-layout.md)).
   - **The site card:** its logo, name, tagline and palette, with links to the Identity and Styles screens.
   - **The schemes:** each one as a small login page with the site's logo, colors and fonts, a radio button, its description and a link to preview it on the real page. The choice is saved through core's `options.php`. Styles: `assets/login-settings.css`.
 - **`Color`:** the color math (contrast, shades).

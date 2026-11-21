@@ -167,6 +167,7 @@ $check( 'six preset cards, the default checked', Presets::slugs() === $presets[1
 $check( 'three tone cards, friendly checked', BrandSettings::TONES === $tones[1] && preg_match( '/value="friendly" +checked/', $html ) );
 $check( 'the address ends with the network domain', str_contains( $html, '<span>.' . get_network()->domain . '</span>' ) );
 $check( 'the quota', (bool) preg_match( '/\d+ of 50 sites used/', $html ) );
+$check( 'the dashboard\'s layout: New site alone in the sidebar, the network\'s card', 1 === substr_count( $html, 'mody-brand__section-link is-active' ) && str_contains( $html, 'mody-brand__card' ) && str_contains( $html, 'id="mody-wizard-form"' ) );
 WizardPage::enqueue();
 $settings = (string) implode( '', (array) wp_scripts()->get_data( 'mody-wizard', 'before' ) );
 $check( 'script settings', str_contains( $settings, 'window.modyWizard' ) && str_contains( $settings, wp_json_encode( rest_url( 'mody-platform/v1/sites' ) ) ) && str_contains( $settings, '"pending":null' ) );

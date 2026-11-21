@@ -1099,7 +1099,7 @@ $since();
 ob_start();
 AgentSettings::render();
 $html = (string) ob_get_clean();
-$check( 'settings page renders', str_contains( $html, 'name="retention_days"' ) && str_contains( $html, 'value="' . $retention . '"' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'edit.php?action=' . AgentSettings::SLUG ) );
+$check( 'settings page renders, in the dashboard\'s layout with its one section in the sidebar', 1 === substr_count( $html, 'mody-brand__section-link is-active' ) && str_contains( $html, 'mody-brand__card' ) && str_contains( $html, 'name="retention_days"' ) && str_contains( $html, 'value="' . $retention . '"' ) && str_contains( $html, 'name="_wpnonce"' ) && str_contains( $html, 'edit.php?action=' . AgentSettings::SLUG ) );
 
 // 8. Real round trips -------------------------------------------------------
 

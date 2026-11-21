@@ -64,7 +64,8 @@ final class SettingsPage {
 	}
 
 	/**
-	 * The page's tabs: slug => label.
+	 * The page's sections: slug => label. One today; the sidebar shows it
+	 * anyway, as every Mody page does (tickets/mody-pages-dashboard-layout.md).
 	 *
 	 * @return array<string, string>
 	 */
@@ -79,38 +80,51 @@ final class SettingsPage {
 	 * the previews show the site's own colors and fonts.
 	 */
 	public static function enqueue(): void {
-		LoginPage::enqueue_asset( 'mody-login-settings', 'login-settings.css' );
+		LoginPage::enqueue_asset( 'mody-login-admin-page', 'admin-page.css' ); // The Mody dashboard's layout (a copy in this plugin).
+		LoginPage::enqueue_asset( 'mody-login-settings', 'login-settings.css', array( 'mody-login-admin-page' ) );
 		wp_add_inline_style( 'mody-login-settings', LoginPage::variables_css() . '.mody-login-settings{' . LoginPage::declarations( LoginPage::fonts() ) . '}' );
 	}
 
 	/**
-	 * Renders the page.
+	 * Renders the page, in the Mody dashboard's layout: the sections on the
+	 * left, the site's card, the section's panel.
 	 */
 	public static function render(): void {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			return;
 		}
 		$tabs = self::tabs();
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: which tab to show.
-		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
-		$tab = isset( $tabs[ $tab ] ) ? $tab : (string) array_key_first( $tabs );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: which section to show.
+		$tab     = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
+		$tab     = isset( $tabs[ $tab ] ) ? $tab : (string) array_key_first( $tabs );
+		$palette = Schemes::palette();
 		?>
-		<div class="wrap mody-login-settings">
+		<div class="wrap mody-brand mody-login-settings">
 			<h1><?php esc_html_e( 'Login', 'mody_cloud' ); ?></h1>
-			<div class="mody-login-settings__layout">
-				<nav class="mody-login-settings__tabs" aria-label="<?php esc_attr_e( 'Login settings', 'mody_cloud' ); ?>">
+			<div class="mody-brand__layout">
+				<nav class="mody-brand__sections" aria-label="<?php esc_attr_e( 'Login settings', 'mody_cloud' ); ?>">
 					<ul>
 						<?php foreach ( $tabs as $slug => $label ) : ?>
 							<li>
-								<a href="<?php echo esc_url( add_query_arg( array( 'page' => self::SLUG, 'tab' => $slug ), admin_url( 'options-general.php' ) ) ); ?>"
-									class="mody-login-settings__tab<?php echo $slug === $tab ? ' is-active' : ''; ?>"
-									<?php echo $slug === $tab ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
+								<a href="<?php echo esc_url( add_query_arg( array( 'page' => self::SLUG, 'section' => $slug ), admin_url( 'options-general.php' ) ) ); ?>"
+									class="mody-brand__section-link<?php echo $slug === $tab ? ' is-active' : ''; ?>"
+									<?php echo $slug === $tab ? 'aria-current="page"' : ''; ?>>
+									<span><?php echo esc_html( $label ); ?></span>
+								</a>
 							</li>
 						<?php endforeach; ?>
 					</ul>
 				</nav>
-				<div class="mody-login-settings__panel">
-					<?php self::render_scheme_tab(); ?>
+				<div class="mody-brand__main">
+					<?php self::render_site_card( $palette ); ?>
+					<section class="mody-brand__panel" aria-labelledby="mody-login-section-title">
+						<div class="mody-brand__panel-head">
+							<h2 id="mody-login-section-title"><?php echo esc_html( $tabs[ $tab ] ); ?></h2>
+						</div>
+						<div class="mody-brand__panel-body">
+							<?php self::render_scheme_tab( $palette ); ?>
+						</div>
+					</section>
 				</div>
 			</div>
 		</div>
@@ -118,20 +132,18 @@ final class SettingsPage {
 	}
 
 	/**
-	 * The Login color scheme tab: the site, then the schemes its palette allows.
+	 * The Login color scheme section: the schemes the site's palette allows.
+	 *
+	 * @param array<string, string> $palette Slug => hex.
 	 */
-	private static function render_scheme_tab(): void {
-		$palette = Schemes::palette();
+	private static function render_scheme_tab( array $palette ): void {
 		$schemes = Schemes::for_palette( $palette );
 		$chosen  = Schemes::chosen();
 		$shown   = isset( $schemes[ $chosen ] ) ? $chosen : Schemes::DEFAULT;
 		?>
-		<h2><?php esc_html_e( 'Login color scheme', 'mody_cloud' ); ?></h2>
 		<p class="mody-login-settings__intro">
 			<?php esc_html_e( 'How this site\'s login page looks. Every scheme uses the site\'s own logo, colors and fonts, so it follows them when they change. Schemes that would be hard to read with these colors are not offered.', 'mody_cloud' ); ?>
 		</p>
-
-		<?php self::render_site_card( $palette ); ?>
 
 		<?php if ( ! $schemes ) : ?>
 			<div class="notice notice-warning inline"><p>
@@ -179,34 +191,37 @@ final class SettingsPage {
 	}
 
 	/**
-	 * The site as the login page shows it: its logo, name and tagline, its
-	 * palette, and where to change them.
+	 * The page's card: the site as the login page shows it (its logo, name,
+	 * tagline and palette), and where to change them.
 	 *
 	 * @param array<string, string> $palette Slug => hex.
 	 */
 	private static function render_site_card( array $palette ): void {
 		$can_edit = current_user_can( 'edit_theme_options' );
 		$tagline  = (string) get_bloginfo( 'description' );
+		$logo     = LoginPage::logo_html( '200px' );
 		?>
-		<section class="mody-login-site" aria-labelledby="mody-login-site-title">
-			<div class="mody-login-site__logo"><?php echo LoginPage::logo_html( '240px' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in logo_html(). ?></div>
-			<div class="mody-login-site__details">
-				<h3 id="mody-login-site-title" class="mody-login-site__name"><?php echo esc_html( wp_specialchars_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES ) ); ?></h3>
+		<section class="mody-brand__card mody-login-site" aria-label="<?php esc_attr_e( 'The site', 'mody_cloud' ); ?>">
+			<?php if ( ! str_contains( $logo, 'mody-login-name' ) ) : // No logo or icon: the name is already beside it. ?>
+				<div class="mody-brand__logo"><?php echo $logo; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in logo_html(). ?></div>
+			<?php endif; ?>
+			<div class="mody-brand__card-text">
+				<p class="mody-brand__name"><?php echo esc_html( wp_specialchars_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES ) ); ?></p>
 				<?php if ( '' !== $tagline ) : ?>
-					<p class="mody-login-site__tagline"><?php echo esc_html( wp_specialchars_decode( $tagline, ENT_QUOTES ) ); ?></p>
+					<p class="mody-brand__tagline"><?php echo esc_html( wp_specialchars_decode( $tagline, ENT_QUOTES ) ); ?></p>
 				<?php endif; ?>
 				<ul class="mody-login-site__palette" aria-label="<?php esc_attr_e( 'The site\'s colors', 'mody_cloud' ); ?>">
 					<?php foreach ( $palette as $slug => $hex ) : ?>
 						<li><span class="mody-login-site__swatch" style="background:<?php echo esc_attr( $hex ); ?>"></span><?php echo esc_html( ucfirst( $slug ) ); ?> <code><?php echo esc_html( $hex ); ?></code></li>
 					<?php endforeach; ?>
 				</ul>
-				<?php if ( $can_edit ) : ?>
-					<p class="mody-login-site__links">
-						<a href="<?php echo esc_url( add_query_arg( 'p', rawurlencode( '/identity' ), admin_url( 'site-editor.php' ) ) ); ?>"><?php esc_html_e( 'Change the logo', 'mody_cloud' ); ?></a>
-						<a href="<?php echo esc_url( add_query_arg( 'p', rawurlencode( '/styles' ), admin_url( 'site-editor.php' ) ) ); ?>"><?php esc_html_e( 'Change the colors and fonts', 'mody_cloud' ); ?></a>
-					</p>
-				<?php endif; ?>
 			</div>
+			<?php if ( $can_edit ) : ?>
+				<p class="mody-brand__links">
+					<a class="button" href="<?php echo esc_url( add_query_arg( 'p', rawurlencode( '/identity' ), admin_url( 'site-editor.php' ) ) ); ?>"><?php esc_html_e( 'Change the logo', 'mody_cloud' ); ?></a>
+					<a class="button" href="<?php echo esc_url( add_query_arg( 'p', rawurlencode( '/styles' ), admin_url( 'site-editor.php' ) ) ); ?>"><?php esc_html_e( 'Change the colors and fonts', 'mody_cloud' ); ?></a>
+				</p>
+			<?php endif; ?>
 		</section>
 		<?php
 	}

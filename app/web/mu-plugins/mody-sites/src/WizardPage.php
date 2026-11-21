@@ -68,7 +68,8 @@ final class WizardPage {
 		$root    = dirname( __DIR__ );
 		$version = static fn( string $file ): string => (string) filemtime( $root . '/assets/' . $file );
 
-		wp_enqueue_style( 'mody-wizard', plugins_url( 'assets/wizard.css', $root . '/mody-sites.php' ), array(), $version( 'wizard.css' ) );
+		wp_enqueue_style( 'mody-sites-admin-page', plugins_url( 'assets/admin-page.css', $root . '/mody-sites.php' ), array(), $version( 'admin-page.css' ) ); // The Mody dashboard's layout (a copy in this plugin).
+		wp_enqueue_style( 'mody-wizard', plugins_url( 'assets/wizard.css', $root . '/mody-sites.php' ), array( 'mody-sites-admin-page' ), $version( 'wizard.css' ) );
 		if ( self::payment_pending( get_current_user_id() ) ) {
 			return; // No form, so no script: render() shows the payment step.
 		}
@@ -126,12 +127,72 @@ final class WizardPage {
 	 * Mollie card check here.
 	 */
 	private static function render_payment_pending(): void {
+		self::layout_start( __( 'Finish your payment', 'mody_cloud' ), __( 'Your account is ready.', 'mody_cloud' ) );
 		?>
-		<div class="wrap mody-wizard">
-			<h1><?php esc_html_e( 'Finish your payment', 'mody_cloud' ); ?></h1>
-			<div class="notice notice-info inline mody-wizard__payment">
-				<p><?php esc_html_e( 'Your account is ready. To start, confirm your card with a 0.01 EUR check. Then you can create your first site.', 'mody_cloud' ); ?></p>
-				<p><?php esc_html_e( 'Card checks open soon.', 'mody_cloud' ); ?></p>
+		<div class="notice notice-info inline mody-wizard__payment">
+			<p><?php esc_html_e( 'Your account is ready. To start, confirm your card with a 0.01 EUR check. Then you can create your first site.', 'mody_cloud' ); ?></p>
+			<p><?php esc_html_e( 'Card checks open soon.', 'mody_cloud' ); ?></p>
+		</div>
+		<?php
+		self::layout_end();
+	}
+
+	/**
+	 * The page's sections: slug => label. One, the wizard; the sidebar shows
+	 * it anyway, as every Mody page does (tickets/mody-pages-dashboard-layout.md).
+	 *
+	 * @return array<string, string>
+	 */
+	public static function sections(): array {
+		return array( 'new-site' => __( 'New site', 'mody_cloud' ) );
+	}
+
+	/**
+	 * Opens the Mody dashboard's layout: the sections, the network's card,
+	 * and the section's panel, whose body the caller fills.
+	 *
+	 * @param string $panel_title The panel's heading.
+	 * @param string $tagline     The card's line under the network's name.
+	 */
+	private static function layout_start( string $panel_title, string $tagline ): void {
+		?>
+		<div class="wrap mody-brand mody-wizard">
+			<h1><?php esc_html_e( 'New site', 'mody_cloud' ); ?></h1>
+			<div class="mody-brand__layout">
+				<nav class="mody-brand__sections" aria-label="<?php esc_attr_e( 'New site sections', 'mody_cloud' ); ?>">
+					<ul>
+						<?php foreach ( self::sections() as $slug => $label ) : ?>
+							<li>
+								<a href="<?php echo esc_url( network_admin_url( 'admin.php?page=' . self::SLUG ) ); ?>" class="mody-brand__section-link is-active" aria-current="page">
+									<span><?php echo esc_html( $label ); ?></span>
+								</a>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				</nav>
+				<div class="mody-brand__main">
+					<section class="mody-brand__card" aria-label="<?php esc_attr_e( 'The network', 'mody_cloud' ); ?>">
+						<div class="mody-brand__card-text">
+							<p class="mody-brand__name"><?php echo esc_html( wp_specialchars_decode( (string) get_network()->site_name, ENT_QUOTES ) ); ?></p>
+							<p class="mody-brand__tagline mody-wizard__quota"><?php echo esc_html( $tagline ); ?></p>
+						</div>
+					</section>
+					<section class="mody-brand__panel" aria-labelledby="mody-wizard-section-title">
+						<div class="mody-brand__panel-head">
+							<h2 id="mody-wizard-section-title"><?php echo esc_html( $panel_title ); ?></h2>
+						</div>
+						<div class="mody-brand__panel-body">
+		<?php
+	}
+
+	/**
+	 * Closes what layout_start() opened.
+	 */
+	private static function layout_end(): void {
+		?>
+						</div>
+					</section>
+				</div>
 			</div>
 		</div>
 		<?php
@@ -157,20 +218,13 @@ final class WizardPage {
 		$error   = static function ( string $field ): void {
 			printf( '<p class="mody-wizard__error" data-error-for="%s" role="alert"></p>', esc_attr( $field ) );
 		};
+		$quota   = $used > $limit
+			/* translators: %d: sites the account has (more than its plan includes: a trial account from before 2026-11-13). */
+			? sprintf( _n( '%d site used', '%d sites used', $used, 'mody_cloud' ), $used )
+			/* translators: 1: sites in use, 2: sites the plan includes. */
+			: sprintf( _n( '%1$d of %2$d site used', '%1$d of %2$d sites used', $limit, 'mody_cloud' ), $used, $limit );
+		self::layout_start( __( 'New site', 'mody_cloud' ), $quota );
 		?>
-		<div class="wrap mody-wizard">
-			<h1><?php esc_html_e( 'New site', 'mody_cloud' ); ?></h1>
-			<p class="mody-wizard__quota">
-				<?php
-				echo esc_html(
-					$used > $limit
-						/* translators: %d: sites the account has (more than its plan includes: a trial account from before 2026-11-13). */
-						? sprintf( _n( '%d site used', '%d sites used', $used, 'mody_cloud' ), $used )
-						/* translators: 1: sites in use, 2: sites the plan includes. */
-						: sprintf( _n( '%1$d of %2$d site used', '%1$d of %2$d sites used', $limit, 'mody_cloud' ), $used, $limit )
-				);
-				?>
-			</p>
 			<?php if ( $used >= $limit ) : ?>
 				<div class="notice notice-warning inline"><p>
 					<?php
@@ -290,8 +344,8 @@ final class WizardPage {
 			</form>
 
 			<div id="mody-wizard-status" class="mody-wizard__status" hidden aria-live="polite"></div>
-		</div>
 		<?php
+		self::layout_end();
 	}
 
 	/**
