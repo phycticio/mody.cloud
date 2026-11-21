@@ -1,6 +1,6 @@
 # Every member screen checked in a real browser before launch
 
-**Builds on:** [free-mvp.md](free-mvp.md), [M1-03](M1-03-chat-signup-and-editor-tour.md), [M5-01](M5-01-hardening-launch.md) · **Feeds:** the launch · **Status:** every screen checked locally on 2026-11-20; one fix (core's welcome guides, PR #25); the maintainer's look on production remains · **Issue:** [#17](https://github.com/phycticio/mody.cloud/issues/17)
+**Builds on:** [free-mvp.md](free-mvp.md), [M1-03](M1-03-chat-signup-and-editor-tour.md), [M5-01](M5-01-hardening-launch.md) · **Feeds:** the launch · **Status:** every screen checked locally on 2026-11-20; one fix (core's welcome guides, PR #25, deployed 2026-11-21 in `3a39a7b`); the maintainer's look on production remains · **Issue:** [#17](https://github.com/phycticio/mody.cloud/issues/17)
 
 ## Goal (maintainer, 2026-11-20)
 

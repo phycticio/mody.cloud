@@ -68,6 +68,6 @@ A visitor answers four questions in a chat on `mody.cloud/register/` and gets, a
 
 **Browser check for the maintainer:** open registration (`./bin/wp site option update mody_registration_open 1`), sign up at `https://mody.local/register/`, add the new site to `/etc/hosts`, open the email in Mailpit and choose a password, follow the tour sending two real requests to Mody, then close registration (`./bin/wp site option delete mody_registration_open`).
 
-## Core's welcome guides off (2026-11-20)
+## Core's welcome guides off (2026-11-20; deployed 2026-11-21 in `3a39a7b`, #25)
 Found by the launch browser check ([launch-browser-check.md](launch-browser-check.md)): when Mody opened a page during the tour, core's "Editing a page" guide opened on top of the tour's card; and with fresh preferences, opening a page or Styles for editing showed core's "Edit your site" guide, which loaded `https://s.w.org/images/block-editor/edit-your-site.gif` (rule 1). The tour switched off only the Site Editor's first guide, on its own site, when it finished. Now `CoreGuides` (`mody-onboarding`) sets every guide preference (`core/edit-post`: `welcomeGuide`, `welcomeGuideTemplate`; `core/edit-site`: `welcomeGuide`, `welcomeGuidePage`, `welcomeGuideStyles`, `welcomeGuideTemplate`) to false in both editors, for everyone, and keeps it false. Checked in a real browser with fresh preferences: no guide, no request outside the network. Test: `scripts/onboarding-test.php` (6).
 

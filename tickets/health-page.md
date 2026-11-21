@@ -1,6 +1,6 @@
 # The platform's health on one page
 
-**Builds on:** [M5-01](M5-01-hardening-launch.md) (Monitoring), [free-mvp.md](free-mvp.md), [launch-production-check.md](launch-production-check.md) (Q1 and Q2) · **Status:** planned and built on 2026-11-20 on `feature/#29-health-page`, not deployed · **Issue:** [#29](https://github.com/phycticio/mody.cloud/issues/29)
+**Builds on:** [M5-01](M5-01-hardening-launch.md) (Monitoring), [free-mvp.md](free-mvp.md), [launch-production-check.md](launch-production-check.md) (Q1 and Q2) · **Status:** planned and built on 2026-11-20 on `feature/#29-health-page`; merged (#30) and deployed 2026-11-21 in `3a39a7b` · **Issue:** [#29](https://github.com/phycticio/mody.cloud/issues/29)
 
 ## Goal
 M5-01 asks for "a simple system health page for super admins: site count, past-due count, failed provisioning jobs, agent errors from `mody_agent_events`". Since 2026-11-20 every account is free with no cap on accounts ([free-mvp.md](free-mvp.md)), so the cost that grows with sign-ups, Mody's tokens paid to Infomaniak, needs to be in sight. The production check left two open questions about it (Q1: monitoring before or after launch; Q2: an alert at some number of accounts).

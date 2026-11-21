@@ -1,6 +1,6 @@
 # The language switcher: a dropdown, and flags
 
-**Builds on:** [site-languages.md](site-languages.md) part 5 (the `mody/language-switcher` block) · **Status:** planned and built on 2026-11-21 on `feature/#35-language-switcher-settings`, Mody taught the settings the same day; not committed (Results below) · **Issue:** [#35](https://github.com/phycticio/mody.cloud/issues/35)
+**Builds on:** [site-languages.md](site-languages.md) part 5 (the `mody/language-switcher` block) · **Status:** planned and built on 2026-11-21 on `feature/#35-language-switcher-settings`, Mody taught the settings the same day; merged (#36) and deployed 2026-11-21 in `8a4966d` (Results below) · **Issue:** [#35](https://github.com/phycticio/mody.cloud/issues/35)
 
 ## Goal (maintainer, 2026-11-21)
 
