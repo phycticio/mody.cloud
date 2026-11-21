@@ -6,7 +6,7 @@
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1
- * Update URI:        false
+ * Update URI:        https://mody.cloud/
  * Text Domain:       mody_cloud
  *
  * The design market's patterns (built 2026-11-08,
@@ -48,3 +48,6 @@ add_filter( 'should_load_remote_block_patterns', '__return_false' );
 add_action( 'after_setup_theme', array( Patterns::class, 'remove_core_patterns' ), 20 );
 add_action( 'rest_api_init', array( Patterns::class, 'register' ), 5 );
 add_filter( 'rest_pre_dispatch', array( Patterns::class, 'refuse_directory' ), 10, 3 );
+
+// WordPress's update notice from mody.cloud, when installed as a normal plugin (never on Mody Cloud's network).
+UpdateCheck::register( __FILE__ );

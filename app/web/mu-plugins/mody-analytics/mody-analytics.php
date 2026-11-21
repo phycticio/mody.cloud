@@ -1,5 +1,14 @@
 <?php
 /**
+ * Plugin Name:       Mody Analytics
+ * Description:       Counts the site's visitors and page views without cookies, with nothing stored in the browser and no address kept.
+ * Version:           1.0.0
+ * Author:            Mody Cloud
+ * License:           GPL-2.0-or-later
+ * Requires PHP:      8.1
+ * Update URI:        https://mody.cloud/
+ * Text Domain:       mody_cloud
+ *
  * Mody Analytics: visitors and page views on every site of the network
  * (asked for by the maintainer on 2026-11-11, tickets/mody-dashboard.md).
  *
@@ -42,3 +51,6 @@ spl_autoload_register(
 Store::register();
 Tracker::register();
 Collector::register();
+
+// WordPress's update notice from mody.cloud, when installed as a normal plugin (never on Mody Cloud's network).
+UpdateCheck::register( __FILE__ );
