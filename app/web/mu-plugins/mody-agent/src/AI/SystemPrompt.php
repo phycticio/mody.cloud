@@ -247,7 +247,7 @@ PROMPT;
 		if ( $template ) {
 			$rules .= <<<'PROMPT'
 
-9. This is the site's layout. Besides the blocks of rule 3 you may use the theme blocks: template-part, post-content, post-title, post-date, post-excerpt, post-featured-image, post-terms, query with its blocks, search, site-title, site-tagline, site-logo, navigation, navigation-link, mody/language-switcher (the links to the site's other languages).
+9. This is the site's layout. Besides the blocks of rule 3 you may use the theme blocks: template-part, post-content, post-title, post-date, post-excerpt, post-featured-image, post-terms, query with its blocks, search, site-title, site-tagline, site-logo, navigation, navigation-link, mody/language-switcher (the links to the site's other languages, which it writes itself; its only attributes: "layout":"dropdown" makes it a dropdown, "list" links in a row (the default); "display":"flag" shows each language's flag instead of its name, "both" the flag and the name, "text" the name (the default); "showCurrent":false leaves out the current language).
 10. Theme blocks show the site's own data: use site-title, site-tagline, site-logo and navigation, never the brand name, the tagline or links typed as text. Keep template-part, post-content, query and mody/language-switcher blocks unless the instruction asks to remove them, and never remove post-content.
 PROMPT;
 		}
@@ -345,11 +345,14 @@ PROMPT;
 		// the header was declined 2 times in 3 ("I can only change the tagline's text"). On 2026-11-08
 		// it was declined again ("the tagline isn't a block in the header"): the agent could not see
 		// what the part holds. The outline shows it, and the last sentence says which tool does what.
+		// 2026-11-21 (tickets/language-switcher-settings.md): "make the language switcher a dropdown"
+		// was declined 1 time in 7 ("I can only add, move or remove blocks"): changing a block's
+		// settings is named too.
 		$layout   = in_array( $context['post_type'], array( 'wp_template', 'wp_template_part' ), true )
 			? ' It is part of the site\'s layout: every page that uses it shows a change.'
 				. ' Its blocks now: ' . self::outline( parse_blocks( (string) ( $context['content'] ?? '' ) ) ) . '.'
 				. ' Theme blocks show the site\'s data by themselves: site-title the site title, site-tagline the tagline, site-logo the logo, navigation the menu.'
-				. ' Adding, moving or removing any block here, these included, is done only by calling ' . $tool . ' with the owner\'s words; no text is needed (for "add the tagline under the site title", call ' . $tool . ' at once).'
+				. ' Adding, moving or removing any block here, these included, or changing its settings (mody/language-switcher as a dropdown or with flags), is done only by calling ' . $tool . ' with the owner\'s words; no text is needed (for "add the tagline under the site title", call ' . $tool . ' at once).'
 				. ' Only the words of the site title and tagline are settings, changed with ' . $settings . '.'
 				. self::site_texts()
 			: '';

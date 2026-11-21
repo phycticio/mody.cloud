@@ -258,4 +258,43 @@ $turn  = $real( 'Remove the page title from this template', $ctx( $page ) );
 $names = $names_in( (string) ( $turn['edits'][0]['markup'] ?? '' ) );
 $check( 'page template: the title out, the content kept', $names && ! in_array( 'core/post-title', $names, true ) && in_array( 'core/post-content', $names, true ), implode( ', ', array_unique( $names ) ) . ', ' . $turn['secs'] );
 
+// The language switcher's settings (tickets/language-switcher-settings.md, Q3): on a site with
+// other languages, from a header whose switcher has the given attributes.
+if ( class_exists( Mody\Languages\Languages::class ) && Mody\Languages\Languages::is_multilingual() ) {
+	$with_switcher = static function ( string $attrs ) use ( $header ): array|null|WP_Error {
+		$content = (string) preg_replace( '#<!-- wp:mody/language-switcher(?: \{.*?\})? /-->#', '', $header->content );
+		$content = (string) preg_replace( '#(<!-- wp:navigation \{.*?\} /-->)#', '$1' . "\n\n<!-- wp:mody/language-switcher $attrs/-->", $content, 1 );
+		return EditorContext::from_input( array( 'post_type' => $header->type, 'post_id' => $header->id, 'content' => $content ) );
+	};
+	$switcher_of = static function ( array $turn ): ?array {
+		$found = null;
+		$walk  = static function ( array $blocks ) use ( &$walk, &$found ): void {
+			foreach ( $blocks as $block ) {
+				if ( 'mody/language-switcher' === $block['blockName'] ) {
+					$found = (array) $block['attrs'];
+				}
+				$walk( $block['innerBlocks'] );
+			}
+		};
+		$walk( parse_blocks( (string) ( $turn['edits'][0]['markup'] ?? '' ) ) );
+		return $found;
+	};
+	// The header's other theme blocks are kept (this site's header may have a logo and no title).
+	$theirs = array_intersect( array( 'core/site-title', 'core/site-logo', 'core/navigation' ), $names_in( $header->content ) );
+	$kept   = static fn( array $turn ): bool => ! array_diff( $theirs, $names_in( (string) ( $turn['edits'][0]['markup'] ?? '' ) ) );
+	$show = static fn( ?array $attrs, array $turn = array() ): string => null === $attrs ? 'no switcher: ' . mb_substr( (string) ( $turn['reply'] ?? '' ), 0, 120 ) : (string) wp_json_encode( $attrs );
+
+	$turn  = $real( 'Make the language switcher a dropdown that shows the flags and the names', $with_switcher( '' ) );
+	$attrs = $switcher_of( $turn );
+	$check( 'switcher: a dropdown with flags and names', 'dropdown' === ( $attrs['layout'] ?? '' ) && 'both' === ( $attrs['display'] ?? '' ) && $kept( $turn ), $show( $attrs, $turn ) . ', ' . $turn['secs'] );
+
+	$turn  = $real( 'Muestra solo las banderas en el selector de idiomas', $with_switcher( '' ) );
+	$attrs = $switcher_of( $turn );
+	$check( 'switcher (in Spanish): flags only, still links', 'flag' === ( $attrs['display'] ?? '' ) && 'list' === ( $attrs['layout'] ?? 'list' ) && $kept( $turn ), $show( $attrs, $turn ) . ', ' . $turn['secs'] );
+
+	$turn  = $real( 'Show the language names again, as links in a row', $with_switcher( '{"layout":"dropdown","display":"flag"} ' ) );
+	$attrs = $switcher_of( $turn );
+	$check( 'switcher: back to names in a row', null !== $attrs && 'list' === ( $attrs['layout'] ?? 'list' ) && 'text' === ( $attrs['display'] ?? 'text' ) && $kept( $turn ), $show( $attrs, $turn ) . ', ' . $turn['secs'] );
+}
+
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";
