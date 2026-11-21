@@ -1,6 +1,6 @@
 # Mody Security replaces Wordfence, with two-step login
 
-**Builds on:** [antibot-altcha.md](antibot-altcha.md) and the security pass of 2026-11-12 ([M5-01](M5-01-hardening-launch.md#security-pass-2026-11-12)), both in the `mody-security` plugin · **Feeds:** [M5-01](M5-01-hardening-launch.md) (the security sign-off), [architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1) (one exception less) · **Status:** planned and built on 2026-11-21 on `feature/#38-security-plugin-replaces-wordfence`, tested locally; draft pull request [#39](https://github.com/phycticio/mody.cloud/pull/39), not deployed · **Issue:** [#38](https://github.com/phycticio/mody.cloud/issues/38)
+**Builds on:** [antibot-altcha.md](antibot-altcha.md) and the security pass of 2026-11-12 ([M5-01](M5-01-hardening-launch.md#security-pass-2026-11-12)), both in the `mody-security` plugin · **Feeds:** [M5-01](M5-01-hardening-launch.md) (the security sign-off), [architecture.md](../documentation/architecture.md#temporary-exceptions-to-rule-1) (one exception less) · **Status:** planned and built on 2026-11-21 on `feature/#38-security-plugin-replaces-wordfence`, tested locally; merged ([#39](https://github.com/phycticio/mody.cloud/pull/39)) and deployed 2026-11-21 in `d78f519`; Wordfence's leftovers removed from production the same day · **Issue:** [#38](https://github.com/phycticio/mody.cloud/issues/38)
 
 ## Goal (maintainer, 2026-11-21)
 
@@ -123,3 +123,30 @@ Wordfence's firewall may load before WordPress through `auto_prepend_file` in th
   - Firefox and Safari;
   - production (the steps above).
   - With "every site's administrators", a member on their own domain is sent to the profile on `mody.cloud`, where they log in again (logins are per host, #27). Super admins (the default) cannot log in on members' domains anyway.
+
+## Production (2026-11-21)
+
+Deployed by the maintainer in `d78f519` (15:40 UTC); checked and cleaned up the same day at the maintainer's request ("validate and evaluate everything is working. Then we should remove every wordfence information existing in the app").
+
+- **Found:** the PHP-FPM processes kept running the old code of changed PHP files: Mody Security's REST routes answered 404 and the firewall let an attack through (200), while WP-CLI (a new process) ran the new code. OPcache checks timestamps every 2 s on that server and the container saw the new file times, so the cause is not proven. A graceful reload (`kill -USR2 1` in the app container) fixed it. `bin/deploy` now reloads PHP-FPM after every sync that changes files, and the deploy skill says to check that new PHP runs, not only that pages answer.
+- **Checked after the reload:**
+  - the pages, `/wp-login.php` with ALTCHA, and `/register/`;
+  - the routes `mody-security/v1`;
+  - the firewall: 403 for an attack, 200 for an ordinary search;
+  - the file check: 5,788 files, all as deployed, no scripts in uploads;
+  - settings at their defaults (super admins must use two-step login: the one super admin has no method yet);
+  - one alert recipient, the `two-factor` secret made;
+  - no PHP errors.
+- **Wordfence's two-step login was never used** on production: its tables `wfls_2fa_secrets` and `wfls_passkeys` were empty, so nobody had to set it up again.
+- **Removed from production**, after backups (a full database dump on the maintainer's Mac, `backups/mody_cloud-prod-before-wordfence-cleanup-20261121-154455.sql`; Wordfence's files on the server, `backups/wordfence-files-20261121-154456.tar.gz`):
+  - the files, in this order: `app/wp/.user.ini` (only Wordfence's `auto_prepend_file`), then a PHP-FPM reload, then `app/wp/wordfence-waf.php` and `app/web/wflogs/` (11 MB);
+  - from the database:
+    - 26 `wp_wf*` tables;
+    - the plugin's network-active entry and 7 network options;
+    - 13 user meta rows (`wfls*`);
+    - 9 scheduled events (7 on the main site, 1 on each of sites 3 and 4);
+    - 5 options and 10 transients;
+    - the cached plugin-update check that listed it.
+  - **The pages:** `scripts/home-page.php`, `home-page-translations.php` (with the new JSON in the container's `/tmp`) and `legal-pages.php` were run again from `main`. The home page in four languages and the privacy policy no longer name Wordfence; the legal pages stay published.
+- **Kept on purpose:** 30 old revisions of those pages still have the old wording: they record what the home page and the privacy policy said before.
+- **Removed from the repository** (`chore/#38-remove-wordfence-traces`): the deploy's Wordfence excludes and the file check's `wordfence-waf.php` pattern, `wordfence` in `MemberPlugins::PLATFORM_PLUGINS`, the `.gitignore` lines, the code comments that named it, the export tests' lists, the mail test's sample name, the readme's plugin row. Tickets, the decision records in AGENTS.md and architecture.md, and links to this ticket keep the name: they are the history.

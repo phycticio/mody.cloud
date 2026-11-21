@@ -2,13 +2,13 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-21: production runs `b8dec7c`. Mody Security replacing Wordfence, with two-step login, is built and tested locally, in draft pull request [#39](https://github.com/phycticio/mody.cloud/pull/39). Deploys that day: `3a39a7b` (the night's pull requests #23 to #32 and the signup chat in seven languages, #34), `8a4966d` (the language switcher's settings, #36) and `b8dec7c` (docs, #37).
+**Last updated:** 2026-11-21: production runs `d78f519` (Mody Security replaced Wordfence, #39; Wordfence's files and data removed from production the same day). Deploys that day: `3a39a7b` (#23 to #34), `8a4966d` (#36), `b8dec7c` (docs, #37), `d78f519` (#39).
 
 ## Now: the launch
 Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026-11-20 in `990aa62`): one free site per account, 500 MB, Mody's 5 million tokens a month, sign-ups from Spain only, no payments. The checklist is [M5-01](M5-01-hardening-launch.md) ([#10](https://github.com/phycticio/mody.cloud/issues/10)).
 1. **Production checked end to end** ([launch-production-check.md](launch-production-check.md), [#16](https://github.com/phycticio/mody.cloud/issues/16)): configuration, Spain only, addresses and backups checked read-only on 2026-11-20. **The maintainer's:** a real signup from Spain (the email through Brevo, the tour, two requests to Mody), the restore's full-stack check (WordPress on restored data), rotating the `plugins.mody.cloud` Composer credential.
 2. **Every member screen in a real browser** ([launch-browser-check.md](launch-browser-check.md), [#17](https://github.com/phycticio/mody.cloud/issues/17)): every screen passes locally (2026-11-20); one fix (#25, deployed 2026-11-21 in `3a39a7b`). The maintainer's look on production comes with the real signup.
-3. **Mody Security replaces Wordfence** ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), [#38](https://github.com/phycticio/mody.cloud/issues/38)): two-step login (authenticator app, security keys, recovery codes), login protection, firewall, file check, security log and alerts on Network Admin → Mody → Security; built and tested locally 2026-11-21, draft pull request [#39](https://github.com/phycticio/mody.cloud/pull/39). Its deploy needs the ticket's Production steps first (Wordfence's `auto_prepend_file`), then setting up two-step login for the super admin (required by default).
+3. **Mody Security** ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), #38): deployed 2026-11-21 in `d78f519`, checked on production, Wordfence's leftovers removed. **The maintainer's:** set up two-step login on your profile (wp-admin asks for it), and the ticket's Q1 to Q4.
 4. **The security sign-off** in M5-01, after 1, 2 and 3.
 
 ## Waiting on the maintainer

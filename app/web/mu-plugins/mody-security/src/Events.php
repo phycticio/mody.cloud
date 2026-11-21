@@ -14,8 +14,8 @@ defined( 'ABSPATH' ) || exit;
  * One network table, `mody_security_events`: a row per login, failed login,
  * pause, blocked username, firewall block, two-step change or failure, file
  * check finding, and settings change. Each row keeps the visitor's address
- * (decided by the maintainer on 2026-11-21: like Wordfence, so an address
- * can be blocked from the log), the account when there is one, the site and
+ * (decided by the maintainer on 2026-11-21, so an address can be blocked
+ * from the log), the account when there is one, the site and
  * a short detail. Rows older than KEEP_DAYS are deleted as the table is
  * used. Writing never breaks a request: a failed insert is ignored.
  */

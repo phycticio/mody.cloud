@@ -416,7 +416,7 @@ try {
 	foreach ( array( 'mody-import/mody-import.php', 'mody-import/README-restore.txt', 'mody-import/mody-export.json', 'mody-import/LICENSE.txt', 'mody-import/.htaccess', 'mody-import/index.php', 'mody-import/payload/.htaccess', 'mody-import/payload/index.php', 'mody-import/payload/plugins/mody-spectra/mody-spectra.php', 'mody-import/payload/plugins/spectra-blocks/spectra-blocks.php', 'mody-import/payload/plugins/antispam-bee/antispam_bee.php', 'mody-import/payload/plugins/mody-languages/mody-languages.php', 'mody-import/payload/plugins/mody-images/mody-images.php', 'mody-import/payload/plugins/mody-seo/mody-seo.php', 'mody-import/payload/themes/theme/theme.json', 'mody-import/payload/themes/theme/assets/fonts/inter/InterVariable.woff2' ) as $name ) {
 		$check( 'has ' . $name, in_array( $name, $names, true ) );
 	}
-	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|wordfence|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-(platform|site|agent|security|locks|members|billing|sites|dashboard|export|onboarding|storage|updates|domains|brand|styles|fonts)/#', $names );
+	$bad = preg_grep( '#^mody-import/payload/plugins/(ai|mcp-adapter|ai-provider-for-ollama|mody-mail|mody-analytics|query-monitor|user-switching)/|^mody-import/payload/plugins/mody-(platform|site|agent|security|locks|members|billing|sites|dashboard|export|onboarding|storage|updates|domains|brand|styles|fonts)/#', $names );
 	$check( 'nothing of the agent, the platform\'s locks, billing, mail or the dev plugins', ! $bad, implode( ', ', array_slice( $bad, 0, 3 ) ) );
 
 	$unzipped = $work . '/unzipped';

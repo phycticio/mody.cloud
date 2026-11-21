@@ -90,7 +90,7 @@ $set_env( 'BREVO_API_KEY', '' );
 echo "\nThe sender\n";
 $check( 'the address, whatever the message says', 'no-reply@mody.test' === apply_filters( 'wp_mail_from', 'someone@example.org' ) );
 $check( 'the name, instead of WordPress\'s default', 'Mody Test' === apply_filters( 'wp_mail_from_name', 'WordPress' ) && 'Mody Test' === apply_filters( 'wp_mail_from_name', '' ) );
-$check( '...a message\'s own name kept', 'Wordfence' === apply_filters( 'wp_mail_from_name', 'Wordfence' ) );
+$check( '...a message\'s own name kept', 'Query Monitor' === apply_filters( 'wp_mail_from_name', 'Query Monitor' ) );
 
 // HTTP requests from here on: Brevo's answer is faked (or the request is refused).
 $requests      = array();

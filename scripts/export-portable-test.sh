@@ -56,7 +56,7 @@ echo "     $OUT"
 case "$OUT" in OK*) check "assembled, no carried Mody plugin names a class of mody-platform" 0 ;; *) check "assembled" 1; exit 1 ;; esac
 check "no mody-platform and no Mody Site in the payload" "$(in_app "ls $T/payload/plugins | grep -qE '^mody-(platform|site)$' && echo 1 || echo 0")"
 check "no agent, platform or gating plugin in it" "$(in_app "ls $T/payload/plugins | grep -qE 'mody-(agent|security|locks|members|billing|sites|dashboard|export|onboarding|storage|updates|domains|brand|styles|fonts)$' && echo 1 || echo 0")"
-check "no mody-mail, mody-analytics, ai, mcp-adapter or wordfence" "$(in_app "ls $T/payload/plugins | grep -qE 'mody-mail|mody-analytics|^ai$|mcp-adapter|ollama|wordfence|query-monitor|user-switching' && echo 1 || echo 0")"
+check "no mody-mail, mody-analytics, ai or mcp-adapter" "$(in_app "ls $T/payload/plugins | grep -qE 'mody-mail|mody-analytics|^ai$|mcp-adapter|ollama|query-monitor|user-switching' && echo 1 || echo 0")"
 check "Inter is in the theme" "$(in_app "test -f $T/payload/themes/theme/assets/fonts/inter/InterVariable.woff2 && grep -q 'file:./assets/fonts/inter/InterVariable.woff2' $T/payload/themes/theme/theme.json && echo 0 || echo 1")"
 check "GPL text with each Mody plugin and the theme" "$(in_app "for d in $T/payload/plugins/mody-*; do test -f \$d/LICENSE.txt || { echo 1; exit; }; done; test -f $T/payload/themes/theme/LICENSE.txt && echo 0 || echo 1")"
 # The plugins the payload activates (Portable::active_plugins()), by folder.
