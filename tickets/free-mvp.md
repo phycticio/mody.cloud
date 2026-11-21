@@ -1,6 +1,6 @@
 # A free service: one free site for everyone
 
-**Builds on:** [pricing-per-site.md](pricing-per-site.md), [invites-and-offers.md](invites-and-offers.md), [M1-01](M1-01-registration-trial-billing.md), [M1-02](M1-02-past-due-readonly-deletion.md), [legal-pages.md](legal-pages.md) · **Feeds:** paid tiers later (freemium), [M5-01](M5-01-hardening-launch.md) · **Status:** planned and built on 2026-11-20 on `feature/#13-free-mvp`, not deployed · **Issue:** [#13](https://github.com/phycticio/mody.cloud/issues/13)
+**Builds on:** [pricing-per-site.md](pricing-per-site.md), [invites-and-offers.md](invites-and-offers.md), [M1-01](M1-01-registration-trial-billing.md), [M1-02](M1-02-past-due-readonly-deletion.md), [legal-pages.md](legal-pages.md) · **Feeds:** paid tiers later (freemium), [M5-01](M5-01-hardening-launch.md) · **Status:** built 2026-11-20 (#15), **deployed 2026-11-20 in `990aa62`** · **Issue:** [#13](https://github.com/phycticio/mody.cloud/issues/13)
 
 **Replaces:** the price per site and the launch offer of 2026-11-13 ([pricing-per-site.md](pricing-per-site.md)). The billing code stays, switched off, for the paid tiers.
 
@@ -73,6 +73,12 @@ Mody's tokens are the cost that grows with accounts (pricing-per-site.md, The nu
 - **Tests:** `members-test.php`, `registration-test.php`, `invites-test.php`, `onboarding-test.php`, `dashboard-test.php`, `billing-test.php` (payments switched on for its run), `security-signup-test.php`, `antibot-test.php`, `provisioning-test.php`, `gating-test.php`, `export-panel-test.php`, `domains-test.php`, `security-isolation-test.php`, `security-agent-test.php`, `mail-test.php`: all pass. `wizard-test.php`: one known local failure, unrelated (the header's site title, independent-mody-plugins.md).
 - **In a real browser** (headless Chromium, 1440 and 390 px, 2026-11-20): the chat's intro, the four answers, the summary with "I live in Spain: create my site", and "Done!" at both widths, no sideways scroll, no console errors; both accounts free with no end and a 500 MB site; the welcome emails in Mailpit; the set-password link to the Identity screen and the editor tour; Your plan (free, 500 MB, 5,000,000 tokens, no EUR) and Invite friends without points. The test accounts were removed.
 - **Not done:** the Dashboard's paid-path texts still speak of free months (unreachable while payments are off); the signup chat is still English on `/es/`, `/de/` and `/it/` (as before).
+
+## Deployed (2026-11-20, `990aa62`)
+- Database backed up first (local `backups/mody_cloud-prod-before-free-mvp-20261120-211647.sql`). No site was over 500 MB (3 sites).
+- After the first requests: members table version 8 (both accounts free, active, no end date), storage version 3 (500 MB), `mody_promo_*` gone, `mody_payments_open` unset. No 500s.
+- `scripts/home-page.php` and its translations run on production: `/`, `/es/`, `/de/` and `/it/` show no price and name 500 MB and Spain.
+- **The legal pages** (`scripts/legal-pages.php`) published on production the same evening, at the maintainer's request ("publish the free version now"; the adviser reads them later): legal notice, terms and privacy policy describe the free service, with no price, Mollie or withdrawal.
 
 ## Before and after the deploy (production)
 1. List the sites over 500 MB: `wp site list --field=blog_id` and each site's `get_space_used()`; they keep their files but cannot upload until under 500 MB.

@@ -2,10 +2,10 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-20, a free service: one free site for everyone (built).
+**Last updated:** 2026-11-20, the free service and custom-domain admin deployed (`990aa62`).
 
 ## Now
-- **[A free service: one free site for everyone](free-mvp.md)** ([#13](https://github.com/phycticio/mody.cloud/issues/13), decided by the maintainer on 2026-11-20): every account starts free with one site, 500 MB and Mody's 5 million tokens a month, sign-ups from Spain only, no payments, no donations and no end date; paid tiers later (freemium). It replaces the price per site and the launch offer of 2026-11-13 (the item "One price per site" below); the billing code stays, switched off (`mody_payments_open`). **Built on `feature/#13-free-mvp`, in review.** After the merge: the deploy and its production steps (the ticket), and the legal pages after the adviser's read.
+- **[A free service: one free site for everyone](free-mvp.md)** ([#13](https://github.com/phycticio/mody.cloud/issues/13), decided by the maintainer on 2026-11-20): every account starts free with one site, 500 MB and Mody's 5 million tokens a month, sign-ups from Spain only, no payments, no donations and no end date; paid tiers later (freemium). It replaces the price per site and the launch offer of 2026-11-13 (the item "One price per site" below); the billing code stays, switched off (`mody_payments_open`). **Deployed 2026-11-20 in `990aa62`**, with the home page in four languages. The free legal pages published the same evening; waiting on the adviser's read. Since the same deploy, a site's admin is on its own domain too ([custom-domains.md](custom-domains.md), #19).
 - **[Deploys through pull requests](deploy-through-pull-requests.md)** ([#11](https://github.com/phycticio/mody.cloud/issues/11), decided by the maintainer on 2026-11-17): every change reaches `main` through a pull request merged on GitHub, and `./bin/deploy` builds the merged `origin/main` in its own checkout before syncing it. Built the same day, in review as the first pull request of the new flow.
 - **[Every Mody plugin is an independent plugin](independent-mody-plugins.md)** (decided by the maintainer on 2026-11-16 and 2026-11-17): built, merged and **deployed on 2026-11-17** (`6db8aaf`). `mody-platform` is gone: 22 new plugins, one thing each, all MU plugins. Waiting on a look at the editors and the dashboard in production.
 
