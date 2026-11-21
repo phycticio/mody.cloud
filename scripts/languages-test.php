@@ -220,6 +220,35 @@ $check( '... shown on Spanish pages only', str_contains( $es['body'], 'LANGTEST-
 
 $main = $http( 'https://beta.mody.local/' ); // A site with one language (the main site has four since 2026-11-10).
 $check( 'a site with one language is unchanged: no switcher, no hreflang', 200 === $main['code'] && ! str_contains( $main['body'], '<nav class="wp-block-mody-language-switcher' ) && ! str_contains( $main['body'], 'hreflang=' ) );
+$check( 'the switcher\'s script comes with it (for the dropdown)', (bool) preg_match( '#<script[^>]+language-switcher/view\.js#', $en['body'] ) && ! str_contains( $main['body'], 'language-switcher/view.js' ) );
+
+// 5b. The switcher's settings (tickets/language-switcher-settings.md) --------------
+
+echo "The switcher's settings\n";
+$switcher = static function ( array $attrs ): string {
+	return render_block( array( 'blockName' => 'mody/language-switcher', 'attrs' => $attrs, 'innerBlocks' => array(), 'innerHTML' => '', 'innerContent' => array() ) );
+};
+Router::set_current( 'es_ES' );
+$plain    = $switcher( array() );
+$dropdown = $switcher( array( 'layout' => 'dropdown', 'display' => 'both' ) );
+$flags    = $switcher( array( 'display' => 'flag' ) );
+$others   = $switcher( array( 'layout' => 'dropdown', 'showCurrent' => false ) );
+$unknown  = $switcher( array( 'layout' => 'grid', 'display' => 'emoji' ) );
+Router::set_current( '' );
+$check( 'by default as before: a row of names, the short codes, no flag', str_contains( $plain, 'is-display-text' ) && ! str_contains( $plain, 'is-dropdown' ) && ! str_contains( $plain, '<details' ) && ! str_contains( $plain, '<svg' ) && (bool) preg_match( '#lang="en-US"><span class="wp-block-mody-language-switcher__name">English</span><span class="wp-block-mody-language-switcher__code" aria-hidden="true">EN</span>#', $plain ) );
+$check( 'a dropdown: a <details> whose button is the current language', str_contains( $dropdown, 'is-dropdown' ) && (bool) preg_match( '#<details class="wp-block-mody-language-switcher__dropdown"><summary lang="es-ES"><span class="wp-block-mody-language-switcher__flag" aria-hidden="true"><svg[^>]*>.*?</svg></span><span class="wp-block-mody-language-switcher__name">Español</span><span class="wp-block-mody-language-switcher__chevron" aria-hidden="true"></span></summary><ul>#s', $dropdown ) );
+$check( '... its list: every language, with flag and name, Español current', 2 === substr_count( $dropdown, '<li>' ) && (bool) preg_match( '#lang="en-US"><span class="wp-block-mody-language-switcher__flag" aria-hidden="true"><svg[^>]*>.*?</svg></span><span class="wp-block-mody-language-switcher__name">English</span></a>#s', $dropdown ) && (bool) preg_match( '#lang="es-ES" aria-current="page"><span class="wp-block-mody-language-switcher__flag"#', $dropdown ) && ! str_contains( $dropdown, '__code' ) );
+$check( '... without the current language listed: only the others', str_contains( $others, '<summary lang="es-ES">' ) && 1 === substr_count( $others, '<li>' ) && ! str_contains( $others, 'aria-current' ) );
+$check( 'flags only: the name kept for screen readers, and as a tooltip', str_contains( $flags, 'is-display-flag' ) && str_contains( $flags, 'title="English"' ) && str_contains( $flags, '>English</span>' ) && 2 === substr_count( $flags, '<svg' ) && ! str_contains( $flags, '__code' ) );
+$check( 'an unknown layout or display: the defaults', str_contains( $unknown, 'is-display-text' ) && ! str_contains( $unknown, '<details' ) && ! str_contains( $unknown, '<svg' ) );
+$bad = array();
+foreach ( array_keys( Languages::OFFERED ) as $locale ) {
+	$svg = Mody\Languages\Switcher::flag( $locale );
+	if ( ! str_starts_with( $svg, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"' ) || ! str_ends_with( $svg, '</svg>' ) || preg_match( '#<script|\son\w+=|href|url\(|<image|<foreignObject|\sid=#i', $svg ) ) {
+		$bad[] = $locale;
+	}
+}
+$check( 'every offered language has a flag: a plain 3:2 SVG, no ids, scripts or links', array() === $bad && '' === Mody\Languages\Switcher::flag( 'xx_XX' ), implode( ', ', $bad ) );
 
 // 6. Menus -----------------------------------------------------------------------
 

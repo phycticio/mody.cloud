@@ -39,7 +39,7 @@
 - WordPress's own words (dates, "Read more") switch with `switch_to_locale()`, once the language is installed (part 9).
 
 ### Part 5 · The switcher and the menus
-- The `mody/language-switcher` block (server-rendered; plain editor script, no build step), placed after every navigation block by a block hook. It links to the current page in each language, or to that language's home page.
+- The `mody/language-switcher` block (server-rendered; plain editor script, no build step), placed after every navigation block by a block hook. It links to the current page in each language, or to that language's home page. Since 2026-11-21 it can be a dropdown and show flags ([language-switcher-settings.md](language-switcher-settings.md)).
 - Menu links to pages point to the page's translation and show its title (unless the link has a label of its own). The site title, logo and home link lead to the language's home page.
 
 ### Part 6 · Header and footer per language
