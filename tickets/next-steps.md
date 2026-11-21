@@ -2,7 +2,7 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-21: every Mody page in the dashboard's layout, built (#41). Production runs `6d154be` (Mody Security replaced Wordfence, #39; Wordfence's files and data removed from production the same day). Deploys that day: `3a39a7b` (#23 to #34), `8a4966d` (#36), `b8dec7c` (docs, #37), `d78f519` (#39), `6d154be` (#40: Wordfence's last traces; the deploy reloads PHP-FPM).
+**Last updated:** 2026-11-21: product pages for Bari and nine plugins planned (#42); every Mody page in the dashboard's layout, built (#41). Production runs `6d154be` (Mody Security replaced Wordfence, #39; Wordfence's files and data removed from production the same day). Deploys that day: `3a39a7b` (#23 to #34), `8a4966d` (#36), `b8dec7c` (docs, #37), `d78f519` (#39), `6d154be` (#40: Wordfence's last traces; the deploy reloads PHP-FPM).
 
 ## Now: the launch
 Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026-11-20 in `990aa62`): one free site per account, 500 MB, Mody's 5 million tokens a month, sign-ups from Spain only, no payments. The checklist is [M5-01](M5-01-hardening-launch.md) ([#10](https://github.com/phycticio/mody.cloud/issues/10)).
@@ -21,6 +21,7 @@ Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026
   - single sign-on between `mody.cloud` and members' own domains (members log in once more on their domain; [custom-domains.md](custom-domains.md));
   - the signup chat in other languages: the open questions of [signup-chat-languages.md](signup-chat-languages.md) (the account's language before part 9, Spanish sites for Spanish signups, `/register/` in English only);
   - Mody Security: security keys on members' own domains, who must use two-step login at launch, scheduling the file check, and recovery without codes ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), Q1 to Q4);
+  - the product pages: Composer (Packagist or our own repository), where the theme's download shows, which repository takes issues, whether `bari` carries the plugins ([product-pages-bari-and-plugins.md](product-pages-bari-and-plugins.md), Q7 to Q10);
   - the language switcher: the flag for English (the United Kingdom's, built, or the United States'), and whether one choice of layout and display applies to every header copy ([language-switcher-settings.md](language-switcher-settings.md)).
 - **A look in the browser at features built and deployed before 2026-11-20:** the analytics board and its analyst ([analytics-chat.md](analytics-chat.md)), Download your site ([take-your-site-with-you.md](take-your-site-with-you.md); its phase 0 production spike, a 3 GB download through Cloudflare, is the maintainer's), custom domains on a second real domain ([custom-domains.md](custom-domains.md)), images ([image-optimization.md](image-optimization.md)), the login page ([login-branding.md](login-branding.md)), M3-09's steps ([M3-09](M3-09-agent-navigates-site-editor.md)). The launch browser check covered the member's journey; these are the parts it did not open.
 - **Docker Desktop's uninstall** on this Mac ([move-local-docker-to-colima.md](move-local-docker-to-colima.md), part F).
@@ -33,6 +34,7 @@ Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026
 5. **[The analytics chat](analytics-chat.md):** phases 1 to 3 deployed. Next: phase 4 (across sites: Your sites' board, the network page for super admins).
 6. **[Take your site with you](take-your-site-with-you.md):** phases 1 and 2 deployed. Next: phase 3, the one-click Mody Import.
 7. **[SEO](seo.md):** the SEO title and description deployed. Not built: archives, noindex, Open Graph, the sitemap and the audit.
+8. **[Product pages](product-pages-bari-and-plugins.md) ([#42](https://github.com/phycticio/mody.cloud/issues/42)):** `mody.cloud/bari`, `mody.cloud/plugin/<slug>` for nine plugins and the catalog `mody.cloud/plugins`, in English, Spanish and Catalan, planned 2026-11-21. Parts 1 to 3 can start (the page builder, Mody SEO's page as the pilot, each plugin made to stand alone); then the zips in uploads with an update check, Spanish and Catalan, Bari single site and the `bari` repository.
 
 ## Built and paused
 - **Card payments and the billing lifecycle** ([M1-01](M1-01-registration-trial-billing.md) part 3, [M1-02](M1-02-past-due-readonly-deletion.md), [pricing-per-site.md](pricing-per-site.md)): built, checked on production with Mollie's test key (2026-11-18), switched off since 2026-11-20 (`mody_payments_open`). Before switching on: the paid tiers, the paid legal texts (git history), invoices, the Dashboard's paid-path texts (they still speak of free months).
