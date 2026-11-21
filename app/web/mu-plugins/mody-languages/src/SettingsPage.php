@@ -45,7 +45,41 @@ final class SettingsPage {
 	 * `admin_menu`: Settings → Languages.
 	 */
 	public static function menu(): void {
-		add_options_page( __( 'Languages', 'mody_cloud' ), __( 'Languages', 'mody_cloud' ), 'manage_options', self::SLUG, array( self::class, 'render' ) );
+		$hook = add_options_page( __( 'Languages', 'mody_cloud' ), __( 'Languages', 'mody_cloud' ), 'manage_options', self::SLUG, array( self::class, 'render' ) );
+		if ( $hook ) {
+			add_action( 'load-' . $hook, array( self::class, 'enqueue' ) );
+		}
+	}
+
+	/**
+	 * `load-<page>`: the Mody dashboard's layout (a copy in this plugin).
+	 */
+	public static function enqueue(): void {
+		$root = dirname( __DIR__ );
+		wp_enqueue_style( 'mody-languages-admin-page', plugins_url( 'assets/admin-page.css', $root . '/mody-languages.php' ), array(), (string) filemtime( $root . '/assets/admin-page.css' ) );
+	}
+
+	/**
+	 * The screen's sections: slug => label. Translations only once the site
+	 * has another language.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function sections(): array {
+		$sections = array( 'languages' => __( 'Languages', 'mody_cloud' ) );
+		if ( array() !== Languages::others() ) {
+			$sections['translations'] = __( 'Translations', 'mody_cloud' );
+		}
+		return $sections;
+	}
+
+	/**
+	 * The section asked for.
+	 */
+	private static function current(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: which section to show.
+		$section = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
+		return isset( self::sections()[ $section ] ) ? $section : 'languages';
 	}
 
 	/**
@@ -166,10 +200,10 @@ final class SettingsPage {
 
 		if ( is_wp_error( $result ) ) {
 			$code = str_replace( 'mody_languages_', '', (string) $result->get_error_code() );
-			wp_safe_redirect( self::url( array( 'error' => isset( self::errors()[ $code ] ) ? $code : 'failed' ) ) );
+			wp_safe_redirect( self::url( array( 'section' => 'translations', 'error' => isset( self::errors()[ $code ] ) ? $code : 'failed' ) ) );
 			exit;
 		}
-		wp_safe_redirect( $target ? $target : self::url() );
+		wp_safe_redirect( $target ? $target : self::url( array( 'section' => 'translations' ) ) );
 		exit;
 	}
 
@@ -268,14 +302,17 @@ final class SettingsPage {
 	}
 
 	/**
-	 * The screen.
+	 * The screen, in the Mody dashboard's layout: Languages, then
+	 * Translations (the matrix) once the site has another language.
 	 */
 	public static function render(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$default = Languages::default_locale();
-		$others  = Languages::others();
+		$default  = Languages::default_locale();
+		$others   = Languages::others();
+		$sections = self::sections();
+		$section  = self::current();
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Notices only.
 		$saved = isset( $_GET['saved'] );
 		$error = self::errors()[ sanitize_key( wp_unslash( $_GET['error'] ?? '' ) ) ] ?? '';
@@ -284,116 +321,174 @@ final class SettingsPage {
 			array_map( array( Languages::class, 'slug' ), Languages::others() )
 		);
 		// phpcs:enable
+		$name = wp_specialchars_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES );
+		$also = array_map( static fn( string $locale ): string => Languages::label( $locale ) . ' /' . Languages::slug( $locale ) . '/', $others );
 		?>
-		<div class="wrap">
+		<div class="wrap mody-brand mody-languages">
 			<h1><?php esc_html_e( 'Languages', 'mody_cloud' ); ?></h1>
-			<?php if ( $saved ) : ?>
-				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Languages saved.', 'mody_cloud' ); ?></p></div>
-			<?php endif; ?>
-			<?php foreach ( $taken as $prefix ) : ?>
-				<div class="notice notice-warning"><p>
-					<?php
-					/* translators: %s: an address prefix, such as /es/. */
-					printf( esc_html__( 'A page already uses the address %s, so it keeps it: that language\'s home page cannot be reached there. Change that page\'s slug to free the address.', 'mody_cloud' ), '<code>/' . esc_html( $prefix ) . '/</code>' );
-					?>
-				</p></div>
-			<?php endforeach; ?>
-			<?php if ( '' !== $error ) : ?>
-				<div class="notice notice-error is-dismissible"><p><?php echo esc_html( $error ); ?></p></div>
-			<?php endif; ?>
-
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="mody_languages_save">
-				<?php wp_nonce_field( 'mody_languages_save' ); ?>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Default language', 'mody_cloud' ); ?></th>
-						<td>
-							<strong><?php echo esc_html( Languages::label( $default ) ); ?></strong>
-							<p class="description">
+			<div class="mody-brand__layout">
+				<nav class="mody-brand__sections" aria-label="<?php esc_attr_e( 'Languages sections', 'mody_cloud' ); ?>">
+					<ul>
+						<?php foreach ( $sections as $slug => $label ) : ?>
+							<li>
+								<a href="<?php echo esc_url( self::url( array( 'section' => $slug ) ) ); ?>" class="mody-brand__section-link<?php echo $slug === $section ? ' is-active' : ''; ?>" <?php echo $slug === $section ? 'aria-current="page"' : ''; ?>>
+									<span><?php echo esc_html( $label ); ?></span>
+								</a>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				</nav>
+				<div class="mody-brand__main">
+					<section class="mody-brand__card" aria-label="<?php esc_attr_e( 'The site', 'mody_cloud' ); ?>">
+						<div class="mody-brand__card-text">
+							<p class="mody-brand__name"><?php echo esc_html( '' !== $name ? $name : __( '(no name yet)', 'mody_cloud' ) ); ?></p>
+							<p class="mody-brand__tagline">
 								<?php
-								printf(
-									/* translators: %s: link to Settings → General. */
-									esc_html__( 'Your pages are in this language, at addresses without a prefix. It is the Site Language in %s.', 'mody_cloud' ),
-									'<a href="' . esc_url( admin_url( 'options-general.php' ) ) . '">' . esc_html__( 'Settings → General', 'mody_cloud' ) . '</a>'
+								echo esc_html(
+									$also
+										/* translators: 1: the default language, 2: the other languages with their prefixes. */
+										? sprintf( __( 'In %1$s, and also in %2$s.', 'mody_cloud' ), Languages::label( $default ), implode( ', ', $also ) )
+										/* translators: %s: the default language. */
+										: sprintf( __( 'In %s only.', 'mody_cloud' ), Languages::label( $default ) )
 								);
 								?>
 							</p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Other languages', 'mody_cloud' ); ?></th>
-						<td>
-							<fieldset>
-								<legend class="screen-reader-text"><?php esc_html_e( 'Other languages', 'mody_cloud' ); ?></legend>
-								<?php foreach ( array_keys( Languages::OFFERED ) as $locale ) : ?>
-									<?php
-									if ( $locale === $default || Languages::slug( $locale ) === Languages::slug( $default ) ) {
-										continue;
-									}
-									?>
-									<label style="display:inline-block;min-width:10em;margin:0 1em .5em 0">
-										<input type="checkbox" name="languages[]" value="<?php echo esc_attr( $locale ); ?>" <?php checked( in_array( $locale, $others, true ) ); ?>>
-										<?php echo esc_html( Languages::label( $locale ) ); ?>
-										<code>/<?php echo esc_html( Languages::slug( $locale ) ); ?>/</code>
-									</label>
-								<?php endforeach; ?>
-							</fieldset>
-							<p class="description"><?php esc_html_e( 'Pages in another language live at addresses starting with its prefix, and a language switcher appears next to your menu.', 'mody_cloud' ); ?></p>
-						</td>
-					</tr>
-				</table>
-				<?php submit_button( __( 'Save languages', 'mody_cloud' ) ); ?>
-			</form>
+						</div>
+					</section>
+					<?php if ( $saved ) : ?>
+						<div class="notice notice-success inline mody-brand__notice"><p><?php esc_html_e( 'Languages saved.', 'mody_cloud' ); ?></p></div>
+					<?php endif; ?>
+					<?php foreach ( $taken as $prefix ) : ?>
+						<div class="notice notice-warning inline mody-brand__notice"><p>
+							<?php
+							/* translators: %s: an address prefix, such as /es/. */
+							printf( esc_html__( 'A page already uses the address %s, so it keeps it: that language\'s home page cannot be reached there. Change that page\'s slug to free the address.', 'mody_cloud' ), '<code>/' . esc_html( $prefix ) . '/</code>' );
+							?>
+						</p></div>
+					<?php endforeach; ?>
+					<?php if ( '' !== $error ) : ?>
+						<div class="notice notice-error inline mody-brand__notice"><p><?php echo esc_html( $error ); ?></p></div>
+					<?php endif; ?>
+					<section class="mody-brand__panel" aria-labelledby="mody-languages-section-title">
+						<div class="mody-brand__panel-head">
+							<h2 id="mody-languages-section-title"><?php echo esc_html( $sections[ $section ] ); ?></h2>
+						</div>
+						<div class="mody-brand__panel-body">
+							<?php
+							if ( 'translations' === $section ) {
+								self::render_matrix( $default, $others );
+							} else {
+								self::render_languages( $default, $others );
+							}
+							?>
+						</div>
+					</section>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
 
-			<?php if ( array() !== $others ) : ?>
-				<h2><?php esc_html_e( 'Translations', 'mody_cloud' ); ?></h2>
-				<p><?php esc_html_e( 'Every page in your default language, and its translations. A translation is outdated when its original was changed after it.', 'mody_cloud' ); ?></p>
-				<style>
-					.mody-languages-matrix td, .mody-languages-matrix th { vertical-align: top; }
-					.mody-languages-state { font-weight: 600; }
-					.mody-languages-state.is-missing { color: #8a6d00; }
-					.mody-languages-state.is-draft { color: #50575e; }
-					.mody-languages-state.is-translated { color: #00702a; }
-					.mody-languages-state.is-outdated { color: #b32d2e; }
-				</style>
-				<table class="widefat striped mody-languages-matrix">
-					<thead>
+	/**
+	 * The Languages section: the default language and the others to offer.
+	 *
+	 * @param string   $default The default language.
+	 * @param string[] $others  The other languages.
+	 */
+	private static function render_languages( string $default, array $others ): void {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="mody-brand__form">
+			<input type="hidden" name="action" value="mody_languages_save">
+			<?php wp_nonce_field( 'mody_languages_save' ); ?>
+			<div class="mody-brand__field">
+				<p><strong><?php esc_html_e( 'Default language', 'mody_cloud' ); ?>:</strong> <?php echo esc_html( Languages::label( $default ) ); ?></p>
+				<p class="description">
+					<?php
+					printf(
+						/* translators: %s: link to Settings → General. */
+						esc_html__( 'Your pages are in this language, at addresses without a prefix. It is the Site Language in %s.', 'mody_cloud' ),
+						'<a href="' . esc_url( admin_url( 'options-general.php' ) ) . '">' . esc_html__( 'Settings → General', 'mody_cloud' ) . '</a>'
+					);
+					?>
+				</p>
+			</div>
+			<fieldset class="mody-brand__field">
+				<legend><?php esc_html_e( 'Other languages', 'mody_cloud' ); ?></legend>
+				<?php foreach ( array_keys( Languages::OFFERED ) as $locale ) : ?>
+					<?php
+					if ( $locale === $default || Languages::slug( $locale ) === Languages::slug( $default ) ) {
+						continue;
+					}
+					?>
+					<label class="mody-brand__choice">
+						<input type="checkbox" name="languages[]" value="<?php echo esc_attr( $locale ); ?>" <?php checked( in_array( $locale, $others, true ) ); ?>>
+						<?php echo esc_html( Languages::label( $locale ) ); ?>
+						<code>/<?php echo esc_html( Languages::slug( $locale ) ); ?>/</code>
+					</label>
+				<?php endforeach; ?>
+				<p class="description"><?php esc_html_e( 'Pages in another language live at addresses starting with its prefix, and a language switcher appears next to your menu.', 'mody_cloud' ); ?></p>
+			</fieldset>
+			<?php submit_button( __( 'Save languages', 'mody_cloud' ) ); ?>
+		</form>
+		<?php
+	}
+
+	/**
+	 * The Translations section: every page in the default language, the
+	 * header and the footer, against each other language.
+	 *
+	 * @param string   $default The default language.
+	 * @param string[] $others  The other languages.
+	 */
+	private static function render_matrix( string $default, array $others ): void {
+		?>
+		<p><?php esc_html_e( 'Every page in your default language, and its translations. A translation is outdated when its original was changed after it.', 'mody_cloud' ); ?></p>
+		<style>
+			.mody-languages-matrix-wrap { overflow-x: auto; }
+			.mody-languages-matrix td, .mody-languages-matrix th { vertical-align: top; }
+			.mody-languages-state { font-weight: 600; }
+			.mody-languages-state.is-missing { color: #8a6d00; }
+			.mody-languages-state.is-draft { color: #50575e; }
+			.mody-languages-state.is-translated { color: #00702a; }
+			.mody-languages-state.is-outdated { color: #b32d2e; }
+		</style>
+		<div class="mody-languages-matrix-wrap">
+			<table class="widefat striped mody-languages-matrix">
+				<thead>
+					<tr>
+						<th scope="col"><?php echo esc_html( Languages::label( $default ) ); ?></th>
+						<?php foreach ( $others as $locale ) : ?>
+							<th scope="col"><?php echo esc_html( Languages::label( $locale ) ); ?></th>
+						<?php endforeach; ?>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( self::originals() as $page ) : ?>
 						<tr>
-							<th scope="col"><?php echo esc_html( Languages::label( $default ) ); ?></th>
+							<th scope="row">
+								<a href="<?php echo esc_url( (string) get_edit_post_link( $page->ID, 'url' ) ); ?>"><?php echo esc_html( get_the_title( $page ) ? get_the_title( $page ) : __( '(no title)', 'mody_cloud' ) ); ?></a>
+								<?php if ( 'publish' !== $page->post_status ) : ?>
+									<span class="post-state">— <?php echo esc_html( get_post_status_object( $page->post_status )->label ?? $page->post_status ); ?></span>
+								<?php endif; ?>
+							</th>
 							<?php foreach ( $others as $locale ) : ?>
-								<th scope="col"><?php echo esc_html( Languages::label( $locale ) ); ?></th>
+								<td><?php echo self::page_cell( $page, $locale ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped while built. ?></td>
 							<?php endforeach; ?>
 						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( self::originals() as $page ) : ?>
+					<?php endforeach; ?>
+					<?php foreach ( Parts::TRANSLATABLE as $slug ) : ?>
+						<?php $part = Parts::find( $slug ); ?>
+						<?php if ( $part ) : ?>
 							<tr>
-								<th scope="row">
-									<a href="<?php echo esc_url( (string) get_edit_post_link( $page->ID, 'url' ) ); ?>"><?php echo esc_html( get_the_title( $page ) ? get_the_title( $page ) : __( '(no title)', 'mody_cloud' ) ); ?></a>
-									<?php if ( 'publish' !== $page->post_status ) : ?>
-										<span class="post-state">— <?php echo esc_html( get_post_status_object( $page->post_status )->label ?? $page->post_status ); ?></span>
-									<?php endif; ?>
-								</th>
+								<th scope="row"><a href="<?php echo esc_url( self::part_editor_url( $slug ) ); ?>"><?php echo esc_html( $part->title ); ?></a> <span class="post-state">— <?php esc_html_e( 'template part', 'mody_cloud' ); ?></span></th>
 								<?php foreach ( $others as $locale ) : ?>
-									<td><?php echo self::page_cell( $page, $locale ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped while built. ?></td>
+									<td><?php echo self::part_cell( $slug, $locale ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped while built. ?></td>
 								<?php endforeach; ?>
 							</tr>
-						<?php endforeach; ?>
-						<?php foreach ( Parts::TRANSLATABLE as $slug ) : ?>
-							<?php $part = Parts::find( $slug ); ?>
-							<?php if ( $part ) : ?>
-								<tr>
-									<th scope="row"><a href="<?php echo esc_url( self::part_editor_url( $slug ) ); ?>"><?php echo esc_html( $part->title ); ?></a> <span class="post-state">— <?php esc_html_e( 'template part', 'mody_cloud' ); ?></span></th>
-									<?php foreach ( $others as $locale ) : ?>
-										<td><?php echo self::part_cell( $slug, $locale ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped while built. ?></td>
-									<?php endforeach; ?>
-								</tr>
-							<?php endif; ?>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
-			<?php endif; ?>
+						<?php endif; ?>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
 		</div>
 		<?php
 	}

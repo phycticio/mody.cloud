@@ -277,7 +277,7 @@ if ( is_wp_error( $site ) ) {
 	$jar  = $cookie( $member );
 	$page = '/wp-admin/options-general.php?page=' . SettingsPage::SLUG;
 	$out  = $get( $site, $page, $jar );
-	$check( 'Settings → Login for the site\'s administrator', 200 === $out['code'] && str_contains( $out['body'], 'mody-login-settings__tabs' ) && str_contains( $out['body'], 'aria-current="page"' ), (string) $out['code'] );
+	$check( 'Settings → Login for the site\'s administrator', 200 === $out['code'] && str_contains( $out['body'], 'mody-brand__sections' ) && 1 === substr_count( $out['body'], 'mody-brand__section-link' ) && str_contains( $out['body'], 'mody-brand__card mody-login-site' ) && str_contains( $out['body'], 'aria-current="page"' ), (string) $out['code'] );
 	preg_match_all( '/name="mody_login_scheme" value="([a-z]+)"/', $out['body'], $radios );
 	switch_to_blog( $site );
 	wp_clean_theme_json_cache();
@@ -342,7 +342,7 @@ if ( is_wp_error( $site ) ) {
 	$created['users'][] = $author;
 	add_user_to_blog( $site, $author, 'author' );
 	$out = $get( $site, $page, $cookie( $author ) );
-	$check( 'an author cannot open Settings → Login', 200 !== $out['code'] || ! str_contains( $out['body'], 'mody-login-settings__tabs' ), (string) $out['code'] );
+	$check( 'an author cannot open Settings → Login', 200 !== $out['code'] || ! str_contains( $out['body'], 'mody-brand__sections' ), (string) $out['code'] );
 }
 
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

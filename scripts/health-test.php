@@ -123,10 +123,19 @@ if ( null !== $payments ) {
 echo "\nThe page\n";
 wp_set_current_user( (int) $super->ID );
 set_current_screen( 'dashboard-network' );
+$html = '';
+foreach ( array_keys( HealthPage::sections() ) as $health_section ) {
+	$_GET['section'] = $health_section;
+	ob_start();
+	HealthPage::render();
+	$html .= (string) ob_get_clean();
+}
+unset( $_GET['section'] );
 ob_start();
 HealthPage::render();
-$html = (string) ob_get_clean();
-$check( 'a super admin sees the tokens, the accounts, the sites and what failed', str_contains( $html, 'Mody&#039;s tokens this month' ) && str_contains( $html, 'Accounts' ) && str_contains( $html, 'Sites and space' ) && str_contains( $html, 'What failed' ) && str_contains( $html, 'healthtest' . $suffix ) );
+$first = (string) ob_get_clean();
+$check( 'the dashboard\'s layout: four sections in the sidebar, tokens first', 4 === substr_count( $first, 'mody-brand__section-link' ) && str_contains( $first, 'mody-brand__card' ) && (bool) preg_match( '/is-active" aria-current="page">\s*<span>Mody&#039;s tokens/', $first ) );
+$check( 'a super admin sees the tokens, the accounts, the sites and what failed', str_contains( $html, 'Mody&#039;s tokens this month' ) && str_contains( $html, 'Used so far' ) && str_contains( $html, 'By status' ) && str_contains( $html, 'Space used in all' ) && str_contains( $html, 'healthtest' . $suffix ) );
 $check( '... and no key', '' === ( class_exists( \Mody\Billing\Mollie::class ) ? \Mody\Billing\Mollie::key() : '' ) || ! str_contains( $html, \Mody\Billing\Mollie::key() ) );
 $member = (int) wp_insert_user( array( 'user_login' => 'healthm' . $suffix, 'user_email' => 'healthm' . $suffix . '@mody.local', 'user_pass' => wp_generate_password( 24 ), 'role' => '' ) );
 wp_set_current_user( $member );
