@@ -135,11 +135,11 @@ $privacy_page = $is_now
 			'<strong>Your sites:</strong> everything you put on them, including your brand settings. To host them for you (article 6(1)(b)).',
 			'<strong>Mody:</strong> your messages to Mody and what it did, kept for ' . $keep . ' days, to show your history, count your monthly allowance and keep the service fair. To answer, Mody sends your request, with your site\'s brand and the content it works on, to Infomaniak AI Services in Switzerland (articles 6(1)(b) and 6(1)(f)).',
 			'<strong>Emails:</strong> the welcome email, password links and notices about your account, sent through Brevo (France) (article 6(1)(b)).',
-			'<strong>Security:</strong> signing up asks your browser to solve a small puzzle (ALTCHA, on our own servers); counters of attempts by address are kept for a few hours to stop abuse; Wordfence checks for attacks (article 6(1)(f), keeping the service safe).',
+			'<strong>Security:</strong> signing up asks your browser to solve a small puzzle (ALTCHA, on our own servers); counters of attempts by address are kept for a few hours to stop abuse; a security log of logins, failed logins, blocked requests and changes to two-step login, with the address, is kept for 30 days on our own servers; if you turn on two-step login, your authenticator app\'s secret (encrypted), your security keys\' public keys and your recovery codes (as hashes) are kept with your account (article 6(1)(f), keeping the service safe).',
 		)
 	)
 	. $h( '3. People who visit the sites we host' )
-	. $p( 'This applies to mody.cloud and to every member\'s site. We set <strong>no cookies</strong> for counting visitors, store nothing in their browser, and never keep their address. A visit is recognised for one day by a code made from the address, the browser and a secret that changes every day, and that code is then deleted, so visits cannot be linked to a person. The visitor\'s country and city are worked out from the address on our own server (with the DB-IP database, no outside service), and the address is then dropped. Which pages a visit saw is kept for 13 months, then reduced to daily totals. Comments are checked for spam on our own server. On members\' sites, the member is the controller and we process this data for them (see the terms, section 7).' )
+	. $p( 'This applies to mody.cloud and to every member\'s site. We set <strong>no cookies</strong> for counting visitors, store nothing in their browser, and never keep their address for counting. Only when someone tries to log in, or our firewall blocks a request, is the address kept, in our security log, for 30 days. A visit is recognised for one day by a code made from the address, the browser and a secret that changes every day, and that code is then deleted, so visits cannot be linked to a person. The visitor\'s country and city are worked out from the address on our own server (with the DB-IP database, no outside service), and the address is then dropped. Which pages a visit saw is kept for 13 months, then reduced to daily totals. Comments are checked for spam on our own server. On members\' sites, the member is the controller and we process this data for them (see the terms, section 7).' )
 	. $h( '4. Cookies' )
 	. $p( 'We only use the cookies WordPress needs to keep you logged in. No analytics, tracking or advertising cookies.' )
 	. $h( '5. Where your data is, and who helps us' )
@@ -149,10 +149,9 @@ $privacy_page = $is_now
 			'Infomaniak (Switzerland): Mody\'s AI model. Switzerland is recognised by the EU as protecting personal data adequately.',
 			'Brevo (France): sending emails.',
 			'Cloudflare (United States): sits in front of our network for security and sees its traffic, including visitors\' addresses.',
-			'Wordfence (Defiant, United States): security checks on login attempts and threats.',
 		)
 	)
-	. $p( 'Cloudflare and Wordfence are outside the EU. For them we rely on the safeguards the GDPR requires for such transfers (the EU–US Data Privacy Framework where the provider is certified, or the European Commission\'s standard contractual clauses). We plan to replace them with European services.' )
+	. $p( 'Cloudflare is outside the EU. For it we rely on the safeguards the GDPR requires for such transfers (the EU–US Data Privacy Framework where the provider is certified, or the European Commission\'s standard contractual clauses). We plan to replace it with a European service.' )
 	. $h( '6. How long we keep it' )
 	. $ul(
 		array(
@@ -160,6 +159,7 @@ $privacy_page = $is_now
 			'Mody\'s records: ' . $keep . ' days.',
 			'Visits: 13 months, then daily totals with no visit in them.',
 			'Downloads of your site: the files are deleted after 3 days.',
+			'The security log: 30 days.',
 		)
 	)
 	. $h( '7. Your rights' )

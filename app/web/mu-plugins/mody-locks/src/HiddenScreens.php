@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
  * which none of this touches (no user, no screen, no REST request).
  *
  * The capabilities stay as they are: other screens are gated on them
- * (Wordfence's menu needs `activate_plugins`). What goes is every way to see
+ * (a plugin's menu may need `activate_plugins`). What goes is every way to see
  * or change plugins and connector keys from a browser:
  *
  * - the menus (site and network), the toolbar's network Plugins entry;

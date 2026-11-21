@@ -16,7 +16,7 @@
  * WordPress.org for updates on its own. Versions change only in the
  * repository (core with ./bin/version, plugins in app/composer.json) and
  * reach production through ./bin/deploy. Code that calls the checks
- * directly (Wordfence's scans, WP-CLI) is left alone.
+ * directly (Site Health, WP-CLI) is left alone.
  *
  * One of the independent Mody plugins (tickets/independent-mody-plugins.md):
  * it names no other plugin's class.
