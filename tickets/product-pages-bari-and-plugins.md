@@ -117,6 +117,7 @@ Each part is about one sitting (rule 5). Parts 1 to 7 can start now. Parts 9 and
 8. **Bari single site (D11),** its own ticket when it starts:
    - The stack runs with `WORDPRESS_MULTISITE=false`: Nginx, `wp-config.php`, `bin/wp`, the Mody plugins, and a `sample.env` for single site.
    - It is documented in local-development.md.
+   - The fresh-machine check, moved here from M5-01 on 2026-11-21: `cp sample.env .env`, certificates, `docker compose up`, core install (and multisite when chosen), and the site is usable.
 9. **The `bari` repository (D13),** its own ticket:
    - The stack without Mody Cloud's own operations: no production files, no deploys to home.local, backups optional.
    - Stale scripts out.

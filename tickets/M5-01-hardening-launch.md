@@ -1,9 +1,9 @@
 # M5-01 · Hardening, production and launch checklist
 
-**Milestone:** M5 · **Spec:** documentation/mvp-spec.md §15 · **Status:** todo. Refreshed 2026-11-08: items that were already done or stale were updated, and the wildcard DNS and TLS, `home` and mail moved to [M5-02](M5-02-production-member-sites.md).
+**Milestone:** M5 · **Spec:** documentation/mvp-spec.md §15 · **Status:** in progress · **Issue:** [#10](https://github.com/phycticio/mody.cloud/issues/10). Refreshed 2026-11-08 (the wildcard DNS and TLS, `home` and mail moved to [M5-02](M5-02-production-member-sites.md)) and 2026-11-21 (what the security pass and the free service settled; the fresh-machine line moved to Bari, [product-pages-bari-and-plugins.md](product-pages-bari-and-plugins.md)).
 
 ## Goal
-The platform is launch-ready for 100 founding members: member sites reachable in production, backups proven, and a security pass over everything the MVP added.
+The free service ([free-mvp.md](free-mvp.md)) is launch-ready: member sites reachable in production, backups proven, and a security pass over everything the MVP added, signed off in this ticket.
 
 ## Already done
 - **Production compose** (2026-11-04): the server runs `compose.yml` with `compose.prod.yml` from the sample. Only nginx's HTTP port is published; Xdebug and MariaDB publish nothing; Mailpit never starts (architecture.md, Host). There is no agent service any more: the AI runs in PHP since 2026-11-04.
@@ -14,16 +14,16 @@ The platform is launch-ready for 100 founding members: member sites reachable in
 - **[M5-02](M5-02-production-member-sites.md):** member sites in production (wildcard DNS and certificate, the proxy host), `home` without `/wp`, and real mail through an EU SMTP relay.
 - **The production host: decided 2026-11-14, the laptop at launch, for budget** (architecture.md, Open questions). A European VPS (Hetzner, Infomaniak) later; replacing Cloudflare depends on it.
 - **Backup and restore drill:** a full database and uploads backup, restored into a clean stack, with one member site checked end to end. Then a backup schedule. **Built 2026-11-14** ([backups.md](backups.md)): restic to Infomaniak Swiss Backup (database every 6 hours, the rest nightly) and `bin/restore-drill`; running on production since 2026-11-14, and the first drill passed (data: sites, members, every attachment, the server's files). The full-stack check is still to do.
-- **WP-Cron on subsites** (architecture.md, Open questions), if M1 has not settled it already.
+- **WP-Cron on subsites** (architecture.md, Open questions): still open. Billing and backups run from Ofelia, not WP-Cron; Mody Domains schedules its check with WP-Cron. Which other scheduled work runs on subsites is to be listed before the sign-off (**Inference**: nothing found in the Mody plugins beyond Domains, by a grep on 2026-11-21).
 - **Security pass** over M1 to M4:
   - **Endpoints:** nonce and capability checks on the wizard REST routes (`mody-platform/v1/sites`), the agent chat endpoint and its jobs, and the `mody/*` abilities' permission callbacks (REST and MCP). Inputs sanitized: the wizard fields, the logo upload, chat messages.
-  - **Mollie:** the webhook's verification and the idempotency replay test (M1-01 part 3).
+  - **Mollie:** the webhook's verification and the idempotency replay test (M1-01 part 3). Not a launch task while payments are off (2026-11-20); it comes back with the paid tiers.
   - **The registration chat** (M1-01 part 2, M1-03): since 2026-11-08 no card stands in the way, so each signup creates an account, a site and an email.
     - **Bot check, done:** since 2026-11-10, creating an account needs an ALTCHA solution ([antibot-altcha.md](antibot-altcha.md)); so do log in, lost password and visitors' comments.
-    - **Rate limit, still open:** it needs the visitor's real address passed through the proxies first. Decide it before setting `mody_registration_open` in production, for the page and its two routes (`mody-platform/v1/register` and `register/check`).
-    - **Email lookup:** the check route still tells whether an email has an account, as the old form did.
+    - **Rate limit, done:** built in the security pass of 2026-11-12 (`Security\RateLimit`, `Security\ClientAddress`, below); the visitor's real address reaching PHP was checked on production on 2026-11-20 ([launch-production-check.md](launch-production-check.md)).
+    - **Email lookup, done:** since the same pass no answer reveals an existing account (below).
   - **Plugins on member sites:** the M4-02 rules (hidden plugins by every path) and the `ai` plugin's lock-down (M4-03).
-  - **Secrets:** `INFOMANIAK_API_KEY`, the Mollie keys and the SMTP password only in the server `.env`, never in the database, logs or prompts (rule 6). `.env` untracked.
+  - **Secrets:** `INFOMANIAK_API_KEY`, `BREVO_API_KEY`, `NPM_API_*` and the Mollie keys only in the server `.env`, never in the database, logs or prompts (rule 6). `.env` untracked.
 - **Monitoring:** Query Monitor is a dev requirement and never reaches production, so it is not the answer here. What is left:
   - the error log at `app/logs/debug.log`;
   - a simple system health page for super admins: site count, past-due count, failed provisioning jobs, agent errors from `mody_agent_events`. **Built on 2026-11-20** ([health-page.md](health-page.md), #29): Network Admin → Mody → Health, with Mody's tokens and their cost first, since the service is free.
@@ -52,10 +52,14 @@ Mody Cloud launches free ([free-mvp.md](free-mvp.md), decided by the maintainer 
 1. **The free service** built and deployed ([free-mvp.md](free-mvp.md), [#13](https://github.com/phycticio/mody.cloud/issues/13)).
 2. **Every member screen in a real browser** ([launch-browser-check.md](launch-browser-check.md), [#17](https://github.com/phycticio/mody.cloud/issues/17)).
 3. **Production checked end to end** ([launch-production-check.md](launch-production-check.md), [#16](https://github.com/phycticio/mody.cloud/issues/16)): the server's configuration, Spain only, a real signup, the restore's full-stack check, the Composer credential rotated, the legal pages after the adviser's read.
-4. **The security sign-off** recorded below, after 1 to 3.
+4. **Mody Security** ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), #38): deployed 2026-11-21; the maintainer sets up two-step login on the main site's profile and answers Q1 to Q4.
+5. **The security sign-off** recorded below, after 1 to 4 (step 1 is done, deployed 2026-11-20 in `990aa62`).
 
 ## Acceptance (launch checklist)
-- [ ] Fresh machine: `cp sample.env .env`, certs, `docker compose up`, core install, multisite activation — the site is usable (documented in local-development.md).
 - [ ] Register (from Spain) → free site → edit in Site Editor → agent tool → all work over HTTPS on the production front end ([launch-production-check.md](launch-production-check.md)).
 - [ ] Restore drill completes with zero data loss on the test account, and WordPress runs on the restored data ([backups.md](backups.md)).
+- [ ] Mody Security set up: two-step login on the maintainer's profile, Q1 to Q4 answered.
+- [ ] WP-Cron on subsites answered, or recorded as not needed at launch.
 - [ ] Security pass sign-off recorded in this ticket (the pass itself: above, 2026-11-12).
+
+The fresh-machine line (`cp sample.env .env`, certificates, `docker compose up`, core install, multisite: a usable site) moved on 2026-11-21 to Bari, where other people run the stack ([product-pages-bari-and-plugins.md](product-pages-bari-and-plugins.md), parts 8 and 9).

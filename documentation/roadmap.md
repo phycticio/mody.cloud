@@ -16,7 +16,7 @@ Milestones from the briefing (v4, October 2026). Status is as the briefing repor
 | | 2.3 | Brand profile backend + `theme.json` writing | Done (2026-11-06) | The profile table (M2-02) and the provisioning pipeline (M2-01) exist. Each site's colors go into its own Global Styles, not a per-site `theme.json`. See [brand-profile.md](brand-profile.md#site-creation-flow). |
 | 3 · Launch | 3.1 | Brand wizard (3 steps) + coherent generation + Newsletter integration | Pending | See [newsletter.md](newsletter.md). |
 | | 3.2 | Memberships and payments (Mollie or Stripe, tiers 5/15/50 + custom VPS) | Built, switched off | Mollie, decided 2026-11-01. The tiers were replaced on 2026-11-10, then by one price per site on 2026-11-13; card payments built that day and checked on production on 2026-11-18. Since 2026-11-20 Mody Cloud is free and payments are off (`mody_payments_open`), kept for optional paid tiers later ([membership-tiers.md](membership-tiers.md)). |
-| | 3.3 | Launch: 100 founding members | Pending | |
+| | 3.3 | Launch: 100 founding members | In progress | Since 2026-11-20 the launch is a free service, with no cap of founding members ([free-mvp.md](../tickets/free-mvp.md)). The checklist is [M5-01](../tickets/M5-01-hardening-launch.md) (#10). |
 
 ## First concrete step (superseded)
 
