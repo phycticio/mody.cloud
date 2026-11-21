@@ -21,6 +21,11 @@
  *   (through Mody Sites, which it needs; sign-ups from Spain only), then
  *   emails the set-password link; paid sign-ups when Mody Billing offers
  *   cards. Its REST routes keep `mody-platform/v1`.
+ * - **SignupLanguage**: the signup in the page's language (Spanish, French,
+ *   German, Italian, Portuguese, Dutch, Catalan; English otherwise), from
+ *   its own translation files in `languages/`; the page's language comes
+ *   from Mody Languages when it is there
+ *   (tickets/signup-chat-languages.md).
  * - **Offers**: Network Admin → Mody → Offers: sign-ups open to everyone or
  *   to invited people only, and invites on or off.
  * - **Invites**: Invite friends, a section of the Mody dashboard through its
@@ -86,6 +91,7 @@ add_action(
 		add_action( 'init', array( Registration::class, 'ensure_page' ), 20 );
 		add_action( 'rest_api_init', array( Registration::class, 'register_routes' ) );
 		add_action( 'template_redirect', array( Registration::class, 'handle' ) );
+		SignupLanguage::register();
 		if ( class_exists( \Mody\Billing\Billing::class ) ) {
 			add_action( 'template_redirect', array( Registration::class, 'handle_pay' ) ); // The pay page of a paid sign-up (M1-01 part 3b, Mody Billing).
 		}

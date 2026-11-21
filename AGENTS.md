@@ -11,7 +11,7 @@ This repository holds the platform. It has a Dockerized WordPress Multisite stac
 - the AI agent: page generation and validation, the chat bubble in the editors, and tools for design, publishing and site settings (M3);
 - member-site gating (M4, in progress);
 - site languages: every site can have other languages, with translations as pages, `/es/` addresses, a switcher and the translation matrix (in progress, [tickets/site-languages.md](tickets/site-languages.md));
-- the signup: a chat that creates a free account and its site without a card, from Spain only, then the editor tour (M1-03, [tickets/free-mvp.md](tickets/free-mvp.md)).
+- the signup: a chat that creates a free account and its site without a card, from Spain only, then the editor tour (M1-03, [tickets/free-mvp.md](tickets/free-mvp.md)); since 2026-11-21 in the page's language, seven languages (`SignupLanguage` and `mody-members/languages/`, test `scripts/signup-languages-test.php`, [tickets/signup-chat-languages.md](tickets/signup-chat-languages.md)).
 - The Mody dashboard: every site's Dashboard, with visitors (our own cookieless counter), Mody's tokens on design and configuration, the member's sites, Your plan (Plan & billing when payments are on); the space per site enforced (500 MB since 2026-11-20) ([tickets/mody-dashboard.md](tickets/mody-dashboard.md), 2026-11-11).
 - Your brand: Settings → Brand, where the owner tells Mody about the business (voice, audience, offer, story, values, facts); every prompt reads it ([tickets/your-brand-page.md](tickets/your-brand-page.md), 2026-11-11).
 
