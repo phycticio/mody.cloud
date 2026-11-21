@@ -6,7 +6,7 @@
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1
- * Update URI:        false
+ * Update URI:        https://mody.cloud/
  * Text Domain:       mody_cloud
  *
  * The Font Library without anything from outside (rule 1, M2-06 and M2-07):
@@ -41,3 +41,6 @@ spl_autoload_register(
 add_action( 'init', array( Fonts::class, 'remove_collections' ), 20 ); // Core registers Google Fonts on `init` at 10.
 add_action( 'init', array( Fonts::class, 'register_collection' ), 20 ); // The Mody fonts collection.
 add_filter( 'wp_theme_json_data_theme', array( Fonts::class, 'theme_fonts' ) ); // Real Inter for the theme.
+
+// WordPress's update notice from mody.cloud, when installed as a normal plugin (never on Mody Cloud's network).
+UpdateCheck::register( __FILE__ );

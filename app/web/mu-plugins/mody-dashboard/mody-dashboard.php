@@ -6,7 +6,7 @@
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1
- * Update URI:        false
+ * Update URI:        https://mody.cloud/
  * Text Domain:       mody_cloud
  *
  * The Mody dashboard (asked for by the maintainer on 2026-11-11,
@@ -69,3 +69,6 @@ add_action(
 	},
 	0
 );
+
+// WordPress's update notice from mody.cloud, when installed as a normal plugin (never on Mody Cloud's network).
+UpdateCheck::register( __FILE__ );

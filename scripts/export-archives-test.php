@@ -468,9 +468,12 @@ try {
 	foreach ( glob( $unzipped . '/mody-import/payload/plugins/mody-*', GLOB_ONLYDIR ) as $folder ) { // Every Mody plugin carried.
 		$no_update[ basename( $folder ) ] = 'mody-import/payload/plugins/' . basename( $folder ) . '/' . basename( $folder ) . '.php';
 	}
+	// The nine plugins offered on mody.cloud say https://mody.cloud/ instead, which keeps wordpress.org out just the same and lets their update check answer (tickets/product-pages-bari-and-plugins.md, part 5).
+	$offered = array( 'mody-security', 'mody-analytics', 'mody-dashboard', 'mody-images', 'mody-seo', 'mody-profiles', 'mody-fonts', 'mody-patterns', 'mody-palette' );
 	foreach ( $no_update as $label => $name ) {
-		$data = get_file_data( $unzipped . '/' . $name, array( 'uri' => 'Update URI' ) );
-		$check( 'the header of ' . $label . ' says Update URI: false', 'false' === $data['uri'], $data['uri'] );
+		$data     = get_file_data( $unzipped . '/' . $name, array( 'uri' => 'Update URI' ) );
+		$expected = in_array( $label, $offered, true ) ? 'https://mody.cloud/' : 'false';
+		$check( 'the header of ' . $label . ' says Update URI: ' . $expected, $expected === $data['uri'], $data['uri'] );
 	}
 	$data = get_file_data( $unzipped . '/mody-import/payload/themes/theme/style.css', array( 'uri' => 'Update URI' ) );
 	$check( 'the theme\'s style.css says Update URI: false', 'false' === $data['uri'], $data['uri'] );

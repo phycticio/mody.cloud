@@ -1,0 +1,189 @@
+{
+	"_about": "The English texts of the product pages on Mody Cloud's main site (tickets/product-pages-bari-and-plugins.md), built by scripts/product-pages.php. Every text is plain: the script escapes it. A product with a \"page\" gets /plugins/<slug>/ (or /bari/); \"ready\": true lets the script publish it, and only when its zip is in uploads/downloads/. Screenshots name a PNG in scripts/product-pages/screenshots/.",
+	"catalog": {
+		"slug": "plugins",
+		"title": "Our source code",
+		"menu_overview": "Overview",
+		"seo_title": "Free WordPress plugins and the Bari stack | Mody Cloud",
+		"seo_description": "The code that runs Mody Cloud, free under the GPL: the Bari stack and nine WordPress plugins that call no outside service, for single sites and multisites.",
+		"eyebrow": "Free and open source, GPL",
+		"heading": "The code that runs Mody Cloud, yours to use",
+		"lead": "Every Mody Cloud site runs on the Bari stack and on plugins we wrote ourselves. Nine of them work on any WordPress, on a single site or a multisite, and none of them calls a service outside your server. Download them, read them, change them.",
+		"stack_heading": "The stack",
+		"plugins_heading": "The plugins",
+		"single_and_multi": "Single site and multisite",
+		"multisite_only": "Multisite only, for now",
+		"needs": "Needs:",
+		"more": "Read more",
+		"soon": "Page coming soon",
+		"support_label": "Report a problem",
+		"support_url": "https://github.com/phycticio/mody.cloud/issues",
+		"footer": "Each plugin checks mody.cloud for a newer version at most twice a day, so WordPress can show its usual update notice. Nothing about your site is sent."
+	},
+	"bari": {
+		"name": "Bari",
+		"line": "The Docker stack behind Mody Cloud: Nginx, PHP-FPM, MariaDB, Redis and Mailpit around a Composer-managed WordPress, with tools to deploy and back it up.",
+		"multisite_only": true
+	},
+	"plugins": {
+		"seo": {
+			"name": "Mody SEO",
+			"line": "An SEO title and an SEO description for every page and post, in the editor's sidebar.",
+			"version": "1.0.0",
+			"ready": false,
+			"page": {
+				"seo_title": "Mody SEO: a free, simple SEO plugin for WordPress | Mody Cloud",
+				"seo_description": "Mody SEO gives every page and post an SEO title and description in the editor's sidebar. Free (GPL), for single sites and multisites, no outside calls.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Choose how each page and post shows in search results: an SEO title and an SEO description, written in the editor's sidebar.",
+				"download": "Download Mody SEO",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"No settings screen",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Search results show what WordPress guesses",
+				"problem": [
+					"Out of the box, WordPress makes each page's title from its name and your site's, and prints no description at all. Search engines then pick a snippet of the page themselves.",
+					"Larger SEO plugins add many screens, scores and settings. Mody SEO does one thing: it lets you write the two lines people read before they click."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Two fields, in the place you already work",
+				"features": [
+					{
+						"title": "In the editor's sidebar",
+						"text": "The Search engines panel sits in the document sidebar of the post editor and the Site Editor. Type an SEO title and an SEO description, see their length as you go, and save them with the page."
+					},
+					{
+						"title": "Sensible when empty",
+						"text": "Leave a field empty and WordPress's own title is used (\"Page title – Site\"), and the page's excerpt becomes its description. The panel shows in grey what will be used."
+					},
+					{
+						"title": "One clean head",
+						"text": "The SEO title becomes the page's whole title tag, and the description one meta description tag, cut at 160 characters at a word. Password-protected pages get no description."
+					},
+					{
+						"title": "Light on your database",
+						"text": "Two post meta fields on pages, posts and the other public post types. No settings screen and no tables of its own. If WordPress's AI plugin is there, its own description gives way, so a page has one."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing while it works",
+						"text": "No outside service, no score computed elsewhere, no ping to search engines, no script or font from a CDN. Your titles and descriptions stay in your own database."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-seo-panel.png",
+						"alt": "The Search engines panel in the Site Editor's page sidebar, with an SEO title and an SEO description filled in.",
+						"caption": "The Search engines panel, in the Site Editor."
+					},
+					{
+						"file": "mody-seo-empty.png",
+						"alt": "The Search engines panel with both fields empty: the title that will be used shows in grey, and a note says search engines pick a snippet of the text.",
+						"caption": "Empty fields say what search results use instead."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A single site or a multisite: activate it per site, or for the whole network"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Open a page in the editor: the Search engines panel is in the sidebar."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-seo-1.0.0.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, Mody SEO is already on, and Mody, your site's AI agent, writes the SEO title and description for you when you ask. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Does it make a sitemap or add Open Graph tags?",
+						"a": "No. WordPress already makes a sitemap (wp-sitemap.xml). Mody SEO does not print Open Graph or Twitter tags yet, so link previews on social networks are left to WordPress and the network."
+					},
+					{
+						"q": "Does it give my pages a score?",
+						"a": "No. There are no keyphrases, scores or traffic lights. Write the two lines for people: search results show about 60 characters of a title, and descriptions of 70 to 160 characters work best."
+					},
+					{
+						"q": "What about categories, tags and archives?",
+						"a": "They keep WordPress's own title and get no description. Mody SEO covers pages, posts and the other public post types."
+					},
+					{
+						"q": "Can I use it next to another SEO plugin?",
+						"a": "Better not: both would print a title and a description. Choose one."
+					},
+					{
+						"q": "What happens if I remove it?",
+						"a": "Your pages keep their content. The two fields stay in the database and are simply no longer printed, so WordPress's own title comes back."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
+		},
+		"security": {
+			"name": "Mody Security",
+			"line": "Two-step login with an app or a security key, login limits, a firewall, a file check, a security log and alerts."
+		},
+		"analytics": {
+			"name": "Mody Analytics",
+			"line": "Visitors and page views counted without cookies, with nothing stored in the browser and no address kept."
+		},
+		"dashboard": {
+			"name": "Mody Dashboard",
+			"line": "A Dashboard that shows the site at a glance and its visitors on a board of charts.",
+			"needs": "Mody Analytics, for the visitors"
+		},
+		"images": {
+			"name": "Mody Images",
+			"line": "Every uploaded picture made a light WebP: upright, at most 2560 pixels, without its camera data."
+		},
+		"profiles": {
+			"name": "Mody Profiles",
+			"line": "Profile pictures stored on your own site and initials for everyone else, with no Gravatar."
+		},
+		"fonts": {
+			"name": "Mody Fonts",
+			"line": "Ten free font families in WordPress's Font Library, served from your site, with no Google Fonts."
+		},
+		"patterns": {
+			"name": "Mody Patterns",
+			"line": "A collection of block patterns with placeholder images drawn on your site; nothing fetched from WordPress.org.",
+			"needs": "the Mody theme, or a theme with the same palette"
+		},
+		"palette": {
+			"name": "Mody Palette",
+			"line": "Color pickers that offer only your site's palette, Spectra's own pickers included."
+		}
+	}
+}

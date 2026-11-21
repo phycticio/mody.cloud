@@ -237,6 +237,15 @@ server {
     # core's wp-admin and wp-includes (reached through the rewrites above). A
     # directory address runs its index.php (wp-admin/).
     # ----------------------------------------------------------------------
+    # What mody.cloud offers for download (tickets/product-pages-bari-and-plugins.md):
+    # the plugins' zips and latest.json, which every installed Mody plugin asks
+    # for its update notice at most twice a day. Who downloads or checks is not
+    # written down: no access log here (decided by the maintainer on 2026-11-21).
+    location ~* ^/web/uploads/downloads/ {
+        access_log off;
+        try_files $uri =404;
+    }
+
     location ~* ^/(?:web/(?:uploads|plugins|mu-plugins|themes)|dist|assets|wp/wp-admin|wp/wp-includes)/ {
         try_files $uri $uri/ =404;
     }
