@@ -29,8 +29,7 @@ defined( 'ABSPATH' ) || exit;
  *   screen since M4-02) never call WordPress.org for updates.
  * - **Left alone:** code that calls core's check functions directly: Site
  *   Health → Info, and WP-CLI commands run by hand (`wp core check-update`,
- *   `wp plugin list`). Wordfence's scans called them too until Mody Security
- *   replaced it (2026-11-21).
+ *   `wp plugin list`).
  */
 final class Updates {
 

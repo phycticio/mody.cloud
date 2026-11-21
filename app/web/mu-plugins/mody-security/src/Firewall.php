@@ -11,7 +11,7 @@ namespace Mody\Security;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Our own rules, nothing downloaded (Wordfence's came from its servers):
+ * Our own rules, nothing downloaded:
  *
  * - **Addresses** (on load, before any other plugin runs): an address or
  *   range in the Security page's blocked list gets a 403 for everything.

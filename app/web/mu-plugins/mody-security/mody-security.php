@@ -21,8 +21,8 @@
  *   and whatever other plugins count with RateLimit::hit().
  * - **Hardening**: this installation's own keys and salts (Secrets), XML-RPC
  *   off, members' logins out of public lists, passwords of ten characters.
- * - **What replaced Wordfence** (2026-11-21,
- *   tickets/security-plugin-replaces-wordfence.md): two-step login with an
+ * - **Since 2026-11-21** (tickets/security-plugin-replaces-wordfence.md):
+ *   two-step login with an
  *   authenticator app or security keys, and recovery codes (TwoFactor,
  *   TwoFactorLogin, TwoFactorProfile, Totp, WebAuthn, Cbor, Qr); blocked
  *   usernames; a firewall (Firewall); a file check against what the deploy

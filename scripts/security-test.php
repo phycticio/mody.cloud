@@ -1,7 +1,7 @@
 <?php
 /**
- * Tests what replaced Wordfence in Mody Security
- * (tickets/security-plugin-replaces-wordfence.md). ALTCHA and the rate
+ * Tests Mody Security's two-step login, login protection, firewall, file
+ * check and log (tickets/security-plugin-replaces-wordfence.md). ALTCHA and the rate
  * limits keep their own tests (scripts/antibot-test.php,
  * scripts/security-signup-test.php).
  *

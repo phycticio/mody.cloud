@@ -11,8 +11,7 @@ namespace Mody\Security;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Wordfence compared core with wordpress.org's checksums and scanned for its
- * own signatures (both from US servers). Here the reference is ours:
+ * The reference is ours, not a checksum service outside our servers:
  * `bin/deploy` writes `app/files.sha256` (one `sha256  path` line per code
  * file, paths from `app/`) in the release it syncs, so every file the
  * server should have is listed with its hash. The check reports:
@@ -43,7 +42,6 @@ final class FileCheck {
 		'#(^|/)\.user\.ini$#',
 		'#(^|/)\.DS_Store$#',
 		'#(^|/)(node_modules|\.git)/#',
-		'#^wp/wordfence-waf\.php$#',
 		'#^web/(advanced|object)-cache\.php$#',
 		'#^web/plugins/mody-test-plugin/#',
 		'#^wp/wp-content/#',

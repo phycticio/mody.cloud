@@ -45,8 +45,9 @@
 # when the server has one (it holds the container's whole environment); delete
 # it there by hand.
 #
-# Containers are not restarted. When config/ or a compose file changes, the
-# script prints the command to apply it on the server.
+# Containers are not restarted; after a sync that changed files, PHP-FPM is
+# reloaded (gracefully) so OPcache runs the new code. When config/ or a compose
+# file changes, the script prints the command to apply it on the server.
 #
 # Targets: prod is home.local:/Volumes/Extreme/mody.cloud (since 2026-11-10).
 # Override it with DEPLOY_PROD_HOST and DEPLOY_PROD_DIR. Stage has no server
@@ -247,7 +248,7 @@ docker run --rm \
 log "INFO" "Listing the release's code files for the file check..."
 (cd "${RELEASE_DIR}/app" \
   && { find wp web/plugins web/mu-plugins web/themes vendor web/index.php web/sunrise.php wp-config.php -type f 2>/dev/null || true; } \
-  | grep -Ev '(^|/)(\.user\.ini|\.DS_Store)$|(^|/)(node_modules|\.git)/|^wp/wordfence-waf\.php$|^web/(advanced|object)-cache\.php$|^web/plugins/mody-test-plugin/|^wp/wp-content/' \
+  | grep -Ev '(^|/)(\.user\.ini|\.DS_Store)$|(^|/)(node_modules|\.git)/|^web/(advanced|object)-cache\.php$|^web/plugins/mody-test-plugin/|^wp/wp-content/' \
   | LC_ALL=C sort | tr '\n' '\0' | xargs -0 shasum -a 256 > files.sha256)
 [ -s "${RELEASE_DIR}/app/files.sha256" ] || die "Could not list the release's files for the file check."
 
@@ -317,10 +318,8 @@ FILTER=(
   --exclude='/app/web/uploads/'
   --exclude='/app/web/cache/'
   --exclude='/app/web/upgrade/'
-  --exclude='/app/web/wflogs/'
   --exclude='/app/web/advanced-cache.php'
   --exclude='/app/web/object-cache.php'
-  --exclude='/app/wp/wordfence-waf.php'
   --exclude='.user.ini'
   --exclude='/config/ssl/'
   # Core dumps: a crashed process in the container writes one into the web root
@@ -413,6 +412,17 @@ if [ "$N_UPDATE" -gt 0 ] || [ "$N_DELETE" -gt 0 ]; then
 
   log "INFO" "Syncing to ${DESTINATION}..."
   rsync "${RSYNC_OPTS[@]}" "${FILTER[@]}" "${RELEASE_DIR}/" "$DESTINATION"
+
+  # PHP-FPM keeps compiled PHP in OPcache. After the deploy of 2026-11-21
+  # (d78f519) the changed PHP files kept running their old code until PHP-FPM
+  # was reloaded (tickets/security-plugin-replaces-wordfence.md), so every
+  # deploy that sends files reloads it. USR2 is graceful: workers finish their
+  # requests first. The container is <CONTAINER_PREFIX>app, from the server's .env.
+  log "INFO" "Reloading PHP-FPM, so the new code runs..."
+  # shellcheck disable=SC2016 # Expanded on the server.
+  if ! remote 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; [ -S "$HOME/.colima/default/docker.sock" ] && export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"; cd '"'${REMOTE_DIR}'"' && P="$(sed -n "s/^CONTAINER_PREFIX=//p" .env | tr -d "\"'"'"'")" && docker exec "${P:-wp_}app" kill -USR2 1'; then
+    log "WARNING" "Could not reload PHP-FPM. Changed PHP may keep its old code until you run on the server: docker exec <prefix>app kill -USR2 1"
+  fi
 else
   log "INFO" "No file changes: the server already matches this commit."
 fi

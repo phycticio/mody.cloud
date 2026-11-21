@@ -38,7 +38,8 @@ Read the preview: the commit and WordPress version, the commits merged since the
 ## After
 
 - When `config/` or a compose file changed, the script prints the server command (`docker compose up -d --build && docker compose restart nginx`). It is the maintainer's to run unless he asked you to.
-- Wait a few seconds (OPcache revalidates every 2 s; 500s while files change heal by themselves), then check `https://mody.cloud/`, `/wp-login.php`, `/register/`, a member site, and `docker logs --since 5m --timestamps mody_cloud_server | grep '" 500 '` on the server: only the seconds of the sync may show any.
+- The script reloads PHP-FPM after a sync that changed files (since 2026-11-21: once, OPcache kept the old code of changed PHP files until a reload). If it warns that it could not, run `docker exec mody_cloud_app kill -USR2 1` on the server. **Check that new PHP really runs**, not only that pages answer: a route, a class or a behavior the change added (for example `curl -s -o /dev/null -w '%{http_code}' https://mody.cloud/wp-json/<new-namespace>`).
+- Wait a few seconds (500s while files change heal by themselves), then check `https://mody.cloud/`, `/wp-login.php`, `/register/`, a member site, and `docker logs --since 5m --timestamps mody_cloud_server | grep '" 500 '` on the server: only the seconds of the sync may show any.
 - Run the feature's own checks on production only when they are read-only or the maintainer asked.
 - Record it: the ticket's Results ("deployed YYYY-MM-DD in `<sha>`") and `tickets/next-steps.md`. Those doc edits go through a pull request like any change.
 
