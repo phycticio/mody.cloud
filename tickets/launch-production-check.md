@@ -26,8 +26,8 @@ Who does each step: **agent** (with the maintainer's go for anything on the serv
 7. **The legal pages** (maintainer's adviser reads the free version; then the agent reruns `scripts/legal-pages.php` on production).
 
 ## Open questions
-- **Q1. Monitoring at launch:** the system health page for super admins (M5-01, Monitoring) before the launch, or after? **Open question.**
-- **Q2. A cap on accounts** while the service is free: none was decided (free-mvp.md, D1); closing registration is the safety valve. Should an alert at some number of accounts come first? **Open question.**
+- ~~**Q1. Monitoring at launch:**~~ Decided by the agent on 2026-11-20 (night report): before; built in [health-page.md](health-page.md) (#29).
+- **Q2. A cap on accounts** while the service is free: none was decided (free-mvp.md, D1); closing registration is the safety valve. The health page shows the accounts, the month's tokens, their cost and the projection; whether an alert (an email at some threshold) should come too is still the maintainer's **open question**.
 
 ## Results
 **2026-11-20 (read-only on production, by the agent; nothing changed on the server but the deploy and the legal pages the maintainer asked for):**
