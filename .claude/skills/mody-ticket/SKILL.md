@@ -34,7 +34,7 @@ Use `gh` against `phycticio/mody.cloud` explicitly (`-R phycticio/mody.cloud`).
 
 - **Title:** English, under 70 characters, what changes for whom. `Members set a custom domain for their site`, not `mody-domains: add ProxyManager`.
 - **Body:** two to five lines: one sentence of goal, the link to the ticket file (`Ticket: https://github.com/phycticio/mody.cloud/blob/main/tickets/<slug>.md`; it resolves once the ticket reaches `main`), and the status. No copied ticket body.
-- **Labels:** one type: `enhancement` (new behavior), `bug`, `task` (chores, infrastructure, operations) or `documentation` (docs only). Add `design`, `ux` or `accessibility` when they apply. Only labels that exist (`gh label list -R phycticio/mody.cloud`); do not create new ones without asking.
+- **Labels:** one type: `enhancement` (new behavior), `bug`, `task` (chores, infrastructure, operations) or `documentation` (docs only). Add `design`, `ux` or `accessibility` when they apply, and `post-launch` when the maintainer says the work waits until after the launch. Only labels that exist (`gh label list -R phycticio/mody.cloud`); do not create new ones without asking.
 - **Milestone:** `M1`...`M5` when the ticket belongs to one (`--milestone M3`); none otherwise.
 - **Assignee:** `phycticio`.
 - Put the issue number back into the ticket's header line.

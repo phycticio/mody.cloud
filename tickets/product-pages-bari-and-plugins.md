@@ -35,7 +35,7 @@ Answers to Q1 to Q6 (maintainer, 2026-11-21):
 Answers to the first review (maintainer, 2026-11-21):
 - **D18. Everything under `/plugins/`,** no `/plugin/` and no redirect: the catalog is `/plugins/`, and each plugin's page is its child, `/plugins/<slug>/`.
 - **D19. Requirements:** "WordPress 7.1 (tested)" is right for the first version; more versions are tested later.
-- **D20. Support:** issues on GitHub until the code moves to Codeberg. The repository is this one, `phycticio/mody.cloud`, until a `bari` repository exists (**Inference** from "GitHub issues": the `bari` repository does not exist yet).
+- **D20. Support:** issues on GitHub until the code moves to Codeberg ([move-to-codeberg.md](move-to-codeberg.md), after the launch; the link is one line, `support_url` in `scripts/product-pages.json`). The repository is this one, `phycticio/mody.cloud`, until a `bari` repository exists (**Inference** from "GitHub issues": the `bari` repository does not exist yet).
 - **D21. The update check's request** (part 5): the recommendation written in part 5, accepted by the maintainer the same day ("Go ahead with your recommendation"): its own User-Agent, a plain GET of `latest.json`, one request per site shared by every plugin, and no access log on `mody.cloud` for the downloads.
 
 ## What exists today (checked 2026-11-21)

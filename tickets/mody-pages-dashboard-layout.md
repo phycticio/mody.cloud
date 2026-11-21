@@ -1,6 +1,6 @@
 # Every Mody page in the Mody dashboard's layout
 
-**Builds on:** [mody-dashboard.md](mody-dashboard.md), [security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md) · **Feeds:** M5-01 · **Status:** built on 2026-11-21 · **Issue:** [#41](https://github.com/phycticio/mody.cloud/issues/41)
+**Builds on:** [mody-dashboard.md](mody-dashboard.md), [security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md) · **Feeds:** M5-01 · **Status:** deployed on 2026-11-21 in `66edcd9` · **Issue:** [#41](https://github.com/phycticio/mody.cloud/issues/41)
 
 ## Goal (maintainer, 2026-11-21)
 
@@ -35,7 +35,7 @@ None.
 
 ## Results
 
-Built on 2026-11-21 on `feature/#41-mody-pages-dashboard-layout`.
+Built on 2026-11-21 on `feature/#41-mody-pages-dashboard-layout` (pull request #43). Deployed 2026-11-21 in `66edcd9`; the next deploy (`9ef1070`, docs only) changed no files. Not yet opened in a browser on production.
 
 - The six pages above are in the layout. Login's own layout CSS is gone from `login-settings.css` (the palette on the card and the schemes stay). Offers' save now merges: saving Invites keeps who may sign up, and the other way round. The Languages screen's create errors and missing targets go back to Translations.
 - **Tests (local, offline):** `health-test`, `invites-test`, `languages-test`, `login-page-test` and `ai-agent-chat-test` pass, with new checks for the sidebar, the card and the sections. `wizard-test` passes, apart from the check that was already failing locally ("the theme's header with the brand name", recorded in [independent-mody-plugins.md](independent-mody-plugins.md)).

@@ -12,7 +12,7 @@ The tickets are part of the codebase so that **every agent can see what everyone
 | --- | --- |
 | Ticket definitions (the durable record) | `tickets/` at the repository root |
 | The ordered list of next steps | [`tickets/next-steps.md`](../tickets/next-steps.md). Update it when a ticket is finished or the order changes. |
-| A ticket's GitHub issue | `phycticio/mody.cloud` issues: a short title, a link to the ticket file, one type label (`enhancement`, `bug`, `task` or `documentation`), the milestone (`M1`...`M5`) when it has one, assigned to the maintainer. The repository is public: no credentials, server details or members' data in an issue. |
+| A ticket's GitHub issue | `phycticio/mody.cloud` issues: a short title, a link to the ticket file, one type label (`enhancement`, `bug`, `task` or `documentation`), the milestone (`M1`...`M5`) when it has one, `post-launch` when the maintainer says it waits until after the launch (2026-11-21), assigned to the maintainer. The repository is public: no credentials, server details or members' data in an issue. |
 
 ## Conventions
 
