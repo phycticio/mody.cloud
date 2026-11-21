@@ -1,6 +1,6 @@
 # The signup chat speaks the page's language
 
-**Builds on:** [site-languages.md](site-languages.md) (the `/es/` addresses), [free-mvp.md](free-mvp.md) (sign-ups from Spain only), [M1-03](M1-03-chat-signup-and-editor-tour.md) (the chat) · **Feeds:** [site-languages.md](site-languages.md) part 9 (WordPress's own translations), the launch · **Status:** planned and built on 2026-11-21 on `feature/#33-signup-chat-languages`, not deployed · **Issue:** [#33](https://github.com/phycticio/mody.cloud/issues/33)
+**Builds on:** [site-languages.md](site-languages.md) (the `/es/` addresses), [free-mvp.md](free-mvp.md) (sign-ups from Spain only), [M1-03](M1-03-chat-signup-and-editor-tour.md) (the chat) · **Feeds:** [site-languages.md](site-languages.md) part 9 (WordPress's own translations), the launch · **Status:** planned and built on 2026-11-21 on `feature/#33-signup-chat-languages`; merged (#34) and deployed 2026-11-21 in `3a39a7b` (checked on production: `/es/` gives the chat Spanish settings, and a wrong email gets the server's answer in Spanish) · **Issue:** [#33](https://github.com/phycticio/mody.cloud/issues/33)
 
 ## Goal (maintainer, 2026-11-21)
 
