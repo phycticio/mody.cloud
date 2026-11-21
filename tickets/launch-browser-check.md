@@ -1,6 +1,6 @@
 # Every member screen checked in a real browser before launch
 
-**Builds on:** [free-mvp.md](free-mvp.md), [M1-03](M1-03-chat-signup-and-editor-tour.md), [M5-01](M5-01-hardening-launch.md) · **Feeds:** the launch · **Status:** planned on 2026-11-20; screens 1, 2, 3 and part of 6 checked locally the same day · **Issue:** [#17](https://github.com/phycticio/mody.cloud/issues/17)
+**Builds on:** [free-mvp.md](free-mvp.md), [M1-03](M1-03-chat-signup-and-editor-tour.md), [M5-01](M5-01-hardening-launch.md) · **Feeds:** the launch · **Status:** every screen checked locally on 2026-11-20; one fix (core's welcome guides, PR #25); the maintainer's look on production remains · **Issue:** [#17](https://github.com/phycticio/mody.cloud/issues/17)
 
 ## Goal (maintainer, 2026-11-20)
 
@@ -32,4 +32,16 @@ None yet.
 - **2. The welcome email** in Mailpit for both: the site's address, the set-password link, "free, and no card is needed". **Pass.**
 - **3. The first login:** the set-password page leads to the site's Identity screen with the editor tour ("1 of 13, Welcome, Lina Test!"). **Pass.** The tour's steps past the first, and its two requests to Mody, not walked yet.
 - **6. The Dashboard:** Your plan (free, one site, 500 MB, 5,000,000 tokens a month, no EUR, "Paid plans with more will come later") and Invite friends (the link, joined, no points). **Pass.** The other sections not looked at yet.
-- **Still to do:** screens 4 (Mody in the editors, real model calls), 5, 7, 8 and 9, the rest of 3 and 6, and the maintainer's look on production.
+
+**2026-11-20, night, locally, on `main` (`990aa62`)** (a throwaway member made by the real signup code, `noranightceramics.mody.local`; every request outside `*.mody.local` recorded):
+- **3. The whole tour:** 13 steps, Back and Next, both "Try it" steps with a real request to Mody (the mission saved; a home page draft created and opened). **Pass.** **Found:** when Mody opened the page, core's "Editing a page" guide opened on top of the tour's card.
+- **4. Mody in the editors** (real model calls, 4 to 6 seconds each): a paragraph added to the open page, "make the headings a little bigger" applied to the site's styles (and Styles → Typography opened), "open the navigation menus" opened the Navigation screen. **Pass.** `post-new.php?post_type=page` opens the Site Editor's pages (the editor-first rule), as designed.
+- **5. Settings:** Your brand, Login, Languages load without errors or notices. **Pass.**
+- **6. The Dashboard:** Overview, Visitors, Mody's work, Download your site, Your domain, Your sites, Your plan, Invite friends: no errors, no sideways scroll. **Pass.**
+- **7. The login page** wears the site's name and colors. **Pass.**
+- **8. An upload:** a 3200 × 2000 JPEG stored as a 2560 × 1600 WebP, its 7 sizes WebP. The Search engines panel is in the page's sidebar in the Site Editor. **Pass.**
+- **9. The home page** at `/`, `/es/`, `/de/`, `/it/` at 390 px: no price, 500 MB named, no sideways scroll. **Pass.**
+- **Outside requests:** none, except core's welcome guide: with fresh editor preferences, opening a page or Styles for editing showed "Edit your site" and requested `https://s.w.org/images/block-editor/edit-your-site.gif` (rule 1). **Fixed** in PR #25 (`CoreGuides`, Mody Onboarding: every core guide off in both editors); checked again: no guide, no outside request.
+- **No console errors** on any screen.
+- **Still to do:** the maintainer's look on production during the real signup ([launch-production-check.md](launch-production-check.md), step 4).
+
