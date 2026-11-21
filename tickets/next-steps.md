@@ -2,7 +2,7 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-21: product pages for Bari and nine plugins planned (#42); every Mody page in the dashboard's layout, deployed (#41). Production runs `9ef1070` (the code of `66edcd9`, #43: every Mody page in the dashboard's layout; Mody Security replaced Wordfence in `d78f519`, #39, and Wordfence's files and data were removed from production the same day). Deploys that day: `3a39a7b` (#23 to #34), `8a4966d` (#36), `b8dec7c` (docs, #37), `d78f519` (#39), `6d154be` (#40: Wordfence's last traces; the deploy reloads PHP-FPM), `66edcd9` (#43), `9ef1070` (docs, #44: no files changed).
+**Last updated:** 2026-11-21: the move to Codeberg planned for after the launch (#46); product pages for Bari and nine plugins planned (#42); every Mody page in the dashboard's layout, deployed (#41). Production runs `9ef1070` (the code of `66edcd9`, #43: every Mody page in the dashboard's layout; Mody Security replaced Wordfence in `d78f519`, #39, and Wordfence's files and data were removed from production the same day). Deploys that day: `3a39a7b` (#23 to #34), `8a4966d` (#36), `b8dec7c` (docs, #37), `d78f519` (#39), `6d154be` (#40: Wordfence's last traces; the deploy reloads PHP-FPM), `66edcd9` (#43), `9ef1070` (docs, #44: no files changed).
 
 ## Now: the launch
 Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026-11-20 in `990aa62`): one free site per account, 500 MB, Mody's 5 million tokens a month, sign-ups from Spain only, no payments. The checklist is [M5-01](M5-01-hardening-launch.md) ([#10](https://github.com/phycticio/mody.cloud/issues/10)).
@@ -35,6 +35,10 @@ Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026
 6. **[Take your site with you](take-your-site-with-you.md):** phases 1 and 2 deployed. Next: phase 3, the one-click Mody Import.
 7. **[SEO](seo.md):** the SEO title and description deployed. Not built: archives, noindex, Open Graph, the sitemap and the audit.
 8. **[Product pages](product-pages-bari-and-plugins.md) ([#42](https://github.com/phycticio/mody.cloud/issues/42)):** `mody.cloud/bari`, `mody.cloud/plugin/<slug>` for nine plugins and the catalog `mody.cloud/plugins`, in English, Spanish and Catalan, planned 2026-11-21. Parts 1 to 3 can start (the page builder, Mody SEO's page as the pilot, each plugin made to stand alone); then the zips in uploads with an update check, Spanish and Catalan, Bari single site and the `bari` repository.
+
+## After the launch
+Issues labelled `post-launch` wait until the launch is done.
+- **[Move to Codeberg](move-to-codeberg.md) ([#46](https://github.com/phycticio/mody.cloud/issues/46)):** the repository, issues and pull requests move from GitHub to Codeberg (Berlin), with the same workflow; GitHub kept as a read-only mirror. Planned 2026-11-21. First the maintainer's answers to Q1 (the licence) and Q2 (GitHub afterwards).
 
 ## Built and paused
 - **Card payments and the billing lifecycle** ([M1-01](M1-01-registration-trial-billing.md) part 3, [M1-02](M1-02-past-due-readonly-deletion.md), [pricing-per-site.md](pricing-per-site.md)): built, checked on production with Mollie's test key (2026-11-18), switched off since 2026-11-20 (`mody_payments_open`). Before switching on: the paid tiers, the paid legal texts (git history), invoices, the Dashboard's paid-path texts (they still speak of free months).
