@@ -276,7 +276,7 @@ $markup = <<<'HTML'
 <!-- /wp:spectra/container -->
 
 <!-- wp:paragraph {"textColor":"secondary","fontSize":"small","style":{"typography":{"textAlign":"center"}}} -->
-<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size"><strong>Where we are not there yet:</strong> while Mody Cloud is small, three things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Wordfence, also American, scans for security threats. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. We will replace them as soon as we can afford European ones.</p>
+<p class="has-text-align-center has-secondary-color has-text-color has-small-font-size"><strong>Where we are not there yet:</strong> while Mody Cloud is small, two things still fall outside our European-only rule. Cloudflare, a US company, sits in front of our network and sees its traffic. Brevo, a French company, sends our emails; it is on this list because we have not yet checked where it sends from. We will replace them as soon as we can afford European ones.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/container -->
 

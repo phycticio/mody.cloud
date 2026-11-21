@@ -67,6 +67,11 @@ final class RateLimit {
 	 * - mollie_webhook:   Mollie's webhook calls from one address (each asks
 	 *                     Mollie's API once).
 	 * - card_check:       card checks one member starts (Mollie checkouts).
+	 * - two_factor:       wrong second steps for one account (codes or keys);
+	 *                     reaching it ends the login, which starts over.
+	 * - alert:            security alerts of one kind emailed (Alerts).
+	 * - firewall_log:     firewall blocks from one address written to the
+	 *                     log (every block is still refused).
 	 */
 	public const DEFAULTS = array(
 		'signup_address'   => array( 3, DAY_IN_SECONDS ),
@@ -83,6 +88,9 @@ final class RateLimit {
 		'beacon'           => array( 120, MINUTE_IN_SECONDS ),
 		'mollie_webhook'   => array( 120, MINUTE_IN_SECONDS ),
 		'card_check'       => array( 10, HOUR_IN_SECONDS ),
+		'two_factor'       => array( 5, 15 * MINUTE_IN_SECONDS ),
+		'alert'            => array( 10, HOUR_IN_SECONDS ),
+		'firewall_log'     => array( 30, MINUTE_IN_SECONDS ),
 	);
 
 	/** The table, without the network's prefix. */
@@ -182,6 +190,31 @@ final class RateLimit {
 	}
 
 	/**
+	 * Uses a limit up at once for one subject: a blocked username pauses the
+	 * address for the whole window.
+	 *
+	 * @param string $name    A key of DEFAULTS.
+	 * @param string $subject Who it counts for.
+	 */
+	public static function exhaust( string $name, string $subject = '' ): void {
+		global $wpdb;
+		$limit = self::limit( $name );
+		if ( ! $limit ) {
+			return;
+		}
+		$table = self::table();
+		$now   = time();
+		$wpdb->suppress_errors( true );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Own table; an upsert has no WordPress API.
+		$done = $wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (bucket, hits, expires) VALUES (%s, %d, %d) ON DUPLICATE KEY UPDATE hits = IF(expires <= %d, VALUES(hits), GREATEST(hits, VALUES(hits))), expires = IF(expires <= %d, VALUES(expires), expires)", self::bucket( $name, $subject ), $limit[0], $now + $limit[1], $now, $now ) );
+		if ( false === $done && ! self::$installed ) {
+			self::install();
+			$wpdb->query( $wpdb->prepare( "INSERT INTO {$table} (bucket, hits, expires) VALUES (%s, %d, %d) ON DUPLICATE KEY UPDATE hits = IF(expires <= %d, VALUES(hits), GREATEST(hits, VALUES(hits))), expires = IF(expires <= %d, VALUES(expires), expires)", self::bucket( $name, $subject ), $limit[0], $now + $limit[1], $now, $now ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Own table.
+		}
+		$wpdb->suppress_errors( false );
+	}
+
+	/**
 	 * Starts a limit over for one subject (a login name after a good login).
 	 *
 	 * @param string $name    A key of DEFAULTS.
@@ -277,7 +310,7 @@ final class RateLimit {
 		if ( ! is_array( $row ) ) {
 			return null;
 		}
-		if ( 1 === wp_rand( 1, self::PURGE_ONE_IN ) ) {
+		if ( 1 === random_int( 1, self::PURGE_ONE_IN ) ) { // Not wp_rand(): pluggable, and the firewall counts before plugins load.
 			self::purge();
 		}
 		return array(

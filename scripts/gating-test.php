@@ -42,6 +42,13 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 	printf( "%-4s %-48s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
 };
 
+// Mody Security sends a super admin without two-step login to set it up first
+// (tickets/security-plugin-replaces-wordfence.md): off while this test's
+// super admins browse, restored at the end.
+$mody_two_step = get_site_option( 'mody_security', null );
+update_site_option( 'mody_security', array_merge( is_array( $mody_two_step ) ? $mody_two_step : array(), array( 'two_factor_required' => 'none' ) ) );
+register_shutdown_function( static fn() => null === $mody_two_step ? delete_site_option( 'mody_security' ) : update_site_option( 'mody_security', $mody_two_step ) );
+
 $admins = get_super_admins();
 $admin  = get_user_by( 'login', $admins[0] )->ID;
 $main   = get_main_site_id();

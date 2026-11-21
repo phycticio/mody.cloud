@@ -105,8 +105,8 @@ for URI in /auth.json /AUTH.JSON /Auth.Json /composer.json /Composer.json /COMPO
   /logs/debug.log /Logs/debug.log /LOGS/debug.log /dumps/ /Dumps/ /Dumps/exports/ /dumps/db.sql.gz \
   /.env /.Env /.git/config /.Git/config /.DS_Store \
   /backup.sql /Backup.SQL /backup.sql.gz /site.zip.bak /notes.md /config.yml \
-  /web/plugins/wordfence/readme.txt /web/plugins/wordfence/README.TXT /web/plugins/wordfence/license.txt \
-  /web/plugins/wordfence/vendor/composer/LICENSE /web/plugins/mcp-adapter/composer.json /web/plugins/mcp-adapter/COMPOSER.JSON \
+  /web/plugins/mcp-adapter/readme.txt /web/plugins/mcp-adapter/README.TXT /web/plugins/mcp-adapter/LICENSE.md \
+  /web/plugins/mcp-adapter/vendor/composer/LICENSE /web/plugins/mcp-adapter/composer.json /web/plugins/mcp-adapter/COMPOSER.JSON \
   /web/plugins/x/package.json /web/plugins/x/CHANGELOG.md /web/mu-plugins/spectra-blocks/readme.txt /web/themes/theme/README.md \
   /web/plugins/x/backup.zip /dist/build.zip /web/core /web/uploads/core /dist/core /dist/core.1234 /assets/Core.123 \
   /web/uploads/x.php /web/uploads/x.PHP /web/uploads/x.Php5 /web/uploads/x.phtml /web/uploads/x.php.jpg /Web/Uploads/shell.php; do

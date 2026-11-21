@@ -15,7 +15,7 @@ Versions change only in the repository and reach production through `./bin/deplo
 
 Bring the maintainer these facts with the question:
 
-- **Who makes it and where:** the vendor's country. US services are invalid (rule 1); the only exceptions are Cloudflare, Wordfence and Brevo, and they are not used for anything new.
+- **Who makes it and where:** the vendor's country. US services are invalid (rule 1); the only exceptions are Cloudflare and Brevo (Wordfence was replaced by Mody Security on 2026-11-21), and they are not used for anything new.
 - **What it calls:** grep the package for `wp_remote_`, `curl`, `http://`, `https://`, `fetch(`, telemetry, update checks, Google Fonts, CDNs, Gravatar. Every outside host must be switched off (as `mody-spectra`'s `SpectraGuard` and `mody-antispam` do) or the package is not fit.
 - **What it exposes:** REST routes, abilities, MCP, admin screens, capabilities. Members must not get plugin screens (`HiddenScreens`); platform plugins never switch (`MemberPlugins::PLATFORM_PLUGINS`).
 - **License** (GPL-compatible) and size.

@@ -161,6 +161,18 @@ final class FormGuard {
 				RateLimit::message( $wait, __( 'Too many failed attempts from this connection. Please try again in %s.', 'mody_cloud' ) )
 			);
 		}
+		// A blocked username that is nobody's account (the Security page's list) pauses the address at once.
+		if ( ! $account && in_array( strtolower( trim( $typed ) ), (array) Settings::get( 'blocked_usernames' ), true ) ) {
+			Events::record( 'username_blocked', 0, mb_substr( $typed, 0, 60 ) );
+			if ( '' !== $address ) {
+				RateLimit::exhaust( 'login_address', $address );
+				Alerts::address_paused( $typed );
+			}
+			return new WP_Error(
+				'mody_rate_limited',
+				RateLimit::message( (int) Settings::get( 'login_minutes' ) * MINUTE_IN_SECONDS, __( 'Too many failed attempts from this connection. Please try again in %s.', 'mody_cloud' ) )
+			);
+		}
 		// This account at this address, then (from an unknown browser) this account from anywhere.
 		$wait = '' !== $address ? RateLimit::wait( 'login_pair', $subject . '|' . $address ) : 0;
 		if ( ! $wait && ! ( $account && self::known_device( $account ) ) ) {
@@ -191,14 +203,23 @@ final class FormGuard {
 		if ( 'mody_rate_limited' === $code ) {
 			return; // Refused for trying too often: not another failure, and a window is never extended.
 		}
+		$typed   = is_string( $username ) ? $username : '';
+		$account = '' !== $typed ? self::find_user( $typed ) : null;
+		Events::record( 'login_failed', $account ? $account->ID : 0, trim( mb_substr( $typed, 0, 60 ) . ( 'mody_altcha_failed' === $code ? ' (no puzzle)' : '' ) ) );
 		RateLimit::hit_address( 'login_address' );
-		if ( 'mody_altcha_failed' !== $code && is_string( $username ) && '' !== $username ) {
-			$subject = self::login_subject( $username, self::find_user( $username ) );
-			$address = ClientAddress::limit_address();
+		$address = ClientAddress::limit_address();
+		$subject = '';
+		if ( 'mody_altcha_failed' !== $code && '' !== $typed ) {
+			$subject = self::login_subject( $typed, $account );
 			if ( '' !== $address ) {
 				RateLimit::hit( 'login_pair', $subject . '|' . $address );
 			}
 			RateLimit::hit( 'login_account', $subject );
+		}
+		// This failure reached a limit: the next attempts are refused before they count, so this happens once a window.
+		if ( RateLimit::wait_address( 'login_address' ) || ( '' !== $subject && '' !== $address && RateLimit::wait( 'login_pair', $subject . '|' . $address ) ) ) {
+			Events::record( 'paused', $account ? $account->ID : 0, mb_substr( $typed, 0, 60 ) );
+			Alerts::address_paused( $typed );
 		}
 	}
 
@@ -301,7 +322,7 @@ final class FormGuard {
 	 *
 	 * @param WP_User $user The account.
 	 */
-	private static function known_device( WP_User $user ): bool {
+	public static function known_device( WP_User $user ): bool {
 		$value = $_COOKIE[ self::device_cookie( $user ) ] ?? ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- Compared with a hash, never used.
 		return is_string( $value ) && '' !== $value && hash_equals( self::device_token( $user ), $value );
 	}

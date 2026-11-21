@@ -31,7 +31,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * Never: the agent (Agent/, AI/, Abilities, the `ai` plugin and its
  * connectors), the platform's billing, signup, provisioning, quota and locks
- * (Gating/), mody-mail, mody-analytics, Wordfence or the dev plugins.
+ * (Gating/), mody-mail, mody-analytics, mody-security or the dev plugins.
  */
 final class Portable {
 

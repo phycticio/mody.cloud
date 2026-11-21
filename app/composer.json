@@ -26,7 +26,6 @@
     },
     "require": {
         "composer/installers": "^2.3",
-        "wpackagist-plugin/wordfence": "9.0.2",
         "wpackagist-plugin/ai": "1.5.0",
         "wpackagist-plugin/ai-provider-for-ollama": "1.4.0",
         "wpackagist-plugin/mcp-adapter": "0.7.1",

@@ -41,6 +41,7 @@ final class Secrets {
 		'altcha-signature',
 		'altcha-key',
 		'rate-limit',
+		'two-factor',
 		'salt-auth',
 		'salt-secure_auth',
 		'salt-logged_in',

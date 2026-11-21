@@ -2,13 +2,14 @@
 
 The ordered list of what comes next. Each item links to its ticket, and the details live there. Update this list whenever a ticket is finished or the order changes.
 
-**Last updated:** 2026-11-21: production runs `8a4966d`. Two deploys that day: `3a39a7b` (the night's pull requests #23 to #32 and the signup chat in seven languages, #34) and `8a4966d` (the language switcher's settings, #36).
+**Last updated:** 2026-11-21: production runs `b8dec7c`. Mody Security replacing Wordfence, with two-step login, is built and tested locally, in draft pull request [#39](https://github.com/phycticio/mody.cloud/pull/39). Deploys that day: `3a39a7b` (the night's pull requests #23 to #32 and the signup chat in seven languages, #34), `8a4966d` (the language switcher's settings, #36) and `b8dec7c` (docs, #37).
 
 ## Now: the launch
 Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026-11-20 in `990aa62`): one free site per account, 500 MB, Mody's 5 million tokens a month, sign-ups from Spain only, no payments. The checklist is [M5-01](M5-01-hardening-launch.md) ([#10](https://github.com/phycticio/mody.cloud/issues/10)).
 1. **Production checked end to end** ([launch-production-check.md](launch-production-check.md), [#16](https://github.com/phycticio/mody.cloud/issues/16)): configuration, Spain only, addresses and backups checked read-only on 2026-11-20. **The maintainer's:** a real signup from Spain (the email through Brevo, the tour, two requests to Mody), the restore's full-stack check (WordPress on restored data), rotating the `plugins.mody.cloud` Composer credential.
 2. **Every member screen in a real browser** ([launch-browser-check.md](launch-browser-check.md), [#17](https://github.com/phycticio/mody.cloud/issues/17)): every screen passes locally (2026-11-20); one fix (#25, deployed 2026-11-21 in `3a39a7b`). The maintainer's look on production comes with the real signup.
-3. **The security sign-off** in M5-01, after 1 and 2.
+3. **Mody Security replaces Wordfence** ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), [#38](https://github.com/phycticio/mody.cloud/issues/38)): two-step login (authenticator app, security keys, recovery codes), login protection, firewall, file check, security log and alerts on Network Admin → Mody → Security; built and tested locally 2026-11-21, draft pull request [#39](https://github.com/phycticio/mody.cloud/pull/39). Its deploy needs the ticket's Production steps first (Wordfence's `auto_prepend_file`), then setting up two-step login for the super admin (required by default).
+4. **The security sign-off** in M5-01, after 1, 2 and 3.
 
 ## Waiting on the maintainer
 - **The legal pages:** the free version is published (2026-11-20); the adviser's read ([legal-pages.md](legal-pages.md)).
@@ -18,6 +19,7 @@ Mody Cloud launches as a free service ([free-mvp.md](free-mvp.md), deployed 2026
   - an alert when accounts or Mody's cost pass a threshold (production check, Q2; the health page shows the numbers);
   - single sign-on between `mody.cloud` and members' own domains (members log in once more on their domain; [custom-domains.md](custom-domains.md));
   - the signup chat in other languages: the open questions of [signup-chat-languages.md](signup-chat-languages.md) (the account's language before part 9, Spanish sites for Spanish signups, `/register/` in English only);
+  - Mody Security: security keys on members' own domains, who must use two-step login at launch, scheduling the file check, and recovery without codes ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), Q1 to Q4);
   - the language switcher: the flag for English (the United Kingdom's, built, or the United States'), and whether one choice of layout and display applies to every header copy ([language-switcher-settings.md](language-switcher-settings.md)).
 - **A look in the browser at features built and deployed before 2026-11-20:** the analytics board and its analyst ([analytics-chat.md](analytics-chat.md)), Download your site ([take-your-site-with-you.md](take-your-site-with-you.md); its phase 0 production spike, a 3 GB download through Cloudflare, is the maintainer's), custom domains on a second real domain ([custom-domains.md](custom-domains.md)), images ([image-optimization.md](image-optimization.md)), the login page ([login-branding.md](login-branding.md)), M3-09's steps ([M3-09](M3-09-agent-navigates-site-editor.md)). The launch browser check covered the member's journey; these are the parts it did not open.
 - **Docker Desktop's uninstall** on this Mac ([move-local-docker-to-colima.md](move-local-docker-to-colima.md), part F).

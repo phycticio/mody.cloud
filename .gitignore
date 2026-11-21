@@ -15,6 +15,8 @@ app/core.*
 acf-json-old/
 
 app/auth.json
+# The file check's list of code files and their hashes, written by bin/deploy in the release (Mody Security).
+app/files.sha256
 app/dumps/*
 # The visitor-location database (DB-IP City Lite, about 130 MB), downloaded by bin/geoip and carried by bin/deploy.
 app/data/geoip/

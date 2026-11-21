@@ -1,0 +1,69 @@
+/* Network Admin → Mody → Security: what admin-page.css (the dashboard's layout) does not have. */
+.mody-security__badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 10px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mody-security__badges .mody-brand__badge {
+	margin: 0;
+}
+
+.mody-brand__badge.is-warning {
+	color: #8a4b00;
+	background: #fcf9e8;
+	border-color: #dba617;
+}
+
+.mody-security .mody-brand__panel-body h3 {
+	margin: 24px 0 8px;
+	font-size: 14px;
+}
+
+.mody-security__paths {
+	max-height: 280px;
+	margin: 0;
+	padding: 8px 12px;
+	overflow: auto;
+	background: #f6f7f7;
+	border-radius: 4px;
+	list-style: none;
+}
+
+.mody-security__paths code {
+	background: none;
+	overflow-wrap: anywhere;
+}
+
+.mody-security__filter {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 12px 0 16px;
+}
+
+.mody-security__log-wrap {
+	overflow-x: auto;
+}
+
+.mody-security__log td {
+	vertical-align: top;
+}
+
+.mody-security__log td:first-child {
+	white-space: nowrap;
+}
+
+.mody-security__log td:last-child {
+	overflow-wrap: anywhere;
+	min-width: 12em;
+}
+
+.mody-security__block {
+	margin-left: 4px;
+	color: #b32d2e;
+}

@@ -240,6 +240,17 @@ docker run --rm \
   --entrypoint /usr/local/bin/composer \
   "$APP_IMAGE" install --no-dev --optimize-autoloader --no-interaction --no-progress
 
+# The file check's reference (Mody Security's FileCheck,
+# tickets/security-plugin-replaces-wordfence.md): every code file the sync
+# sends, with its SHA-256. Untracked, so the check below ignores it; the sync
+# sends it as app/files.sha256. The patterns match FileCheck::SKIPPED.
+log "INFO" "Listing the release's code files for the file check..."
+(cd "${RELEASE_DIR}/app" \
+  && { find wp web/plugins web/mu-plugins web/themes vendor web/index.php web/sunrise.php wp-config.php -type f 2>/dev/null || true; } \
+  | grep -Ev '(^|/)(\.user\.ini|\.DS_Store)$|(^|/)(node_modules|\.git)/|^wp/wordfence-waf\.php$|^web/(advanced|object)-cache\.php$|^web/plugins/mody-test-plugin/|^wp/wp-content/' \
+  | LC_ALL=C sort | tr '\n' '\0' | xargs -0 shasum -a 256 > files.sha256)
+[ -s "${RELEASE_DIR}/app/files.sha256" ] || die "Could not list the release's files for the file check."
+
 # --- 4. Check the release ----------------------------------------------------
 if [ -n "$(git -C "$RELEASE_DIR" status --porcelain --untracked-files=no)" ]; then
   git -C "$RELEASE_DIR" status --short --untracked-files=no
