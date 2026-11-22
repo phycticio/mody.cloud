@@ -209,7 +209,8 @@ REMOTE_DIR="${DEPLOY_PROD_DIR:-/Volumes/Extreme/mody.cloud}/app/web/uploads/down
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
 
 # A published version never changes: refuse a zip whose name is there with other bytes.
-REMOTE_SUMS="$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" "mkdir -p '${REMOTE_DIR}' && cd '${REMOTE_DIR}' && for f in mody-*.zip; do [ -f \"\$f\" ] && shasum -a 256 \"\$f\"; done; true")"
+# find, not a glob: the server's login shell may be zsh, where a glob that matches nothing is an error.
+REMOTE_SUMS="$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" "mkdir -p '${REMOTE_DIR}' && cd '${REMOTE_DIR}' && find . -maxdepth 1 -type f -name 'mody-*.zip' -exec shasum -a 256 {} + | sed 's|  \./|  |'")"
 for ZIP in "$OUT_DIR"/mody-*.zip; do
   NAME="$(basename "$ZIP")"
   THERE="$(printf '%s\n' "$REMOTE_SUMS" | awk -v n="$NAME" '$2 == n { print $1 }')"
@@ -217,7 +218,8 @@ for ZIP in "$OUT_DIR"/mody-*.zip; do
     die "${NAME} is already on mody.cloud with other contents. Raise the version instead of replacing a published one."
   fi
 done
+# No -p: new files get the server's default mode (rw-r--r--). macOS's own rsync has no --chmod.
 log "INFO" "Sending ${OUT_DIR} to ${SSH_HOST}:${REMOTE_DIR}..."
-rsync -rt --chmod=D755,F644 -e "ssh ${SSH_OPTS[*]}" --include='mody-*.zip' --include='latest.json' --exclude='*' \
+rsync -rt -e "ssh ${SSH_OPTS[*]}" --include='mody-*.zip' --include='latest.json' --exclude='*' \
   "${OUT_DIR}/" "${SSH_HOST}:${REMOTE_DIR}/"
 log "SUCCESS" "Uploaded. Check https://mody.cloud/web/uploads/downloads/latest.json."
