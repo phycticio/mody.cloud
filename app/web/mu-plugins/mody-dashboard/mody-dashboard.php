@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Mody Dashboard
  * Description:       Every site's Dashboard: the site at a glance, its visitors on a board of charts, Mody's work, and the account's sites and plan; other Mody plugins add their own sections.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1

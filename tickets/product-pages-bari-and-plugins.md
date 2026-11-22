@@ -1,6 +1,6 @@
 # Product pages: the Bari stack and nine Mody plugins
 
-**Builds on:** [independent-mody-plugins.md](independent-mody-plugins.md), [site-languages.md](site-languages.md), the home page script (`scripts/home-page.php`) · **Feeds:** Mody Cloud's main site · **Status:** planned on 2026-11-21; parts 1, 2 and 5 built the same day and deployed in `bf80931` (#48; the pages are not on production yet: the script has not run there, and they would be drafts; Mody SEO's page waits for the maintainer's review); parts 3 and 4 built and merged on 2026-11-22 (#51, not deployed); the nine plugins' zips and `latest.json` on mody.cloud the same day; the theme's zip waits for D22's change · **Issue:** [#42](https://github.com/phycticio/mody.cloud/issues/42)
+**Builds on:** [independent-mody-plugins.md](independent-mody-plugins.md), [site-languages.md](site-languages.md), the home page script (`scripts/home-page.php`) · **Feeds:** Mody Cloud's main site · **Status:** planned on 2026-11-21; parts 1, 2 and 5 built the same day and deployed in `bf80931` (#48; the pages are not on production yet: the script has not run there, and they would be drafts; Mody SEO's page waits for the maintainer's review); parts 3 and 4 built and merged on 2026-11-22 (#51, not deployed); the nine plugins' zips and `latest.json` on mody.cloud the same day; the theme's zip waits for D22's change; part 6 built the same day: the other eight pages, all nine marked ready, Mody SEO's included (asked by the maintainer: "let's create the pages and push them to production"; not merged) · **Issue:** [#42](https://github.com/phycticio/mody.cloud/issues/42)
 
 ## Goal (maintainer, 2026-11-21)
 > I want to create product pages for our stack called Bari and all mody plugins. Bari stack is this stack used by mody.cloud which should work for single and multisites. All mody plugins are all the plugins that we are using with the exception of the chatbot.
@@ -108,7 +108,7 @@ Each part is about one sitting (rule 5). Parts 1 to 7 can start now. Parts 9 and
      - **One request per site, not one per plugin:** every copy of the class shares one transient, so a site with all nine plugins still asks at most twice a day.
      - **On `mody.cloud`:** Nginx keeps no access log for `latest.json` and the zips. The only thing left is the server's own address in the connection, and Cloudflare sees it while it stays in front (each page says so).
    - It is off on Mody Cloud's own network, where versions come only through the repository (Mody Updates).
-6. **The other eight plugin pages,** one or two a sitting, each with screenshots taken from the local stack with the headless browser (D8) and uploaded to the main site's media library.
+6. **The other eight plugin pages** (built 2026-11-22, see Results), one or two a sitting, each with screenshots taken from the local stack with the headless browser (D8) and uploaded to the main site's media library.
 7. **Spanish and Catalan:**
    - Spanish and Catalan become languages of the main site.
    - The translations go in `scripts/product-pages-translations.json`, keyed by the English texts, like `scripts/home-page-translations.json`.
@@ -139,6 +139,26 @@ Each part is about one sitting (rule 5). Parts 1 to 7 can start now. Parts 9 and
 - ~~**Q11. The theme's download:** 1.0.0 or 0.1.0, and the folder `mody-theme`?~~ **Answered on 2026-11-22 (D22):** 1.0.0, `mody-theme`.
 
 ## Results
+
+### Part 6: the other eight pages (2026-11-22, not merged)
+Asked by the maintainer on 2026-11-22: "let's create the pages and push them to production". That request is also read as the review of Mody SEO's page (part 2): **all nine are `"ready": true`**.
+- **`scripts/product-pages.json`:** Security, Analytics, Dashboard, Images, Profiles, Fonts, Patterns and Palette, each in Mody SEO's shape: the hero and download, why, three to five features, what it calls, screenshots, requirements (Analytics and Dashboard name each other; Patterns the Mody theme or its palette; Fonts a block theme; Images Imagick or GD with WebP), how to install, "Built into every Mody Cloud site", questions, version and license. Every claim was checked against the code (for example, the default board has thirteen cards, the firewall's four rule groups, `wp mody-security two-factor reset <user>`).
+- **Eleven screenshots** (`scripts/product-pages/screenshots/`), taken in headless Chromium from the local stack (D8), in English, with the platform's own parts left out: the Mody menu's other pages, Mody's work, Invite friends, Your brand and Mody's chat bubble hidden or cropped; the main site's board shown as its default board, and Images with a camera-sized photo (4032 × 3024 JPEG, stored as a 2560 × 1920 WebP of 19 KB). For the shots the local super admin's language was English, the board option was set aside and the photo uploaded; all three were restored afterwards (the board's option is byte for byte as before). Three shots carry the 1.0.1 wording below, put into the page, because the local stack runs older code.
+- **1.0.1 of four plugins:** the screenshots showed platform wording that is wrong on a plain WordPress. Each has its readme's Changelog and Stable tag:
+  - Mody Security: the Security page's card says "protects this site" on a single site, and "outside your server" (it said "our servers"); the log's note says "the site";
+  - Mody Dashboard: the Visitors note says "Counted by this site itself" (it said "Mody Cloud");
+  - Mody Fonts: the collection's fonts are "served from your own site" (it said "by Mody Cloud");
+  - Mody Profiles: the picture shows "on this site", or "on every site of this network" (it said "every Mody Cloud site").
+  - Not changed: Security's "super admins" wording, which on a single site means the administrators; its readme says so.
+- **Checked locally,** with the nine zips built from this working copy in the local main site's `uploads/downloads/`:
+  - the script published all nine and the catalog, and `/plugins/` and every `/plugins/<slug>/` answered 200 with its SEO title;
+  - each new page opened in the real block editor (`scripts/editor-check.mjs`) with no invalid or unknown block (108 to 120 blocks);
+  - as a visitor in headless Chromium: Security and Images at 1440 pixels, Fonts at 390 (no sideways scroll), the catalog, and the **Our source code** dropdown with Overview and the nine.
+- **Not run:** `scripts/standalone-test.sh` on the 1.0.1 code (the changes are three strings and one `is_multisite()`); `php -l` passed.
+- **To reach production** (after this and #52 are merged):
+  1. `./bin/deploy --env=prod`;
+  2. `./bin/package --upload=prod all`: Security, Dashboard, Fonts and Profiles at 1.0.1, and the theme;
+  3. `scripts/product-pages.php` on the main site, with the JSON and screenshots copied into the container.
 
 **Deployed 2026-11-21 in `bf80931`** (#48, with the docs of #49): the nine plugins' `UpdateCheck` runs on production and stays silent there (Mody Updates is present, checked with `wp eval`); `/`, `/wp-login.php` and `/register/` answer 200, no 500s. `scripts/product-pages.php` has not run on production, so `/plugins/` is a 404 there. **Waiting on the maintainer:** `docker compose up -d --build && docker compose restart nginx` on the server, so the running Nginx renders the new `/web/uploads/downloads/` location (no access log); nothing is in that folder yet, so it matters from part 4.
 

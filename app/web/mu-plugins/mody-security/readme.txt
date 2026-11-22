@@ -2,7 +2,7 @@
 Requires at least: 7.1
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ Mody Security protects logins and the site from our own code, with no outside se
 * **A security log** kept 30 days, and **alerts** by email.
 * **A file check** that lists PHP files in the uploads folder, and compares the code with a list of its files when one is written (`wp mody-security files-manifest`).
 
-Its settings are on Settings → Security, or Network Admin → Settings → Security on a multisite.
+Its settings are on Settings → Security, or Network Admin → Settings → Security on a multisite. On a single site, what its screens call super admins are the site's administrators.
 
 It runs on a single site or a multisite: activate it per site, or for the whole network.
 
@@ -35,9 +35,12 @@ Made by Mody Cloud in Spain: https://mody.cloud/plugins/security/
 == Installation ==
 
 1. Download the zip from https://mody.cloud/plugins/security/.
-2. In wp-admin, Plugins → Add New → Upload Plugin, choose the zip, then Activate. Or with WP-CLI: `wp plugin install mody-security-1.0.0.zip --activate`.
+2. In wp-admin, Plugins → Add New → Upload Plugin, choose the zip, then Activate. Or with WP-CLI: `wp plugin install mody-security-1.0.1.zip --activate`.
 
 == Changelog ==
+
+= 1.0.1 =
+* The Security page speaks of this site on a single site, and of your server (it said "our servers").
 
 = 1.0.0 =
 * First release.

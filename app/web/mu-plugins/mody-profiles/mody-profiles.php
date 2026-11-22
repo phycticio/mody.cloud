@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Mody Profiles
  * Description:       Profile pictures stored on the site and initials for everyone else, no Gravatar; on a network, one profile per person, edited on the main site.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1
