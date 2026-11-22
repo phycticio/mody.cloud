@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Mody Security
  * Description:       Two-step login (authenticator app, security keys), login protection, a firewall, a file check, a security log and alerts, set on its Security page (Settings → Security; on a network, Network Admin); ALTCHA, rate limits, and hardening.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1

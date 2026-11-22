@@ -2,7 +2,7 @@
 Requires at least: 7.1
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -32,9 +32,12 @@ Made by Mody Cloud in Spain: https://mody.cloud/plugins/dashboard/
 == Installation ==
 
 1. Download the zip from https://mody.cloud/plugins/dashboard/.
-2. In wp-admin, Plugins → Add New → Upload Plugin, choose the zip, then Activate. Or with WP-CLI: `wp plugin install mody-dashboard-1.0.0.zip --activate`.
+2. In wp-admin, Plugins → Add New → Upload Plugin, choose the zip, then Activate. Or with WP-CLI: `wp plugin install mody-dashboard-1.0.1.zip --activate`.
 
 == Changelog ==
+
+= 1.0.1 =
+* The Visitors note says the site counts its visitors itself (it said "Mody Cloud").
 
 = 1.0.0 =
 * First release.

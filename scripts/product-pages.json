@@ -30,7 +30,7 @@
 			"name": "Mody SEO",
 			"line": "An SEO title and an SEO description for every page and post, in the editor's sidebar.",
 			"version": "1.0.0",
-			"ready": false,
+			"ready": true,
 			"page": {
 				"seo_title": "Mody SEO: a free, simple SEO plugin for WordPress | Mody Cloud",
 				"seo_description": "Mody SEO gives every page and post an SEO title and description in the editor's sidebar. Free (GPL), for single sites and multisites, no outside calls.",
@@ -153,37 +153,930 @@
 		},
 		"security": {
 			"name": "Mody Security",
-			"line": "Two-step login with an app or a security key, login limits, a firewall, a file check, a security log and alerts."
+			"line": "Two-step login with an app or a security key, login limits, a firewall, a file check, a security log and alerts.",
+			"version": "1.0.1",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Security: free two-step login and firewall for WordPress | Mody Cloud",
+				"seo_description": "Two-step login with an app or a security key, login limits, a firewall, a file check and a security log. Free (GPL), with no outside security service.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Protect your logins and your site with code that runs on your own server: two-step login with an app or a security key, login limits, a firewall, a file check, a security log and alerts.",
+				"download": "Download Mody Security",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"Two-step login with an app or a key",
+					"No outside service"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Security should not depend on someone else's servers",
+				"problem": [
+					"Many security plugins check logins, visitors' addresses or your files against their company's servers, and keep part of their protection for a paid plan.",
+					"Mody Security does the work on your own server. It is the code that protects every Mody Cloud site, free and the same for everyone."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Logins, requests and files, watched from your server",
+				"features": [
+					{
+						"title": "Two-step login",
+						"text": "After the password, a six-digit code from an authenticator app, or a security key or passkey. Ten recovery codes for a lost phone. Administrators must use it by default; you choose who."
+					},
+					{
+						"title": "Login protection",
+						"text": "Limits per address and per account pause password guessing, and usernames such as admin or root can never log in. ALTCHA, a puzzle the visitor's browser solves and your server checks, guards login, lost password and comments."
+					},
+					{
+						"title": "A firewall",
+						"text": "Our own rules look at the address asked for and at form data for SQL injection, script injection, path tricks and PHP code. Add addresses to block, or to always allow."
+					},
+					{
+						"title": "A file check",
+						"text": "It finds scripts in the uploads folder. Write a list of your code once (wp mody-security files-manifest), and it also finds every changed, added or missing file in WordPress, plugins and themes."
+					},
+					{
+						"title": "A log and alerts",
+						"text": "Logins, failed attempts, paused addresses and blocks, kept 30 days. Emails you choose: an administrator logging in from a new browser, an address paused, files changed, a firewall block."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing while it works",
+						"text": "No security service, no list downloaded from a company, no CAPTCHA from another site: ALTCHA's puzzle is made and checked by your own server, and the log stays in your database."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-security-overview.png",
+						"alt": "The Security page's overview: firewall on, two-step login required, and the week's logins, failed logins, paused addresses and firewall blocks.",
+						"caption": "The Security page: the week at a glance."
+					},
+					{
+						"file": "mody-security-two-step.png",
+						"alt": "The Two-step login section of a profile: an authenticator app added, a security key listed, and ten recovery codes left.",
+						"caption": "Two-step login on your profile: an app, keys and recovery codes."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A single site or a multisite: activate it per site, or for the whole network; on a multisite, its settings are in Network Admin"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"WordPress then sends you to your profile to set up two-step login. Save the recovery codes, then open Settings → Security."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-security-1.0.1.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, Mody Security protects every site and its login page, with nothing for you to set up. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Can it lock me out?",
+						"a": "After activation, administrators set up two-step login before anything else, and get ten recovery codes. If you lose your phone, your keys and your codes, WP-CLI turns it off for one account: wp mody-security two-factor reset <user>."
+					},
+					{
+						"q": "Do application passwords and WP-CLI need the second step?",
+						"a": "No. Application passwords and WP-CLI work as WordPress expects. Keep application passwords secret, as you keep your password."
+					},
+					{
+						"q": "Does it slow my site down?",
+						"a": "The firewall reads each request's address and form data with a few patterns before WordPress does the rest. The file check runs only when you ask for it."
+					},
+					{
+						"q": "Can I use it next to another security plugin?",
+						"a": "Better not: two plugins guarding the same login would ask twice and could block each other."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"analytics": {
 			"name": "Mody Analytics",
-			"line": "Visitors and page views counted without cookies, with nothing stored in the browser and no address kept."
+			"line": "Visitors and page views counted without cookies, with nothing stored in the browser and no address kept.",
+			"version": "1.0.0",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Analytics: cookieless visitor stats for WordPress | Mody Cloud",
+				"seo_description": "Count visits and page views on your own server: no cookies, nothing stored in the browser, no address kept. Free (GPL), for single sites and multisites.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Know how many people read your site, which pages they open and in what order, with no cookie, nothing stored in their browser and no address kept.",
+				"download": "Download Mody Analytics",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"No cookies",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Most analytics send your visitors elsewhere",
+				"problem": [
+					"The usual analytics load a script from another company and send it every visit, with the visitor's address and a cookie that follows them. Then the site needs a cookie banner.",
+					"Mody Analytics counts on your own server. It keeps patterns, not people: a visitor is a random visit that is forgotten the next day."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Visits counted, people left alone",
+				"features": [
+					{
+						"title": "No cookie, no address",
+						"text": "A few lines of script send one small beacon per page to your own site. A visitor is recognised for one day by a hash with a salt that changes daily; then the hash is deleted. No address is kept."
+					},
+					{
+						"title": "Visits and journeys",
+						"text": "Each page view is stored under a random visit: the page, where the visit came from (direct, search, social or another site) and the device. A visit ends after 30 minutes without a new page."
+					},
+					{
+						"title": "Country and city, if you want them",
+						"text": "Put DB-IP's free City Lite file on your server and Mody Analytics adds the country and city of each view, looked up locally. A city with fewer than five visits shows only as its country."
+					},
+					{
+						"title": "Kept for 13 months",
+						"text": "Page views are kept 13 months, then reduced to daily totals. Logged-in users count too, anonymously; bots do not."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing while it counts",
+						"text": "The beacon goes to your own site, the numbers stay in your database, and the location file, if you add one, is read on your server. No script or pixel from another company."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-analytics-visitors.png",
+						"alt": "The Visitors section of the Mody Dashboard: visits, page views, pages per visit and single-page visits for the last 30 days, compared with the period before.",
+						"caption": "The numbers, on the Mody Dashboard."
+					},
+					{
+						"file": "mody-analytics-journeys.png",
+						"alt": "A bar chart of visits per day, with a note on one date, and the most common journeys through the site.",
+						"caption": "Visits per day, and the journeys visitors take."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A single site or a multisite: activate it per site, or for the whole network",
+					"Mody Dashboard, to see the numbers"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page, and Mody Dashboard's too.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate. Do the same with Mody Dashboard.",
+					"Visits are counted from now on. Open Dashboard → Visitors to see them."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-analytics-1.0.0.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, Mody Analytics counts every site's visitors, and Mody, your site's AI agent, answers questions about them and draws the charts you ask for. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Do I need a cookie banner for it?",
+						"a": "It sets no cookie and stores nothing in the browser, and it keeps no address. Whether your site needs a banner depends on everything else it loads; ask your adviser if in doubt."
+					},
+					{
+						"q": "Where do I see the numbers?",
+						"a": "Mody Analytics counts; Mody Dashboard shows. Install both, then open Dashboard → Visitors."
+					},
+					{
+						"q": "Does it count me?",
+						"a": "Yes, when you visit the site's pages, anonymously, like everyone else. Previews, wp-admin and error pages are never counted."
+					},
+					{
+						"q": "Can I import my old statistics?",
+						"a": "No. It starts counting the day you activate it."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"dashboard": {
 			"name": "Mody Dashboard",
 			"line": "A Dashboard that shows the site at a glance and its visitors on a board of charts.",
-			"needs": "Mody Analytics, for the visitors"
+			"needs": "Mody Analytics, for the visitors",
+			"version": "1.0.1",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Dashboard: a clear WordPress dashboard with visitor charts | Mody Cloud",
+				"seo_description": "A Dashboard that shows your site at a glance and its visitors on a board of charts you arrange. Free (GPL), for single sites and multisites, no outside calls.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Replace wp-admin's Dashboard with one page that says how your site is doing: its content and storage at a glance, and its visitors on a board of charts you arrange.",
+				"download": "Download Mody Dashboard",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"Charts drawn in your browser",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "WordPress's Dashboard is full of boxes",
+				"problem": [
+					"Out of the box, the Dashboard is a wall of widgets: news from WordPress.org, drafts, events, and whatever every plugin adds.",
+					"Mody Dashboard puts the site first: a card with its name, logo and address, what is published, the space it uses, and who visits."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "One page for the site, sections for the rest",
+				"features": [
+					{
+						"title": "The site at a glance",
+						"text": "Your logo, name and address with Visit site and Edit site, then whether search engines may list the site, pages and posts published and in draft, and the space your uploads use."
+					},
+					{
+						"title": "Visitors on a board",
+						"text": "With Mody Analytics: visits, page views and their change on the period before, visits per day, journeys, pages, entry and exit pages, sources, devices, countries and cities, for 7, 30 or 90 days."
+					},
+					{
+						"title": "Yours to arrange",
+						"text": "Drag cards into place, remove the ones you do not need, show any chart as a table or download it as CSV. Undo the last change, or go back to the default board."
+					},
+					{
+						"title": "Room for other plugins",
+						"text": "Other plugins add their own sections through two hooks, mody_dashboard_sections and mody_dashboard_section_<slug>, in the same layout."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing while it works",
+						"text": "The charts are drawn in your browser by a script inside the plugin. No widget feed, no news from another site, no font or script from a CDN."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-dashboard-overview.png",
+						"alt": "The Mody Dashboard's Overview: the site's card with its logo and buttons, then search engines, pages, posts, storage and the creation date.",
+						"caption": "The site at a glance."
+					},
+					{
+						"file": "mody-analytics-visitors.png",
+						"alt": "The Visitors section: four tiles with visits, page views, pages per visit and single-page visits, and the first chart of the board.",
+						"caption": "The Visitors board, with Mody Analytics."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A single site or a multisite: activate it per site, or for the whole network",
+					"Mody Analytics, for the Visitors section"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page, and Mody Analytics' too for the visitors.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Open Dashboard: it is the Mody Dashboard now."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-dashboard-1.0.1.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, the Mody Dashboard is every site's Dashboard, with Mody's work, your sites and your plan, and Mody adds any chart you ask for to the board. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Can I add charts of my own?",
+						"a": "Not by hand yet: the board starts with thirteen cards you can move, remove and restore. On Mody Cloud, Mody adds charts when you ask for them."
+					},
+					{
+						"q": "Where did WordPress's own Dashboard go?",
+						"a": "The Dashboard menu item opens the Mody Dashboard, and the old address leads there. Deactivate the plugin and WordPress's comes back as it was."
+					},
+					{
+						"q": "Who sees what?",
+						"a": "Everyone who can reach wp-admin sees the site's card. Visitors and storage are for administrators."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"images": {
 			"name": "Mody Images",
-			"line": "Every uploaded picture made a light WebP: upright, at most 2560 pixels, without its camera data."
+			"line": "Every uploaded picture made a light WebP: upright, at most 2560 pixels, without its camera data.",
+			"version": "1.0.0",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Images: every WordPress upload made a light WebP | Mody Cloud",
+				"seo_description": "Every uploaded JPEG, PNG or HEIC becomes a WebP: upright, at most 2560 pixels, without camera data. On your own server. Free (GPL), for single sites and multisites.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Upload pictures straight from your phone or camera: each one is turned upright, made at most 2560 pixels, stripped of its camera data and saved as a light WebP before WordPress stores it.",
+				"download": "Download Mody Images",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"No settings screen",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Phone pictures are heavy, and they say where you were",
+				"problem": [
+					"A photo from a phone is often 4,000 pixels wide and several megabytes, and it carries the place it was taken. WordPress keeps that original, makes a copy, and your pages load slowly.",
+					"Image services fix it by sending your pictures to their servers. Mody Images does it on your own server, when you upload."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Light pictures, with nothing to set",
+				"features": [
+					{
+						"title": "WebP, sized for the web",
+						"text": "JPEG, PNG and HEIC become WebP, at most 2560 pixels on a side (quality 82 for photos, 90 for PNG), and every size WordPress makes is WebP too. No -scaled copy, no heavy original kept."
+					},
+					{
+						"title": "Upright and private",
+						"text": "Pictures are turned the way the camera held them, and their EXIF, XMP and IPTC data, the place included, are removed. The color profile is kept."
+					},
+					{
+						"title": "Left alone when they should be",
+						"text": "GIF, SVG and animations are never touched, and WebP or AVIF files are changed only when they are larger than 2560 pixels."
+					},
+					{
+						"title": "Older pictures too",
+						"text": "wp mody-images optimize converts the media library you already have, and rewrites the addresses in your content. Back up first: the old files are deleted."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing while it works",
+						"text": "Pictures are converted on your server with Imagick, or GD without it. Nothing is uploaded to an image service or a CDN."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-images-details.png",
+						"alt": "The media library's attachment details for a photo uploaded as IMG_2041.jpg at 4032 by 3024 pixels: stored as IMG_2041.webp, 2560 by 1920 pixels, 19 KB.",
+						"caption": "A 4032-pixel phone photo, stored as a 2560-pixel WebP."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later, with Imagick or GD built with WebP",
+					"A single site or a multisite: activate it per site, or for the whole network"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Upload a picture: it arrives as a WebP. To convert older ones, back up, then run wp mody-images optimize."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-images-1.0.0.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, Mody Images is on for every site, so every picture a member uploads is already light and private. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Do all browsers show WebP?",
+						"a": "Yes, every current browser does."
+					},
+					{
+						"q": "Can I keep the originals?",
+						"a": "No. That is the point: no heavy file and no camera data stay on the server. Keep your originals on your computer."
+					},
+					{
+						"q": "What if my server cannot write WebP?",
+						"a": "Then pictures are stored as WordPress would store them. Ask your host for Imagick, or GD with WebP."
+					},
+					{
+						"q": "What happens if I remove it?",
+						"a": "Your WebP pictures stay as they are, and new uploads go back to WordPress's own handling."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"profiles": {
 			"name": "Mody Profiles",
-			"line": "Profile pictures stored on your own site and initials for everyone else, with no Gravatar."
+			"line": "Profile pictures stored on your own site and initials for everyone else, with no Gravatar.",
+			"version": "1.0.1",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Profiles: local profile pictures, no Gravatar | Mody Cloud",
+				"seo_description": "Profile pictures stored in your own media library and initials for everyone else, with no request to Gravatar. Free (GPL), for single sites and multisites.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Let people upload their own profile picture, stored on your site, and give everyone else their initials, drawn by your site. Gravatar is never asked.",
+				"download": "Download Mody Profiles",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"No Gravatar",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Every avatar is a request to someone else",
+				"problem": [
+					"WordPress shows avatars from Gravatar: each comment and each user list asks an outside service for a picture, with a hash of the person's email address in the request.",
+					"Mody Profiles answers every avatar itself: a picture people upload, or their initials."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Pictures and initials, from your own site",
+				"features": [
+					{
+						"title": "A picture on the profile",
+						"text": "Each person uploads a JPEG, PNG, WebP or GIF of up to 2 MB on their profile. It is stored in your media library, at most 512 pixels, and kept out of the library's list."
+					},
+					{
+						"title": "Initials for everyone else",
+						"text": "People without a picture, and visitors who comment, get their initials on a colored square, an SVG your site draws at /mody-avatar/."
+					},
+					{
+						"title": "One profile on a network",
+						"text": "On a multisite, each person has one profile, edited on the main site, and their picture shows on every site."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing at all",
+						"text": "No request to Gravatar or any other avatar service, from wp-admin or from your pages. Pictures and initials come from your own site."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-profiles-picture.png",
+						"alt": "The Profile Picture field on a WordPress profile: initials on a colored square, a note on the accepted images, and a file upload button.",
+						"caption": "Your picture, uploaded on your profile."
+					},
+					{
+						"file": "mody-profiles-initials.png",
+						"alt": "The network's Users screen, each user shown with their initials on a colored square instead of a Gravatar.",
+						"caption": "Initials for people without a picture."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A single site or a multisite: activate it per site, or for the whole network"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Open your profile: Profile Picture is where Gravatar's link used to be."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-profiles-1.0.1.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, every member has one profile and one picture, shown on all their sites, and nothing asks Gravatar. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "What happens to existing Gravatars?",
+						"a": "They are no longer shown: people see their initials until they upload a picture."
+					},
+					{
+						"q": "Does it work with comments?",
+						"a": "Yes. Commenters get their initials, and users who comment get their picture."
+					},
+					{
+						"q": "What happens if I remove it?",
+						"a": "WordPress shows Gravatars again. The uploaded pictures stay in your media library."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"fonts": {
 			"name": "Mody Fonts",
-			"line": "Ten free font families in WordPress's Font Library, served from your site, with no Google Fonts."
+			"line": "Ten free font families in WordPress's Font Library, served from your site, with no Google Fonts.",
+			"version": "1.0.1",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Fonts: ten free fonts in WordPress, no Google Fonts | Mody Cloud",
+				"seo_description": "Ten free font families in WordPress's Font Library, served from your own site, and no Google Fonts collection. Free (GPL), for single sites and multisites.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Choose from ten free font families in WordPress's own Font Library and serve them from your site, with no request to Google Fonts.",
+				"download": "Download Mody Fonts",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"Ten families",
+					"No Google Fonts"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Fonts from Google tell Google who visits",
+				"problem": [
+					"WordPress's Font Library offers Google Fonts, and a font loaded from Google sends every visitor's address to Google. In 2022 a German court ordered a site to pay damages for it.",
+					"Mody Fonts gives the Font Library a collection whose files ship inside the plugin, so installed fonts are served from your own site."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Good type, served from your site",
+				"features": [
+					{
+						"title": "Ten families",
+						"text": "Inter, IBM Plex Sans, Work Sans, Space Grotesk, Lora, Merriweather, EB Garamond, Playfair, Fraunces and JetBrains Mono: sans, serif and mono, each with its license (SIL Open Font License)."
+					},
+					{
+						"title": "In the Font Library",
+						"text": "A Mody fonts tab in Editor → Styles → Typography → Manage fonts. Install a family, then choose it for your text, headings or buttons."
+					},
+					{
+						"title": "No Google Fonts",
+						"text": "The Google Fonts collection is removed from the Font Library, so nobody on your site installs a font from Google by mistake."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing at all",
+						"text": "The font files are inside the plugin. Installing one copies it into your site's fonts folder; visitors load it from your site."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-fonts-library.png",
+						"alt": "WordPress's Font Library with the Mody fonts tab open: Inter, IBM Plex Sans, Work Sans, Space Grotesk, Lora, Merriweather and EB Garamond, with their variants.",
+						"caption": "The Mody fonts collection, in the Font Library."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A block theme (the Font Library is in the Site Editor)",
+					"A single site or a multisite: activate it per site, or for the whole network"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Open Editor → Styles → Typography → Manage fonts, then the Mody fonts tab."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-fonts-1.0.1.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, every site has the Mody fonts, and Mody, your site's AI agent, chooses and installs them with your brand. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Can I still upload my own fonts?",
+						"a": "Yes. The Font Library's Upload tab works as always."
+					},
+					{
+						"q": "Are the fonts free for commercial sites?",
+						"a": "Yes. All ten are under the SIL Open Font License; each family's license is in the plugin."
+					},
+					{
+						"q": "What happens if I remove it?",
+						"a": "Fonts you installed stay in your site's fonts folder and keep working. The Mody fonts tab goes, and Google Fonts comes back to the Font Library."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"patterns": {
 			"name": "Mody Patterns",
 			"line": "A collection of block patterns with placeholder images drawn on your site; nothing fetched from WordPress.org.",
-			"needs": "the Mody theme, or a theme with the same palette"
+			"needs": "the Mody theme, or a theme with the same palette",
+			"version": "1.0.0",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Patterns: 63 block patterns, nothing from WordPress.org | Mody Cloud",
+				"seo_description": "A collection of 63 block patterns with placeholder images drawn on your site; nothing fetched from WordPress.org. Free (GPL), for the Mody theme's palette.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Start pages from 63 ready block patterns, banners to footers, written for your theme's palette, with placeholder images your site draws itself.",
+				"download": "Download Mody Patterns",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"63 patterns",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "Patterns that load other sites' pictures",
+				"problem": [
+					"WordPress fetches patterns from WordPress.org, and many of them show pictures from other sites, with colors that ignore your theme.",
+					"Mody Patterns ships its own collection: rewritten to use your palette's names, with placeholders your site draws, and nothing fetched while you edit."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "A collection that fits the theme",
+				"features": [
+					{
+						"title": "63 patterns",
+						"text": "Banners, calls to action, headers, footers, galleries, posts, text and more, in the inserter and on the Site Editor's Patterns screen."
+					},
+					{
+						"title": "Your palette, by name",
+						"text": "Colors are the palette's names (primary, secondary, accent, base and contrast), so the patterns follow your theme when it changes."
+					},
+					{
+						"title": "Placeholders from your site",
+						"text": "Every picture is a placeholder your site draws as an SVG, with its size written on it, until you put your own."
+					},
+					{
+						"title": "Nothing remote",
+						"text": "WordPress.org's pattern directory and core's bundled patterns are switched off, so the inserter shows only the collection."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing at all",
+						"text": "The collection is a file inside the plugin, and the placeholders are drawn by your site. The pattern directory is not asked."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-patterns-screen.png",
+						"alt": "The Site Editor's Patterns screen with the Banners category open: bold sale and hiking banners with placeholder images showing their sizes.",
+						"caption": "The collection, on the Site Editor's Patterns screen."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"The Mody theme, or a theme with the palette slugs primary, secondary, accent, base and contrast",
+					"A single site or a multisite: activate it per site, or for the whole network"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page, and the Mody theme if your theme has another palette.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Open the inserter's Patterns tab, or Editor → Patterns."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-patterns-1.0.0.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, the collection is on every site, and Mody, your site's AI agent, builds pages in your brand's colors and words. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "Does it work with my theme?",
+						"a": "Fully with the Mody theme. With another theme, colors whose names your palette lacks are missing; the layout still works."
+					},
+					{
+						"q": "Where do the patterns come from?",
+						"a": "From WordPress.org's pattern directory and WordPress itself, all GPL, rewritten for the palette and placeholders."
+					},
+					{
+						"q": "What happens if I remove it?",
+						"a": "Pages you built keep their blocks. The inserter goes back to WordPress's own patterns."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		},
 		"palette": {
 			"name": "Mody Palette",
-			"line": "Color pickers that offer only your site's palette, Spectra's own pickers included."
+			"line": "Color pickers that offer only your site's palette, Spectra's own pickers included.",
+			"version": "1.0.0",
+			"ready": true,
+			"page": {
+				"seo_title": "Mody Palette: WordPress color pickers that stay on brand | Mody Cloud",
+				"seo_description": "Color pickers in the editor offer only your site's palette, Spectra's own pickers included. Free (GPL), for single sites and multisites, no outside calls.",
+				"eyebrow": "A free WordPress plugin, GPL",
+				"lead": "Keep every page on brand: the editor's color pickers offer only your theme's palette, with no free color picker, Spectra's pickers included.",
+				"download": "Download Mody Palette",
+				"secondary": "See what it does",
+				"facts": [
+					"Single site and multisite",
+					"No settings screen",
+					"No outside calls"
+				],
+				"problem_eyebrow": "Why",
+				"problem_heading": "One custom color, then another",
+				"problem": [
+					"Every color picker in the editor has a free picker, and a site slowly fills with almost-the-same blues. Some block libraries draw their own pickers, past the theme's settings.",
+					"Mody Palette hides the free pickers, so people choose from the palette and the site keeps its colors."
+				],
+				"features_eyebrow": "What it does",
+				"features_heading": "Only the palette, everywhere",
+				"features": [
+					{
+						"title": "Core's pickers",
+						"text": "Text, background, link and border colors show the palette only. Your theme decides the palette, in Editor → Styles → Colors."
+					},
+					{
+						"title": "Spectra's pickers too",
+						"text": "Spectra draws some pickers itself: its gradients, shadows and hover colors. Their free part is hidden as well, and their palette stays."
+					},
+					{
+						"title": "Nothing else changed",
+						"text": "The palette editor, where you add colors, and the shadow editor keep their pickers. Blocks with custom colors keep them."
+					}
+				],
+				"calls_eyebrow": "Sovereignty",
+				"calls_heading": "What it calls",
+				"calls": [
+					{
+						"title": "Nothing at all",
+						"text": "One small stylesheet in the editor. No script, no request."
+					},
+					{
+						"title": "mody.cloud, for updates",
+						"text": "At most twice a day it asks mody.cloud whether a newer version exists, so WordPress can show its usual update notice. The request carries nothing about your site: no address, no version."
+					},
+					{
+						"title": "Where that request goes",
+						"text": "mody.cloud runs on our own server in Spain. While Mody Cloud is small, Cloudflare, a US company, sits in front of it and sees that request; we will replace it as soon as we can."
+					}
+				],
+				"screenshots_eyebrow": "Screenshots",
+				"screenshots_heading": "How it looks",
+				"screenshots": [
+					{
+						"file": "mody-palette-picker.png",
+						"alt": "The block editor with a paragraph selected and its text color open: five palette colors, the first labelled Primary (teal), and no custom color picker.",
+						"caption": "A text color, from the palette only."
+					}
+				],
+				"requirements_heading": "Requirements",
+				"requirements": [
+					"WordPress 7.1 (tested)",
+					"PHP 8.1 or later",
+					"A theme with a palette in theme.json",
+					"A single site or a multisite: activate it per site, or for the whole network"
+				],
+				"install_heading": "How to install",
+				"install": [
+					"Download the zip from this page.",
+					"In WordPress, go to Plugins → Add New Plugin → Upload Plugin, choose the zip, then Install Now and Activate.",
+					"Open the editor and pick a color: only the palette shows."
+				],
+				"install_cli_label": "With WP-CLI:",
+				"install_cli": "wp plugin install mody-palette-1.0.0.zip --activate",
+				"mody_heading": "Built into every Mody Cloud site",
+				"mody_text": "On Mody Cloud, every site's colors are its brand's, and Mody, your site's AI agent, changes the palette when you ask. Free: one site, no card, for people who live in Spain.",
+				"mody_button": "Create your free site",
+				"faq_eyebrow": "Questions",
+				"faq_heading": "Before you install it",
+				"faq": [
+					{
+						"q": "How do I add a color?",
+						"a": "Add it to the palette, in Editor → Styles → Colors → Palette. Then it is in every picker."
+					},
+					{
+						"q": "Does it need Spectra?",
+						"a": "No. Spectra's pickers are covered when Spectra is there; without it, core's are."
+					},
+					{
+						"q": "What happens if I remove it?",
+						"a": "The free pickers come back. Colors already chosen stay as they are."
+					},
+					{
+						"q": "Where do I report a problem or ask for help?",
+						"a": "Open an issue in our code repository on GitHub, with the link at the bottom of this page. We plan to move our code to Codeberg, a European home for open source."
+					},
+					{
+						"q": "Is it really free?",
+						"a": "Yes. It is free software under the GPL (version 2 or later): use it, change it and share it, on as many sites as you like."
+					}
+				],
+				"license": "Version %s · GPL-2.0-or-later · Made by Mody Cloud in Spain"
+			}
 		}
 	}
 }

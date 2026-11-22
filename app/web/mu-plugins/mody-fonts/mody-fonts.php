@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Mody Fonts
  * Description:       The Font Library with the Mody fonts collection, ten free families served from this plugin, and no Google Fonts.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            Mody Cloud
  * License:           GPL-2.0-or-later
  * Requires PHP:      8.1

@@ -189,7 +189,7 @@ final class Fonts {
 			self::COLLECTION,
 			array(
 				'name'          => __( 'Mody fonts', 'mody_cloud' ),
-				'description'   => __( 'Free fonts (SIL Open Font License), served by Mody Cloud. Install one, then choose it in Typography.', 'mody_cloud' ),
+				'description'   => __( 'Free fonts (SIL Open Font License), served from your own site. Install one, then choose it in Typography.', 'mody_cloud' ),
 				'font_families' => $families,
 				'categories'    => $categories,
 			)

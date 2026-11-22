@@ -513,7 +513,7 @@ final class DashboardPage {
 			);
 			?>
 		</div>
-		<p class="mody-dashboard__note"><?php esc_html_e( 'Counted by Mody Cloud itself, without cookies and without keeping anyone\'s address or name: only visits and the pages they saw, in order. A visit ends after 30 minutes without a new page. Everyone who reads the site counts, you included when you are logged in.', 'mody_cloud' ); ?></p>
+		<p class="mody-dashboard__note"><?php esc_html_e( 'Counted by this site itself, without cookies and without keeping anyone\'s address or name: only visits and the pages they saw, in order. A visit ends after 30 minutes without a new page. Everyone who reads the site counts, you included when you are logged in.', 'mody_cloud' ); ?></p>
 		<?php
 	}
 

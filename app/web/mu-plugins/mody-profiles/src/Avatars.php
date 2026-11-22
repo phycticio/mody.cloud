@@ -267,7 +267,9 @@ final class Avatars {
 	 * @param WP_User $user The user.
 	 */
 	private static function controls( WP_User $user ): string {
-		$html  = esc_html__( 'Your picture on every Mody Cloud site. A JPEG, PNG, WebP or GIF image of at most 2 MB; a square one looks best.', 'mody_cloud' );
+		$html  = is_multisite() // One picture for the whole network; a single site's is its own.
+			? esc_html__( 'Your picture on every site of this network. A JPEG, PNG, WebP or GIF image of at most 2 MB; a square one looks best.', 'mody_cloud' )
+			: esc_html__( 'Your picture on this site. A JPEG, PNG, WebP or GIF image of at most 2 MB; a square one looks best.', 'mody_cloud' );
 		$html .= '<br><label for="' . esc_attr( self::FIELD ) . '" class="screen-reader-text">' . esc_html__( 'Upload a profile picture', 'mody_cloud' ) . '</label>';
 		$html .= '<input type="file" id="' . esc_attr( self::FIELD ) . '" name="' . esc_attr( self::FIELD ) . '" accept="image/jpeg,image/png,image/webp,image/gif" />';
 		if ( get_user_meta( $user->ID, self::META, true ) ) {

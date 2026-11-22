@@ -197,7 +197,7 @@ final class SecurityPage {
 		<section class="mody-brand__card" aria-label="<?php esc_attr_e( 'The network', 'mody_cloud' ); ?>">
 			<div class="mody-brand__card-text">
 				<p class="mody-brand__name"><?php echo esc_html( $name ); ?></p>
-				<p class="mody-brand__tagline"><?php esc_html_e( 'Mody Security protects every site of the network: logins, two-step login, the firewall and the files. Nothing here calls a service outside our servers.', 'mody_cloud' ); ?></p>
+				<p class="mody-brand__tagline"><?php echo esc_html( is_multisite() ? __( 'Mody Security protects every site of the network: logins, two-step login, the firewall and the files. Nothing here calls a service outside your server.', 'mody_cloud' ) : __( 'Mody Security protects this site: logins, two-step login, the firewall and the files. Nothing here calls a service outside your server.', 'mody_cloud' ) ); ?></p>
 				<ul class="mody-security__badges">
 					<?php foreach ( $badges as list( $ok, $yes, $no ) ) : ?>
 						<li class="mody-brand__badge<?php echo $ok ? ' is-filled' : ' is-warning'; ?>"><?php echo esc_html( $ok ? $yes : $no ); ?></li>
@@ -442,7 +442,7 @@ final class SecurityPage {
 			echo '</tr>';
 		}
 		echo '</tbody></table></div>';
-		echo '<p class="description">' . esc_html__( 'Kept 30 days, then deleted. Addresses are kept to keep the network safe (they let you block an attacker).', 'mody_cloud' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Kept 30 days, then deleted. Addresses are kept to keep the site safe (they let you block an attacker).', 'mody_cloud' ) . '</p>';
 	}
 
 	/**
