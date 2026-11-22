@@ -1,6 +1,6 @@
 # Product pages: the Bari stack and nine Mody plugins
 
-**Builds on:** [independent-mody-plugins.md](independent-mody-plugins.md), [site-languages.md](site-languages.md), the home page script (`scripts/home-page.php`) · **Feeds:** Mody Cloud's main site · **Status:** planned on 2026-11-21; parts 1, 2 and 5 built the same day (drafts, not deployed; Mody SEO's page waits for the maintainer's review) · **Issue:** [#42](https://github.com/phycticio/mody.cloud/issues/42)
+**Builds on:** [independent-mody-plugins.md](independent-mody-plugins.md), [site-languages.md](site-languages.md), the home page script (`scripts/home-page.php`) · **Feeds:** Mody Cloud's main site · **Status:** planned on 2026-11-21; parts 1, 2 and 5 built the same day and deployed in `bf80931` (#48; the pages are not on production yet: the script has not run there, and they would be drafts; Mody SEO's page waits for the maintainer's review) · **Issue:** [#42](https://github.com/phycticio/mody.cloud/issues/42)
 
 ## Goal (maintainer, 2026-11-21)
 > I want to create product pages for our stack called Bari and all mody plugins. Bari stack is this stack used by mody.cloud which should work for single and multisites. All mody plugins are all the plugins that we are using with the exception of the chatbot.
@@ -138,7 +138,9 @@ Each part is about one sitting (rule 5). Parts 1 to 7 can start now. Parts 9 and
 
 ## Results
 
-### Part 5: the update check (2026-11-21, not deployed)
+**Deployed 2026-11-21 in `bf80931`** (#48, with the docs of #49): the nine plugins' `UpdateCheck` runs on production and stays silent there (Mody Updates is present, checked with `wp eval`); `/`, `/wp-login.php` and `/register/` answer 200, no 500s. `scripts/product-pages.php` has not run on production, so `/plugins/` is a 404 there. **Waiting on the maintainer:** `docker compose up -d --build && docker compose restart nginx` on the server, so the running Nginx renders the new `/web/uploads/downloads/` location (no access log); nothing is in that folder yet, so it matters from part 4.
+
+### Part 5: the update check (2026-11-21, deployed in `bf80931`)
 **Built:**
 - **`UpdateCheck`,** one class with an identical copy in each of the nine plugins (`mody-<name>/src/UpdateCheck.php`; only the namespace differs). Each plugin's main file registers it, and each header now says `Update URI: https://mody.cloud/` instead of `false`. Mody Analytics' main file got the plugin header it lacked (Version 1.0.0).
 - **How it works:**
@@ -167,7 +169,7 @@ Each part is about one sitting (rule 5). Parts 1 to 7 can start now. Parts 9 and
 - the platform's tests for these nine plugins and `export-archives-test.php`: the local stack serves the other checkout, so they would test its code, not this branch's;
 - `php -l` passed on every changed file.
 
-### Parts 1 and 2: the page builder, the catalog and Mody SEO's page (2026-11-21, not deployed)
+### Parts 1 and 2: the page builder, the catalog and Mody SEO's page (2026-11-21, deployed in `bf80931`, pages not built on production)
 **Built:**
 - **`scripts/product-pages.php`,** run with `eval-file` on the main site after `scripts/home-page.php`, as its header says (the JSON and the screenshots are copied into the container first). It finds each page by its path and replaces its content, so a rerun with nothing changed leaves the pages as they are (their `spectraId`s are kept). Every page uses the template `page-blank`, Spectra containers, palette slugs and the theme's gradients (rules 2 and 3).
 - **The texts** are in `scripts/product-pages.json` (English): the catalog, a card for Bari and for each of the nine plugins (name, one line, "Single site and multisite", "Needs" for Dashboard and Patterns), and Mody SEO's whole page. A plugin with a `page` gets `/plugins/<slug>/`.
