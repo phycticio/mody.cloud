@@ -36,7 +36,7 @@ final class Command {
 	public function check_files( array $args, array $assoc_args ): void {
 		$result = FileCheck::run();
 		if ( ! $result['manifest'] ) {
-			WP_CLI::warning( 'No app/files.sha256: the deploy writes it. Locally, run `wp mody-security files-manifest` first.' );
+			WP_CLI::warning( FileCheck::platform() ? 'No app/files.sha256: the deploy writes it. Locally, run `wp mody-security files-manifest` first.' : 'No list yet: run `wp mody-security files-manifest` once the code is as it should be.' );
 		}
 		foreach ( array( 'changed', 'added', 'missing', 'uploads' ) as $key ) {
 			foreach ( $result[ $key ] as $path ) {
@@ -54,13 +54,15 @@ final class Command {
 	}
 
 	/**
-	 * Writes app/files.sha256 from the files on disk (a local checkout; the
-	 * deploy writes the server's).
+	 * Writes the list of code files the check compares with: app/files.sha256
+	 * on Mody Cloud (a local checkout; the deploy writes the server's), the
+	 * database on a plain WordPress.
 	 *
 	 * @subcommand files-manifest
 	 */
 	public function files_manifest(): void {
-		WP_CLI::success( sprintf( 'Listed %d files in app/%s.', FileCheck::write_manifest(), FileCheck::MANIFEST ) );
+		$count = FileCheck::write_manifest();
+		WP_CLI::success( FileCheck::platform() ? sprintf( 'Listed %d files in app/%s.', $count, FileCheck::MANIFEST ) : sprintf( 'Listed %d files.', $count ) );
 	}
 
 	/**

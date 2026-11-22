@@ -37,7 +37,7 @@ final class SecurityPage {
 	 * Hooked from mody-security.php.
 	 */
 	public static function register(): void {
-		add_action( 'network_admin_menu', array( self::class, 'register_menu' ), 20 );
+		add_action( is_multisite() ? 'network_admin_menu' : 'admin_menu', array( self::class, 'register_menu' ), 20 );
 		add_action( 'admin_post_' . self::SAVE_ACTION, array( self::class, 'save' ) );
 		add_action( 'admin_post_' . self::CHECK_ACTION, array( self::class, 'check_files' ) );
 		add_action( 'admin_post_' . self::BLOCK_ACTION, array( self::class, 'block_address' ) );
@@ -75,12 +75,25 @@ final class SecurityPage {
 	}
 
 	/**
+	 * Who may open the page: network options on a multisite, the site's
+	 * options on a single site (a plain WordPress, where nobody has the
+	 * network capabilities).
+	 */
+	public static function capability(): string {
+		return is_multisite() ? self::CAPABILITY : 'manage_options';
+	}
+
+	/**
 	 * `network_admin_menu`: under the network's Mody menu (Mody Sites), else
-	 * under Settings.
+	 * under Settings. `admin_menu` on a single site: under Settings.
 	 */
 	public static function register_menu(): void {
-		$parent = class_exists( \Mody\Sites\WizardPage::class ) ? \Mody\Sites\WizardPage::SLUG : 'settings.php';
-		$hook   = add_submenu_page( $parent, __( 'Security', 'mody_cloud' ), __( 'Security', 'mody_cloud' ), self::CAPABILITY, self::SLUG, array( self::class, 'render' ) );
+		if ( ! is_multisite() ) {
+			$parent = 'options-general.php';
+		} else {
+			$parent = class_exists( \Mody\Sites\WizardPage::class ) ? \Mody\Sites\WizardPage::SLUG : 'settings.php';
+		}
+		$hook = add_submenu_page( $parent, __( 'Security', 'mody_cloud' ), __( 'Security', 'mody_cloud' ), self::capability(), self::SLUG, array( self::class, 'render' ) );
 		if ( $hook ) {
 			add_action( 'load-' . $hook, array( self::class, 'enqueue' ) );
 		}
@@ -109,7 +122,7 @@ final class SecurityPage {
 	 * Renders the page.
 	 */
 	public static function render(): void {
-		if ( ! current_user_can( self::CAPABILITY ) ) {
+		if ( ! current_user_can( self::capability() ) ) {
 			return;
 		}
 		$sections = self::sections();
@@ -173,7 +186,7 @@ final class SecurityPage {
 	 * The network's card: its name and what protects it.
 	 */
 	private static function render_card(): void {
-		$name     = wp_specialchars_decode( (string) get_network()->site_name, ENT_QUOTES );
+		$name     = wp_specialchars_decode( is_multisite() ? (string) get_network()->site_name : (string) get_bloginfo( 'name' ), ENT_QUOTES );
 		$file     = FileCheck::last();
 		$badges   = array(
 			array( Settings::get( 'firewall' ), __( 'Firewall on', 'mody_cloud' ), __( 'Firewall off', 'mody_cloud' ) ),
@@ -352,7 +365,7 @@ final class SecurityPage {
 				array(
 					__( 'Checked', 'mody_cloud' )            => wp_date( 'Y-m-d H:i', (int) $file['time'] ),
 					__( 'Result', 'mody_cloud' )             => self::file_summary( $file ),
-					__( 'Deploy list from', 'mody_cloud' )   => $file['manifest'] ? wp_date( 'Y-m-d H:i', (int) $file['built'] ) : __( 'No list: app/files.sha256 is written by the deploy', 'mody_cloud' ),
+					__( 'Deploy list from', 'mody_cloud' )   => $file['manifest'] ? wp_date( 'Y-m-d H:i', (int) $file['built'] ) : ( FileCheck::platform() ? __( 'No list: app/files.sha256 is written by the deploy', 'mody_cloud' ) : __( 'No list: run wp mody-security files-manifest once the code is as it should be', 'mody_cloud' ) ),
 					__( 'Files compared', 'mody_cloud' )     => number_format_i18n( (int) $file['checked'] ),
 				)
 			);
@@ -436,7 +449,7 @@ final class SecurityPage {
 	 * `admin_post_mody_security_save`: one section's settings.
 	 */
 	public static function save(): void {
-		if ( ! current_user_can( self::CAPABILITY ) ) {
+		if ( ! current_user_can( self::capability() ) ) {
 			wp_die( esc_html__( 'Sorry, you are not allowed to do that.', 'mody_cloud' ), 403 );
 		}
 		check_admin_referer( self::SAVE_ACTION );
@@ -483,7 +496,7 @@ final class SecurityPage {
 	 * `admin_post_mody_security_check_files`.
 	 */
 	public static function check_files(): void {
-		if ( ! current_user_can( self::CAPABILITY ) ) {
+		if ( ! current_user_can( self::capability() ) ) {
 			wp_die( esc_html__( 'Sorry, you are not allowed to do that.', 'mody_cloud' ), 403 );
 		}
 		check_admin_referer( self::CHECK_ACTION );
@@ -496,7 +509,7 @@ final class SecurityPage {
 	 * `admin_post_mody_security_block_address`: Block, from the log.
 	 */
 	public static function block_address(): void {
-		if ( ! current_user_can( self::CAPABILITY ) ) {
+		if ( ! current_user_can( self::capability() ) ) {
 			wp_die( esc_html__( 'Sorry, you are not allowed to do that.', 'mody_cloud' ), 403 );
 		}
 		check_admin_referer( self::BLOCK_ACTION );

@@ -177,7 +177,12 @@ final class Secrets {
 	 */
 	private static function fresh(): array {
 		global $wpdb;
-		$value = $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->sitemeta} WHERE meta_key = %s AND site_id = %d ORDER BY meta_id ASC LIMIT 1", self::OPTION, get_current_network_id() ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- A cache-free read: another request may have written it a moment ago.
+		if ( is_multisite() ) {
+			$value = $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->sitemeta} WHERE meta_key = %s AND site_id = %d ORDER BY meta_id ASC LIMIT 1", self::OPTION, get_current_network_id() ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- A cache-free read: another request may have written it a moment ago.
+		} else {
+			// A single site keeps network options in its options table.
+			$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", self::OPTION ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The same cache-free read.
+		}
 		$value = is_string( $value ) ? maybe_unserialize( $value ) : array();
 		return is_array( $value ) ? $value : array();
 	}

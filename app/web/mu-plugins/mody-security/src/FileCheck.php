@@ -24,12 +24,23 @@ defined( 'ABSPATH' ) || exit;
  *
  * Files the server writes itself are not code and are skipped (SKIPPED).
  * Without a manifest (a local checkout) the check says so; `wp
- * mody-security files manifest` writes one.
+ * mody-security files-manifest` writes one.
+ *
+ * **On a plain WordPress** (the plugin downloaded from mody.cloud, not
+ * Mody Cloud's `app/` layout, tickets/product-pages-bari-and-plugins.md,
+ * part 3) the folders are core's own: `wp-admin`, `wp-includes`, the PHP
+ * files beside them, and the content folder's plugins, mu-plugins and
+ * themes. There is no deploy, so the list is the one `wp mody-security
+ * files-manifest` writes, kept in the database (MANIFEST_OPTION): a file
+ * in the site's folder would be served to anyone.
  */
 final class FileCheck {
 
 	/** The manifest, in `app/`. */
 	public const MANIFEST = 'files.sha256';
+
+	/** On a plain WordPress, the list: a network option (not autoloaded on a single site). */
+	public const MANIFEST_OPTION = 'mody_security_file_manifest';
 
 	/** The last result: a network option. */
 	public const OPTION = 'mody_security_file_check';
@@ -54,10 +65,43 @@ final class FileCheck {
 	private const MAX_LISTED = 200;
 
 	/**
-	 * The `app/` folder.
+	 * Whether this is Mody Cloud's layout: core in `app/wp`, content in `app/web`.
+	 */
+	public static function platform(): bool {
+		$core = untrailingslashit( ABSPATH );
+		return 'wp' === basename( $core ) && untrailingslashit( WP_CONTENT_DIR ) === dirname( $core ) . '/web';
+	}
+
+	/**
+	 * The folder paths are given from: `app/` on the platform, WordPress's
+	 * own folder elsewhere.
 	 */
 	public static function root(): string {
-		return dirname( untrailingslashit( ABSPATH ) );
+		return self::platform() ? dirname( untrailingslashit( ABSPATH ) ) : untrailingslashit( ABSPATH );
+	}
+
+	/**
+	 * The code folders and files, from root().
+	 *
+	 * @return string[]
+	 */
+	public static function roots(): array {
+		if ( self::platform() ) {
+			return self::ROOTS;
+		}
+		$root  = self::root();
+		$roots = array( 'wp-admin', 'wp-includes' );
+		foreach ( (array) glob( $root . '/*.php' ) as $file ) {
+			$roots[] = basename( (string) $file );
+		}
+		$content = untrailingslashit( WP_CONTENT_DIR );
+		if ( str_starts_with( $content . '/', $root . '/' ) ) {
+			$relative = substr( $content, strlen( $root ) + 1 );
+			foreach ( array( 'plugins', 'mu-plugins', 'themes' ) as $folder ) {
+				$roots[] = $relative . '/' . $folder;
+			}
+		}
+		return $roots;
 	}
 
 	/**
@@ -68,7 +112,7 @@ final class FileCheck {
 	public static function files(): array {
 		$root  = self::root();
 		$files = array();
-		foreach ( self::ROOTS as $entry ) {
+		foreach ( self::roots() as $entry ) {
 			$full = $root . '/' . $entry;
 			if ( is_file( $full ) ) {
 				$files[ $entry ] = $full;
@@ -117,6 +161,18 @@ final class FileCheck {
 		foreach ( $files as $path => $full ) {
 			$lines .= hash_file( 'sha256', $full ) . '  ' . $path . "\n";
 		}
+		if ( ! self::platform() ) {
+			$list = array(
+				'built' => time(),
+				'lines' => $lines,
+			);
+			if ( is_multisite() ) {
+				update_site_option( self::MANIFEST_OPTION, $list );
+			} else {
+				update_option( self::MANIFEST_OPTION, $list, false );
+			}
+			return count( $files );
+		}
 		file_put_contents( self::root() . '/' . self::MANIFEST, $lines ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- A file of our own, from WP-CLI.
 		return count( $files );
 	}
@@ -127,12 +183,18 @@ final class FileCheck {
 	 * @return array<string, string>|null
 	 */
 	public static function manifest(): ?array {
-		$file = self::root() . '/' . self::MANIFEST;
-		if ( ! is_readable( $file ) ) {
+		if ( self::platform() ) {
+			$file  = self::root() . '/' . self::MANIFEST;
+			$lines = is_readable( $file ) ? (array) file( $file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES ) : null;
+		} else {
+			$stored = get_site_option( self::MANIFEST_OPTION );
+			$lines  = is_array( $stored ) && is_string( $stored['lines'] ?? null ) ? explode( "\n", $stored['lines'] ) : null;
+		}
+		if ( null === $lines ) {
 			return null;
 		}
 		$list = array();
-		foreach ( (array) file( $file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES ) as $line ) {
+		foreach ( $lines as $line ) {
 			if ( preg_match( '/^([0-9a-f]{64}) [ *](.+)$/', (string) $line, $m ) ) {
 				$path = (string) preg_replace( '#^\./#', '', $m[2] );
 				if ( ! self::skipped( $path ) ) {
@@ -141,6 +203,17 @@ final class FileCheck {
 			}
 		}
 		return $list;
+	}
+
+	/**
+	 * When the list was written.
+	 */
+	private static function built(): int {
+		if ( self::platform() ) {
+			return (int) filemtime( self::root() . '/' . self::MANIFEST );
+		}
+		$stored = get_site_option( self::MANIFEST_OPTION );
+		return (int) ( is_array( $stored ) ? ( $stored['built'] ?? 0 ) : 0 );
 	}
 
 	/**
@@ -154,7 +227,7 @@ final class FileCheck {
 		$result   = array(
 			'time'     => time(),
 			'manifest' => null !== $manifest,
-			'built'    => null !== $manifest ? (int) filemtime( self::root() . '/' . self::MANIFEST ) : 0,
+			'built'    => null !== $manifest ? self::built() : 0,
 			'checked'  => 0,
 			'changed'  => array(),
 			'added'    => array(),
@@ -211,7 +284,7 @@ final class FileCheck {
 	 * @return string[] Paths from `app/`.
 	 */
 	public static function scripts_in_uploads(): array {
-		$uploads = self::root() . '/web/uploads';
+		$uploads = self::platform() ? self::root() . '/web/uploads' : untrailingslashit( WP_CONTENT_DIR ) . '/uploads';
 		if ( ! is_dir( $uploads ) ) {
 			return array();
 		}
@@ -219,7 +292,8 @@ final class FileCheck {
 		$iterator = new \RecursiveIteratorIterator( new \RecursiveDirectoryIterator( $uploads, \FilesystemIterator::SKIP_DOTS ) );
 		foreach ( $iterator as $file ) {
 			if ( $file->isFile() && preg_match( self::SCRIPT_EXTENSIONS, $file->getFilename() ) ) {
-				$found[] = substr( $file->getPathname(), strlen( self::root() ) + 1 );
+				$path    = $file->getPathname();
+				$found[] = str_starts_with( $path, self::root() . '/' ) ? substr( $path, strlen( self::root() ) + 1 ) : $path;
 			}
 		}
 		sort( $found );

@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+#
+# Builds what mody.cloud offers for download (tickets/product-pages-bari-and-plugins.md,
+# part 4): a zip per Mody plugin, the Mody theme's zip, and latest.json, the
+# file every installed Mody plugin reads for its update notice (UpdateCheck).
+#
+#   ./bin/package all                     # the nine plugins and the theme, from origin/main
+#   ./bin/package seo images              # some of them
+#   ./bin/package --working-copy seo      # this checkout's files, committed or not (tests)
+#   ./bin/package --upload=prod all       # then send the folder to mody.cloud (the maintainer's step)
+#
+# Products: security analytics dashboard images seo profiles fonts patterns palette theme.
+#
+# What it does:
+#   1. A checkout of --ref (default origin/main, fetched) in ~/.cache/mody.cloud/package,
+#      or of the working copy with --working-copy. Like ./bin/deploy, it never
+#      packages the files you are editing unless asked to.
+#   2. When Mody Security or Mody Dashboard is asked for: pnpm install and pnpm
+#      build there (Node 22), because each zip carries its own built script in
+#      dist/ (ALTCHA's widget, the analytics board).
+#   3. mody-<slug>-<version>.zip: the plugin's folder (its readme.txt must say
+#      "Stable tag: <the header's Version>"), LICENSE.txt (GPL-2.0) and dist/.
+#      mody-theme-<version>.zip: the theme in a folder called mody-theme, with
+#      Inter's files baked into theme.json, as Take your site with you does.
+#   4. latest.json, from the newest zip of each product in the folder
+#      (scripts/package-helper.php, the host's PHP CLI).
+#
+# The zips collect in ~/.cache/mody.cloud/downloads (--out=DIR to change it).
+# A version already on the server is never replaced by a different file: raise
+# the version (header, readme's Stable tag and Changelog) instead.
+#
+# --upload=prod sends the folder to the main site's uploads on home.local,
+# app/web/uploads/downloads/, served as https://mody.cloud/web/uploads/downloads/.
+# Nothing is deleted there.
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+USAGE="Usage: ./bin/package [--ref=COMMIT | --working-copy] [--out=DIR] [--upload=prod] all | <product>..."
+PLUGINS=(security analytics dashboard images seo profiles fonts patterns palette)
+BASE_URL="https://mody.cloud/web/uploads/downloads/"
+
+log() { "${ROOT_DIR}/bin/log" "$1" "$2"; }
+die() {
+  log "ERROR" "$1"
+  exit 1
+}
+
+# --- Arguments ---------------------------------------------------------------
+CACHE_DIR="${HOME}/.cache/mody.cloud"
+REF="origin/main"
+WORKING_COPY=false
+OUT_DIR="${CACHE_DIR}/downloads"
+UPLOAD=""
+PRODUCTS=()
+for ARG in "$@"; do
+  case "$ARG" in
+    --ref=*) REF="${ARG#--ref=}" ;;
+    --working-copy) WORKING_COPY=true ;;
+    --out=*) OUT_DIR="${ARG#--out=}" ;;
+    --upload=*) UPLOAD="${ARG#--upload=}" ;;
+    -h | --help)
+      awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "$0"
+      exit 0
+      ;;
+    all) PRODUCTS+=("${PLUGINS[@]}" theme) ;;
+    -*) die "Unknown argument: ${ARG}. ${USAGE}" ;;
+    *)
+      case " ${PLUGINS[*]} theme " in
+        *" ${ARG} "*) PRODUCTS+=("$ARG") ;;
+        *) die "Unknown product: ${ARG}. Products: ${PLUGINS[*]} theme." ;;
+      esac
+      ;;
+  esac
+done
+[ "${#PRODUCTS[@]}" -gt 0 ] || die "$USAGE"
+case "$UPLOAD" in "" | prod) ;; *) die "Only --upload=prod exists." ;; esac
+case "$OUT_DIR" in /*) ;; *) OUT_DIR="${ROOT_DIR}/${OUT_DIR}" ;; esac
+
+SOURCE_DIR="${PACKAGE_SOURCE_DIR:-${CACHE_DIR}/package}"
+case "${SOURCE_DIR}/" in
+  "${ROOT_DIR}/"*) die "The package checkout must be outside the repository: ${SOURCE_DIR}" ;;
+esac
+
+for CMD in git rsync zip unzip php; do
+  command -v "$CMD" >/dev/null 2>&1 || die "${CMD} is required."
+done
+php -d display_startup_errors=0 -r 'exit( class_exists( "ZipArchive" ) ? 0 : 1 );' || die "The host's PHP needs the zip extension."
+
+file_hash() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
+}
+
+NEEDS_BUILD=false
+for P in "${PRODUCTS[@]}"; do
+  case "$P" in security | dashboard) NEEDS_BUILD=true ;; esac
+done
+
+# --- 1. The checkout ---------------------------------------------------------
+if [ "$WORKING_COPY" = true ]; then
+  COMMIT="$(git rev-parse HEAD)"
+  LABEL="the working copy (on ${COMMIT:0:12})"
+else
+  [ "$REF" != "origin/main" ] || git fetch --quiet origin main
+  COMMIT="$(git rev-parse --verify "${REF}^{commit}" 2>/dev/null)" || die "Unknown ref: ${REF}"
+  LABEL="${REF} (${COMMIT:0:12})"
+fi
+log "INFO" "Preparing ${SOURCE_DIR} from ${LABEL}..."
+if [ "$(git -C "$SOURCE_DIR" rev-parse --show-toplevel 2>/dev/null || true)" = "$SOURCE_DIR" ]; then
+  git -C "$SOURCE_DIR" checkout --quiet --force --detach "$COMMIT"
+  git -C "$SOURCE_DIR" clean -ffdxq -e node_modules/
+else
+  [ ! -e "$SOURCE_DIR" ] || die "${SOURCE_DIR} exists and is not a package checkout. Remove it, then run this again."
+  git worktree prune
+  git worktree add --quiet --detach "$SOURCE_DIR" "$COMMIT"
+fi
+if [ "$WORKING_COPY" = true ]; then
+  # Every file git would see, committed or not, and the deletions not yet committed.
+  git ls-files -z -co --exclude-standard \
+    | while IFS= read -r -d '' F; do [ -e "$F" ] || [ -L "$F" ] && printf '%s\0' "$F"; done \
+    | tar -cf - --null -T - | tar -xf - -C "$SOURCE_DIR"
+  git ls-files -z -d | (cd "$SOURCE_DIR" && xargs -0 rm -f --)
+fi
+
+# --- 2. The built scripts ----------------------------------------------------
+if [ "$NEEDS_BUILD" = true ]; then
+  command -v pnpm >/dev/null 2>&1 || die "pnpm is required to build the scripts of Mody Security and Mody Dashboard."
+  NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+  [ "$NODE_MAJOR" -ge 22 ] || die "The build needs Node 22 (.nvmrc), found $(node -v 2>/dev/null || echo none)."
+  log "INFO" "Building the scripts (pnpm, frozen lockfile)..."
+  (cd "$SOURCE_DIR" && pnpm install --frozen-lockfile --silent && pnpm build >/dev/null)
+fi
+
+# --- 3. The zips -------------------------------------------------------------
+mkdir -p "$OUT_DIR"
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+LICENSE="${SOURCE_DIR}/app/web/mu-plugins/mody-export/export-kit/LICENSE-GPL-2.0.txt"
+[ -f "$LICENSE" ] || die "No GPL text at ${LICENSE}."
+# Every file dated from the commit, listed in one order: the same sources give the same zip.
+STAMP="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M.%S "$COMMIT")"
+
+zip_folder() { # zip_folder <folder in STAGE> <zip>
+  rm -f "$2"
+  (
+    cd "$STAGE"
+    find "$1" -exec env TZ=UTC touch -t "$STAMP" {} +
+    find "$1" -type f | LC_ALL=C sort | TZ=UTC zip -X -q "$2" -@
+  )
+}
+
+BUILT=()
+for P in "${PRODUCTS[@]}"; do
+  if [ "$P" = "theme" ]; then
+    SRC="${SOURCE_DIR}/app/web/themes/theme"
+    FOLDER="mody-theme"
+    VERSION="$(sed -n 's/^Version: *//p' "$SRC/style.css" | head -n 1 | tr -d '\r')"
+    HEADER="style.css"
+  else
+    SRC="${SOURCE_DIR}/app/web/mu-plugins/mody-${P}"
+    FOLDER="mody-${P}"
+    VERSION="$(sed -n 's/^ \* Version: *//p' "$SRC/mody-${P}.php" | head -n 1 | tr -d '\r')"
+    HEADER="mody-${P}.php"
+  fi
+  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "${FOLDER}: no x.y.z Version in ${HEADER}."
+  [ -f "$SRC/readme.txt" ] || die "${FOLDER}: no readme.txt."
+  STABLE="$(sed -n 's/^Stable tag: *//p' "$SRC/readme.txt" | head -n 1 | tr -d '\r')"
+  [ "$STABLE" = "$VERSION" ] || die "${FOLDER}: readme.txt says Stable tag ${STABLE:-nothing}, ${HEADER} says ${VERSION}."
+  grep -q "^= ${VERSION} =" "$SRC/readme.txt" || die "${FOLDER}: readme.txt has no Changelog entry \"= ${VERSION} =\"."
+
+  rsync -a --exclude='.DS_Store' "$SRC/" "${STAGE}/${FOLDER}/"
+  [ -f "${STAGE}/${FOLDER}/LICENSE.txt" ] || cp "$LICENSE" "${STAGE}/${FOLDER}/LICENSE.txt"
+  case "$P" in
+    security) DIST=(altcha.js altcha.asset.php) ;;
+    dashboard) DIST=(analytics-board.js analytics-board.asset.php) ;;
+    *) DIST=() ;;
+  esac
+  if [ "${#DIST[@]}" -gt 0 ]; then
+    mkdir -p "${STAGE}/${FOLDER}/dist"
+    for F in "${DIST[@]}"; do
+      [ -f "${SOURCE_DIR}/app/dist/${F}" ] || die "${FOLDER}: the build made no app/dist/${F}."
+      cp "${SOURCE_DIR}/app/dist/${F}" "${STAGE}/${FOLDER}/dist/${F}"
+    done
+  fi
+  if [ "$P" = "theme" ]; then
+    FONTS="$(php -d display_startup_errors=0 scripts/package-helper.php theme-fonts "${STAGE}/${FOLDER}" "${SOURCE_DIR}/app/web/mu-plugins/mody-fonts")" \
+      || die "mody-theme: could not bake its fonts."
+    [ -n "$FONTS" ] || log "WARNING" "mody-theme: no font baked into theme.json."
+  fi
+
+  ZIP="${OUT_DIR}/${FOLDER}-${VERSION}.zip"
+  zip_folder "$FOLDER" "$ZIP"
+  BUILT+=("$(basename "$ZIP")")
+  log "INFO" "$(basename "$ZIP"): $(unzip -Z1 "$ZIP" | grep -vc '/$') files, $(du -h "$ZIP" | cut -f1 | tr -d ' ')"
+done
+
+# --- 4. latest.json ----------------------------------------------------------
+php -d display_startup_errors=0 scripts/package-helper.php latest "$OUT_DIR" "$BASE_URL" >/dev/null || die "Could not write latest.json."
+log "SUCCESS" "Built ${BUILT[*]} in ${OUT_DIR}, with latest.json."
+
+# --- 5. The upload -----------------------------------------------------------
+[ "$UPLOAD" = "prod" ] || exit 0
+SSH_HOST="${DEPLOY_PROD_HOST:-home.local}"
+REMOTE_DIR="${DEPLOY_PROD_DIR:-/Volumes/Extreme/mody.cloud}/app/web/uploads/downloads"
+[[ "$SSH_HOST" =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid SSH host: ${SSH_HOST}"
+[[ "$REMOTE_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "Invalid remote directory: ${REMOTE_DIR}"
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10)
+
+# A published version never changes: refuse a zip whose name is there with other bytes.
+REMOTE_SUMS="$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" "mkdir -p '${REMOTE_DIR}' && cd '${REMOTE_DIR}' && for f in mody-*.zip; do [ -f \"\$f\" ] && shasum -a 256 \"\$f\"; done; true")"
+for ZIP in "$OUT_DIR"/mody-*.zip; do
+  NAME="$(basename "$ZIP")"
+  THERE="$(printf '%s\n' "$REMOTE_SUMS" | awk -v n="$NAME" '$2 == n { print $1 }')"
+  if [ -n "$THERE" ] && [ "$THERE" != "$(file_hash "$ZIP")" ]; then
+    die "${NAME} is already on mody.cloud with other contents. Raise the version instead of replacing a published one."
+  fi
+done
+log "INFO" "Sending ${OUT_DIR} to ${SSH_HOST}:${REMOTE_DIR}..."
+rsync -rt --chmod=D755,F644 -e "ssh ${SSH_OPTS[*]}" --include='mody-*.zip' --include='latest.json' --exclude='*' \
+  "${OUT_DIR}/" "${SSH_HOST}:${REMOTE_DIR}/"
+log "SUCCESS" "Uploaded. Check https://mody.cloud/web/uploads/downloads/latest.json."

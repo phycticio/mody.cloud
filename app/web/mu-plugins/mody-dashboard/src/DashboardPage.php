@@ -143,23 +143,32 @@ final class DashboardPage {
 		}
 	}
 
-	/** The board's script handle: app/dist/analytics-board.js, built from src/analytics-board.js. */
+	/** The board's script handle: dist/analytics-board.js, built from src/analytics-board.js. */
 	public const BOARD_SCRIPT = 'mody-analytics-board';
 
 	/**
 	 * The analytics board's script, with the board and its first numbers
-	 * (tickets/analytics-chat.md). Without the built file (no `pnpm build`
-	 * yet) the Visitors section stays as the server draws it.
+	 * (tickets/analytics-chat.md). The plugin's own dist/ (the zip from
+	 * mody.cloud carries it, bin/package), else Mody Cloud's app/dist/ (pnpm
+	 * build), beside the content folder. Without the built file (no `pnpm
+	 * build` yet) the Visitors section stays as the server draws it.
 	 */
 	private static function enqueue_board(): void {
-		$asset = WP_CONTENT_DIR . '/../dist/analytics-board.asset.php';
+		$own = dirname( __DIR__ ) . '/dist/analytics-board.asset.php';
+		if ( is_readable( $own ) ) {
+			$asset = $own;
+			$url   = plugins_url( 'dist/analytics-board.js', dirname( __DIR__ ) . '/mody-dashboard.php' );
+		} else {
+			$asset = dirname( WP_CONTENT_DIR ) . '/dist/analytics-board.asset.php';
+			$url   = ( defined( 'WP_HOME' ) ? WP_HOME : home_url() ) . '/dist/analytics-board.js';
+		}
 		if ( ! is_readable( $asset ) ) {
 			return;
 		}
 		$info = require $asset;
-		wp_enqueue_script( self::BOARD_SCRIPT, WP_HOME . '/dist/analytics-board.js', (array) ( $info['dependencies'] ?? array() ), (string) ( $info['version'] ?? '' ), true );
+		wp_enqueue_script( self::BOARD_SCRIPT, $url, (array) ( $info['dependencies'] ?? array() ), (string) ( $info['version'] ?? '' ), true );
 		wp_enqueue_style( 'dashicons' );
-		$analyst = function_exists( 'wp_ai_client_prompt' ) && wp_get_ability( Analyst::QUERY_ABILITY ) && wp_style_is( 'mody-agent-bubble', 'registered' );
+		$analyst = function_exists( 'wp_ai_client_prompt' ) && function_exists( 'wp_has_ability' ) && wp_has_ability( Analyst::QUERY_ABILITY ) && wp_style_is( 'mody-agent-bubble', 'registered' ); // Only with Mody Agent: asking for a missing ability is a notice.
 		if ( $analyst ) {
 			// The analyst's bubble (phase 2) wears the editors' bubble: Mody Agent's two stylesheets, in the user's color scheme.
 			wp_enqueue_style( 'mody-agent-chat' );
@@ -418,10 +427,12 @@ final class DashboardPage {
 						</td>
 					</tr>
 				<?php endif; ?>
+				<?php if ( is_multisite() ) : // A single site has no creation date of its own. ?>
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Created', 'mody_cloud' ); ?></th>
 					<td><?php echo esc_html( wp_date( get_option( 'date_format' ), (int) strtotime( (string) get_site()->registered . ' UTC' ) ) ); ?></td>
 				</tr>
+				<?php endif; ?>
 			</tbody>
 		</table>
 		<?php
@@ -1451,9 +1462,16 @@ final class DashboardPage {
 	}
 
 	/**
-	 * The site's space: a bar and "0.2 GB of 1 GB used".
+	 * The site's space: a bar and "0.2 GB of 1 GB used". A single site has
+	 * no quota (WordPress's quota is a multisite's): only the uploads' size.
 	 */
 	private static function render_storage(): void {
+		if ( ! is_multisite() ) {
+			$used = (int) recurse_dirsize( wp_get_upload_dir()['basedir'] );
+			/* translators: %s: space used, such as 1.2 GB. */
+			echo esc_html( sprintf( __( '%s used. This site has no limit.', 'mody_cloud' ), size_format( max( 0, $used ), 1 ) ) );
+			return;
+		}
 		$usage = array( // WordPress's own quota (Mody Storage sets it).
 			'used'    => (int) round( get_space_used() * MB_IN_BYTES ),
 			'allowed' => (int) round( get_space_allowed() * MB_IN_BYTES ),

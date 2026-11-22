@@ -18,7 +18,7 @@ Move the repository, its issues, labels, milestones and pull requests from GitHu
 - **No CI** (removed on 2026-11-17: GitHub's runners are on Azure).
 - `bin/deploy` does not name GitHub's address: it fetches `origin main` and builds in a worktree of the working copy. Only one message mentions GitHub ("merged on GitHub").
 - The `gh` CLI is used by the `mody-ticket`, `mody-delivery` and `mody-deploy` skills, and `architecture.md#deploying` shows `gh pr create`.
-- 27 links to `github.com/phycticio/mody.cloud` in 15 files: `tickets/` (most of them, `next-steps.md` among them), the `mody-ticket` skill and `package.json`.
+- 27 links to `github.com/phycticio/mody.cloud` in 15 files: `tickets/` (most of them, `next-steps.md` among them), the `mody-ticket` skill and `package.json`. Since 2026-11-22 also the `readme.txt` of the nine offered plugins and the theme (their Support line; [product-pages-bari-and-plugins.md](product-pages-bari-and-plugins.md), part 4): a changed link there reaches people only with a new version of each zip.
 - Not part of this ticket: Composer and npm still download packages from GitHub and Packagist; the SatisPress repository `plugins.mody.cloud` is ours and does not change.
 
 ## What Codeberg offers for the same workflow

@@ -1,6 +1,6 @@
 # Product pages: the Bari stack and nine Mody plugins
 
-**Builds on:** [independent-mody-plugins.md](independent-mody-plugins.md), [site-languages.md](site-languages.md), the home page script (`scripts/home-page.php`) · **Feeds:** Mody Cloud's main site · **Status:** planned on 2026-11-21; parts 1, 2 and 5 built the same day and deployed in `bf80931` (#48; the pages are not on production yet: the script has not run there, and they would be drafts; Mody SEO's page waits for the maintainer's review) · **Issue:** [#42](https://github.com/phycticio/mody.cloud/issues/42)
+**Builds on:** [independent-mody-plugins.md](independent-mody-plugins.md), [site-languages.md](site-languages.md), the home page script (`scripts/home-page.php`) · **Feeds:** Mody Cloud's main site · **Status:** planned on 2026-11-21; parts 1, 2 and 5 built the same day and deployed in `bf80931` (#48; the pages are not on production yet: the script has not run there, and they would be drafts; Mody SEO's page waits for the maintainer's review); parts 3 and 4 built on 2026-11-22 (not merged) · **Issue:** [#42](https://github.com/phycticio/mody.cloud/issues/42)
 
 ## Goal (maintainer, 2026-11-21)
 > I want to create product pages for our stack called Bari and all mody plugins. Bari stack is this stack used by mody.cloud which should work for single and multisites. All mody plugins are all the plugins that we are using with the exception of the chatbot.
@@ -135,10 +135,49 @@ Each part is about one sitting (rule 5). Parts 1 to 7 can start now. Parts 9 and
 - **Q8. Where the theme's download shows:** the Bari page, Mody Patterns' page, and the **Our source code** menu? It has no page of its own (D4).
 - ~~**Q9. Which repository takes the issues.**~~ **Answered on 2026-11-21 (D20):** GitHub issues until the move to Codeberg, on this repository for now.
 - **Q10. Does the `bari` repository also carry the nine plugins,** or only the stack and the theme, with the plugins downloaded on their own?
+- **Q11. The theme's download** (part 4): its zip is `mody-theme-0.1.0.zip`, the version its header has always had, in a folder called `mody-theme` (a plain WordPress names the theme after its folder; `theme` would clash with anything). Should it start at 1.0.0 like the plugins (D14), and is `mody-theme` the name? **Inference:** both are easy to change before the first upload, and hard after.
 
 ## Results
 
 **Deployed 2026-11-21 in `bf80931`** (#48, with the docs of #49): the nine plugins' `UpdateCheck` runs on production and stays silent there (Mody Updates is present, checked with `wp eval`); `/`, `/wp-login.php` and `/register/` answer 200, no 500s. `scripts/product-pages.php` has not run on production, so `/plugins/` is a 404 there. **Waiting on the maintainer:** `docker compose up -d --build && docker compose restart nginx` on the server, so the running Nginx renders the new `/web/uploads/downloads/` location (no access log); nothing is in that folder yet, so it matters from part 4.
+
+### Parts 3 and 4: each plugin on its own, and the downloads (2026-11-22, not merged)
+**Part 4, `bin/package`** (new; documented in [local-development.md](../documentation/local-development.md#commands)):
+- `./bin/package all` (or some of `security analytics dashboard images seo profiles fonts patterns palette theme`) builds, from `origin/main` in its own checkout `~/.cache/mody.cloud/package` as `bin/deploy` does (`--ref`, or `--working-copy` for tests):
+  - `mody-<slug>-<version>.zip`: the plugin's folder, its `readme.txt`, `LICENSE.txt` (the GPL-2.0 text Take your site with you already ships) and, for Mody Security and Mody Dashboard, their built script in `dist/` (`altcha.js`, `analytics-board.js`; `pnpm build` runs in that checkout, Node 22);
+  - `mody-theme-<version>.zip`: the theme in a folder called `mody-theme`, with Inter's files and faces baked into `theme.json` as Take your site with you does, so it needs no plugin (Q11);
+  - `latest.json`, from the newest zip of each product in the folder: version, zip, page, requirements and that version's changelog, read from the `readme.txt` inside the zip (`scripts/package-helper.php`, the host's PHP). `plugins` is what each plugin's update check reads; `themes` lists the theme.
+- The version is the header's. The script stops when the readme's `Stable tag` differs or its Changelog has no entry for that version. Files are dated from the commit and listed in one order, so the same sources give the same zip.
+- **`readme.txt`** in each of the nine plugin folders and the theme (new, WordPress's format): requirements (WordPress 7.1 tested, D19; PHP 8.1), what it does, what it calls (only mody.cloud for updates, and Cloudflare seeing that request), support (GitHub issues, D20), installation, changelog. Nginx already refuses readme files under `web/mu-plugins` and `web/themes`, so the platform does not serve them. The theme says `Tested up to: 7.1` now (it said 7.0).
+- **The upload** (`--upload=prod`, the maintainer's): the zips and `latest.json` to `app/web/uploads/downloads/` on home.local, served as `https://mody.cloud/web/uploads/downloads/`; nothing is deleted there, and a version already published is never replaced with other bytes. Not run.
+
+**Part 3: what each plugin needed to run on a plain WordPress** (D5), found by the new test:
+- **Mody Security:**
+  - A **Settings → Security page on a single site,** for administrators (`manage_options`); on a multisite it stays under Network Admin, for network admins (`SecurityPage::capability()`). Nobody on a single site has the network capabilities, so before this there was no page at all.
+  - **Two-step login's first visit:** on a single site it sent the administrator to the network's user profile, which a single site does not have, and back again: a redirect loop out of wp-admin. Now it sends them to Profile, shows the notice there, and lets administrators (`edit_users`) see and turn off other people's two-step login.
+  - **The secrets** were read back from the network options table, which a single site does not have; now from its options table.
+  - **ALTCHA's widget** loads from the plugin's own `dist/` when the zip carries it, else from Mody Cloud's `app/dist/` as before (`Altcha::built()`). It used `WP_HOME`, which a plain WordPress does not define: a fatal error on every request.
+  - **The file check** knows Mody Cloud's layout (`app/wp`, `app/web`; `FileCheck::platform()`, true on production, checked read-only) from a plain WordPress, where it checks `wp-admin`, `wp-includes`, the PHP files beside them and the content folder's plugins, mu-plugins and themes, and looks for scripts in `wp-content/uploads`. There is no deploy there, so `wp mody-security files-manifest` writes the list into the database (not autoloaded), never into a folder the site serves.
+  - The overview's network name on a single site is the site's name.
+- **Mody Dashboard:** the board's script from the plugin's own `dist/` (it also used `WP_HOME`); on a single site, the storage line is the uploads' size with no limit (WordPress's quota is a multisite's; it called `get_space_used()`, a fatal error), and the Created row is hidden (a single site has no creation date). The analyst's ability is asked for only when it exists (a notice without Mody Agent).
+- **Mody Analytics:** nothing to change: without the location file there is no location and no error.
+- **Images, SEO, Profiles, Fonts, Patterns, Palette:** nothing to change. Patterns' need for the theme or its palette is said in its readme and its card (D16).
+- **Not changed on Mody Cloud:** every change keeps the platform's behavior (a multisite, `WP_HOME`, `app/dist/`, `app/files.sha256`).
+
+**Tests:**
+- `scripts/standalone-test.sh` (new, with `scripts/standalone-check.php`): 112 of 112 passed. It runs `bin/package --working-copy all`, then inside the app container builds a plain single site and a plain subdirectory multisite with a second site (WordPress core is the stack's copy, no MU plugins, no outside requests), installs the theme and the nine plugins **from the zips** with WP-CLI and activates them (network-wide on the multisite). It checks:
+  - the zips: readme and license in each, the two `dist/` scripts and no other, Inter in the theme, `latest.json`, the same zip from the same sources;
+  - from PHP: each plugin active; Security's secrets, page capability and default two-step requirement; the file check's folders, a list in the database, a changed plugin file and a script in uploads found; Analytics' tables and route without the location file; the board's routes; a 3000-pixel JPEG made a 2560-pixel WebP; SEO's fields; initials instead of Gravatar; the Mody fonts collection without Google Fonts; 63 Mody patterns and no core ones;
+  - over HTTP, logged in with a real session: the login page with ALTCHA's widget from the plugin and its challenge route; the first visit to wp-admin sent to Profile (the user profile on the multisite) with no loop; the Dashboard and its Visitors board; the seven Security sections (Network Admin on the multisite); the editor with the SEO panel and the palette-only pickers; the front page with the visitor counter; avatars and placeholders; the second site's Dashboard, front page and login;
+  - every page complete (a fatal error halfway also answers 200), and no PHP error, warning or notice in either log, except core's own complaints that WordPress.org could not be reached.
+- `scripts/update-check-test.sh`: 57 of 57 passed.
+- `php -l` on every changed file.
+
+**Not run:** the platform's tests for Security, Dashboard and Analytics (`security-test.php`, `antibot-test.php`, `dashboard-test.php`) and `export-portable-test.sh`: the local stack serves the other checkout, so they would test its code, not this branch's. The changes are behind `is_multisite()` and the layout check, which reads true locally and on production.
+
+**Not done yet:**
+- **The upload** (`./bin/package --upload=prod all`): the maintainer's, after Q11 and after this is merged.
+- Then, on production: `scripts/product-pages.php` publishes a page only when it is ready (Mody SEO waits for the review, part 2) and its zip is in `uploads/downloads/`; and Nginx's no-log location for the downloads waits for the server's restart (see the deploy note above).
 
 ### Part 5: the update check (2026-11-21, deployed in `bf80931`)
 **Built:**
