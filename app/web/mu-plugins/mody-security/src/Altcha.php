@@ -70,7 +70,7 @@ final class Altcha {
 	/** The form field (and REST parameter) that carries the solution. */
 	public const FIELD = 'altcha';
 
-	/** The widget's script handle: app/dist/altcha.js, built from src/altcha.js. */
+	/** The widget's script handle: dist/altcha.js, built from src/altcha.js. */
 	public const SCRIPT = 'mody-altcha';
 
 	/** The cache group of used challenges: the fallback when the counters' table cannot be written. */
@@ -80,11 +80,11 @@ final class Altcha {
 	 * `init`: the widget's script.
 	 */
 	public static function register_script(): void {
-		$asset = WP_CONTENT_DIR . '/../dist/altcha.asset.php';
-		$info  = is_readable( $asset ) ? (array) require $asset : array();
+		list( $url, $asset ) = self::built( 'altcha' );
+		$info                = is_readable( $asset ) ? (array) require $asset : array();
 		wp_register_script(
 			self::SCRIPT,
-			WP_HOME . '/dist/altcha.js',
+			$url,
 			array(),
 			(string) ( $info['version'] ?? '3.5.0' ),
 			array(
@@ -93,6 +93,22 @@ final class Altcha {
 			)
 		);
 		wp_cache_add_global_groups( array( self::USED ) );
+	}
+
+	/**
+	 * A built script's address and its asset file: the plugin's own dist/
+	 * (the zip from mody.cloud carries it, bin/package), else Mody Cloud's
+	 * app/dist/ (pnpm build), beside the content folder.
+	 *
+	 * @param string $name The script's name, without .js.
+	 * @return array{0: string, 1: string} The address and the asset file's path.
+	 */
+	public static function built( string $name ): array {
+		$plugin = dirname( __DIR__ ) . '/mody-security.php';
+		if ( is_readable( dirname( __DIR__ ) . '/dist/' . $name . '.js' ) ) {
+			return array( plugins_url( 'dist/' . $name . '.js', $plugin ), dirname( __DIR__ ) . '/dist/' . $name . '.asset.php' );
+		}
+		return array( ( defined( 'WP_HOME' ) ? WP_HOME : home_url() ) . '/dist/' . $name . '.js', dirname( WP_CONTENT_DIR ) . '/dist/' . $name . '.asset.php' );
 	}
 
 	/**

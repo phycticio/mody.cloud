@@ -13,8 +13,8 @@
  * (asked for by the maintainer on 2026-11-11, tickets/mody-dashboard.md).
  *
  * - **Tracker:** a few lines of script on the front end send one beacon per
- *   page view to the site's own REST route. Not for logged-in users,
- *   previews or error pages.
+ *   page view to the site's own REST route. Not for previews or error
+ *   pages; logged-in users count, anonymously.
  * - **Collector:** the route. It counts the view, the page, and for a
  *   visitor's first view of the day their source and device. A visitor is
  *   recognised for one day by a hash of their address, browser and the site

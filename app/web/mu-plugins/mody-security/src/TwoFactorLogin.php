@@ -320,13 +320,14 @@ final class TwoFactorLogin {
 		if ( ! TwoFactor::required( $user ) || TwoFactor::enabled( $user ) ) {
 			return;
 		}
-		if ( 'profile.php' === ( $GLOBALS['pagenow'] ?? '' ) && is_user_admin() ) {
+		if ( 'profile.php' === ( $GLOBALS['pagenow'] ?? '' ) && ( is_user_admin() || ! is_multisite() ) ) {
 			return;
 		}
 		if ( 'admin-post.php' === ( $GLOBALS['pagenow'] ?? '' ) ) {
 			return;
 		}
-		wp_safe_redirect( add_query_arg( 'mody_two_factor', 'required', user_admin_url( 'profile.php' ) ) . '#mody-two-factor' );
+		$profile = is_multisite() ? user_admin_url( 'profile.php' ) : admin_url( 'profile.php' ); // A single site has no user admin.
+		wp_safe_redirect( add_query_arg( 'mody_two_factor', 'required', $profile ) . '#mody-two-factor' );
 		exit;
 	}
 

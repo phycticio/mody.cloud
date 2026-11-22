@@ -36,7 +36,7 @@ final class TwoFactorProfile {
 		add_action( 'edit_user_profile', array( self::class, 'render_other' ), 1 );
 		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue' ) );
 		add_action( 'rest_api_init', array( self::class, 'register_routes' ) );
-		add_action( 'user_admin_notices', array( self::class, 'required_notice' ) );
+		add_action( is_multisite() ? 'user_admin_notices' : 'admin_notices', array( self::class, 'required_notice' ) );
 	}
 
 	/**
@@ -202,7 +202,7 @@ final class TwoFactorProfile {
 	 * @param WP_User $user The user.
 	 */
 	public static function render_other( $user ): void {
-		if ( ! $user instanceof WP_User || ! current_user_can( 'manage_network_users' ) ) {
+		if ( ! $user instanceof WP_User || ! current_user_can( self::manage_others() ) ) {
 			return;
 		}
 		$enabled = TwoFactor::enabled( $user );
@@ -315,9 +315,17 @@ final class TwoFactorProfile {
 			array(
 				'methods'             => 'DELETE',
 				'callback'            => array( self::class, 'rest_reset' ),
-				'permission_callback' => static fn() => current_user_can( 'manage_network_users' ),
+				'permission_callback' => static fn() => current_user_can( self::manage_others() ),
 			)
 		);
+	}
+
+	/**
+	 * Who may see and turn off other people's two-step login: the network's
+	 * user managers, or a single site's.
+	 */
+	public static function manage_others(): string {
+		return is_multisite() ? 'manage_network_users' : 'edit_users';
 	}
 
 	/**
