@@ -60,9 +60,20 @@ $new    = static function ( string $login ) use ( $suffix ): int {
 			'user_email' => $login . $suffix . '@mody.local',
 			'user_pass'  => wp_generate_password( 24 ),
 			'role'       => '',
+			'locale'     => 'en_US', // English screens over HTTP: the main site's default is Spanish (tickets/spanish-by-default.md).
 		)
 	);
 };
+// English in-process too: WordPress writes numbers, sizes and dates by language (5,000,000 and 5.000.000).
+switch_to_locale( 'en_US' );
+// Free accounts for everyone while this runs, whatever the Offers setting is on this install ("invited people only" refuses start_free()).
+add_filter(
+	'pre_site_option_' . \Mody\Members\Offers::OPTION,
+	static fn() => array(
+		'launch_who' => 'everyone',
+		'invites_on' => true,
+	)
+);
 $member = $new( 'modydash' );
 $editor = $new( 'modydashed' );
 $other  = $new( 'modydashot' );

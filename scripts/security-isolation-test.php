@@ -885,11 +885,13 @@ if ( is_int( $job_id ) ) {
 	$wpdb->update( ExportJobs::table(), array( 'status' => 'done', 'step' => 'done', 'finished_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$check( '... then the cooldown holds again, counted from that finished copy', 'cooldown' === Panel::start( $site_a, $owner ) && 2 === $count() );
 	$_GET['export-result'] = 'cooldown';
+	$english               = switch_to_locale( 'en_US' ); // "in 15 minutes": the time is written by WordPress in its language, Spanish by default.
 	switch_to_blog( $site_a );
 	ob_start();
 	( new ReflectionMethod( Panel::class, 'render_notice' ) )->invoke( null, 'done' );
 	$notice = ob_get_clean();
 	restore_current_blog();
+	$english && restore_previous_locale();
 	unset( $_GET['export-result'] );
 	$check( 'the notice says kindly when the next one is possible', str_contains( $notice, 'files above are the latest' ) && str_contains( $notice, 'you can prepare a fresh copy from' ) && str_contains( $notice, 'minutes)' ), wp_strip_all_tags( $notice ) );
 	$wpdb->update( ExportJobs::table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - Panel::COOLDOWN - 60 ) ), array( 'id' => $job['id'] ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery

@@ -54,6 +54,7 @@
 - The matrix's **Translate with Mody** button, and the agent learns the language of the page it is editing.
 
 ### Part 9 · WordPress's own translations
+- **Moved on 2026-11-26** into [spanish-by-default.md](spanish-by-default.md) part 2 (#54): Spanish and Catalan first.
 - Language packs for core, the theme and the plugins, for the offered languages, brought in at build time (no wp-admin installs: `Gating\Updates` refuses `update_languages`). A `bin/` script with no new dependency; how they reach production (committed or fetched by `./bin/deploy`) is decided in this part.
 
 ### Part 11 · The working language in wp-admin (asked 2026-11-10, built the same day)

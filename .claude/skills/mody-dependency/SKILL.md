@@ -35,6 +35,8 @@ Bring the maintainer these facts with the question:
 
 `./bin/version <x.y.z>` replaces `app/wp` without touching `app/web`; ask first, then run the whole test suite offline.
 
+**After any core or Composer plugin version change:** `./bin/languages` fetches WordPress's Spanish and Catalan translations for the new versions into `app/web/languages/` (committed; nothing on the server calls WordPress.org), then `scripts/language-packs-test.php` ([spanish-by-default.md](../../../tickets/spanish-by-default.md)).
+
 ## After every change
 
 - **Spectra updated:** `scripts/spectra-guard-test.php` (the guard still blocks every outside host), then `spectra-blocks-test`, `spectra-content-test`, `block-reference-test` (the validator's `BlockValidator::SPECTRA_BLOCKS` and the reference cards may need the new blocks or attributes).

@@ -73,6 +73,9 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 };
 
 global $wpdb;
+// The texts, prices and dates read below are English (WordPress writes 7.99 and 7,99 by language), and the main
+// site's default language is Spanish (tickets/spanish-by-default.md): English for the whole run.
+switch_to_locale( 'en_US' );
 $key_before = getenv( 'MOLLIE_API_KEY' );
 putenv( 'MOLLIE_API_KEY' );
 RateLimit::clear();
@@ -519,9 +522,11 @@ preg_match( '#mody_pay=([A-Za-z0-9]+)&u=(\d+)#', html_entity_decode( $link ), $m
 $token = $m[1] ?? '';
 $check( '... an email with the link to pay, the price with VAT, 24 hours', str_contains( (string) end( $mails )['subject'], 'pay and create your site' ) && str_contains( $link, '7.99 EUR a month, VAT included' ) && '' !== $token && (int) ( $m[2] ?? 0 ) === $pia );
 $check( '... only its hash is kept', ! str_contains( (string) wp_json_encode( get_user_meta( $pia, Registration::PAY_META, true ) ), $token ) && null !== Registration::pending( $pia, $token ) && null === Registration::pending( $pia, 'wrong' . $token ) );
-$page = static function ( array $get ): string {
+$page = static function ( array $get ): string { // The page in English: the default language is Spanish (/en/ is English).
 	$_GET = $get;
+	class_exists( \Mody\Languages\Router::class ) && \Mody\Languages\Router::set_current( 'en_US' );
 	$html = Registration::render();
+	class_exists( \Mody\Languages\Router::class ) && \Mody\Languages\Router::set_current( '' );
 	$_GET = array();
 	return $html;
 };

@@ -22,7 +22,7 @@ scripts/<name>-test.php                    # its test
 
 - **Main file header:** `Plugin Name: Mody <Name>`, a one-sentence `Description`, `Version: 1.0.0`, `Author: Mody Cloud`, `License: GPL-2.0-or-later`, `Requires PHP: 8.1`, `Update URI: false`, `Text Domain: mody_cloud`, then a doc comment: what its one thing is, the decision and ticket with dates, which other plugins it names and how. The header lets the same folder run as a normal plugin in a downloaded site.
 - **Namespace** `Mody\<Name>`; the autoloader maps `Mody\<Name>\Foo\Bar` to `src/Foo/Bar.php` (copy `mody-seo/mody-seo.php`). `defined( 'ABSPATH' ) || exit;` at the top of every file.
-- **Strings** wrapped with WordPress i18n in the `mody_cloud` text domain. English everywhere (rule 8).
+- **Strings** wrapped with WordPress i18n in the `mody_cloud` text domain. The source strings are English (rule 8); members read them in Spanish by default, from the plugin's own `languages/` ([spanish-by-default.md](../../../tickets/spanish-by-default.md)).
 - **REST routes** keep the namespace `mody-platform/v1`.
 
 ## Independence

@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+
+# WordPress's own translations (tickets/spanish-by-default.md, part 2):
+# downloads the language packs for core and the Composer plugins, for the
+# exact versions in the repository, into app/web/languages/, which is
+# committed (decided by the maintainer on 2026-11-27) so a deploy never
+# depends on WordPress.org. Nothing on the server calls WordPress.org, and
+# nobody installs a language from wp-admin (Mody Updates refuses it).
+#
+#   ./bin/languages            # Spanish and Catalan (es_ES, ca)
+#   ./bin/languages es_ES      # given locales
+#
+# Run it after ./bin/version or a plugin version change in app/composer.json,
+# then commit app/web/languages/. Packs WordPress.org does not have (Spectra,
+# the ai plugin in Catalan) are skipped with a note; Mody's own words come
+# from each Mody plugin's languages/ folder, not from here.
+#
+# Kept from each pack: the PHP translation files (.l10n.php, what WordPress
+# 6.5 and later reads first) and the JavaScript ones (.json). The .po and .mo
+# copies are dropped: they hold the same words.
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+LOCALES=("$@")
+[ ${#LOCALES[@]} -gt 0 ] || LOCALES=(es_ES ca)
+
+for CMD in curl unzip python3; do
+  command -v "$CMD" >/dev/null 2>&1 || { ./bin/log "ERROR" "${CMD} is needed."; exit 1; }
+done
+
+TARGET="app/web/languages"
+API="https://api.wordpress.org/translations"
+
+CORE_VERSION="$(sed -n "s/^\$wp_version = '\([^']*\)';/\1/p" app/wp/wp-includes/version.php)"
+[ -n "$CORE_VERSION" ] || { ./bin/log "ERROR" "No WordPress version in app/wp/wp-includes/version.php."; exit 1; }
+
+# slug version, one per line: every wpackagist plugin in composer.lock.
+PLUGINS="$(python3 - <<'PY'
+import json
+lock = json.load(open("app/composer.lock"))
+for p in lock.get("packages", []):
+    name = p.get("name", "")
+    if name.startswith("wpackagist-plugin/"):
+        print(name.split("/", 1)[1], p.get("version", "").lstrip("v"))
+PY
+)"
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/out/plugins"
+
+# Prints the package URL for one locale from a translations API answer, or nothing.
+package_url() {
+  python3 -c '
+import json, sys
+locale = sys.argv[1]
+data = json.load(sys.stdin)
+for t in data.get("translations", []):
+    if t.get("language") == locale:
+        print(t["package"])
+        break
+' "$1"
+}
+
+# fetch <api query> <locale> <destination dir> <label>
+fetch() {
+  local query="$1" locale="$2" dest="$3" label="$4" url
+  url="$(curl -fsS "${API}/${query}" | package_url "$locale")"
+  if [ -z "$url" ]; then
+    ./bin/log "INFO" "No ${locale} pack for ${label} on WordPress.org: skipped."
+    return 0
+  fi
+  case "$url" in
+    https://downloads.wordpress.org/translation/*) ;;
+    *) ./bin/log "ERROR" "Unexpected package address for ${label}: ${url}"; exit 1 ;;
+  esac
+  curl -fsS -o "$WORK/pack.zip" "$url"
+  rm -rf "$WORK/pack"
+  unzip -q -o "$WORK/pack.zip" -d "$WORK/pack"
+  find "$WORK/pack" -type f \( -name '*.l10n.php' -o -name '*.json' \) -exec cp {} "$dest/" \;
+  ./bin/log "INFO" "${label} ${locale}: $(find "$WORK/pack" -type f \( -name '*.l10n.php' -o -name '*.json' \) | wc -l | tr -d ' ') files."
+}
+
+for LOCALE in "${LOCALES[@]}"; do
+  fetch "core/1.0/?version=${CORE_VERSION}" "$LOCALE" "$WORK/out" "WordPress ${CORE_VERSION}"
+  while read -r SLUG VERSION; do
+    [ -n "$SLUG" ] || continue
+    fetch "plugins/1.0/?slug=${SLUG}&version=${VERSION}" "$LOCALE" "$WORK/out/plugins" "${SLUG} ${VERSION}"
+  done <<< "$PLUGINS"
+done
+
+# Every PHP file must be a plain array of translations: nothing else runs.
+python3 - "$WORK/out" <<'PY'
+import pathlib, re, sys
+bad = [p for p in pathlib.Path(sys.argv[1]).rglob("*.l10n.php")
+       if not re.match(r"<\?php\s+return\s+\[", p.read_text(encoding="utf-8", errors="replace"))]
+if bad:
+    sys.exit("Not a translation file: " + ", ".join(map(str, bad)))
+PY
+
+ls "$WORK/out"/*.l10n.php >/dev/null 2>&1 || { ./bin/log "ERROR" "No core translation came down: ${TARGET} left as it was."; exit 1; }
+
+rm -rf "$TARGET"
+mkdir -p "$TARGET"
+cp -R "$WORK/out/." "$TARGET/"
+./bin/log "INFO" "${TARGET}: $(find "$TARGET" -type f | wc -l | tr -d ' ') files, $(du -sh "$TARGET" | cut -f1). Commit them."

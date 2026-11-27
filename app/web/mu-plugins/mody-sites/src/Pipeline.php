@@ -401,6 +401,37 @@ final class Pipeline {
 	}
 
 	/**
+	 * A new site's language: its owner's WordPress language (user meta
+	 * `locale`, the language they signed up in, tickets/spanish-by-default.md),
+	 * when WordPress has it installed; English is kept as `WPLANG` ''.
+	 * Without one, nothing: core gives the network's default language.
+	 *
+	 * @param int $user_id The owner.
+	 * @return array<string, string> The `WPLANG` option, or nothing.
+	 */
+	public static function language_option( int $user_id ): array {
+		$locale = (string) get_user_meta( $user_id, 'locale', true );
+		if ( 'en_US' === $locale ) {
+			return array( 'WPLANG' => '' );
+		}
+		return '' !== $locale && in_array( $locale, get_available_languages(), true ) ? array( 'WPLANG' => $locale ) : array();
+	}
+
+	/**
+	 * A site's language: its own `WPLANG`, else the network's; English when
+	 * empty.
+	 *
+	 * @param int $site_id The site.
+	 */
+	public static function site_locale( int $site_id ): string {
+		$locale = get_blog_option( $site_id, 'WPLANG' );
+		if ( false === $locale ) {
+			$locale = get_site_option( 'WPLANG', '' );
+		}
+		return '' !== (string) $locale ? (string) $locale : 'en_US';
+	}
+
+	/**
 	 * A site's domain on this network: `slug.mody.cloud`.
 	 *
 	 * @param string $slug The site's subdomain.
@@ -494,7 +525,8 @@ final class Pipeline {
 						'stylesheet'            => self::THEME,
 						'blogdescription'       => $input['mission'],
 						'mody_provisioning_job' => $job['id'],
-					)
+					),
+					self::language_option( (int) $job['user_id'] )
 				),
 				get_current_network_id()
 			);
@@ -507,11 +539,15 @@ final class Pipeline {
 		// The site's owner counts it against the plan, whatever roles are given later (Quota::used()).
 		Quota::record_owner( (int) $site_id, (int) $job['user_id'] );
 
-		// WordPress's sample post and page: the generated front page replaces them.
+		// WordPress's sample post and page: the generated front page replaces them. Found by
+		// what core makes on a new site (the post first, then the page), not by their slugs,
+		// which are in the network's language (hola-mundo, pagina-ejemplo).
 		switch_to_blog( $site_id );
-		$samples = array( get_page_by_path( 'hello-world', OBJECT, 'post' ), get_page_by_path( 'sample-page', OBJECT, 'page' ) );
-		foreach ( array_filter( $samples ) as $sample ) {
-			wp_delete_post( $sample->ID, true );
+		foreach ( array( 1 => 'post', 2 => 'page' ) as $id => $type ) {
+			$sample = get_post( $id );
+			if ( $sample && $type === $sample->post_type && ! get_post_meta( $id, '_mody_provisioning_job', true ) ) {
+				wp_delete_post( $id, true );
+			}
 		}
 		restore_current_blog();
 
@@ -683,10 +719,17 @@ final class Pipeline {
 			$page_id = (int) $found[0];
 		} elseif ( '' === (string) $job['input']['prompt'] ) {
 			// A starter site (M1-03): no model call; the member asks the agent for pages later.
+			// Written in the site's language (tickets/spanish-by-default.md).
+			$switched = switch_to_locale( self::site_locale( (int) $job['site_id'] ) );
+			$markup   = self::starter_markup( (string) $job['input']['title'] );
+			$title    = __( 'Home', 'mody_cloud' );
+			if ( $switched ) {
+				restore_previous_locale();
+			}
 			$page_id = self::insert_page(
-				self::starter_markup( (string) $job['input']['title'] ),
+				$markup,
 				array(
-					'post_title'  => __( 'Home', 'mody_cloud' ),
+					'post_title'  => $title,
 					'post_status' => 'publish',
 					'post_author' => $job['user_id'],
 					'meta_input'  => array( '_mody_provisioning_job' => $job['id'] ),

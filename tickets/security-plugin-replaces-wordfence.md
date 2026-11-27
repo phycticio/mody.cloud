@@ -73,7 +73,7 @@ Wordfence's firewall may load before WordPress through `auto_prepend_file` in th
 ## Open questions
 
 - **Q1. Security keys on a member's own domain.** A security key belongs to one domain (its relying party): keys added on the profile work on `mody.cloud` and every `*.mody.cloud` site, not on `example.com`. Built: on a custom domain the login offers the code and recovery codes, and says the key works on the site's `mody.cloud` address. Enough, or should members be able to add a key for their own domain too?
-- **Q2. Who must use two-step login, by default.** Built with super admins; the page changes it. Should members (site administrators) be required at launch?
+- ~~**Q2. Who must use two-step login, by default.**~~ Decided by the maintainer on 2026-11-26: optional for everyone, required for super admins, as built (no change). The maintainer set up a security key and an authenticator app on production the same day; both work.
 - **Q3. Scheduling the file check.** WP-Cron is unreliable here (architecture.md's open question). An Ofelia job like the billing run (`wp mody-security check-files --alert`, daily) needs a line in the server's `compose.prod.yml`. Add it?
 - **Q4. Recovering an account without codes.** Built: a super admin turns off someone's two-step login on the network's Edit User screen, and WP-CLI can (`wp mody-security two-factor reset <user>`). Is that the recovery path, or should a member get an email link?
 

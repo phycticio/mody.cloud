@@ -40,11 +40,23 @@
  * email check says nothing about accounts, an email that has one gets the
  * same answer and nothing is created, names and projects carry no links.
  *
+ * The main site is Spanish by default (tickets/spanish-by-default.md), so
+ * the page without a prefix is Spanish. The checks that read English text
+ * make English explicit: in-process with `SignupLanguage::with( '', ... )` or
+ * Router::set_current( 'en_US' ), over HTTP on the register page's English
+ * translation (the site's own, or one made here and removed at the end). The
+ * default page has its own checks (Spanish, `lang` es_ES), and a Spanish
+ * signup keeps its language for the account and its site.
+ *
  * Everything created is removed at the end. No model call.
  */
 
+use Mody\Languages\Languages;
+use Mody\Languages\Router;
+use Mody\Languages\Translations;
 use Mody\Members\Members;
 use Mody\Members\Registration;
+use Mody\Members\SignupLanguage;
 use Mody\Onboarding\Onboarding;
 use Mody\Sites\Jobs;
 use Mody\Sites\Pipeline;
@@ -65,8 +77,9 @@ if ( ! is_main_site() ) {
 }
 RateLimit::clear(); // Accounts made here count toward the hour's limit; start from zero.
 $suffix      = strtolower( wp_generate_password( 6, false ) );
-$emails      = array( 'a' => "modyreg{$suffix}@mody.local", 'b' => "modyregb{$suffix}@mody.local", 'c' => "modyregc{$suffix}@mody.local" );
-$slugs       = array( 'a' => "regtest{$suffix}", 'b' => "regtestb{$suffix}", 'c' => "regtestc{$suffix}" );
+$emails      = array( 'a' => "modyreg{$suffix}@mody.local", 'b' => "modyregb{$suffix}@mody.local", 'c' => "modyregc{$suffix}@mody.local", 'es' => "modyreges{$suffix}@mody.local" );
+$slugs       = array( 'a' => "regtest{$suffix}", 'b' => "regtestb{$suffix}", 'c' => "regtestc{$suffix}", 'es' => "regtestes{$suffix}" );
+$english_id  = 0; // The register page's English translation, made below.
 $was_open    = get_site_option( Registration::OPEN_OPTION );
 $was_promo   = array(
 	\Mody\Members\Offers::OPTION => get_site_option( \Mody\Members\Offers::OPTION, null ),
@@ -76,7 +89,10 @@ $page_before = (int) get_option( Registration::PAGE_OPTION );
 $admins      = get_super_admins();
 $super       = get_user_by( 'login', $admins[0] );
 register_shutdown_function(
-	static function () use ( $emails, $was_open, $was_promo, $page_before ): void {
+	static function () use ( $emails, $was_open, $was_promo, $page_before, &$english_id ): void {
+		if ( $english_id ) {
+			wp_delete_post( $english_id, true );
+		}
 		foreach ( $was_promo as $option => $value ) {
 			null === $value ? delete_site_option( $option ) : update_site_option( $option, $value );
 		}
@@ -101,7 +117,17 @@ register_shutdown_function(
 		}
 	}
 );
-$block = static fn(): string => render_block( parse_blocks( '<!-- wp:' . Registration::BLOCK . ' /-->' )[0] );
+// The block in a language of the main site (English unless told: these checks read English text).
+$block = static function ( string $locale = 'en_US' ): string {
+	if ( class_exists( Router::class ) ) {
+		Router::set_current( $locale );
+	}
+	$html = render_block( parse_blocks( '<!-- wp:' . Registration::BLOCK . ' /-->' )[0] );
+	if ( class_exists( Router::class ) ) {
+		Router::set_current( '' );
+	}
+	return $html;
+};
 $http  = static function ( string $method, string $to, array $cookies = array(), array $body = array(), bool $json = false ): array {
 	$response = wp_remote_request(
 		$to,
@@ -155,6 +181,8 @@ if ( ! $page_before ) {
 	$check( '... and no page is created', ! get_option( Registration::PAGE_OPTION ) && ! get_page_by_path( Registration::PAGE_SLUG ) );
 }
 $check( 'the block says registration opens soon', str_contains( $block(), 'Registration opens soon.' ) && ! str_contains( $block(), '<form' ) );
+$closed_es = SignupLanguage::with( 'es_ES', static fn() => __( 'Registration opens soon.', 'mody_cloud' ) );
+$check( '... in Spanish on the default page (the site\'s language)', 'Registration opens soon.' !== $closed_es && str_contains( $block( '' ), $closed_es ) && ! str_contains( $block( '' ), 'Registration opens soon.' ), $closed_es );
 $type = WP_Block_Type_Registry::get_instance()->get_registered( Registration::BLOCK );
 $check( 'the block: from block.json, with its editor preview and style', $type && 3 === $type->api_version && is_callable( $type->render_callback ) && array( Registration::EDITOR ) === $type->editor_script_handles && array( Registration::STYLE ) === $type->style_handles && false === ( $type->supports['multiple'] ?? null ) );
 $supports = array( 'anchor', 'align', 'color.background', 'color.text', 'color.gradients', 'color.link', 'color.button', 'background.backgroundImage', 'background.gradient', 'spacing.margin', 'spacing.padding', 'spacing.blockGap', 'dimensions.minHeight', 'typography.fontSize', 'typography.__experimentalFontFamily', 'typography.__experimentalLetterSpacing', '__experimentalBorder.radius', 'shadow' );
@@ -185,6 +213,7 @@ $check( 'the check route refuses (403)', 403 === $out['code'] && 'mody_registrat
 // 2. The checks ---------------------------------------------------------------------
 
 echo "\nThe checks\n";
+SignupLanguage::use( '' ); // English, on a Spanish site: the texts below are Mody's and core's own.
 $check( 'name: required, at most 60 characters, no links', '' !== Registration::check( 'name', '  ' ) && '' !== Registration::check( 'name', str_repeat( 'a', Registration::MAX_NAME + 1 ) ) && '' === Registration::check( 'name', str_repeat( 'a', Registration::MAX_NAME ) ) && '' === Registration::check( 'name', 'Ada Lovelace' ) && '' !== Registration::check( 'name', 'Call +34 600 000 000 or visit bank-secure.example' ) );
 $check( 'email: valid, and says nothing about accounts', str_contains( Registration::check( 'email', 'nope' ), 'valid email' ) && '' === Registration::check( 'email', $super->user_email ) && '' === Registration::check( 'email', $emails['a'] ) );
 $check( 'title: required, at most 60 characters, no links', '' !== Registration::check( 'title', '' ) && '' !== Registration::check( 'title', str_repeat( 'b', Registration::MAX_TITLE + 1 ) ) && '' !== Registration::check( 'title', 'Log in at evil.example/bank' ) && '' === Registration::check( 'title', 'Lina\'s Bakery' ) );
@@ -223,6 +252,7 @@ $fields = is_wp_error( $result ) ? array_keys( (array) $result->get_error_data()
 sort( $fields );
 $check( 'register() refuses all four bad answers', array( 'email', 'name', 'slug', 'title' ) === $fields, implode( ', ', $fields ) );
 $check( '... and creates nothing', ! get_user_by( 'email', 'nope' ) && ! $site_exists( 'ab' ) );
+SignupLanguage::reset();
 
 // 3. Open, over HTTP ----------------------------------------------------------------
 
@@ -232,12 +262,37 @@ Registration::ensure_page();
 $page_id = (int) get_option( Registration::PAGE_OPTION );
 $page    = get_post( $page_id );
 $check( 'the page exists, published at /register/, with the block', $page && 'publish' === $page->post_status && Registration::PAGE_SLUG === $page->post_name && has_block( Registration::BLOCK, $page ), $page_id ? (string) get_permalink( $page_id ) : 'none' );
-$url = (string) get_permalink( $page_id );
+$url = (string) get_permalink( $page_id ); // The default language's page: Spanish on the main site.
+
+// The page's English translation (/en/...), for the checks that read English text: the one the site has
+// (the home page's script and the maintainer make it), else one made here and removed at the end.
+$url_en = $url;
+if ( $page_id && class_exists( Translations::class ) && 'en_US' !== Languages::default_locale() ) {
+	$english = Languages::is_other( 'en_US' ) ? Translations::in( $page_id, 'en_US', true ) : 0;
+	if ( ! $english && Languages::is_other( 'en_US' ) ) {
+		$made = Translations::create( $page_id, 'en_US' );
+		if ( is_int( $made ) && $made ) {
+			$english_id = $made;
+			$english    = $made;
+			wp_update_post(
+				array(
+					'ID'          => $made,
+					'post_status' => 'publish',
+				)
+			);
+		}
+	}
+	$url_en = $english ? (string) get_permalink( $english ) : $url;
+	$check( 'the page\'s English translation, under /en/ (the site\'s other language)', $english && str_contains( $url_en, '/en/' ), $url_en );
+}
 
 $out = $http( 'GET', $url );
 preg_match( '/name="_mody_nonce" value="([0-9a-f]+)"/', $out['body'], $nonce );
 $nonce = $nonce[1] ?? '';
 $check( 'the page: the chat\'s script and settings, and the form', 200 === $out['code'] && str_contains( $out['body'], 'assets/register.js' ) && str_contains( $out['body'], 'window.modyRegister' ) && str_contains( $out['body'], 'id="mody-register-chat"' ) && '' !== $nonce, (string) $out['code'] );
+$check( '... the default page is Spanish: the form, and the chat sends es_ES', $url === $url_en || ( str_contains( $out['body'], 'Vivo en España.' ) && str_contains( $out['body'], '"lang":"es_ES"' ) && ! str_contains( $out['body'], 'Answer four quick questions' ) && 1 === preg_match( '/<html[^>]*\blang="es/', $out['body'] ) ), $url === $url_en ? 'the site\'s default is English' : '' );
+$out = $http( 'GET', $url_en );
+$check( '... and its English translation: English, the chat sends no language', 200 === $out['code'] && str_contains( $out['body'], 'Answer four quick questions' ) && str_contains( $out['body'], 'name="mody_email"' ) && ( $url === $url_en || ( str_contains( $out['body'], '"lang":""' ) && ! str_contains( $out['body'], 'Vivo en España.' ) ) ), (string) $out['code'] . ' ' . $url_en );
 $check( '... the antibot widget and its script, in the form', str_contains( $out['body'], '<altcha-widget class="mody-altcha" name="altcha"' ) && str_contains( $out['body'], '/dist/altcha.js' ) && str_contains( $out['body'], 'Signing up needs JavaScript' ) );
 $in_container = do_blocks( '<!-- wp:spectra/container {"tagName":"section"} --><div class="wp-block-spectra-container"><!-- wp:' . Registration::BLOCK . ' /--></div><!-- /wp:spectra/container -->' );
 $check( '... and inside a Spectra container too (its kses; the home page)', str_contains( $in_container, '<altcha-widget class="mody-altcha" name="altcha" challenge="' ) && str_contains( $in_container, 'auto="onfocus"' ) );
@@ -293,7 +348,7 @@ add_filter(
 	2
 );
 // In-process, so the welcome email can be read here; the REST route is checked with the next account.
-$account = Registration::register( 'Ada Lovelace', $emails['a'], 'Ada\'s Analytical Bakery', $slugs['a'] );
+$account = SignupLanguage::with( '', static fn() => Registration::register( 'Ada Lovelace', $emails['a'], 'Ada\'s Analytical Bakery', $slugs['a'] ) ); // English signup: the welcome email is read below.
 $seconds = microtime( true ) - $started;
 $user    = get_user_by( 'email', $emails['a'] );
 $row     = $user ? Members::get( $user->ID ) : null;
@@ -301,15 +356,18 @@ $check( 'register(): the account, in seconds', is_array( $account ) && $user && 
 $check( '... the user, with their name and no main-site role', $user && 'Ada Lovelace' === $user->display_name && ! ( new WP_User( $user->ID ) )->roles, $user ? $user->user_login : 'no user' );
 $check( '... free, active, with no end and no billing date', $row && 'free' === $row['plan'] && 'active' === $row['status'] && null === $row['free_until'] && null === $row['billing_due_at'], $row ? (string) wp_json_encode( $row ) : '' );
 $check( '... the onboarding stage: password', $user && Onboarding::STAGE_PASSWORD === get_user_meta( $user->ID, Onboarding::META, true ) );
+$check( '... in English, chosen: the account\'s language en_US (the site\'s own may be another)', $user && 'en_US' === get_user_meta( $user->ID, 'locale', true ) );
 $site_id = is_array( $account ) ? (int) $account['site_id'] : 0;
 $job     = $site_id ? Jobs::get( (int) get_blog_option( $site_id, 'mody_provisioning_job' ) ) : null;
 $check( '... the site, at its address, with the member as administrator', $site_id && Pipeline::domain( $slugs['a'] ) === get_site( $site_id )->domain && is_user_member_of_blog( $user->ID, $site_id ) && user_can_for_site( $user->ID, $site_id, 'administrator' ) );
 $check( '... the starter site: done, no model call, no site email', $job && 'done' === $job['status'] && ! empty( $job['input']['starter'] ) && '' === $job['input']['prompt'] && 'signup' === ( $job['result']['email'] ?? '' ) && empty( $job['result']['generation_error'] ) );
 switch_to_blog( $site_id );
-$front = get_post( (int) get_option( 'page_on_front' ) );
+$site_language = get_option( 'WPLANG', false );
+$front         = get_post( (int) get_option( 'page_on_front' ) );
 $check( '... the site\'s name, an empty tagline, the starter front page', 'Ada\'s Analytical Bakery' === wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) && '' === get_option( 'blogdescription' ) && $front && 'Home' === $front->post_title && 'publish' === $front->post_status && has_block( 'spectra/container', $front ) );
 $check( '... hidden from search engines until it has real pages', '0' === (string) get_site( $site_id )->public && '0' === (string) get_option( 'blog_public' ) && ! empty( wp_robots_no_robots( array() )['noindex'] ) );
 restore_current_blog();
+$check( '... its language the account\'s: English (WPLANG empty), not the network\'s ' . ( get_site_option( 'WPLANG' ) ? get_site_option( 'WPLANG' ) : 'English' ), '' === $site_language, var_export( $site_language, true ) );
 // Core also tells the network admin about each new site (the network option `registrationnotification`).
 $to_member = array_values( array_filter( $mails, static fn( array $mail ): bool => $emails['a'] === $mail['to'] ) );
 $welcome   = $to_member[0] ?? array();
@@ -323,6 +381,14 @@ $out = $rest( 'register', $answers( 'b' ) );
 $settle( $emails['b'] );
 $b = get_user_by( 'email', $emails['b'] );
 $check( 'register over REST: 201 with the email and the address', 201 === $out['code'] && $emails['b'] === ( $out['json']['email'] ?? '' ) && Pipeline::domain( $slugs['b'] ) === ( $out['json']['address'] ?? '' ) && $b && Members::get( $b->ID ), (string) $out['code'] );
+$check( '... with no `lang`: English, the account\'s en_US', $b && 'en_US' === get_user_meta( $b->ID, 'locale', true ), $b ? (string) get_user_meta( $b->ID, 'locale', true ) : 'no user' );
+
+// A signup in Spanish (the chat on the default page sends es_ES): the account and its site keep the language.
+$out = $rest( 'register', $answers( 'es', array( 'lang' => 'es_ES' ) ) );
+$settle( $emails['es'] );
+$es      = get_user_by( 'email', $emails['es'] );
+$es_site = $site_exists( $slugs['es'] ) ? (int) get_sites( array( 'domain' => Pipeline::domain( $slugs['es'] ), 'fields' => 'ids', 'number' => 1 ) )[0] : 0;
+$check( 'a signup in Spanish over REST: 201, the account\'s language es_ES, its site\'s WPLANG es_ES', 201 === $out['code'] && $es && 'es_ES' === get_user_meta( $es->ID, 'locale', true ) && $es_site && 'es_ES' === get_blog_option( $es_site, 'WPLANG' ), (string) $out['code'] . ' ' . ( $es ? (string) get_user_meta( $es->ID, 'locale', true ) : 'no user' ) . ' ' . ( $es_site ? (string) get_blog_option( $es_site, 'WPLANG' ) : 'no site' ) );
 $users_before = count( get_users( array( 'fields' => 'ID' ) ) );
 $out          = $rest( 'register', $answers( 'b', array( 'slug' => $slugs['c'] ) ) );
 $check( '... the same email again: the same answer, and nothing is created', 201 === $out['code'] && $emails['b'] === ( $out['json']['email'] ?? '' ) && ! $site_exists( $slugs['c'] ) && count( get_users( array( 'fields' => 'ID' ) ) ) === $users_before, (string) $out['code'] );
@@ -347,15 +413,20 @@ $form = static fn( array $over = array() ): array => array_merge(
 	),
 	$over
 );
-$out = $http( 'POST', $url, array(), $form( array( 'mody_email' => 'not-an-email' ) ) );
+$out = $http( 'POST', $url_en, array(), $form( array( 'mody_email' => 'not-an-email' ) ) );
 $check( 'a bad post: its error, the answers kept, no account', 200 === $out['code'] && str_contains( $out['body'], 'Please enter a valid email address.' ) && str_contains( $out['body'], 'value="Charles Babbage"' ) && str_contains( $out['body'], 'value="' . $slugs['c'] . '"' ) && ! get_user_by( 'email', $emails['c'] ), (string) $out['code'] );
-$out = $http( 'POST', $url, array(), $form( array( 'altcha' => '' ) ) );
+if ( $url !== $url_en ) {
+	$spanish_error = SignupLanguage::with( 'es_ES', static fn() => Registration::check( 'email', 'not-an-email' ) );
+	$out           = $http( 'POST', $url, array(), $form( array( 'mody_email' => 'not-an-email' ) ) );
+	$check( 'a bad post on the default page: the error in Spanish, no account', 200 === $out['code'] && 'Please enter a valid email address.' !== $spanish_error && str_contains( $out['body'], esc_html( $spanish_error ) ) && ! str_contains( $out['body'], 'Please enter a valid email address.' ) && ! get_user_by( 'email', $emails['c'] ), $spanish_error );
+}
+$out = $http( 'POST', $url_en, array(), $form( array( 'altcha' => '' ) ) );
 $check( 'a post without the antibot solution: refused, no account', str_contains( $out['body'], esc_html( Altcha::failed_message() ) ) && ! get_user_by( 'email', $emails['c'] ) );
-$out = $http( 'POST', $url, array(), $form( array( 'mody_spain' => '' ) ) );
+$out = $http( 'POST', $url_en, array(), $form( array( 'mody_spain' => '' ) ) );
 $check( 'a post without "I live in Spain": asked to confirm, no account', str_contains( $out['body'], 'Please confirm that you live in Spain.' ) && ! get_user_by( 'email', $emails['c'] ) );
-$out = $http( 'POST', $url, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
+$out = $http( 'POST', $url_en, array(), $form( array( '_mody_nonce' => 'deadbeef00' ) ) );
 $check( 'an expired nonce is refused', str_contains( $out['body'], 'The form expired.' ) && ! get_user_by( 'email', $emails['c'] ) );
-$out = $http( 'POST', $url, array(), $form() );
+$out = $http( 'POST', $url_en, array(), $form() );
 $settle( $emails['c'] );
 $c = get_user_by( 'email', $emails['c'] );
 $check( 'a good post: "Done!", the account and the site', 200 === $out['code'] && str_contains( $out['body'], 'Done! I sent an email to ' . $emails['c'] . '.' ) && $c && $site_exists( $slugs['c'] ), (string) $out['code'] );
@@ -370,7 +441,7 @@ $cookie    = static function ( int $user_id ): array {
 	);
 };
 if ( $user ) {
-	$out = $http( 'GET', $url, $cookie( $user->ID ) );
+	$out = $http( 'GET', $url_en, $cookie( $user->ID ) );
 	$check( 'a logged-in visitor: "You already have an account."', str_contains( $out['body'], 'You already have an account.' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
 	$out = $http( 'GET', Registration::dashboard_url(), $cookie( $user->ID ) );
 	$check( 'the free member\'s dashboard: 1 of 1 site, no New site', 200 === $out['code'] && str_contains( $out['body'], '1 of 1 site used' ) && str_contains( $out['body'], 'The free plan includes one site.' ), (string) $out['code'] );
@@ -389,7 +460,7 @@ $request->set_param( 'nonce', wp_create_nonce( Registration::ACTION ) );
 $request->set_param( 'ref', '' );
 $country = static fn(): string => 'FR';
 add_filter( 'mody_registration_country', $country );
-$refused = Registration::rest_permission( $request );
+$refused = SignupLanguage::with( '', static fn() => Registration::rest_permission( $request ) );
 $check( 'an address placed in France: refused (403), told Spain only', is_wp_error( $refused ) && 'mody_outside_spain' === $refused->get_error_code() && str_contains( $refused->get_error_message(), 'live in Spain' ) );
 remove_filter( 'mody_registration_country', $country );
 $country = static fn(): string => 'ES';
@@ -399,7 +470,7 @@ remove_filter( 'mody_registration_country', $country );
 $check( '... and one it cannot place passes (a private address here)', false === Registration::outside_spain() );
 
 update_site_option( \Mody\Members\Offers::OPTION, array( 'launch_who' => 'invited', 'invites_on' => true ) );
-$out = $http( 'GET', $url );
+$out = $http( 'GET', $url_en );
 $check( 'invited only: the page says so, no form', str_contains( $out['body'], 'Sign-ups are by invitation for now' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
 $out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
 $check( '... the register route refuses (403)', 403 === $out['code'] && 'mody_signups_invited_only' === ( $out['json']['code'] ?? '' ) && ! get_user_by( 'email', $other ), (string) $out['code'] );
@@ -410,9 +481,11 @@ delete_site_option( \Mody\Members\Offers::OPTION );
 echo "\nClosed again\n";
 delete_site_option( Registration::OPEN_OPTION );
 $other = 'modyregd' . $suffix . '@mody.local';
-$out   = $http( 'GET', $url );
+$out   = $http( 'GET', $url_en );
 $check( 'the page says registration opens soon', str_contains( $out['body'], 'Registration opens soon.' ) && ! str_contains( $out['body'], 'name="mody_email"' ) );
-$out = $http( 'POST', $url, array(), $form( array( 'mody_email' => $other ) ) );
+$out = $http( 'GET', $url );
+$check( '... and in Spanish on the default page', $url === $url_en || ( str_contains( $out['body'], $closed_es ) && ! str_contains( $out['body'], 'name="mody_email"' ) ), $closed_es );
+$out = $http( 'POST', $url_en, array(), $form( array( 'mody_email' => $other ) ) );
 $check( 'a good post creates nothing', str_contains( $out['body'], 'Registration is not open yet.' ) && ! get_user_by( 'email', $other ) );
 $out = $rest( 'register', $answers( 'a', array( 'email' => $other ) ) );
 $check( 'the register route refuses (403)', 403 === $out['code'] && ! get_user_by( 'email', $other ), (string) $out['code'] );

@@ -52,11 +52,11 @@ Mody Cloud launches free ([free-mvp.md](free-mvp.md), decided by the maintainer 
 1. **The free service** built and deployed ([free-mvp.md](free-mvp.md), [#13](https://github.com/phycticio/mody.cloud/issues/13)).
 2. **Every member screen in a real browser** ([launch-browser-check.md](launch-browser-check.md), [#17](https://github.com/phycticio/mody.cloud/issues/17)).
 3. **Production checked end to end** ([launch-production-check.md](launch-production-check.md), [#16](https://github.com/phycticio/mody.cloud/issues/16)): the server's configuration, Spain only, a real signup, the restore's full-stack check, the Composer credential rotated, the legal pages after the adviser's read.
-4. **Mody Security** ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), #38): deployed 2026-11-21; the maintainer sets up two-step login on the main site's profile and answers Q1 to Q4.
+4. **Mody Security** ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), #38): deployed 2026-11-21; two-step login set up by the maintainer on 2026-11-26 (a security key and an app); Q2 answered the same day; Q1, Q3 and Q4 left.
 5. **The security sign-off** recorded below, after 1 to 4 (step 1 is done, deployed 2026-11-20 in `990aa62`).
 
 ## Acceptance (launch checklist)
-- [ ] Register (from Spain) → free site → edit in Site Editor → agent tool → all work over HTTPS on the production front end ([launch-production-check.md](launch-production-check.md)).
+- [x] Register (from Spain) → free site → edit in Site Editor → agent tool → all work over HTTPS on the production front end ([launch-production-check.md](launch-production-check.md)): `aliris.mody.cloud`, a real member, 2026-11-26.
 - [ ] Restore drill completes with zero data loss on the test account, and WordPress runs on the restored data ([backups.md](backups.md)).
 - [ ] Mody Security set up: two-step login on the maintainer's profile, Q1 to Q4 answered.
 - [ ] WP-Cron on subsites answered, or recorded as not needed at launch.

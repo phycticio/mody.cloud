@@ -37,6 +37,12 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 	printf( "%-4s %-60s %s\n", $ok ? 'ok' : 'FAIL', $label, $detail );
 };
 
+// The names the agent reads (template titles, list labels) come from WordPress's translations: English here,
+// as the checks read English; the main site's default is Spanish (tickets/spanish-by-default.md). A block
+// type's title is translated once, when the block is registered, so it stays in the site's language: the
+// checks take it from the registry.
+switch_to_locale( 'en_US' );
+$block_title = static fn( string $name ): string => (string) WP_Block_Type_Registry::get_instance()->get_registered( $name )->title;
 $admins = get_super_admins();
 wp_set_current_user( get_user_by( 'login', $admins[0] )->ID );
 $open    = wp_get_ability( 'mody/open-editor' );
@@ -58,6 +64,20 @@ register_shutdown_function(
 		}
 	}
 );
+// The lists below assume a site that shows its latest posts on the front page (as the checks say); the main
+// site may have a static front page (the landing page), so for the run it shows its posts, then it is put back.
+$front_options = array(
+	'show_on_front'  => get_option( 'show_on_front' ),
+	'page_on_front'  => get_option( 'page_on_front' ),
+	'page_for_posts' => get_option( 'page_for_posts' ),
+);
+$cleanup[]     = static function () use ( $front_options ): void {
+	foreach ( $front_options as $name => $value ) {
+		update_option( $name, $value );
+	}
+};
+update_option( 'show_on_front', 'posts' );
+update_option( 'page_for_posts', 0 );
 
 // 1. Destinations -------------------------------------------------------------------
 
@@ -92,7 +112,7 @@ $result = $run(
 		'block'  => 'core/button',
 	)
 );
-$check( 'one block type: encoded as the Site Editor does', is_array( $result ) && str_contains( $result['url'], 'section=%2Fblocks%2Fcore%252Fbutton' ) && str_ends_with( $result['place'], '→ Button' ), is_array( $result ) ? $result['place'] : $code( $result ) );
+$check( 'one block type: encoded as the Site Editor does', is_array( $result ) && str_contains( $result['url'], 'section=%2Fblocks%2Fcore%252Fbutton' ) && str_ends_with( $result['place'], '→ ' . $block_title( 'core/button' ) ), is_array( $result ) ? $result['place'] : $code( $result ) );
 $check( '...an unknown block refused', 'mody_block_not_found' === $code( $run( array( 'target' => 'styles', 'block' => 'core/nope' ) ) ) );
 
 $result = $run(
@@ -195,7 +215,7 @@ $result = $by_title( 'lighthouse' );
 $titles = is_wp_error( $result ) ? wp_list_pluck( (array) ( $result->get_error_data()['pages'] ?? array() ), 'title' ) : array();
 sort( $titles );
 $check( 'several: refused, listing them, so the agent asks', 'mody_page_ambiguous' === $code( $result ) && array( 'Lighthouse Tours', 'Lighthouse Tours for Schools' ) === $titles, implode( ', ', $titles ) );
-$check( 'none: not found, with the pages', 'mody_page_not_found' === $code( $by_title( 'pricing zzq' ) ) && 'mody_page_not_found' === $code( $by_title( 'ca' ) ) );
+$check( 'none: not found, with the pages', 'mody_page_not_found' === $code( $by_title( 'zqxv unmatched title' ) ) && 'mody_page_not_found' === $code( $by_title( 'ca' ) ) );
 
 // 2. The lists ----------------------------------------------------------------------
 
@@ -301,7 +321,7 @@ $check(
 	$named( array( 'p' => '/wp_template/' . $theme . '//index' ) )
 );
 $check( 'the Identity screen', 'the Identity screen' === $named( array( 'p' => '/identity' ) ) );
-$check( 'a block type\'s styles', str_ends_with( $named( array( 'p' => '/styles', 'section' => '/blocks/core%2Fheading' ) ), '→ Heading' ), $named( array( 'p' => '/styles', 'section' => '/blocks/core%2Fheading' ) ) );
+$check( 'a block type\'s styles', str_ends_with( $named( array( 'p' => '/styles', 'section' => '/blocks/core%2Fheading' ) ), '→ ' . $block_title( 'core/heading' ) ), $named( array( 'p' => '/styles', 'section' => '/blocks/core%2Fheading' ) ) );
 $check( 'refused: not a route, too long; a bad section dropped', null === SiteEditor::screen_from_input( array( 'p' => 'javascript:alert(1)' ) ) && null === SiteEditor::screen_from_input( array( 'p' => '/' . str_repeat( 'a', 250 ) ) ) && '' === SiteEditor::screen_from_input( array( 'p' => '/styles', 'section' => '<b>' ) )['section'] && null === SiteEditor::screen_from_input( 'x' ) );
 $check( 'the prompt line', str_contains( SystemPrompt::for_screen( SiteEditor::screen_from_input( array( 'p' => '/styles', 'section' => '/colors' ) ) ), 'and Styles → Colors is open right now. Only when they ask for this very screen, do not open it again' ) );
 

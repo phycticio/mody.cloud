@@ -121,9 +121,12 @@ $settle = static function ( string $email ) use ( $wpdb ): bool {
 	return false;
 };
 
-// This container reaches only the main host; the Host header picks the site.
+// This container reaches only the main host; the Host header picks the site. WordPress's login screens speak
+// the site's language, Spanish on the main site (tickets/spanish-by-default.md); the checks read English, so
+// every request asks for it with the `wp_lang` cookie the login screen's own language chooser sets.
 $http = static function ( string $method, string $url, array $cookies = array(), $body = null, array $headers = array() ) use ( $main ): array {
 	$parts    = wp_parse_url( $url );
+	$cookies += array( 'wp_lang' => 'en_US' );
 	$response = wp_remote_request(
 		'https://' . $main . ( $parts['path'] ?? '/' ) . ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' ),
 		array(

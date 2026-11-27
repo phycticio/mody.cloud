@@ -27,6 +27,7 @@
 
 use Mody\Members\Members;
 use Mody\Members\Registration;
+use Mody\Members\SignupLanguage;
 use Mody\Onboarding\EditorTour;
 use Mody\Onboarding\Onboarding;
 use Mody\Agent\SiteEditor;
@@ -107,10 +108,12 @@ $login_cookie = static function ( int $user_id ): array {
 		LOGGED_IN_COOKIE   => wp_generate_auth_cookie( $user_id, $expiration, 'logged_in', $token ),
 	);
 };
-$reset_post = static function ( string $login, string $key, string $password ) use ( $http ): array {
+// WordPress's login screens speak the site's language, Spanish on the main site (tickets/spanish-by-default.md):
+// English unless asked ($lang '' for the site's own), as `wp_lang` does for a visitor.
+$reset_post = static function ( string $login, string $key, string $password, string $lang = 'en_US' ) use ( $http ): array {
 	return $http(
 		'POST',
-		network_site_url( 'wp-login.php?action=resetpass', 'login_post' ),
+		network_site_url( 'wp-login.php?action=resetpass' . ( '' !== $lang ? '&wp_lang=' . $lang : '' ), 'login_post' ),
 		array( 'wp-resetpass-' . COOKIEHASH => $login . ':' . $key ),
 		array(
 			'pass1'     => $password,
@@ -136,7 +139,7 @@ add_filter(
 	10,
 	2
 );
-$account = Registration::register( 'Grace Hopper', $email, 'Hopper Compilers', 'hopper' . $suffix );
+$account = SignupLanguage::with( '', static fn() => Registration::register( 'Grace Hopper', $email, 'Hopper Compilers', 'hopper' . $suffix ) ); // An English signup: the account and its site in English, the tour's words too.
 $user    = get_user_by( 'email', $email );
 $site_id = is_array( $account ) ? (int) $account['site_id'] : 0;
 preg_match( '#(https?://\S+wp-login\.php\?action=rp&key=([^&\s]+)&login=(\S+))#', (string) ( $mails[0]['message'] ?? '' ), $link );
@@ -226,6 +229,16 @@ echo "\nLater\n";
 $key = get_password_reset_key( $user );
 $out = $reset_post( $user->user_login, (string) $key, 'another long password ' . $suffix );
 $check( 'a later reset: WordPress\'s own "Your password has been reset."', 200 === $out['code'] && str_contains( $out['body'], 'Your password has been reset.' ) && ! isset( $out['cookies'][ LOGGED_IN_COOKIE ] ), (string) $out['code'] );
+// Without a language asked for, WordPress speaks the site's: Spanish on the main site, from the language pack.
+$spanish = ( static function (): string {
+	$switched = switch_to_locale( 'es_ES' );
+	$text     = __( 'Your password has been reset.' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own word.
+	$switched && restore_previous_locale();
+	return $text;
+} )();
+clean_user_cache( $user->ID ); // The reset above ran in another process.
+$out = $reset_post( $user->user_login, (string) get_password_reset_key( get_userdata( $user->ID ) ), 'a third long password ' . $suffix, '' );
+$check( '... and in the site\'s own language without one: Spanish', 'es_ES' === get_locale() && 'Your password has been reset.' !== $spanish && 200 === $out['code'] && str_contains( $out['body'], $spanish ) && ! isset( $out['cookies'][ LOGGED_IN_COOKIE ] ), $spanish );
 
 $bare = wp_insert_user(
 	array(

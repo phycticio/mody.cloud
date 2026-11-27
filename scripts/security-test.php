@@ -622,7 +622,10 @@ $check( '... and not when nobody must', 200 === $out['code'], (string) $out['cod
 
 echo "\nLogin protection\n";
 $visitor = array( 'X-Forwarded-For' => '203.0.113.77' );
-$before  = Events::counts( time() - 60 );
+// One window for every before-and-after count below: a moving minute lets earlier events drop out while the
+// slow requests run (the counts then came out short in a full-suite run on 2026-11-27).
+$since  = time() - HOUR_IN_SECONDS;
+$before = Events::counts( $since );
 $out     = $http(
 	'POST',
 	$login_url,
@@ -639,17 +642,17 @@ $out = $login( $plain, $plain_pass, array(), $visitor );
 $check( '... and the address is paused, the right password too', ! $logged_in( $out ) && str_contains( $out['body'], 'Too many failed attempts from this connection' ) );
 $out = $login( $plain, $plain_pass, array(), array( 'X-Forwarded-For' => '203.0.113.78' ) );
 $check( '... another address is not', $logged_in( $out ) );
-$check( '... and it is in the log', Events::counts( time() - 60 )['username_blocked'] === $before['username_blocked'] + 1 );
+$check( '... and it is in the log', Events::counts( $since )['username_blocked'] === $before['username_blocked'] + 1 );
 $set( array( 'blocked_usernames' => array( $plain->user_login ) ) );
 $out = $login( $plain, $plain_pass, array(), array( 'X-Forwarded-For' => '203.0.113.79' ) );
 $check( 'a blocked name that is a real account is never blocked', $logged_in( $out ) );
 $set( array( 'blocked_usernames' => Settings::defaults()['blocked_usernames'] ) );
-$before = Events::counts( time() - 60 );
+$before = Events::counts( $since );
 for ( $i = 1; $i <= 5; $i++ ) {
 	$login( $plain, 'wrong' . $i, array(), array( 'X-Forwarded-For' => '203.0.113.80' ) );
 }
 $out = $login( $plain, $plain_pass, array(), array( 'X-Forwarded-For' => '203.0.113.80' ) );
-$after = Events::counts( time() - 60 );
+$after = Events::counts( $since );
 $check( 'five wrong passwords pause the account at that address, logged once', ! $logged_in( $out ) && $after['paused'] === $before['paused'] + 1 && $after['login_failed'] >= $before['login_failed'] + 5, ( $after['paused'] - $before['paused'] ) . ' pause(s)' );
 RateLimit::clear();
 
@@ -718,10 +721,10 @@ $set(
 );
 $check( 'a group switched off stops matching', null === Firewall::match( '1 UNION SELECT 1' ) && null !== Firewall::match( '<script>' ) );
 $set( array( 'rules' => Settings::defaults()['rules'] ) );
-$before = Events::counts( time() - 60 );
+$before = Events::counts( $since );
 $out    = $http( 'GET', home_url( '/?q=' . rawurlencode( '1 union select user_pass from wp_users' ) ) );
 $check( 'over HTTP: an attack in the query gets 403 and a reference', 403 === $out['code'] && str_contains( $out['body'], 'Request blocked' ) && preg_match( '/<code>[0-9A-F]{8}<\/code>/', $out['body'] ), (string) $out['code'] );
-$check( '... logged', Events::counts( time() - 60 )['firewall'] === $before['firewall'] + 1 );
+$check( '... logged', Events::counts( $since )['firewall'] === $before['firewall'] + 1 );
 $out = $http( 'GET', home_url( '/?s=' . rawurlencode( 'union membership' ) ) );
 $check( '... an ordinary search does not', 200 === $out['code'], (string) $out['code'] );
 $out = $http( 'POST', network_site_url( 'wp-comments-post.php' ), array( 'comment' => '<script>alert(1)</script>', 'comment_post_ID' => '1' ) );
