@@ -19,17 +19,20 @@ use WP_Translation_File;
  * on: Spanish, French, German, Italian, Portuguese, Dutch or Catalan, the
  * languages Mody Languages offers; English otherwise.
  *
- * WordPress switches its words only for installed languages
- * (site-languages.md, part 9), so while a language is in use, WordPress's
- * gettext filters answer from this plugin's own files, in WordPress's PHP
- * format: `languages/mody_cloud-<locale>.l10n.php` for our words, and
+ * While a language is in use, WordPress's gettext filters answer from this
+ * plugin's own files, in WordPress's PHP format:
+ * `languages/mody_cloud-<locale>.l10n.php` for our words, and
  * `languages/core-<locale>.l10n.php` for the few of core's words the signup
- * shows (why an address is refused, the time to wait). A string without a
- * translation stays in English.
+ * shows (why an address is refused, the time to wait). WordPress itself is
+ * switched too (switch_to_locale()): to the language when it is installed
+ * (bin/languages: Spanish and Catalan, tickets/spanish-by-default.md), else to
+ * English, so a word without a translation is English, never the site's
+ * default language (Spanish on mody.cloud since 2026-11-27).
  *
  * Where the language comes from:
- * - the page: Mody Languages' language of the address (`/es/`), when it is
- *   there (class_exists); the block's render and the form's post;
+ * - the page: Mody Languages' language of the address (`/en/`, or the site's
+ *   default language without a prefix), when it is there (class_exists),
+ *   else the site's language; the block's render and the form's post;
  * - the chat's REST requests: their `lang`, sent by register.js;
  * - an email to a member: their WordPress language (user meta `locale`), else
  *   the request's; work done after the response takes the request's along.
@@ -47,6 +50,12 @@ final class SignupLanguage {
 
 	/** The language in use: one of LOCALES, or '' for English. */
 	private static string $active = '';
+
+	/** Whether a language was chosen (use()), rather than none (the site's own, reset()). */
+	private static bool $chosen = false;
+
+	/** Whether WordPress's locale was switched for the language in use. */
+	private static bool $switched = false;
 
 	/** Whether the gettext filters are added (on the first language used). */
 	private static bool $hooked = false;
@@ -81,10 +90,8 @@ final class SignupLanguage {
 	 * without Mody Languages.
 	 */
 	public static function of_page(): string {
-		if ( ! class_exists( \Mody\Languages\Router::class ) || ! \Mody\Languages\Router::is_other() ) {
-			return '';
-		}
-		return self::supported( \Mody\Languages\Router::current() );
+		$locale = class_exists( \Mody\Languages\Router::class ) ? \Mody\Languages\Router::current() : get_locale();
+		return self::supported( $locale );
 	}
 
 	/**
@@ -103,6 +110,8 @@ final class SignupLanguage {
 	public static function use( string $locale ): string {
 		$before       = self::$active;
 		self::$active = self::supported( $locale );
+		self::$chosen = true;
+		self::switch_wordpress();
 		if ( '' !== self::$active && ! self::$hooked ) {
 			self::$hooked = true;
 			foreach ( array_keys( self::DOMAINS ) as $domain ) {
@@ -123,12 +132,43 @@ final class SignupLanguage {
 	 * @return T What the work returns.
 	 */
 	public static function with( string $locale, callable $work ) {
+		$chosen = self::$chosen;
 		$before = self::use( $locale );
 		try {
 			return $work();
 		} finally {
-			self::use( $before );
+			if ( $chosen ) {
+				self::use( $before );
+			} else {
+				self::reset();
+			}
 		}
+	}
+
+	/**
+	 * No language chosen any more: WordPress back in the site's own language.
+	 */
+	public static function reset(): void {
+		self::$active = '';
+		self::$chosen = false;
+		self::switch_wordpress();
+	}
+
+	/**
+	 * Puts WordPress's own locale in step with the language in use: the
+	 * language when WordPress has it installed, else English; the site's own
+	 * when none is chosen.
+	 */
+	private static function switch_wordpress(): void {
+		if ( self::$switched ) {
+			restore_previous_locale();
+			self::$switched = false;
+		}
+		if ( ! self::$chosen ) {
+			return;
+		}
+		$wanted         = '' !== self::$active && in_array( self::$active, get_available_languages(), true ) ? self::$active : 'en_US';
+		self::$switched = switch_to_locale( $wanted );
 	}
 
 	/**
@@ -138,18 +178,31 @@ final class SignupLanguage {
 	 * @param int $user_id The member.
 	 */
 	public static function of_user( int $user_id ): string {
-		$own = self::supported( (string) get_user_meta( $user_id, 'locale', true ) );
+		$meta = (string) get_user_meta( $user_id, 'locale', true );
+		if ( 'en_US' === $meta ) {
+			return ''; // English, chosen: not the request's language.
+		}
+		$own = self::supported( $meta );
 		return '' !== $own ? $own : self::$active;
 	}
 
 	/**
-	 * The language to keep as a new account's WordPress language: the one in
-	 * use, once WordPress has it installed (site-languages.md, part 9).
-	 * Until then '', because wp-admin would say it speaks that language
-	 * (`<html lang>`) while showing English.
+	 * The language to keep as a new account's WordPress language (user meta
+	 * `locale`): the one the person signs up in (decided by the maintainer on
+	 * 2026-11-27, tickets/spanish-by-default.md, Q4). English is kept as
+	 * `en_US`, since the site's default may be another language. A language
+	 * WordPress does not have installed gives '' (the site's default), because
+	 * wp-admin would say it speaks that language (`<html lang>`) while showing
+	 * another. Mody Sites gives the account's first site the same language.
 	 */
 	public static function for_account(): string {
-		return '' !== self::$active && in_array( self::$active, get_available_languages(), true ) ? self::$active : '';
+		if ( ! self::$chosen ) {
+			return '';
+		}
+		if ( '' === self::$active ) {
+			return 'en_US';
+		}
+		return in_array( self::$active, get_available_languages(), true ) ? self::$active : '';
 	}
 
 	/**
@@ -268,7 +321,7 @@ final class SignupLanguage {
 	}
 
 	/**
-	 * `rest_request_after_callbacks`: English again. Work done after the
+	 * `rest_request_after_callbacks`: the site's own language again. Work done after the
 	 * response (Registration::later()) takes its language along.
 	 *
 	 * @param WP_HTTP_Response|\WP_Error|mixed $response The response.
@@ -278,7 +331,7 @@ final class SignupLanguage {
 	 */
 	public static function rest_after( $response, $handler, $request ) {
 		if ( $request instanceof WP_REST_Request && self::is_chat( $request ) ) {
-			self::use( '' );
+			self::reset();
 		}
 		return $response;
 	}

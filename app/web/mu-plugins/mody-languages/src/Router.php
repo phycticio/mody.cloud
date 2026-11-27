@@ -56,6 +56,7 @@ final class Router {
 		add_filter( 'do_parse_request', array( self::class, 'read_prefix' ), 1, 2 );
 		add_action( 'parse_request', array( self::class, 'after_parse' ), 1 );
 		add_action( 'template_redirect', array( self::class, 'redirect_wrong_address' ), 1 );
+		add_action( 'template_redirect', array( self::class, 'redirect_missing_language' ), 1 );
 		add_filter( 'page_link', array( self::class, 'page_link' ), 20, 2 );
 		add_filter( 'post_link', array( self::class, 'post_link' ), 20, 2 );
 		add_filter( 'url_to_postid', array( self::class, 'url_to_postid' ) );
@@ -239,6 +240,32 @@ final class Router {
 			return;
 		}
 		wp_safe_redirect( $target, 301 );
+		exit;
+	}
+
+	/**
+	 * `template_redirect`: an address that is not found and starts with the
+	 * prefix of a language the site does not have (any more) goes to the same
+	 * address without it (301): a language removed (/de/ on mody.cloud since
+	 * 2026-11-27), or the default language's own prefix (/es/ once Spanish is
+	 * the default; tickets/spanish-by-default.md).
+	 */
+	public static function redirect_missing_language(): void {
+		if ( ! is_404() || ! isset( $_SERVER['REQUEST_URI'] ) ) {
+			return;
+		}
+		$uri                          = (string) wp_unslash( $_SERVER['REQUEST_URI'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only split and compared.
+		[ , $path, $query ] = self::split_uri( $uri );
+		$first              = (string) strtok( $path, '/' );
+		if ( '' === $first || '' !== Languages::from_slug( $first ) ) {
+			return;
+		}
+		$offered = array_filter( array_keys( Languages::OFFERED ), static fn( string $locale ): bool => Languages::slug( $locale ) === $first );
+		if ( ! $offered ) {
+			return;
+		}
+		$rest = ltrim( substr( $path, strlen( $first ) ), '/' );
+		wp_safe_redirect( home_url( '/' . $rest ) . $query, 301 );
 		exit;
 	}
 

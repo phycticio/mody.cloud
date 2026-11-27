@@ -4,7 +4,7 @@ The product source of truth is `Mody_Cloud_Briefing_Agente_Codificacion_v4.pdf` 
 
 ## Precedence
 
-1. The briefing's non-negotiable constraints apply ([constraints.md](constraints.md)), with one deliberate override: **everything is written in English**. That replaces the briefing's rule 8 (Spanish).
+1. The briefing's non-negotiable constraints apply ([constraints.md](constraints.md)), with one deliberate override: **everything we write is in English** (code, docs, commits, prompts). That replaces the briefing's rule 8 (Spanish) for the repository; what members and visitors read is Spanish by default (2026-11-26).
 2. For infrastructure, **the stack in this repository wins** over the briefing's stack recommendations. See [Briefing recommendations not adopted](architecture.md#briefing-recommendations-not-adopted).
 3. **Dated decisions by the maintainer win over the briefing**: those in [mvp-spec.md](mvp-spec.md) and AGENTS.md ("Decisions already made"). One of them (2026-11-10) replaced the briefing's non-profit association and its tiers with a self-employed business and plans of 1, 3 and 10 sites ([membership-tiers.md](membership-tiers.md)).
 4. For everything else (product, data model, AI engine, roadmap) the briefing is authoritative. These docs record it and flag open questions instead of inventing answers.

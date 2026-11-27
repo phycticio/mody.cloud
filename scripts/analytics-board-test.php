@@ -52,6 +52,11 @@ $other  = (int) wpmu_create_blog( 'board2' . $suffix . '.' . $domain, '/', 'Othe
 add_user_to_blog( $site, $editor, 'editor' );
 foreach ( array( $site, $other ) as $id ) {
 	switch_to_blog( $id );
+	// WordPress's sample post and page, in the network's language (Spanish since tickets/spanish-by-default.md:
+	// /pagina-ejemplo/): gone, so the only page nobody visited is the quiet one made below.
+	foreach ( get_posts( array( 'post_type' => array( 'post', 'page' ), 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids' ) ) as $sample ) {
+		wp_delete_post( (int) $sample, true );
+	}
 	switch_theme( 'theme' ); // As provisioning does: the theme's palette (primary, base...).
 	restore_current_blog();
 }

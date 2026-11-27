@@ -28,6 +28,8 @@
 
 ## Open questions
 
+Q2 to Q5 are taken up by [spanish-by-default.md](spanish-by-default.md) (#54, 2026-11-26): new accounts and sites in Spanish, `/register/` translated, everything after the signup in Spanish.
+
 - **Q1.** A native speaker's read of each language, starting with Spanish and Catalan (Spain only). The texts are in the files above; `scripts/signup-languages-test.php` checks that each keeps its placeholders.
 - **Q2.** The account's language before WordPress has the language installed (plan item 5): keep nothing until part 9 (built), or keep it now so those members switch when part 9 lands? **Inference:** keeping it now is safe only together with part 9.
 - **Q3.** Should a signup in Spanish make a Spanish site (core's Site Language, `WPLANG`, and the starter page)? Today every new site starts in English.

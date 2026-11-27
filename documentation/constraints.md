@@ -1,6 +1,6 @@
 # Non-negotiable constraints
 
-These eight rules come from the briefing (§11) and apply to every change, human or agent. Rule 8 is a deliberate override of the briefing, which asked for Spanish. Rule 7 was changed by the maintainer on 2026-11-10: Mody Cloud is run by a self-employed professional, not a non-profit association, so "fees equal real cost" no longer applies.
+These eight rules come from the briefing (§11) and apply to every change, human or agent. Rule 8 is a deliberate override of the briefing, which asked for Spanish, for the repository; since 2026-11-26 the product itself speaks Spanish by default. Rule 7 was changed by the maintainer on 2026-11-10: Mody Cloud is run by a self-employed professional, not a non-profit association, so "fees equal real cost" no longer applies.
 
 1. **Absolute sovereignty.** Nothing from Cloudflare, OpenAI, Google AI, AWS or Azure. All traffic and data stay in Europe or Switzerland. If a solution uses an American service, it is invalid.
 2. **Exact Gutenberg format.** Output is always serialized `<!-- wp:block -->` comments. Validate the inner JSON.
@@ -9,7 +9,7 @@ These eight rules come from the briefing (§11) and apply to every change, human
 5. **Simplicity.** If a solution takes more than 2 hours, propose a simpler alternative. Finishing beats perfecting.
 6. **Security.** Do not expose credentials or WordPress Application Passwords. Only the web tier is public, and any proxy admin panel is IP-restricted. Containers sit on an internal network. Sanitize wizard inputs.
 7. **Honest plans.** Prices are the published plans, the same for everyone, and every site gets the same features. Never use "unlimited": every limit is a real one (1 GB per site, Mody's tokens a month, the sites an account may have), set by what the servers can carry.
-8. **Language (override).** Everything is written in English: code, code comments, documentation, commit messages, prompts to the model and agent replies. The briefing's Spanish convention no longer applies.
+8. **Language (override).** What we write is in English: code, code comments, documentation, commit messages and prompts to the model. The briefing's Spanish convention no longer applies to the repository. What members and visitors read is in their language, **Spanish by default**: pages, wp-admin and every Mody screen, emails, and Mody's replies (which follow the language of the owner's last message). Narrowed by the maintainer on 2026-11-26 ([spanish-by-default.md](../tickets/spanish-by-default.md)): until then rule 8 also named agent replies, and members saw English.
 
 ## How the rules show up in the repository
 

@@ -18,5 +18,11 @@
 
 ## Open
 - **Cloudflare hides the email address** in the pages' HTML (its email obfuscation): visitors with JavaScript see it, a page read without JavaScript shows "[email protected]". Turn it off in Cloudflare (Scrape Shield) if the address must be readable everywhere.
-- **The pages in Spanish, German and Italian:** English only for now; the translated home pages link to them.
+- **The pages in Spanish (the default), Catalan and English** (2026-11-27, [spanish-by-default.md](spanish-by-default.md), Q3: "Write now for them to see"): Claude's texts, for the adviser's read. Words to look at first:
+  - the Catalan and English versions say the Spanish version prevails (an **Open question** for the adviser; "castellà" or "espanyol" in Catalan);
+  - "members" as `miembros` / `membres` (or `usuarios`); "live in Spain" as `residen en España` (a legal sense; `viven en` is looser);
+  - liability: `de forma intencionada o por negligencia grave` (or `dolo o culpa grave`); consumers may also go to the courts of their domicile;
+  - Mody Cloud as `encargado del tratamiento` (GDPR art. 28) for what members put on their sites;
+  - formal register (usted, vostè); section 4 titled `Baja y finalización del servicio`;
+  - the privacy page has no "Last updated" line (as before); the seller's address option is written in English ("Spain").
 - **To check:** whether Cloudflare and Wordfence (Defiant) are certified under the EU–US Data Privacy Framework (the privacy policy says "where the provider is certified, or standard contractual clauses").

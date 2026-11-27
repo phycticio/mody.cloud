@@ -29,7 +29,9 @@
  *    - With a fake update in the cache, the network Plugins screen shows no
  *      update notice and no update count.
  *
- * The update caches are put back at the end, and the member is removed.
+ * The update caches are put back at the end, and the member is removed. The
+ * super admin's own language is English during the run (the main site is
+ * Spanish, and the checks read WordPress's English words), then put back.
  * No model call, and no request to WordPress.org (one would mean a failure).
  */
 
@@ -76,6 +78,13 @@ $member = (int) wp_insert_user(
 add_user_to_blog( $site, $member, 'administrator' );
 $admins = get_super_admins();
 $super  = get_user_by( 'login', $admins[0] )->ID;
+
+// The screens speak the user's language, and the main site's is Spanish (tickets/spanish-by-default.md):
+// the checks below read English, so the super admin's language is English while this runs, restored at the end.
+$had_locale = metadata_exists( 'user', $super, 'locale' );
+$was_locale = get_user_meta( $super, 'locale', true );
+update_user_meta( $super, 'locale', 'en_US' );
+register_shutdown_function( static fn() => $had_locale ? update_user_meta( $super, 'locale', $was_locale ) : delete_user_meta( $super, 'locale' ) );
 
 // The update caches, put back at the end.
 $caches = array( 'update_core', 'update_plugins', 'update_themes' );

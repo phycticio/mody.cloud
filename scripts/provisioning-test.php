@@ -12,6 +12,8 @@
  * 3. A full run with a fake model answer: the site, its administrator, theme,
  *    tagline, profile, Global Styles, front page, template and the welcome
  *    email. Running it again changes nothing (offline).
+ *    A starter site (no model call) in a language: the owner's WordPress
+ *    language is the site's `WPLANG`, and its starter page is written in it.
  * 4. A run killed at each step, right after the step's side effects, then
  *    resumed: one site, one profile, one front page, one email, one model
  *    request (offline).
@@ -305,7 +307,20 @@ $check(
 );
 $admin_base = admin_url();
 $check( 'job recorded on the site', $job_id === (int) get_option( 'mody_provisioning_job' ) );
-$check( 'sample post and page removed', ! get_page_by_path( 'hello-world', OBJECT, 'post' ) && ! get_page_by_path( 'sample-page', OBJECT, 'page' ) );
+// WordPress's sample post and page are made in the network's language (hola-mundo and pagina-ejemplo when it is
+// Spanish): whatever their names, nothing but the generated front page is left.
+$left = array_map(
+	static fn( WP_Post $p ): string => $p->post_type . ':' . $p->post_name,
+	get_posts(
+		array(
+			'post_type'    => array( 'post', 'page' ),
+			'post_status'  => 'any',
+			'numberposts'  => -1,
+			'post__not_in' => array( (int) ( $job['result']['page_id'] ?? 0 ) ),
+		)
+	)
+);
+$check( 'sample post and page removed (any language): only the front page is left', ! $left, implode( ', ', $left ) );
 $check( 'Global Styles: the Forest preset', array_intersect_key( SiteDesign::colors(), Presets::colors( 'forest' ) ) == Presets::colors( 'forest' ), wp_json_encode( SiteDesign::colors() ) ); // phpcs:ignore Universal.Operators.StrictComparisons
 $check( '...the whole style, active as in the Site Editor (M2-06)', 'forest' === SiteDesign::active_preset() );
 $page_id = (int) ( $job['result']['page_id'] ?? 0 );
@@ -334,6 +349,60 @@ $again    = $run( $job_id );
 $check( 'running it again changes nothing', ! is_wp_error( $again ) && 'done' === $again['status'] && ! $requests && ! $mails && 1 === count( $sites_at( $slug ) ) );
 $out = $start( $member, array_merge( $valid, array( 'slug' => $slug ) ) );
 $check( 'the same address again is refused', is_wp_error( $out ) && isset( $out->get_error_data()['fields']['slug'] ), $message( $out ) );
+
+// 3b. A site's language ----------------------------------------------------------------
+
+// A new site starts in its owner's WordPress language (user meta `locale`: the language they signed up in,
+// tickets/spanish-by-default.md): Catalan as `ca`, English as an empty `WPLANG`, none: the network's own
+// default. The starter page's words are asked in the site's language. Starter sites make no model call.
+echo "\nA site's language (starter sites)\n";
+add_filter( 'mody_site_limit', $raise_limit, 10, 2 );
+$installed = get_available_languages();
+$network   = (string) get_site_option( 'WPLANG', '' );
+$spy_when  = array();
+$spy       = static function ( $translation, $text ) use ( &$spy_when ) {
+	if ( 'Our new website is on its way. Come back soon!' === $text ) {
+		$spy_when[] = get_locale();
+	}
+	return $translation;
+};
+add_filter( 'gettext_mody_cloud', $spy, 10, 2 );
+$cases = array(
+	'ca'    => array( 'ca', in_array( 'ca', $installed, true ) ? 'ca' : $network, in_array( 'ca', $installed, true ) ? 'ca' : ( '' !== $network ? $network : 'en_US' ) ),
+	'en'    => array( 'en_US', '', 'en_US' ),
+	'none'  => array( null, $network, '' !== $network ? $network : 'en_US' ),
+);
+foreach ( $cases as $name => list( $locale, $wplang, $words ) ) {
+	null === $locale ? delete_user_meta( $member, 'locale' ) : update_user_meta( $member, 'locale', $locale );
+	$slug     = $slugs( 'lang' . $name );
+	$job_id   = $start(
+		$member,
+		array(
+			'slug'    => $slug,
+			'title'   => 'Lengua ' . $name,
+			'starter' => true,
+		)
+	);
+	$fakes    = array();
+	$requests = array();
+	$spy_when = array();
+	$job      = $run( $job_id );
+	$fakes    = null;
+	$site_id  = is_array( $job ) ? (int) $job['site_id'] : 0;
+	$stored   = $site_id ? get_blog_option( $site_id, 'WPLANG' ) : false;
+	$check(
+		"owner's language " . ( null === $locale ? 'none' : $locale ) . ": the site's WPLANG is '" . $wplang . "'",
+		$site_id && ! is_wp_error( $job ) && 'done' === $job['status'] && $wplang === (string) $stored && $words === Pipeline::site_locale( $site_id ) && ! $requests,
+		$site_id ? var_export( $stored, true ) . ', words ' . Pipeline::site_locale( $site_id ) : $message( $job )
+	);
+	$check( '...its starter page asked for in ' . $words, array( $words ) === array_values( array_unique( $spy_when ) ), implode( ',', $spy_when ) );
+}
+remove_filter( 'gettext_mody_cloud', $spy, 10 );
+update_user_meta( $member, 'locale', 'xx_XX' );
+$unknown = Pipeline::language_option( $member );
+delete_user_meta( $member, 'locale' );
+$check( 'a language WordPress does not have is not kept (nor none): the network\'s default', array() === $unknown && array() === Pipeline::language_option( $member ) );
+remove_filter( 'mody_site_limit', $raise_limit, 10 );
 
 // 4. Killed and resumed -----------------------------------------------------------------
 

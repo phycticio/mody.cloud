@@ -158,9 +158,13 @@ $check( 'everyone: no link, a free account, nobody recorded', $open && Members::
 
 // The page and the REST check carry the code.
 update_site_option( Offers::OPTION, array( 'launch_who' => 'invited' ) );
-$page = static function ( array $get ): string {
+// The page in a language of the main site: English unless told, as these checks read English text (the
+// default language is Spanish since tickets/spanish-by-default.md; '' is the default).
+$page = static function ( array $get, string $locale = 'en_US' ): string {
 	$_GET = $get;
+	class_exists( \Mody\Languages\Router::class ) && \Mody\Languages\Router::set_current( $locale );
 	$html = Registration::render();
+	class_exists( \Mody\Languages\Router::class ) && \Mody\Languages\Router::set_current( '' );
 	$_GET = array();
 	return $html;
 };
@@ -171,6 +175,9 @@ $scripts = wp_scripts()->get_data( Registration::SCRIPT, 'before' );
 $check( 'the page with a link: the chat and the form carry the code', str_contains( $with, 'name="mody_ref" value="' . $code . '"' ) && str_contains( (string) wp_json_encode( $scripts ), $code ) );
 $check( '... without one (invited only): "by invitation", no form', str_contains( $without, 'by invitation' ) && ! str_contains( $without, 'mody-register-form' ) );
 $check( '... a wrong code: as without one', str_contains( $wrong, 'by invitation' ) && ! str_contains( $wrong, 'zzzzzzzzzz' ) );
+$closed_es = \Mody\Members\SignupLanguage::with( 'es_ES', static fn() => Members::free_closed_message() );
+$default   = $page( array(), '' );
+$check( '... and on the default page, in Spanish, the same: no form', 'es_ES' === \Mody\Members\SignupLanguage::of_page() && ! str_contains( $closed_es, 'by invitation' ) && str_contains( $default, esc_html( $closed_es ) ) && ! str_contains( $default, 'mody-register-form' ), $closed_es );
 $request = new WP_REST_Request( 'POST', '/mody-platform/v1/register/check' );
 $request->set_param( 'nonce', wp_create_nonce( Registration::ACTION ) );
 $denied = Registration::rest_permission( $request );

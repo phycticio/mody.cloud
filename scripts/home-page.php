@@ -583,7 +583,7 @@ $markup = <<<'HTML'
 
 <!-- wp:spectra/accordion-child-details {"style":{"spacing":{"padding":{"top":"0","right":"var:preset|spacing|40","bottom":"var:preset|spacing|30","left":"var:preset|spacing|40"}}}} -->
 <!-- wp:paragraph -->
-<p>As many as you need: add Spanish, German, Italian, French, Portuguese, Dutch or Catalan in Settings → Languages, and each page gets its translations, at addresses like /es/, with a language switcher next to your menu. Your editor is in English, and Mody writes in the language you write to it.</p>
+<p>As many as you need: your site starts in the language you sign up in, and you add English, Spanish, Catalan, French, German, Italian, Portuguese or Dutch in Settings → Languages. Each page gets its translations, at addresses like /en/, with a language switcher next to your menu. Mody writes in the language you write to it.</p>
 <!-- /wp:paragraph -->
 <!-- /wp:spectra/accordion-child-details -->
 <!-- /wp:spectra/accordion-child-item -->

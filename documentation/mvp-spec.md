@@ -19,7 +19,7 @@ A self-serve, European-sovereign WordPress Multisite platform:
 - Newsletter / Infomaniak sending caps (confirmed out of scope).
 - Dedicated VPS tier, analytics. (The space per site is enforced since 2026-11-11: 1 GB since 2026-11-13.)
 - A font step in the wizard (members install fonts in the Site Editor since M2-07); style variations beyond the six presets.
-- Multi-language UI (rule 8: English everywhere). Sites in several languages are a separate thing, decided 2026-11-10 (decision 12).
+- Multi-language UI (rule 8: English everywhere). Sites in several languages are a separate thing, decided 2026-11-10 (decision 12). **Superseded on 2026-11-26:** the screens are Spanish by default ([spanish-by-default.md](../tickets/spanish-by-default.md)).
 
 ## 2. Decisions recorded (2026-11-01 review)
 

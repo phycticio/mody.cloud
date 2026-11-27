@@ -12,18 +12,23 @@
  * 2. Nothing left in English: every text the signup asks WordPress to
  *    translate (the block, the chat's words, each answer's errors, the
  *    waits, the emails) has a translation in every language.
- * 3. The page's language: on /es/ the block and the chat speak Spanish and
- *    send `es_ES`; the default language and languages without files stay
- *    English.
+ * 3. The page's language: the main site is Spanish by default (Mody
+ *    Languages, tickets/spanish-by-default.md), so the page without a prefix
+ *    speaks Spanish and sends `es_ES`; /en/ gives English and /ca/ Catalan;
+ *    languages without files stay English.
  * 4. The chat's requests: their `lang` gives the answer's language (ours and
- *    core's words, plurals included), English afterwards; an unknown one is
- *    English.
+ *    core's words, plurals included), the site's own afterwards; an unknown
+ *    or missing one is English. While a language is in use WordPress's own
+ *    words follow it (switch_to_locale()): "Dashboard" is English in English
+ *    on the Spanish site, "Escritorio" in Spanish.
  * 5. The emails: the welcome email in the language in use, the member's own
- *    language first; work done after the response keeps the visitor's; a new
- *    account keeps its language only once WordPress has it installed.
+ *    language first (English chosen included); work done after the response
+ *    keeps the visitor's; a new account keeps the language it signs up in:
+ *    en_US for English, nothing when none is chosen or WordPress lacks it.
  *
- * Registration is opened for the run with a filter. A throwaway member is
- * made and removed; no site is created, no model call.
+ * Registration is opened for the run with filters (the network option and
+ * the Offers setting, whatever they are locally). A throwaway member is made
+ * and removed; no site is created, no model call.
  */
 
 use Mody\Members\Registration;
@@ -40,6 +45,12 @@ $check    = static function ( string $label, bool $ok, string $detail = '' ) use
 
 $open = static fn() => 1;
 add_filter( 'pre_site_option_mody_registration_open', $open );
+// Sign-ups open to everyone, whatever the Offers setting is on this install (it may be "invited people only").
+$everyone = static fn() => array(
+	'launch_who' => 'everyone',
+	'invites_on' => true,
+);
+add_filter( 'pre_site_option_' . \Mody\Members\Offers::OPTION, $everyone );
 if ( class_exists( RateLimit::class ) ) {
 	RateLimit::clear();
 }
@@ -95,13 +106,28 @@ register_shutdown_function(
 		}
 	}
 );
+// Switching WordPress's language (SignupLanguage does it) builds a WP_Locale (the weekdays, the months,
+// AM and PM) and labels the post types and taxonomies again: those words are core's, not the signup's,
+// so the texts asked for while the locale is switched are not collected.
 $asked = array();
-$ask   = static function ( $translation, $text, $domain ) use ( &$asked ) {
-	$asked[ $domain ][ $text ] = true;
+$in_locale = static function (): bool {
+	foreach ( debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS ) as $frame ) { // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace
+		if ( in_array( $frame['class'] ?? '', array( 'WP_Locale', 'WP_Locale_Switcher' ), true ) ) {
+			return true;
+		}
+	}
+	return false;
+};
+$ask   = static function ( $translation, $text, $domain ) use ( &$asked, $in_locale ) {
+	if ( ! isset( $asked[ $domain ][ $text ] ) && ! $in_locale() ) {
+		$asked[ $domain ][ $text ] = true;
+	}
 	return $translation;
 };
-$ask_n = static function ( $translation, $single, $plural, $number, $domain ) use ( &$asked ) {
-	$asked[ $domain ][ $single ] = true;
+$ask_n = static function ( $translation, $single, $plural, $number, $domain ) use ( &$asked, $in_locale ) {
+	if ( ! isset( $asked[ $domain ][ $single ] ) && ! $in_locale() ) {
+		$asked[ $domain ][ $single ] = true;
+	}
 	return $translation;
 };
 foreach ( array( 'mody_cloud', 'default' ) as $domain ) {
@@ -147,19 +173,34 @@ $mails = array();
 // 3. The page's language ----------------------------------------------------------------------------
 
 echo "\nThe page's language\n";
-$languages = class_exists( \Mody\Languages\Router::class ) && \Mody\Languages\Languages::is_other( 'es_ES' );
+$languages = class_exists( \Mody\Languages\Router::class ) && 'es_ES' === \Mody\Languages\Languages::default_locale() && \Mody\Languages\Languages::is_other( 'en_US' ) && \Mody\Languages\Languages::is_other( 'ca' );
 if ( ! $languages ) {
-	$check( 'the main site has Spanish (Mody Languages; scripts/home-page-translations.php)', false );
+	$check( 'the main site is Spanish, with English and Catalan (Mody Languages; scripts/home-page-translations.php)', false );
 } else {
-	\Mody\Languages\Router::set_current( 'es_ES' );
-	$check( 'on /es/ the page is Spanish', 'es_ES' === SignupLanguage::of_page() );
+	\Mody\Languages\Router::set_current( '' );
+	$check( 'the main site is Spanish by default, with English and Catalan', 'es_ES' === \Mody\Languages\Languages::default_locale() && 'es_ES' === get_locale() );
+	$check( 'the default page is Spanish', 'es_ES' === SignupLanguage::of_page() );
 	$html = Registration::render();
 	$check( '... the form speaks Spanish', str_contains( $html, 'Responde cuatro preguntas' ) && str_contains( $html, 'Vivo en España.' ) && ! str_contains( $html, 'Answer four quick questions' ) );
 	$data = implode( '', (array) wp_scripts()->get_data( 'mody-register', 'before' ) );
 	$check( '... the chat\'s words too, and it sends es_ES', str_contains( $data, '"lang":"es_ES"' ) && str_contains( $data, wp_json_encode( '¿Cómo te llamas?' ) ) );
-	$check( '... and English again after the block', '' === SignupLanguage::active() && 'Please enter your name.' === Registration::check( 'name', '' ) );
+	$check( '... and the site\'s own language again after the block (none chosen)', '' === SignupLanguage::active() && '' === SignupLanguage::for_account() && 'es_ES' === get_locale() );
+
+	\Mody\Languages\Router::set_current( 'en_US' );
+	$check( 'on /en/ the page is English', '' === SignupLanguage::of_page() );
+	$html = Registration::render();
+	$check( '... the form speaks English', str_contains( $html, 'Answer four quick questions' ) && ! str_contains( $html, 'Responde cuatro preguntas' ) );
+	$data = implode( '', (array) wp_scripts()->get_data( 'mody-register', 'before' ) );
+	$check( '... the chat sends no language (English), with its English words', str_contains( $data, '"lang":""' ) && str_contains( $data, wp_json_encode( 'What\'s your name?' ) ) );
+	$check( '... and Spanish, the site\'s own, again after the block', '' === SignupLanguage::active() && 'es_ES' === get_locale() );
+
+	\Mody\Languages\Router::set_current( 'ca' );
+	$check( 'on /ca/ the page is Catalan', 'ca' === SignupLanguage::of_page() );
+	$html = Registration::render();
+	$data = implode( '', (array) wp_scripts()->get_data( 'mody-register', 'before' ) );
+	$ask_name = SignupLanguage::with( 'ca', static fn() => __( 'What\'s your name?', 'mody_cloud' ) );
+	$check( '... the form and the chat speak Catalan, and it sends ca', 'What\'s your name?' !== $ask_name && str_contains( $data, wp_json_encode( $ask_name ) ) && ! str_contains( $html, 'Answer four quick questions' ) && str_contains( $data, '"lang":"ca"' ), $ask_name );
 	\Mody\Languages\Router::set_current( '' );
-	$check( 'the default language: English', '' === SignupLanguage::of_page() && str_contains( Registration::render(), 'Answer four quick questions' ) );
 }
 $check( 'a language without files is English', '' === SignupLanguage::supported( 'en_US' ) && '' === SignupLanguage::supported( 'xx_XX' ) && 'ca' === SignupLanguage::supported( 'ca' ) );
 
@@ -177,17 +218,38 @@ $ask_route = static function ( array $body ): array {
 wp_set_current_user( 0 );
 [ $status, $data ] = $ask_route( array( 'field' => 'name', 'value' => '', 'lang' => 'de_DE' ) );
 $check( 'a German request: the answer in German', 200 === $status && 'Bitte gib deinen Namen ein.' === ( $data['message'] ?? '' ), $data['message'] ?? (string) $status );
-$check( '... English again after it', '' === SignupLanguage::active() );
+$check( '... the site\'s own language again after it (none chosen)', '' === SignupLanguage::active() && '' === SignupLanguage::for_account() && 'es_ES' === get_locale() );
 [ $status, $data ] = $ask_route( array( 'field' => 'slug', 'value' => 'ab', 'lang' => 'it_IT' ) );
 $check( 'an Italian request: core\'s words too, with their plural', str_contains( (string) ( $data['message'] ?? '' ), 'almeno 4 caratteri' ), (string) ( $data['message'] ?? $status ) );
 [ $status, $data ] = $ask_route( array( 'field' => 'name', 'value' => '', 'lang' => 'xx_XX' ) );
 $check( 'an unknown language: English', 'Please enter your name.' === ( $data['message'] ?? '' ) );
+[ $status, $data ] = $ask_route( array( 'field' => 'name', 'value' => '' ) );
+$check( 'no language at all: English too, not the site\'s Spanish', 'Please enter your name.' === ( $data['message'] ?? '' ) );
 [ $status, $data ] = $ask_route( array( 'field' => 'name', 'value' => 'Lina', 'lang' => 'fr_FR', 'nonce' => 'expired' ) );
 $check( 'the permission check speaks it too (an expired page, in French)', 403 === $status && str_starts_with( (string) ( $data['message'] ?? '' ), 'Cette page a expiré' ), (string) ( $data['message'] ?? '' ) );
 $wait = SignupLanguage::with( 'de_DE', static fn() => RateLimit::message( 120 ) );
 $check( 'a wait in German: the plural', str_contains( $wait, 'in 2 Minuten' ), $wait );
 $wait = SignupLanguage::with( 'fr_FR', static fn() => RateLimit::message( 60 ) );
 $check( '... in French: one minute, singular', str_contains( $wait, 'dans 1 minute' ), $wait );
+
+// WordPress's own words follow the language in use (switch_to_locale()), whatever the site's is.
+echo "\nWordPress's own words\n";
+$is_installed = static fn( string $locale ): bool => in_array( $locale, get_available_languages(), true );
+$dashboard    = static fn(): string => __( 'Dashboard' ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own word.
+$check( 'the site\'s own language (none chosen): Spanish on the main site', 'es_ES' === get_locale() && 'Escritorio' === $dashboard(), get_locale() . ' ' . $dashboard() );
+SignupLanguage::use( '' );
+$check( 'English in use: "Dashboard" is English, the account keeps en_US', 'en_US' === get_locale() && 'Dashboard' === $dashboard() && 'en_US' === SignupLanguage::for_account(), get_locale() . ' ' . $dashboard() . ' ' . SignupLanguage::for_account() );
+SignupLanguage::use( 'es_ES' );
+$check( 'Spanish in use: "Dashboard" is "Escritorio", the account keeps es_ES', 'es_ES' === get_locale() && 'Escritorio' === $dashboard() && ( $is_installed( 'es_ES' ) ? 'es_ES' : '' ) === SignupLanguage::for_account(), get_locale() . ' ' . $dashboard() . ' ' . SignupLanguage::for_account() );
+SignupLanguage::use( 'ca' );
+$catalan = $dashboard();
+$check( 'Catalan in use: core speaks Catalan too, the account keeps ca', ( $is_installed( 'ca' ) ? 'ca' === get_locale() && 'Dashboard' !== $catalan && 'Escritorio' !== $catalan && 'ca' === SignupLanguage::for_account() : '' === SignupLanguage::for_account() ), get_locale() . ' ' . $catalan );
+SignupLanguage::use( 'fr_FR' );
+$check( 'French in use, not installed: core is English, not the site\'s Spanish; the account keeps nothing', ( $is_installed( 'fr_FR' ) || ( 'en_US' === get_locale() && 'Dashboard' === $dashboard() ) ) && ( $is_installed( 'fr_FR' ) ? 'fr_FR' : '' ) === SignupLanguage::for_account(), get_locale() . ' ' . $dashboard() );
+SignupLanguage::reset();
+$check( 'reset(): the site\'s own language again, nothing chosen', 'es_ES' === get_locale() && 'Escritorio' === $dashboard() && '' === SignupLanguage::for_account() && '' === SignupLanguage::active(), get_locale() . ' ' . $dashboard() );
+$nested = SignupLanguage::with( '', static fn() => array( $dashboard(), SignupLanguage::with( 'es_ES', $dashboard ), $dashboard() ) );
+$check( 'with(): the language only inside, and restored in order', array( 'Dashboard', 'Escritorio', 'Dashboard' ) === $nested && 'es_ES' === get_locale() && '' === SignupLanguage::for_account(), implode( ' | ', $nested ) );
 
 // 5. The emails ------------------------------------------------------------------------------------------
 
@@ -200,10 +262,14 @@ update_user_meta( $member, 'locale', 'ca' );
 $mails = array();
 SignupLanguage::with( 'es_ES', static fn() => Registration::send_welcome( get_userdata( $member ), 'Forn Lina', 'https://linabakery.mody.local/' ) );
 $check( '... the member\'s own language first (Catalan)', str_contains( (string) ( $mails[0]['subject'] ?? '' ), 'Et donem la benvinguda' ), (string) ( $mails[0]['subject'] ?? '' ) );
+update_user_meta( $member, 'locale', 'en_US' );
+$mails = array();
+SignupLanguage::with( 'es_ES', static fn() => Registration::send_welcome( get_userdata( $member ), 'Lina', 'https://linabakery.mody.local/' ) );
+$check( '... and English when it is theirs, whatever the request\'s language', 'Welcome to Mody Cloud: choose your password' === ( $mails[0]['subject'] ?? '' ) && '' === SignupLanguage::of_user( $member ), (string) ( $mails[0]['subject'] ?? '' ) );
 delete_user_meta( $member, 'locale' );
 $mails = array();
 Registration::send_welcome( get_userdata( $member ), 'Lina', 'https://linabakery.mody.local/' );
-$check( '... and English without one', 'Welcome to Mody Cloud: choose your password' === ( $mails[0]['subject'] ?? '' ) );
+$check( '... and English without one (none chosen)', 'Welcome to Mody Cloud: choose your password' === ( $mails[0]['subject'] ?? '' ) );
 
 // After the response: an email that already has an account gets its note in the visitor's language.
 RateLimit::clear();
@@ -217,10 +283,12 @@ Registration::run_later();
 $check( 'work done after the response keeps the visitor\'s language (Italian)', is_array( $answer ) && 0 === $sent_before && str_contains( (string) ( $mails[0]['subject'] ?? '' ), 'hai già un account' ), (string) ( $mails[0]['subject'] ?? 'no email' ) );
 $check( '... and nothing is left in Italian after it', '' === SignupLanguage::active() );
 
-$installed = in_array( 'es_ES', get_available_languages(), true );
-$keep      = SignupLanguage::with( 'es_ES', static fn() => SignupLanguage::for_account() );
-$check( 'a new account keeps the language only once WordPress has it installed', $installed ? 'es_ES' === $keep : '' === $keep, $installed ? 'es_ES installed' : 'es_ES not installed: nothing kept' );
+// A new account keeps the language it signs up in (user meta `locale`; Mody Sites gives its first site the same).
+$keep = static fn( string $locale ): string => SignupLanguage::with( $locale, static fn() => SignupLanguage::for_account() );
+$check( 'a new account keeps the language it signs up in: Spanish and Catalan (installed), English as en_US', ( $is_installed( 'es_ES' ) ? 'es_ES' : '' ) === $keep( 'es_ES' ) && ( $is_installed( 'ca' ) ? 'ca' : '' ) === $keep( 'ca' ) && 'en_US' === $keep( '' ), $keep( 'es_ES' ) . ' ' . $keep( 'ca' ) . ' ' . $keep( '' ) );
+$check( '... a language WordPress does not have gives nothing (the site\'s own); an unknown one is English; none chosen, nothing', ( $is_installed( 'fr_FR' ) ? 'fr_FR' : '' ) === $keep( 'fr_FR' ) && 'en_US' === $keep( 'xx_XX' ) && '' === SignupLanguage::for_account(), $keep( 'fr_FR' ) . '|' . $keep( 'xx_XX' ) . '|' . SignupLanguage::for_account() );
 
 RateLimit::clear();
 remove_filter( 'pre_site_option_mody_registration_open', $open );
+remove_filter( 'pre_site_option_' . \Mody\Members\Offers::OPTION, $everyone );
 echo $failures ? "\n$failures check(s) failed.\n" : "\nAll checks passed.\n";

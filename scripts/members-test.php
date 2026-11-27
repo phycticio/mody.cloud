@@ -50,6 +50,7 @@ $new    = static function ( string $login ) use ( $suffix ): int {
 			'user_email' => $login . $suffix . '@mody.local',
 			'user_pass'  => wp_generate_password( 24 ),
 			'role'       => '',
+			'locale'     => 'en_US', // The screens read below are English; the main site's default is Spanish (tickets/spanish-by-default.md).
 		)
 	);
 };

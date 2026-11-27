@@ -76,6 +76,11 @@ if ( ! class_exists( Downloads::class ) ) {
 
 global $wpdb;
 $entry_blog = get_current_blog_id();
+// English: the sizes and dates the panel writes follow WordPress's language (4.0 MB, 4,0 MB), and the emails'
+// "language of the site" is the one under test below, with Spanish as the other language. The network's
+// default is Spanish (tickets/spanish-by-default.md), so English is made explicit here and on the site made
+// below (WPLANG empty).
+switch_to_locale( 'en_US' );
 Jobs::install();
 // The pause between two copies (Panel::COOLDOWN, security pass 2026-11-12) is checked in scripts/security-isolation-test.php; here the presses follow each other.
 add_filter( 'mody_export_cooldown', '__return_zero' );
@@ -97,7 +102,7 @@ $editor = $new( 'exed', 'Eddie Editor' );
 $none   = $new( 'exnone', 'Nora Nobody' );
 $staff  = $new( 'exstaff', 'Pat Platform' ); // A super administrator with no role on the site.
 $main   = get_main_site_id();
-$site   = (int) wpmu_create_blog( 'exp' . $suffix . '.' . preg_replace( '/^www\./', '', get_network()->domain ), '/', 'Export test', $owner );
+$site   = (int) wpmu_create_blog( 'exp' . $suffix . '.' . preg_replace( '/^www\./', '', get_network()->domain ), '/', 'Export test', $owner, array( 'WPLANG' => '' ) );
 add_user_to_blog( $site, $second, 'administrator' );
 add_user_to_blog( $site, $editor, 'editor' );
 add_user_to_blog( $main, $owner, 'administrator' ); // An administrator of the main site too: still no export there.
@@ -681,7 +686,7 @@ restore_current_blog();
 $check( 'ready: the same from inside the site (the builder\'s context)', 1 === count( $mail ) && str_contains( (string) ( $mail[0]['message'] ?? '' ), 'section=export' ) );
 $check( 'the current site is back after the emails', get_current_blog_id() === $entry_blog, (string) get_current_blog_id() );
 // Each recipient reads their email in their own language (their profile's), not the asker's or the site's.
-// No language pack is installed here, so Spanish is made "available" to the switcher and the text is marked instead.
+// Spanish is made "available" to the switcher whether or not its pack is installed (app/web/languages/), and the text is marked instead.
 $switcher  = $GLOBALS['wp_locale_switcher'];
 $available = new ReflectionProperty( $switcher, 'available_languages' );
 $was       = $available->getValue( $switcher );

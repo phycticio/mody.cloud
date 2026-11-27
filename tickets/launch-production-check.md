@@ -37,3 +37,9 @@ Who does each step: **agent** (with the maintainer's go for anything on the serv
 - **3. Spain only:** on production, `Locator::locate()` places a Telefónica address in ES and Google's 8.8.8.8 in the US, so the signup refuses the second and accepts the first.
 - **7. The legal pages** for the free service published on 2026-11-20 at the maintainer's request ("publish the free version now"); the adviser's read comes after.
 - **Still the maintainer's:** 4 (a real signup from Spain: the email through Brevo, the tour, two requests to Mody), 5 (the restore's full-stack check), 6 (rotate the Composer credential). Q1 and Q2 below are answered by the health page, if its pull request is merged.
+
+**2026-11-26 (the maintainer):**
+- **4. A real signup, done:** a new member signed up on production, and their site `aliris.mody.cloud` was created and built with Mody. The member set their password from the welcome email, so mail through Brevo works.
+- **Two-step login:** the maintainer set up a security key and an authenticator app on production, and both work ([security-plugin-replaces-wordfence.md](security-plugin-replaces-wordfence.md), Results).
+- **5. The restore's full-stack check** may be done on the Mac: the drill's restore (`./bin/restore-drill --keep`) imported into the local stack, with the local `.env` (never the server's: it holds the Brevo and Proxy Manager keys) and the addresses moved to `mody.local`, then a member site opened in a browser ([backups.md](backups.md), Open).
+- **Still the maintainer's:** 5 and 6.

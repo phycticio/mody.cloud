@@ -145,10 +145,13 @@ $names_in  = static function ( string $markup ): array {
 	return $names;
 };
 
-$header = get_block_template( 'theme//header', 'wp_template_part' );
-$footer = get_block_template( 'theme//footer', 'wp_template_part' );
-$page   = get_block_template( 'theme//page', 'wp_template' );
-$index  = get_block_template( 'theme//index', 'wp_template' );
+// The theme's own templates, from its files: a site may have customized any of them in the Site Editor (the
+// main site's header has no title), and these checks are about the theme's layout and the agent's edits to it.
+$of_theme = static fn( string $id, string $type ): ?WP_Block_Template => get_block_file_template( $id, $type ) ?? get_block_template( $id, $type );
+$header   = $of_theme( 'theme//header', 'wp_template_part' );
+$footer   = $of_theme( 'theme//footer', 'wp_template_part' );
+$page     = $of_theme( 'theme//page', 'wp_template' );
+$index    = $of_theme( 'theme//index', 'wp_template' );
 $ctx    = static fn( WP_Block_Template $t ): array|null|WP_Error => EditorContext::from_input(
 	array(
 		'post_type' => $t->type,
@@ -174,7 +177,8 @@ $out             = BlockValidator::validate( $without_content, $page->content, t
 $check( 'an edit that drops post-content is refused', is_wp_error( $out ) && str_contains( $out->get_error_message(), 'core/post-content' ), $message( $out ) );
 $no_query = preg_replace( '#<!-- wp:query .*<!-- /wp:query -->#s', '', $index->content );
 $check( '...and one that drops the query loop', is_wp_error( BlockValidator::validate( $no_query, $index->content, true ) ) );
-$check( 'blocks outside both lists are refused', is_wp_error( BlockValidator::validate( $header->content . "\n\n<!-- wp:code -->\n<pre class=\"wp-block-code\"><code>x</code></pre>\n<!-- /wp:code -->", $header->content, true ) ) );
+// A block in neither list: core/code is a page block since 2026-11-11 (BlockValidator, part 8), custom HTML is not.
+$check( 'blocks outside both lists are refused', is_wp_error( BlockValidator::validate( $header->content . "\n\n<!-- wp:html -->\n<p>x</p>\n<!-- /wp:html -->", $header->content, true ) ) );
 
 // 2. EditorContext ----------------------------------------------------------------------------
 
